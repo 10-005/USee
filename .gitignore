@@ -1,0 +1,49 @@
+# =========================================
+# S15P31D106 루트 공통 .gitignore
+# 파트별 항목은 각 폴더(mobile/web/backend/ai)의 .gitignore에 작성
+# =========================================
+
+# ----- OS -----
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ----- IDE / Editor -----
+# JetBrains (IntelliJ, Android Studio, PyCharm, WebStorm)
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# VS Code (공유할 설정만 예외로 허용)
+.vscode/*
+!.vscode/extensions.json
+
+# Vim / Emacs
+*.swp
+*.swo
+\#*\#
+
+# ----- 환경 변수 / 비밀값 -----
+.env
+.env.*
+!.env.example
+
+# ----- 로그 / 임시 파일 -----
+*.log
+logs/
+*.tmp
+*.temp
+*.bak
