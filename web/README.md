@@ -33,3 +33,7 @@ src/
 의존 방향은 `app → pages → features → shared`로 유지합니다.
 `shared`는 상위 계층을 import하지 않습니다. 빈 기능 폴더나 가짜 API는 만들지 않습니다.
 루트 기준 import는 `@/` 별칭을 사용합니다. 정적 파일은 필요할 때 `public/`에 추가합니다.
+
+## 코드 검사
+
+`npm run lint`와 `npm run format:check`로 검사하고, `npm run format`으로 서식을 정리합니다.
