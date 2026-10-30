@@ -4,8 +4,11 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "ios": "react-native run-ios",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix --max-warnings=0",
     "start": "react-native start",
     "test": "jest",
     "typecheck": "tsc --noEmit"
