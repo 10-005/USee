@@ -2,21 +2,21 @@
 
 ## 1. 지원 범위
 
-| 구분 | 버전 |
-|---|---|
-| React Native | 0.88.1 |
-| Node.js | 24.18.0 권장 (`^22.13.0`, `^24.3.0`, `>=26.0.0` 지원) |
-| npm | 11.16.0 |
-| Java | JDK 21 |
-| Android | Android 7.0(API 24) 이상 |
-| Android compile SDK | API 37 |
-| Android target SDK | API 36 |
-| Android Build Tools | 37.0.0 |
-| Android NDK | 27.1.12297006 |
-| iOS | iOS 15.1 이상 |
-| Xcode | 16.1 이상 |
-| Ruby | 2.6.10 이상 |
-| CocoaPods | 1.13 이상(1.15.0, 1.15.1 제외) |
+| 구분                | 버전                                                  |
+| ------------------- | ----------------------------------------------------- |
+| React Native        | 0.88.1                                                |
+| Node.js             | 24.18.0 권장 (`^22.13.0`, `^24.3.0`, `>=26.0.0` 지원) |
+| npm                 | 11.16.0                                               |
+| Java                | JDK 21                                                |
+| Android             | Android 7.0(API 24) 이상                              |
+| Android compile SDK | API 37                                                |
+| Android target SDK  | API 36                                                |
+| Android Build Tools | 37.0.0                                                |
+| Android NDK         | 27.1.12297006                                         |
+| iOS                 | iOS 15.1 이상                                         |
+| Xcode               | 16.1 이상                                             |
+| Ruby                | 2.6.10 이상                                           |
+| CocoaPods           | 1.13 이상(1.15.0, 1.15.1 제외)                        |
 
 Node.js와 Java 버전은 각각 `.nvmrc`, `.java-version`에서 관리합니다.
 

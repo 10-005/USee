@@ -107,19 +107,19 @@ BiometricAuth.ios.ts        # iOS 구현
 
 ## 명명 기준
 
-| 대상 | 기준 | 예시 |
-|---|---|---|
-| React 컴포넌트 | PascalCase | `AnimalCard.tsx` |
-| 화면 | `이름Screen.tsx` | `HomeScreen.tsx` |
-| 커스텀 훅 | `use` + PascalCase | `useAnimalList.ts` |
-| 서비스 | camelCase + 역할 | `animalApi.ts` |
-| 타입 파일 | camelCase + `.types` | `animal.types.ts` |
-| 상수 파일 | camelCase | `storageKeys.ts` |
-| 유틸리티 | camelCase | `formatDate.ts` |
-| 테스트 | 대상 이름 + `.test` | `AnimalCard.test.tsx` |
-| 스타일 | 대상 이름 + `.styles` | `AnimalCard.styles.ts` |
-| 에셋 | kebab-case | `empty-animal-list.png` |
-| 폴더 | 역할에 따라 PascalCase 또는 소문자 | `AnimalCard`, `services` |
+| 대상           | 기준                               | 예시                     |
+| -------------- | ---------------------------------- | ------------------------ |
+| React 컴포넌트 | PascalCase                         | `AnimalCard.tsx`         |
+| 화면           | `이름Screen.tsx`                   | `HomeScreen.tsx`         |
+| 커스텀 훅      | `use` + PascalCase                 | `useAnimalList.ts`       |
+| 서비스         | camelCase + 역할                   | `animalApi.ts`           |
+| 타입 파일      | camelCase + `.types`               | `animal.types.ts`        |
+| 상수 파일      | camelCase                          | `storageKeys.ts`         |
+| 유틸리티       | camelCase                          | `formatDate.ts`          |
+| 테스트         | 대상 이름 + `.test`                | `AnimalCard.test.tsx`    |
+| 스타일         | 대상 이름 + `.styles`              | `AnimalCard.styles.ts`   |
+| 에셋           | kebab-case                         | `empty-animal-list.png`  |
+| 폴더           | 역할에 따라 PascalCase 또는 소문자 | `AnimalCard`, `services` |
 
 ## import와 공개 범위
 
