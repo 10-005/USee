@@ -37,3 +37,7 @@ src/
 ## 코드 검사
 
 `npm run lint`와 `npm run format:check`로 검사하고, `npm run format`으로 서식을 정리합니다.
+
+## 공통 UI
+
+공통 Button 및 CSS 토큰·반응형 기본 스타일을 제공합니다. 최종 Figma 디자인 반영 전의 초기 기반입니다.
