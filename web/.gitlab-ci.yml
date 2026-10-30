@@ -1,0 +1,22 @@
+# 루트 .gitlab-ci.yml에서 include해야 실행됩니다. 루트 파일은 작업 범위 밖이므로 수정하지 않습니다.
+web-check:
+  image: node:24-bookworm-slim
+  stage: test
+  rules:
+    - changes:
+        - web/**/*
+  cache:
+    key:
+      files:
+        - web/package-lock.json
+    paths:
+      - web/.npm/
+  before_script:
+    - cd web
+    - npm ci --cache .npm --prefer-offline
+  script:
+    - npm run check
+  artifacts:
+    paths:
+      - web/dist/
+    expire_in: 7 days
