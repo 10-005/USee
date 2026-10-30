@@ -46,3 +46,8 @@ src/
 
 서버 데이터는 TanStack Query, 공유 UI 상태는 Zustand, 화면 내부 상태는 React useState로 관리합니다.
 서버 응답을 Zustand로 복제하거나 인증 토큰을 영속 저장하지 않습니다.
+
+## 라우팅
+
+홈과 404 라우트를 제공합니다. 메뉴 탐색과 홈 복귀 동작은 `npm test`로 검증합니다.
+운영 서버는 API 및 정적 파일을 제외한 화면 경로를 index.html로 fallback해야 합니다.

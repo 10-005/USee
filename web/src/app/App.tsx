@@ -1,3 +1,15 @@
+import { Route, Routes } from 'react-router';
+import { AppLayout } from '@/app/layouts/AppLayout';
+import { HomePage } from '@/pages/home/HomePage';
+import { NotFoundPage } from '@/pages/not-found/NotFoundPage';
+
 export function App() {
-  return <h1>서비스 준비 중입니다</h1>;
+  return (
+    <Routes>
+      <Route element={<AppLayout />}>
+        <Route index element={<HomePage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
+    </Routes>
+  );
 }
