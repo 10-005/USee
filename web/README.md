@@ -77,3 +77,20 @@ TypeScript strict 및 `noUncheckedIndexedAccess`를 사용합니다. `any` 대�
 Prettier 규칙은 2칸 들여쓰기, 작은따옴표, 세미콜론, LF입니다.
 웹·모바일 공통 적용은 모바일 담당자 검토가 필요하며 이 변경은 `web/`에만 적용됩니다.
 Git 협업은 루트의 `docs/CONVENTION.md`를 따릅니다.
+
+## API 사용
+
+```ts
+import { requestJson } from '@/shared/api/client';
+import type { ApiSuccess } from '@/shared/api/contracts';
+
+// 실제 엔드포인트가 확정된 뒤 사용합니다. 아래는 형태를 보여 주는 예시입니다.
+const result = await requestJson<ApiSuccess<{ id: string }>>('/items/1', { signal });
+// 204/빈 응답은 undefined이므로 명시적으로 처리합니다.
+```
+
+JSON 응답은 원문 그대로 반환하며 `data`를 자동으로 추출하지 않습니다.
+HTTP 실패는 `ApiError`의 `status`와 `body`로 확인합니다. 네트워크·취소·타임아웃 오류는 원래 오류를 유지합니다.
+성공 응답이 JSON이 아니면 명확한 오류를 발생시킵니다. 제네릭 타입은 런타임 검증이 아니므로
+외부 데이터 검증이 필요한 기능에서는 스키마 검증을 추가하세요.
+공통 계약은 [API 제안안](docs/API_CONTRACT.md)을 참고하세요.
