@@ -13,3 +13,23 @@ npm ci
 npm run dev
 npm run build
 ```
+
+## 디렉터리와 의존 방향
+
+```text
+src/
+  app/                 # 앱 진입 구성, provider, 라우팅, 공통 레이아웃
+  pages/               # URL 단위 화면
+  shared/
+    api/               # HTTP 클라이언트와 공통 계약 제안 타입
+    config/            # 환경 변수 읽기 및 검증
+    model/             # 전역 UI 상태
+    styles/            # CSS 토큰과 기본 스타일
+    ui/                # 공통 UI 구성 요소
+  test/                # 테스트 공통 설정
+```
+
+기능이 생기면 `src/features/<기능명>/`에 해당 기능의 API·모델·UI를 모읍니다.
+의존 방향은 `app → pages → features → shared`로 유지합니다.
+`shared`는 상위 계층을 import하지 않습니다. 빈 기능 폴더나 가짜 API는 만들지 않습니다.
+루트 기준 import는 `@/` 별칭을 사용합니다. 정적 파일은 필요할 때 `public/`에 추가합니다.
