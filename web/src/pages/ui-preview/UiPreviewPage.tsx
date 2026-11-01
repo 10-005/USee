@@ -5,6 +5,7 @@ import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { StatCard } from '@/shared/ui/StatCard';
 import { ActivityCard } from '@/shared/ui/ActivityCard';
 import './ui-preview.css';
+import { TableModalPreview } from './TableModalPreview';
 
 export function UiPreviewPage() {
   const [message, setMessage] = useState('');
@@ -12,6 +13,7 @@ export function UiPreviewPage() {
     <main className="ui-preview">
       <h1>공통 컴포넌트</h1>
       <p>Figma 보호소 웹 기본 UI · 미리보기용 데이터</p>
+      <TableModalPreview />
       <section aria-label="버튼" className="ui-preview__row">
         <Button size="large" onClick={() => setMessage('로그인 버튼 선택')}>
           로그인
