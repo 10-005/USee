@@ -47,3 +47,4 @@ logs/
 *.tmp
 *.temp
 *.bak
+.claude/settings.local.json
