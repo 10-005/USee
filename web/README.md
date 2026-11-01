@@ -41,3 +41,8 @@ src/
 ## 공통 UI
 
 공통 Button 및 CSS 토큰·반응형 기본 스타일을 제공합니다. 최종 Figma 디자인 반영 전의 초기 기반입니다.
+
+## 상태 관리
+
+서버 데이터는 TanStack Query, 공유 UI 상태는 Zustand, 화면 내부 상태는 React useState로 관리합니다.
+서버 응답을 Zustand로 복제하거나 인증 토큰을 영속 저장하지 않습니다.
