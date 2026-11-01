@@ -54,7 +54,7 @@ docker build -f core-api/Dockerfile -t core-api .
 
 ```text
 com.ssafy.animal.core.{도메인}
-├── domain                       # JPA 엔티티 = 도메인 모델, 도메인 이벤트
+├── domain                       # JPA 엔티티 = 도메인 모델, 도메인 이벤트, {도메인}ErrorCode
 ├── application
 │   ├── port
 │   │   ├── in                   # 유스케이스 인터페이스, Command
@@ -71,6 +71,7 @@ com.ssafy.animal.core.{도메인}
 - 서비스는 `port/out` 인터페이스에만 의존한다. 저장소는 `adapter/out/persistence`에서 `JpaRepository`에 위임하고, 복잡한 조회는 QueryDSL(`Q{엔티티}`)로 작성한다.
 - MQ, S3, FCM, ai-matching, 다른 서비스 호출 같은 외부 기술은 반드시 `port/out` + `adapter/out`으로 격리한다.
 - 이벤트 발행은 `common`의 `EventPublisher` 포트를 쓴다. MQ가 정해지기 전까지는 로그만 남기는 `LoggingEventAdapter`가 등록되며, MQ 어댑터를 빈으로 등록하면 대체된다.
+- 도메인 에러 코드는 `domain` 패키지에 `ErrorCode`를 구현하는 enum으로 만든다(`{도메인}_상황`, 예: `SampleErrorCode.SAMPLE_NOT_FOUND`). common에는 `ErrorCode` 인터페이스와 공통 코드(`CommonErrorCode`)만 둔다.
 - 엔티티는 `BaseTimeEntity`를 상속해 `regDttm`/`modDttm`을 갖는다. ID 필드는 `{엔티티}Seq`.
 - Kotlin에서 `in`은 키워드라 패키지 선언에 백틱이 필요하다: ``package ...port.`in` ``
 
@@ -91,7 +92,8 @@ com.ssafy.animal.core.{도메인}
 
 ### 예외
 
-- 서비스에서는 `throw BusinessException(ErrorCode.XXX)`만 사용한다. 새 에러 코드는 `ErrorCode`에 `도메인_상황` 형식으로 추가한다.
+- 서비스에서는 `throw BusinessException(SampleErrorCode.SAMPLE_NOT_FOUND)`처럼 `ErrorCode` 구현체만 던진다. 응답 `code`는 enum 상수 이름, HTTP 상태와 기본 메시지는 enum 값에서 가져온다.
+- 공통 코드(`CommonErrorCode`): `COMMON_INVALID_INPUT`, `COMMON_INVALID_JSON`, `AUTH_UNAUTHORIZED`, `AUTH_TOKEN_EXPIRED`, `AUTH_TOKEN_INVALID`, `AUTH_FORBIDDEN`, `COMMON_NOT_FOUND`, `COMMON_METHOD_NOT_ALLOWED`, `COMMON_INTERNAL_ERROR`, `COMMON_SERVICE_UNAVAILABLE`
 - 실패 응답은 `data: null`, `errors: [{ field, reason }]`. 500은 내부 메시지를 노출하지 않는다.
 
 ### 인증

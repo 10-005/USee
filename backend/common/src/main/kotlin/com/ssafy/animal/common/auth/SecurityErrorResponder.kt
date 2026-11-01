@@ -1,5 +1,6 @@
 package com.ssafy.animal.common.auth
 
+import com.ssafy.animal.common.exception.CommonErrorCode
 import com.ssafy.animal.common.exception.ErrorCode
 import com.ssafy.animal.common.response.ApiResponse
 import jakarta.servlet.http.HttpServletRequest
@@ -18,12 +19,12 @@ class SecurityErrorResponder(
 
     override fun commence(request: HttpServletRequest, response: HttpServletResponse, e: AuthenticationException) {
         val errorCode = request.getAttribute(JwtAuthenticationFilter.AUTH_ERROR_ATTRIBUTE) as? ErrorCode
-            ?: ErrorCode.AUTH_UNAUTHORIZED
+            ?: CommonErrorCode.AUTH_UNAUTHORIZED
         write(response, errorCode)
     }
 
     override fun handle(request: HttpServletRequest, response: HttpServletResponse, e: AccessDeniedException) =
-        write(response, ErrorCode.AUTH_FORBIDDEN)
+        write(response, CommonErrorCode.AUTH_FORBIDDEN)
 
     private fun write(response: HttpServletResponse, errorCode: ErrorCode) {
         response.status = errorCode.status.value()

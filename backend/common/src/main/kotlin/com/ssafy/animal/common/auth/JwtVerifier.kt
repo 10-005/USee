@@ -1,7 +1,7 @@
 package com.ssafy.animal.common.auth
 
 import com.ssafy.animal.common.exception.BusinessException
-import com.ssafy.animal.common.exception.ErrorCode
+import com.ssafy.animal.common.exception.CommonErrorCode
 import io.jsonwebtoken.ExpiredJwtException
 import io.jsonwebtoken.JwtException
 import io.jsonwebtoken.Jwts
@@ -19,13 +19,13 @@ class JwtVerifier(publicKey: String) {
         val jws = try {
             parser.parseSignedClaims(token)
         } catch (e: ExpiredJwtException) {
-            throw BusinessException(ErrorCode.AUTH_TOKEN_EXPIRED)
+            throw BusinessException(CommonErrorCode.AUTH_TOKEN_EXPIRED)
         } catch (e: JwtException) {
-            throw BusinessException(ErrorCode.AUTH_TOKEN_INVALID)
+            throw BusinessException(CommonErrorCode.AUTH_TOKEN_INVALID)
         } catch (e: IllegalArgumentException) {
-            throw BusinessException(ErrorCode.AUTH_TOKEN_INVALID)
+            throw BusinessException(CommonErrorCode.AUTH_TOKEN_INVALID)
         }
-        if (jws.header.algorithm != "RS256") throw BusinessException(ErrorCode.AUTH_TOKEN_INVALID)
+        if (jws.header.algorithm != "RS256") throw BusinessException(CommonErrorCode.AUTH_TOKEN_INVALID)
 
         val claims = jws.payload
         val user = try {
@@ -35,9 +35,9 @@ class JwtVerifier(publicKey: String) {
                 shelterSeq = (claims["shelterSeq"] as Number?)?.toLong(),
             )
         } catch (e: RuntimeException) {
-            throw BusinessException(ErrorCode.AUTH_TOKEN_INVALID)
+            throw BusinessException(CommonErrorCode.AUTH_TOKEN_INVALID)
         }
-        if (user.role == Role.SHELTER && user.shelterSeq == null) throw BusinessException(ErrorCode.AUTH_TOKEN_INVALID)
+        if (user.role == Role.SHELTER && user.shelterSeq == null) throw BusinessException(CommonErrorCode.AUTH_TOKEN_INVALID)
         return user
     }
 

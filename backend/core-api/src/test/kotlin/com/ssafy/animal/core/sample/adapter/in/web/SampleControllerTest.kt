@@ -2,10 +2,10 @@ package com.ssafy.animal.core.sample.adapter.`in`.web
 
 import com.ssafy.animal.common.config.CommonWebAutoConfiguration
 import com.ssafy.animal.common.exception.BusinessException
-import com.ssafy.animal.common.exception.ErrorCode
 import com.ssafy.animal.core.sample.application.port.`in`.CreateSampleCommand
 import com.ssafy.animal.core.sample.application.port.`in`.SampleUseCase
 import com.ssafy.animal.core.sample.domain.Sample
+import com.ssafy.animal.core.sample.domain.SampleErrorCode
 import io.jsonwebtoken.Jwts
 import org.hamcrest.Matchers.nullValue
 import org.junit.jupiter.api.Test
@@ -118,15 +118,16 @@ class SampleControllerTest {
     }
 
     @Test
-    fun `BusinessException은 ErrorCode의 상태와 코드로 응답`() {
-        willThrow(BusinessException(ErrorCode.COMMON_NOT_FOUND)).given(sampleUseCase).get(99L)
+    fun `도메인 ErrorCode로 던진 BusinessException은 해당 상태와 코드로 응답`() {
+        willThrow(BusinessException(SampleErrorCode.SAMPLE_NOT_FOUND)).given(sampleUseCase).get(99L)
 
         mockMvc.get("/api/core/v1/samples/99") {
             header(HttpHeaders.AUTHORIZATION, bearer())
         }.andExpect {
             status { isNotFound() }
             jsonPath("$.status") { value(404) }
-            jsonPath("$.code") { value("COMMON_NOT_FOUND") }
+            jsonPath("$.code") { value("SAMPLE_NOT_FOUND") }
+            jsonPath("$.message") { value("샘플을 찾을 수 없습니다.") }
         }
     }
 

@@ -1,7 +1,7 @@
 package com.ssafy.animal.common.auth
 
 import com.ssafy.animal.common.exception.BusinessException
-import com.ssafy.animal.common.exception.ErrorCode
+import com.ssafy.animal.common.exception.CommonErrorCode
 import org.springframework.http.HttpHeaders
 import org.springframework.messaging.Message
 import org.springframework.messaging.MessageChannel
@@ -21,7 +21,7 @@ class StompAuthChannelInterceptor(
             val token = accessor.getFirstNativeHeader(HttpHeaders.AUTHORIZATION)
                 ?.takeIf { it.startsWith(JwtAuthenticationFilter.BEARER_PREFIX) }
                 ?.substring(JwtAuthenticationFilter.BEARER_PREFIX.length)
-                ?: throw BusinessException(ErrorCode.AUTH_UNAUTHORIZED)
+                ?: throw BusinessException(CommonErrorCode.AUTH_UNAUTHORIZED)
             accessor.user = jwtVerifier.verify(token).toAuthentication()
         }
         return message
