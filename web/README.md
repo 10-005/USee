@@ -67,3 +67,13 @@ Vite의 `VITE_` 변수는 브라우저 번들에 공개되고 빌드 시 결정�
 requestJson은 JSON 응답 원문을 반환하며 빈 응답은 undefined로 처리합니다.
 HTTP 오류는 ApiError의 status와 body로 확인합니다. 요청 취소와 타임아웃을 지원합니다.
 실제 백엔드 주소와 CORS 및 인증 정책은 팀 합의 후 연결해야 합니다.
+
+## 코드 컨벤션
+
+TypeScript strict 및 `noUncheckedIndexedAccess`를 사용합니다. `any` 대신 `unknown`과 타입 좁히기를 사용합니다.
+컴포넌트/타입은 PascalCase, 변수/함수는 camelCase, hook은 `use` 접두사를 사용합니다.
+컴포넌트 파일은 PascalCase, 일반 모듈·폴더는 kebab-case를 사용합니다.
+타입은 `import type`, 컴포넌트는 named export를 사용합니다.
+Prettier 규칙은 2칸 들여쓰기, 작은따옴표, 세미콜론, LF입니다.
+웹·모바일 공통 적용은 모바일 담당자 검토가 필요하며 이 변경은 `web/`에만 적용됩니다.
+Git 협업은 루트의 `docs/CONVENTION.md`를 따릅니다.
