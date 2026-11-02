@@ -2,6 +2,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { HomeScreen } from '../../screens/Home/HomeScreen';
+import { MockAdoptionActivityScreen } from '../../screens/MockAdoption/MockAdoptionActivityScreen';
 import { ArWalkScreen } from '../../screens/ArWalk/ArWalkScreen';
 import { AdoptionApplicationScreen } from '../../screens/adoption/AdoptionApplicationScreen';
 import { AdoptionApplicationHistoryScreen } from '../../screens/adoption/AdoptionApplicationHistoryScreen';
@@ -18,6 +19,7 @@ export function RootNavigator() {
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="MockAdoptionActivity" component={MockAdoptionActivityScreen} />
         <Stack.Screen
           name="ArWalk"
           component={ArWalkScreen}
