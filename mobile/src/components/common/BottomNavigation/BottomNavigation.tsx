@@ -1,0 +1,149 @@
+import { Fragment, type ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { colors, spacing, typography } from '../../../theme';
+
+export type BottomNavigationItem<Key extends string = string> = {
+  icon: (selected: boolean) => ReactNode;
+  key: Key;
+  label: string;
+};
+
+type BottomNavigationProps<Key extends string> = {
+  centerAction?: {
+    accessibilityLabel: string;
+    icon: ReactNode;
+    onPress: () => void;
+    label?: string;
+    selected?: boolean;
+  };
+  items: readonly BottomNavigationItem<Key>[];
+  onSelect: (key: Key) => void;
+  selectedKey: Key;
+};
+
+export function BottomNavigation<Key extends string>({
+  centerAction,
+  items,
+  onSelect,
+  selectedKey,
+}: BottomNavigationProps<Key>) {
+  const centerIndex = Math.ceil(items.length / 2);
+
+  return (
+    <View accessibilityRole="tablist" style={styles.container}>
+      {items.map((item, index) => {
+        const selected = item.key === selectedKey;
+
+        return (
+          <Fragment key={item.key}>
+            {centerAction && index === centerIndex ? (
+              <View style={styles.centerSlot}>
+                <Pressable
+                  accessibilityLabel={centerAction.accessibilityLabel}
+                  accessibilityRole={centerAction.selected === undefined ? 'button' : 'tab'}
+                  accessibilityState={
+                    centerAction.selected === undefined
+                      ? undefined
+                      : { selected: centerAction.selected }
+                  }
+                  onPress={centerAction.onPress}
+                  style={({ pressed }) => [
+                    centerAction.label ? styles.centerTab : styles.centerButton,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  {centerAction.label ? (
+                    <>
+                      <View style={styles.centerTabIcon}>{centerAction.icon}</View>
+                      <Text style={[styles.label, centerAction.selected && styles.selectedLabel]}>
+                        {centerAction.label}
+                      </Text>
+                    </>
+                  ) : (
+                    centerAction.icon
+                  )}
+                </Pressable>
+              </View>
+            ) : null}
+            <View style={styles.itemSlot}>
+              <Pressable
+                accessibilityLabel={item.label}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                onPress={() => onSelect(item.key)}
+                style={({ pressed }) => [styles.item, pressed && styles.pressed]}
+              >
+                <View style={styles.icon}>{item.icon(selected)}</View>
+                <Text style={[styles.label, selected && styles.selectedLabel]}>{item.label}</Text>
+              </Pressable>
+            </View>
+          </Fragment>
+        );
+      })}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(247, 246, 242, 0.6)',
+    borderRadius: 28,
+    boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.15)',
+    flexDirection: 'row',
+    height: 60,
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing[8],
+    paddingVertical: spacing[4],
+  },
+  itemSlot: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 56,
+  },
+  item: {
+    alignItems: 'center',
+    gap: spacing[2],
+    justifyContent: 'center',
+    width: 56,
+  },
+  icon: {
+    alignItems: 'center',
+    height: 24,
+    justifyContent: 'center',
+    width: 24,
+  },
+  label: {
+    ...typography.captionSemiBold12,
+    color: '#777671',
+  },
+  selectedLabel: {
+    color: colors.green100,
+  },
+  centerButton: {
+    alignItems: 'center',
+    backgroundColor: colors.green400,
+    borderRadius: 25,
+    height: 50,
+    justifyContent: 'center',
+    width: 50,
+  },
+  centerSlot: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 50,
+  },
+  centerTab: { alignItems: 'center', gap: spacing[2], justifyContent: 'center' },
+  centerTabIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.green400,
+    borderRadius: 18,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+});

@@ -1,4 +1,7 @@
 export type RootStackParamList = {
-  Home: undefined;
   ArWalk: undefined;
+  AdoptionApplication: undefined;
+  AdoptionDetail: { animalId: string };
+  Home: undefined;
+  ShelterDetail: { shelterId: string };
 };
