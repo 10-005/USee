@@ -1,5 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useState } from 'react';
+import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { Fragment, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -15,11 +16,16 @@ type FormState = {
   housing: string;
   petAllowed: string;
   cohabitant: string;
+  cohabitantConsent: string;
   primaryCaretaker: string;
   livingSpace: string;
   aloneTime: string;
   currentPets: string;
+  currentPetDetails: string;
+  integrationPlan: string;
   pastExperience: string;
+  pastAnimal: string;
+  pastReason: string;
   emergencyPlan: string;
   alternativeCare: string;
   motivation: string;
@@ -27,9 +33,16 @@ type FormState = {
   medicalPlan: string;
   changePlan: string;
   education: string;
+  educationInstitution: string;
+  educationCourse: string;
+  educationDate: string;
   consentHealth: boolean;
   consentResponsibility: boolean;
   consentCost: boolean;
+  consentLostPrevention: boolean;
+  consentNoCommercialUse: boolean;
+  consentInformationCheck: boolean;
+  consentBudget: boolean;
   consentAdaptation: boolean;
   consentVisit: boolean;
   consentReturn: boolean;
@@ -45,11 +58,16 @@ const initialForm: FormState = {
   housing: '',
   petAllowed: '',
   cohabitant: '',
+  cohabitantConsent: '',
   primaryCaretaker: '',
   livingSpace: '',
   aloneTime: '',
   currentPets: '',
+  currentPetDetails: '',
+  integrationPlan: '',
   pastExperience: '',
+  pastAnimal: '',
+  pastReason: '',
   emergencyPlan: '',
   alternativeCare: '',
   motivation: '',
@@ -57,9 +75,16 @@ const initialForm: FormState = {
   medicalPlan: '',
   changePlan: '',
   education: '',
+  educationInstitution: '',
+  educationCourse: '',
+  educationDate: '',
   consentHealth: false,
   consentResponsibility: false,
   consentCost: false,
+  consentLostPrevention: false,
+  consentNoCommercialUse: false,
+  consentInformationCheck: false,
+  consentBudget: false,
   consentAdaptation: false,
   consentVisit: false,
   consentReturn: false,
@@ -75,7 +100,7 @@ export function isAdoptionStepValid(form: FormState, step: number) {
     return Boolean(form.address && form.visitDate);
   }
   if (step === 2) {
-    return Boolean(
+    const baseValid = Boolean(
       form.housing &&
         form.petAllowed &&
         form.cohabitant &&
@@ -87,16 +112,30 @@ export function isAdoptionStepValid(form: FormState, step: number) {
         form.emergencyPlan &&
         form.alternativeCare,
     );
+    const cohabitantValid = form.cohabitant !== '있음' || Boolean(form.cohabitantConsent);
+    const currentPetsValid =
+      form.currentPets !== '있음' || Boolean(form.currentPetDetails && form.integrationPlan);
+    const pastExperienceValid =
+      form.pastExperience !== '있음' || Boolean(form.pastAnimal && form.pastReason);
+    return baseValid && cohabitantValid && currentPetsValid && pastExperienceValid;
   }
   if (step === 3) {
-    return Boolean(
+    const baseValid = Boolean(
       form.motivation && form.dailyPlan && form.medicalPlan && form.changePlan && form.education,
     );
+    const educationValid =
+      form.education !== '이수' ||
+      Boolean(form.educationInstitution && form.educationCourse && form.educationDate);
+    return baseValid && educationValid;
   }
   return (
     form.consentHealth &&
     form.consentResponsibility &&
     form.consentCost &&
+    form.consentLostPrevention &&
+    form.consentNoCommercialUse &&
+    form.consentInformationCheck &&
+    form.consentBudget &&
     form.consentAdaptation &&
     form.consentVisit &&
     form.consentReturn &&
@@ -124,7 +163,11 @@ function ChoiceGroup({
         <Pressable
           key={option}
           onPress={() => onChange(option)}
-          style={[styles.choice, value === option && styles.choiceSelected]}
+          style={[
+            styles.choice,
+            options.length === 3 ? styles.choiceThird : styles.choiceHalf,
+            value === option && styles.choiceSelected,
+          ]}
         >
           <Text style={[styles.choiceText, value === option && styles.choiceTextSelected]}>
             {option}
@@ -132,6 +175,33 @@ function ChoiceGroup({
         </Pressable>
       ))}
     </View>
+  );
+}
+
+function CalendarField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const openCalendar = () => {
+    DateTimePickerAndroid.open({
+      value: value ? new Date(value.replaceAll('.', '-')) : new Date(),
+      mode: 'date',
+      minimumDate: new Date(),
+      onChange: (_event, selectedDate) => {
+        if (selectedDate) {
+          const year = selectedDate.getFullYear();
+          const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+          const day = String(selectedDate.getDate()).padStart(2, '0');
+          onChange(`${year}.${month}.${day}`);
+        }
+      },
+    });
+  };
+
+  return (
+    <Pressable accessibilityRole="button" onPress={openCalendar} style={styles.calendarField}>
+      <Text style={[styles.calendarText, !value && styles.placeholder]}>
+        {value || '날짜를 선택해 주세요'}
+      </Text>
+      <Text style={styles.calendarIcon}>▣</Text>
+    </Pressable>
   );
 }
 
@@ -202,9 +272,10 @@ export function AdoptionApplicationScreen({ navigation }: Props) {
       setError('입력 확인이 완료되었습니다. 제출은 API 연동 후 제공됩니다.');
     }
   };
+  const canContinue = isAdoptionStepValid(form, step);
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
       <AppHeader
         onBackPress={step === 1 ? navigation.goBack : () => setStep(current => current - 1)}
         title="입양 신청"
@@ -231,7 +302,11 @@ export function AdoptionApplicationScreen({ navigation }: Props) {
           <Button variant="secondary" style={styles.action}>
             임시저장
           </Button>
-          <Button onPress={handleNext} style={styles.action}>
+          <Button
+            disabled={!canContinue}
+            onPress={handleNext}
+            style={[styles.action, !canContinue && styles.disabledNext]}
+          >
             {step === 4 ? '최종확인하기' : '다음'}
           </Button>
         </View>
@@ -272,9 +347,14 @@ function StepOne({ form, update }: StepProps) {
       </Text>
       <Text style={styles.heading}>신청자 기본 정보</Text>
       <View style={styles.profileCard}>
-        <Text style={styles.profileName}>
-          우사기　<Text style={styles.profileMeta}>2000.00.00</Text>
-        </Text>
+        <View style={styles.profileHeader}>
+          <Text style={styles.profileName}>
+            우사기　<Text style={styles.profileMeta}>2000.00.00</Text>
+          </Text>
+          <Text accessibilityLabel="신청자 정보 수정" style={styles.editIcon}>
+            ✎
+          </Text>
+        </View>
         <Text style={styles.profileMeta}>☎ 010-1234-4567</Text>
       </View>
       <FieldLabel>실제 양육 예정 장소*</FieldLabel>
@@ -293,11 +373,7 @@ function StepOne({ form, update }: StepProps) {
         value={form.email}
       />
       <FieldLabel>방문 상담 희망일*</FieldLabel>
-      <FormInput
-        onChangeText={value => update('visitDate', value)}
-        placeholder="2026.10.10"
-        value={form.visitDate}
-      />
+      <CalendarField onChange={value => update('visitDate', value)} value={form.visitDate} />
     </>
   );
 }
@@ -321,16 +397,65 @@ function StepTwo({ form, update }: StepProps) {
   return (
     <>
       <Text style={styles.heading}>주거 및 동거 환경</Text>
-      {groups.map(([key, label, options]) => (
-        <View key={key} style={styles.question}>
-          <FieldLabel>{label}</FieldLabel>
-          <ChoiceGroup
-            onChange={value => update(key, value)}
-            options={options}
-            value={String(form[key])}
-          />
-        </View>
-      ))}
+      {groups.map(([key, label, options]) => {
+        const showDivider = ['primaryCaretaker', 'currentPets', 'pastExperience'].includes(key);
+        return (
+          <Fragment key={key}>
+            {showDivider ? <View style={styles.divider} /> : null}
+            <View style={styles.question}>
+              <FieldLabel>{label}</FieldLabel>
+              <ChoiceGroup
+                onChange={value => update(key, value)}
+                options={options}
+                value={String(form[key])}
+              />
+            </View>
+            {key === 'cohabitant' && form.cohabitant === '있음' ? (
+              <View style={styles.conditionalField}>
+                <FieldLabel>동거인의 입양 동의*</FieldLabel>
+                <ChoiceGroup
+                  onChange={value => update('cohabitantConsent', value)}
+                  options={['전원 동의', '일부 미동의', '확인중']}
+                  value={form.cohabitantConsent}
+                />
+              </View>
+            ) : null}
+            {key === 'currentPets' && form.currentPets === '있음' ? (
+              <View style={styles.conditionalField}>
+                <FieldLabel>동물 종류와 마릿수*</FieldLabel>
+                <FormInput
+                  onChangeText={value => update('currentPetDetails', value)}
+                  placeholder="함께 사는 동물의 종류와 마릿수"
+                  value={form.currentPetDetails}
+                />
+                <FieldLabel>합사 준비*</FieldLabel>
+                <FormInput
+                  multiline
+                  onChangeText={value => update('integrationPlan', value)}
+                  placeholder="분리 공간과 단계별 합사 계획을 작성해 주세요"
+                  value={form.integrationPlan}
+                />
+              </View>
+            ) : null}
+            {key === 'pastExperience' && form.pastExperience === '있음' ? (
+              <View style={styles.conditionalField}>
+                <FieldLabel>과거 양육 동물 및 기간*</FieldLabel>
+                <FormInput
+                  onChangeText={value => update('pastAnimal', value)}
+                  placeholder="경험이 있는 경우 동물 종류와 양육 기간"
+                  value={form.pastAnimal}
+                />
+                <FieldLabel>과거 동물과 함께하지 않는 이유*</FieldLabel>
+                <ChoiceGroup
+                  onChange={value => update('pastReason', value)}
+                  options={['가족이 양육', '사망', '양도', '보호기관 인계', '실종', '기타']}
+                  value={form.pastReason}
+                />
+              </View>
+            ) : null}
+          </Fragment>
+        );
+      })}
       <FieldLabel>대체 돌봄 방법*</FieldLabel>
       <FormInput
         multiline
@@ -382,24 +507,58 @@ function StepThree({ form, update }: StepProps) {
         options={['예정', '미이수', '이수']}
         value={form.education}
       />
+      {form.education === '이수' ? (
+        <View style={styles.conditionalField}>
+          <FieldLabel>교육기관*</FieldLabel>
+          <FormInput
+            onChangeText={value => update('educationInstitution', value)}
+            placeholder="교육기관을 입력해 주세요"
+            value={form.educationInstitution}
+          />
+          <FieldLabel>이수한 교육 과정*</FieldLabel>
+          <FormInput
+            onChangeText={value => update('educationCourse', value)}
+            placeholder="이수한 교육 과정명을 입력해 주세요"
+            value={form.educationCourse}
+          />
+          <FieldLabel>이수일*</FieldLabel>
+          <CalendarField
+            onChange={value => update('educationDate', value)}
+            value={form.educationDate}
+          />
+        </View>
+      ) : null}
     </>
   );
 }
 
 function StepFour({ form, update }: StepProps) {
-  const rows: Array<[keyof FormState, string]> = [
-    [
-      'consentHealth',
-      '제공된 건강·행동 정보를 확인했으며, 미확인 사항은 상담 시 추가 안내받겠습니다.',
-    ],
+  const responsibilityRows: Array<[keyof FormState, string]> = [
     [
       'consentResponsibility',
       '유기·학대하지 않고 적절한 먹이, 물, 생활공간과 돌봄을 제공하겠습니다.',
     ],
     ['consentCost', '질병이나 부상 발생 시 필요한 진료와 관리를 제공하겠습니다.'],
-    ['consentAdaptation', '초기 적응과 행동 변화에 시간이 필요함을 이해했습니다.'],
-    ['consentVisit', '보호센터와 상담 및 동물 만남 일정을 조율할 수 있습니다.'],
+    [
+      'consentLostPrevention',
+      '유실 예방 조치를 하고, 대상 동물의 동물등록·변경신고 절차를 이행하겠습니다.',
+    ],
+    [
+      'consentNoCommercialUse',
+      '판매·번식·실험 등 영리 또는 부적절한 이용을 목적으로 신청하지 않습니다.',
+    ],
     ['consentReturn', '양육을 지속하기 어려워지면 보호센터와 먼저 상담하겠습니다.'],
+    [
+      'consentInformationCheck',
+      '작성 내용의 확인을 위해 추가 자료나 상담을 요청받을 수 있음을 이해했습니다.',
+    ],
+  ];
+  const preparationRows: Array<[keyof FormState, string]> = [
+    ['consentBudget', '사료·용품·예방접종·진료 등에 지속적인 비용이 발생함을 이해했습니다.'],
+    ['consentAdaptation', '입양 초기에는 적응과 행동 변화에 시간과 노력이 필요함을 이해했습니다.'],
+    ['consentVisit', '보호센터와 방문 상담 및 동물 만남 일정을 조율할 수 있습니다.'],
+  ];
+  const privacyRows: Array<[keyof FormState, string]> = [
     ['consentPrivacy', '[필수] 입양 신청 처리를 위한 개인정보 수집·이용에 동의합니다.'],
     ['consentShelter', '[조건부 필수] 보호센터 제공에 동의합니다.'],
     ['consentPublic', '[선택] 입양 후기의 서비스 공개에 동의합니다.'],
@@ -414,8 +573,24 @@ function StepFour({ form, update }: StepProps) {
         <Text style={styles.body}>예방접종 여부　코로나 접종, 0000 접종</Text>
         <Text style={styles.body}>행동 특성　　　경계심이 살짝 있지만 순한 편</Text>
       </View>
+      <ConsentRow
+        label="제공된 건강·행동 정보를 확인했으며, 미확인 사항은 상담 시 추가 안내받겠습니다."
+        onChange={value => update('consentHealth', value)}
+        value={form.consentHealth}
+      />
+      <View style={styles.divider} />
       <Text style={styles.heading}>책임 있는 양육 확인</Text>
-      {rows.slice(0, 6).map(([key, label]) => (
+      {responsibilityRows.map(([key, label]) => (
+        <ConsentRow
+          key={key}
+          label={label}
+          onChange={value => update(key, value)}
+          value={Boolean(form[key])}
+        />
+      ))}
+      <View style={styles.divider} />
+      <Text style={styles.heading}>돌봄 준비 확인</Text>
+      {preparationRows.map(([key, label]) => (
         <ConsentRow
           key={key}
           label={label}
@@ -425,7 +600,12 @@ function StepFour({ form, update }: StepProps) {
       ))}
       <View style={styles.divider} />
       <Text style={styles.heading}>개인정보 안내 및 동의</Text>
-      {rows.slice(6).map(([key, label]) => (
+      <View style={styles.guideBox}>
+        <Text style={styles.body}>1. 목적 - 입양 접수·상담·심사·결과 안내</Text>
+        <Text style={styles.body}>2. 항목 - 신청자 정보 및 신청서 응답</Text>
+        <Text style={styles.body}>3. 보유 기간 - 서비스 운영 정책에 따름</Text>
+      </View>
+      {privacyRows.map(([key, label]) => (
         <ConsentRow
           key={key}
           label={label}
@@ -462,13 +642,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: 'center',
     minHeight: 42,
-    minWidth: 96,
     paddingHorizontal: 14,
   },
   choiceSelected: { backgroundColor: '#3DDC97', borderColor: '#3DDC97' },
+  choiceHalf: { width: '48.8%' },
+  choiceThird: { width: '31.8%' },
   choiceText: { ...typography.bodyRegular14, color: colors.gray400 },
   choiceTextSelected: { color: colors.white },
-  question: { borderBottomColor: colors.gray200, borderBottomWidth: 1, paddingBottom: 18 },
+  question: { marginBottom: 14 },
+  conditionalField: { marginTop: 2 },
   animalSummary: {
     backgroundColor: colors.gray10,
     borderRadius: radius.md,
@@ -494,7 +676,7 @@ const styles = StyleSheet.create({
   numberRows: { flexDirection: 'row', flexWrap: 'wrap', marginTop: -22 },
   numberLabel: { ...typography.bodyRegular14, color: colors.gray400, marginTop: 8, width: 95 },
   numberValue: { ...typography.bodyRegular14, color: colors.black, marginTop: 8, width: 220 },
-  notice: { ...typography.captionRegular10, color: colors.gray300, marginVertical: 10 },
+  notice: { ...typography.bodyRegular14, color: colors.gray300, marginVertical: 10 },
   profileCard: {
     borderColor: colors.gray300,
     borderRadius: radius.md,
@@ -503,7 +685,22 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   profileName: { ...typography.bodySemiBold16, color: colors.black },
+  profileHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  editIcon: { color: colors.gray400, fontSize: 20 },
   profileMeta: { ...typography.bodyRegular14, color: colors.gray500 },
+  calendarField: {
+    alignItems: 'center',
+    borderColor: colors.gray200,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    height: 48,
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+  },
+  calendarText: { ...typography.bodyRegular16, color: colors.gray700 },
+  calendarIcon: { color: colors.gray500, fontSize: 18 },
+  placeholder: { color: colors.gray400 },
   locationButton: {
     backgroundColor: colors.white,
     borderColor: colors.green400,
@@ -530,4 +727,5 @@ const styles = StyleSheet.create({
   error: { ...typography.bodyRegular14, color: colors.danger, marginTop: 16, textAlign: 'center' },
   actions: { flexDirection: 'row', gap: spacing[4], marginTop: 28 },
   action: { flex: 1 },
+  disabledNext: { backgroundColor: colors.gray200, opacity: 1 },
 });
