@@ -6,6 +6,12 @@ import type { ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
+import AlertCircleIcon from '../../assets/icons/common/alert-circle.svg';
+import CalendarIcon from '../../assets/icons/common/calendar.svg';
+import EditIcon from '../../assets/icons/common/edit.svg';
+import LocationIcon from '../../assets/icons/common/location.svg';
+import PawCheckIcon from '../../assets/icons/common/paw-check.svg';
+import PhoneIcon from '../../assets/icons/common/phone.svg';
 import { AppHeader, Button, StepIndicator } from '../../components/common';
 import { colors, radius, spacing, typography } from '../../theme';
 
@@ -198,7 +204,7 @@ function CalendarField({ value, onChange }: { value: string; onChange: (value: s
       <Text style={[styles.calendarText, !value && styles.placeholder]}>
         {value || '날짜를 선택해 주세요'}
       </Text>
-      <Text style={styles.calendarIcon}>▣</Text>
+      <CalendarIcon />
     </Pressable>
   );
 }
@@ -244,7 +250,7 @@ function ConsentRow({
       style={styles.consentRow}
     >
       <View style={[styles.checkbox, value && styles.checkboxSelected]}>
-        {value ? <Text style={styles.checkmark}>✓</Text> : null}
+        {value ? <PawCheckIcon /> : null}
       </View>
       <Text style={styles.consentText}>{label}</Text>
     </Pressable>
@@ -355,11 +361,14 @@ function StepOne({ form, update }: StepProps) {
           <Text style={styles.profileName}>
             우사기　<Text style={styles.profileMeta}>2000.00.00</Text>
           </Text>
-          <Text accessibilityLabel="신청자 정보 수정" style={styles.editIcon}>
-            ✎
-          </Text>
+          <Pressable accessibilityLabel="신청자 정보 수정" accessibilityRole="button">
+            <EditIcon />
+          </Pressable>
         </View>
-        <Text style={styles.profileMeta}>☎ 010-1234-4567</Text>
+        <View style={styles.profileMetaRow}>
+          <PhoneIcon />
+          <Text style={styles.profileMeta}>010-1234-4567</Text>
+        </View>
       </View>
       <FieldLabel>실제 양육 예정 장소*</FieldLabel>
       <FormInput
@@ -368,7 +377,10 @@ function StepOne({ form, update }: StepProps) {
         value={form.address}
       />
       <Button variant="secondary" style={styles.locationButton}>
-        ⌾ 현재 위치로 찾기
+        <View style={styles.locationButtonContent}>
+          <LocationIcon />
+          <Text style={styles.locationButtonText}>현재 위치로 찾기</Text>
+        </View>
       </Button>
       <FieldLabel>이메일</FieldLabel>
       <FormInput
@@ -611,6 +623,12 @@ function StepFour({ form, update }: StepProps) {
           value={Boolean(form[key])}
         />
       ))}
+      <View style={styles.submissionNotice}>
+        <AlertCircleIcon />
+        <Text style={styles.submissionNoticeText}>
+          신청서가 보호센터로 전달됩니다. 제출만으로 입양이 확정되지 않습니다.
+        </Text>
+      </View>
     </>
   );
 }
@@ -684,8 +702,8 @@ const styles = StyleSheet.create({
   },
   profileName: { ...typography.bodySemiBold16, color: colors.black },
   profileHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  editIcon: { color: colors.gray400, fontSize: 20 },
   profileMeta: { ...typography.bodyRegular14, color: colors.gray500 },
+  profileMetaRow: { alignItems: 'center', flexDirection: 'row', gap: 6 },
   calendarField: {
     alignItems: 'center',
     borderColor: colors.gray200,
@@ -697,7 +715,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   calendarText: { ...typography.bodyRegular16, color: colors.gray700 },
-  calendarIcon: { color: colors.gray500, fontSize: 18 },
   placeholder: { color: colors.gray400 },
   locationButton: {
     backgroundColor: colors.white,
@@ -705,6 +722,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginTop: 12,
   },
+  locationButtonContent: { alignItems: 'center', flexDirection: 'row', gap: 8 },
+  locationButtonText: { ...typography.bodySemiBold16, color: colors.green400 },
   divider: { backgroundColor: colors.gray200, height: 1, marginVertical: 20 },
   guideBox: { backgroundColor: colors.gray10, borderRadius: radius.md, gap: 10, padding: 14 },
   body: { ...typography.bodyRegular14, color: colors.gray700 },
@@ -720,8 +739,15 @@ const styles = StyleSheet.create({
     width: 18,
   },
   checkboxSelected: { backgroundColor: colors.green400, borderColor: colors.green400 },
-  checkmark: { color: colors.white, fontSize: 12 },
   consentText: { ...typography.bodyRegular14, color: colors.gray700, flex: 1 },
+  submissionNotice: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+    marginTop: 16,
+  },
+  submissionNoticeText: { ...typography.captionSemiBold12, color: colors.gray400 },
   error: { ...typography.bodyRegular14, color: colors.danger, marginTop: 16, textAlign: 'center' },
   actions: { flexDirection: 'row', gap: spacing[4], marginTop: 28 },
   action: { flex: 1 },

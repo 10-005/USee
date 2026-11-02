@@ -13,6 +13,10 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
+import DateIcon from '../../assets/icons/common/date.svg';
+import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
+import MapIcon from '../../assets/icons/common/map.svg';
+import NotificationIcon from '../../assets/icons/common/notification.svg';
 import AdoptionActiveIcon from '../../assets/icons/navigation/adoption-active.svg';
 import AdoptionIcon from '../../assets/icons/navigation/adoption.svg';
 import ChatActiveIcon from '../../assets/icons/navigation/chat-active.svg';
@@ -93,10 +97,16 @@ export function HomeScreen({ navigation }: Props) {
       <Text numberOfLines={1} style={styles.cardTitle}>
         {item.name}
       </Text>
-      <Text numberOfLines={1} style={styles.cardMeta}>
-        ⌖ {item.location}
-      </Text>
-      <Text style={styles.cardMeta}>▣ {item.date}</Text>
+      <View style={styles.cardMetaRow}>
+        <MapIcon />
+        <Text numberOfLines={1} style={styles.cardMeta}>
+          {item.location}
+        </Text>
+      </View>
+      <View style={styles.cardMetaRow}>
+        <DateIcon />
+        <Text style={styles.cardMeta}>{item.date}</Text>
+      </View>
       <Text numberOfLines={1} style={styles.cardSummary}>
         {item.summary}
       </Text>
@@ -114,9 +124,9 @@ export function HomeScreen({ navigation }: Props) {
           source={require('../../assets/images/logo.png')}
           style={styles.logo}
         />
-        <Text accessibilityLabel="알림" style={styles.headerIcon}>
-          ♧
-        </Text>
+        <Pressable accessibilityLabel="알림" accessibilityRole="button" style={styles.headerIcon}>
+          <NotificationIcon />
+        </Pressable>
       </View>
       <View style={styles.searchBox}>
         <Text style={styles.searchIcon}>⌕</Text>
@@ -135,7 +145,8 @@ export function HomeScreen({ navigation }: Props) {
       >
         {filters.map(filter => (
           <Pressable key={filter} style={styles.filterChip}>
-            <Text style={styles.filterText}>{filter}⌄</Text>
+            <Text style={styles.filterText}>{filter}</Text>
+            <FilterArrowIcon />
           </Pressable>
         ))}
       </ScrollView>
@@ -168,7 +179,7 @@ const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
   header: { alignItems: 'center', flexDirection: 'row', height: 56, justifyContent: 'center' },
   logo: { height: 34, width: 88 },
-  headerIcon: { color: colors.black, fontSize: 24, position: 'absolute', right: 20 },
+  headerIcon: { position: 'absolute', right: 20 },
   searchBox: {
     alignItems: 'center',
     borderColor: colors.gray200,
@@ -183,10 +194,13 @@ const styles = StyleSheet.create({
   searchInput: { ...typography.bodyRegular16, color: colors.gray700, flex: 1, paddingVertical: 0 },
   filters: { gap: 6, paddingHorizontal: 20, paddingVertical: 12 },
   filterChip: {
+    alignItems: 'center',
     borderColor: colors.gray200,
     borderRadius: radius.pill,
     borderWidth: 1,
     height: 28,
+    flexDirection: 'row',
+    gap: 2,
     justifyContent: 'center',
     paddingHorizontal: 10,
   },
@@ -208,6 +222,7 @@ const styles = StyleSheet.create({
   statusText: { ...typography.captionSemiBold12, color: colors.white },
   cardTitle: { ...typography.titleBold18, color: colors.black, marginTop: 8 },
   cardMeta: { ...typography.bodyRegular14, color: colors.gray700, marginTop: 3 },
+  cardMetaRow: { alignItems: 'center', flexDirection: 'row', gap: 4 },
   cardSummary: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
   cardDescription: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
   navigationWrap: { left: 25, position: 'absolute', right: 25 },
