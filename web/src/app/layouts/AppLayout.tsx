@@ -14,7 +14,7 @@ export function AppLayout() {
       </a>
       <header className="app-header">
         <Link className="brand" to="/" onClick={closeNavigation}>
-          S15P31D106
+          U See
         </Link>
         <Button
           variant="secondary"
