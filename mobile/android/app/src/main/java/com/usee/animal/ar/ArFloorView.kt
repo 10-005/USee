@@ -1,6 +1,7 @@
 package com.usee.animal.ar
 
 import android.content.Context
+import android.os.SystemClock
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.Lifecycle
@@ -14,24 +15,41 @@ import com.google.ar.core.Session
 import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
+import io.github.sceneview.math.colorOf
+import io.github.sceneview.node.CylinderNode
 import io.github.sceneview.node.ModelNode
 
 /**
- * 시바견 모델: "Shiba Inu" by Quaternius, CC0.
- * https://poly.pizza/m/y4wdQpg767
+ * Cartoon Dog - Shiba Inu by billl90 (CGTrader), mobile mesh with baked IP animations.
  */
 class ArFloorView(
   private val reactContext: ReactContext,
 ) : FrameLayout(reactContext) {
   private var sceneView: ARSceneView? = null
-  private var dogNode: ModelNode? = null
-  private var currentClip = ""
+  private var dogNode: DogModelNode? = null
+  private var shadowNode: CylinderNode? = null
   private var modelReady = false
   private var active = false
   private var disposed = false
   private var lastEventKey = ""
-  private val leader = DogLeader()
-  private val scratch = SessionScratch()
+  private var pendingEventKey = ""
+  private var pendingEventSince = 0L
+  private var leader = DogLeader(requiresPlacement = true)
+  private var lastPlacementRequest = 0
+  private var lastActionRequest = ""
+  private var scratch = SessionScratch()
+
+  fun requestPlacement(request: Int) {
+    if (request > lastPlacementRequest) leader.requestPlacement()
+    lastPlacementRequest = request
+  }
+
+  fun requestAction(request: String) {
+    if (request.isNotEmpty() && request != lastActionRequest) {
+      lastActionRequest = request
+      leader.requestAction(request.substringAfter(':'))
+    }
+  }
 
   fun setActive(next: Boolean) {
     if (active == next) {
@@ -71,16 +89,18 @@ class ArFloorView(
       return
     }
     val activity = reactContext.currentActivity as? ComponentActivity ?: return
+    // A newly created AR session has a new world coordinate system.
+    leader = DogLeader(requiresPlacement = true)
+    scratch = SessionScratch()
+    lastEventKey = ""
+    pendingEventKey = ""
     val view = FloorSceneView(
       context = activity,
       sharedLifecycle = activity.lifecycle,
-      sessionConfiguration = { session, config ->
+      sessionConfiguration = { _, config ->
         config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL
-        config.depthMode = if (session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) {
-          Config.DepthMode.AUTOMATIC
-        } else {
-          Config.DepthMode.DISABLED
-        }
+        // Walking uses plane polygons, so per-frame depth processing is unnecessary.
+        config.depthMode = Config.DepthMode.DISABLED
         config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
       },
     ).apply {
@@ -97,17 +117,30 @@ class ArFloorView(
         if (disposed || sceneView !== view) {
           return@post
         }
-        val node = ModelNode(
-          modelInstance = instance,
-          autoAnimate = false,
-          scaleToUnits = 0.9f,
-          centerOrigin = Position(y = -1f),
-        )
+        val node = DogModelNode(instance)
+        leader = DogLeader(requiresPlacement = true, animations = DogAnimationController(node.durations))
+        node.isShadowCaster = true
         node.isVisible = false
+        val shadow = CylinderNode(
+          engine = view.engine,
+          radius = 0.15f,
+          height = 0.01f,
+          materialInstance = view.materialLoader.createColorInstance(
+            colorOf(r = 0f, g = 0f, b = 0f, a = 0.42f),
+            metallic = 0f,
+            roughness = 1f,
+            reflectance = 0f,
+          ),
+        ).apply {
+          isShadowCaster = false
+          isVisible = false
+        }
+        view.addChildNode(shadow)
         view.addChildNode(node)
+        shadowNode = shadow
         dogNode = node
         modelReady = true
-        playClip(node, "Idle")
+        node.play(DogAnimation())
       }
     }
   }
@@ -115,7 +148,7 @@ class ArFloorView(
   private fun stop() {
     modelReady = false
     dogNode = null
-    currentClip = ""
+    shadowNode = null
     val view = sceneView ?: return
     sceneView = null
     removeView(view)
@@ -131,37 +164,41 @@ class ArFloorView(
       modelReady = modelReady,
     )
     val node = dogNode
+    val shadow = shadowNode
     if (node != null) {
       node.isVisible = shown.dog.visible
+      shadow?.isVisible = shown.dog.visible
       if (shown.dog.visible) {
-        node.position = Position(shown.dog.x, shown.dog.y, shown.dog.z)
+        node.position = Position(shown.dog.x, shown.dog.y + pawLift(node), shown.dog.z)
         node.rotation = Rotation(y = shown.dog.yawDegrees)
-        playClip(node, shown.dog.clip)
+        shadow?.position = Position(shown.dog.x, shown.dog.y + 0.006f, shown.dog.z)
+        node.play(DogAnimation(shown.dog.clip, shown.dog.clipLoop, shown.dog.animationRevision))
       }
     }
     sceneView?.planeRenderer?.isVisible = !shown.dog.visible
-    emit(shown.status, shown.dog.visible, shown.dog.clip)
+    emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving)
   }
 
-  private fun playClip(node: ModelNode, clip: String) {
-    if (clip == currentClip) {
-      return
-    }
-    if (currentClip.isNotEmpty()) {
-      node.stopAnimation(currentClip)
-    }
-    node.playAnimation(clip, loop = true)
-    currentClip = clip
+  private fun pawLift(node: ModelNode): Float {
+    val feet = node.center.y - node.halfExtent.y
+    return -node.scale.y * feet - PAW_SINK
   }
 
-  private fun emit(status: String, visible: Boolean, clip: String) {
+  private fun emit(status: String, visible: Boolean, clip: String, moving: Boolean) {
     if (disposed) {
       return
     }
-    val key = "$status|$visible|$clip"
+    val key = "$status|$visible|$moving"
+    val now = SystemClock.elapsedRealtime()
+    if (pendingEventKey != key) {
+      pendingEventKey = key
+      pendingEventSince = now
+    }
     if (key == lastEventKey) {
       return
     }
+    // React only needs a settled caption, not every transient tracking/clip change.
+    if (lastEventKey.isNotEmpty() && now - pendingEventSince < 300L) return
     lastEventKey = key
     val viewId = id
     if (viewId == NO_ID) {
@@ -179,9 +216,14 @@ class ArFloorView(
           status = status,
           visible = visible,
           clip = clip,
+          moving = moving,
         ),
       )
     }
+  }
+
+  private companion object {
+    const val PAW_SINK = 0.012f
   }
 
   /**
@@ -209,6 +251,7 @@ class ArFloorView(
     private val status: String,
     private val visible: Boolean,
     private val clip: String,
+    private val moving: Boolean,
   ) : Event<TrackingEvent>(surfaceId, viewId) {
     override fun getEventName(): String = "topTracking"
 
@@ -222,6 +265,7 @@ class ArFloorView(
       putDouble("scale", 1.0)
       putDouble("facing", 1.0)
       putString("clip", clip)
+      putBoolean("moving", moving)
     }
   }
 }

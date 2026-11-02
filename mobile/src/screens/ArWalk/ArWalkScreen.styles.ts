@@ -43,4 +43,23 @@ export const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 4,
   },
+  placeButton: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    left: 32,
+    minHeight: 56,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    position: 'absolute',
+    right: 32,
+  },
+  placeButtonDisabled: {
+    backgroundColor: '#888888',
+  },
+  placeButtonText: {
+    color: '#111111',
+    fontSize: 16,
+    fontWeight: '700',
+  },
 });

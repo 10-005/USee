@@ -1,28 +1,52 @@
 package com.usee.animal.ar
 
-import kotlin.math.PI
-import kotlin.math.atan2
-import kotlin.math.exp
-import kotlin.math.hypot
-import kotlin.math.min
+import kotlin.math.*
 
-/**
- * 카메라보다 앞에서 걷도록 강아지를 이끈다.
- *
- * 목표 지점은 카메라 수평 전방 [LEAD_METERS]미터다.
- * 카메라를 돌리면 목표 지점이 그 방향으로 옮겨지고, 강아지는 그쪽으로 몸을 틀어 걸어간다.
- * 모델은 로컬 +Z가 앞이므로, yaw 0은 월드 +Z를 바라본다. 사용자는 그 뒷모습을 본다.
- */
-class DogLeader {
+/** Predicts a walking companion's route in AR world coordinates. Model forward is local +Z. */
+internal const val DOG_LEAD_METERS = 1.4f
+
+class DogLeader(
+  private val requiresPlacement: Boolean = false,
+  private val animations: DogAnimationController = DogAnimationController(),
+) {
   private var placed = false
+  val isPlaced: Boolean get() = placed
+  private var placementRequested = false
+  fun requestPlacement() {
+    if (!placed) placementRequested = true
+  }
+
+  fun cancelPlacement() {
+    placementRequested = false
+  }
+
+  fun requestAction(action: String) {
+    if (placed) animations.request(action)
+  }
+
+  fun pauseTracking() {
+    hasCamera = false
+    velocityX = 0f
+    velocityZ = 0f
+    speed = 0f
+    animations.pause()
+    moving = false
+  }
   private var x = 0f
   private var y = 0f
   private var z = 0f
   private var yaw = 0f
-  private var lastGroundY: Float? = null
   private var headingX = 0f
-  private var headingZ = 1f
+  private var headingZ = -1f
   private var hasHeading = false
+  private var previousCameraX = 0f
+  private var previousCameraZ = 0f
+  private var hasCamera = false
+  private var velocityX = 0f
+  private var velocityZ = 0f
+  private var speed = 0f
+  private var backing = false
+  private var moving = false
 
   fun update(
     deltaSeconds: Float,
@@ -30,95 +54,171 @@ class DogLeader {
     cameraZ: Float,
     lookX: Float,
     lookZ: Float,
-    groundY: Float?,
+    floorAt: (x: Float, z: Float) -> Float?,
   ): DogFrame {
-    val forward = horizontalForward(lookX, lookZ)
-    val ground = groundY ?: lastGroundY
-    if (groundY != null) lastGroundY = groundY
-    if (forward == null || ground == null) {
-      return frame(visible = false, clip = CLIP_IDLE, speed = 0f)
-    }
-
-    val targetX = cameraX + forward.first * LEAD_METERS
-    val targetZ = cameraZ + forward.second * LEAD_METERS
-    if (!placed || deltaSeconds > 0.25f) {
-      x = targetX
-      y = ground
-      z = targetZ
-      yaw = atan2(forward.first, forward.second)
-      placed = true
-      return frame(visible = true, clip = CLIP_IDLE, speed = 0f)
-    }
-
-    val dt = deltaSeconds.coerceIn(0f, 0.05f)
-    y += (ground - y) * (1f - exp(-GROUND_FOLLOW * dt))
-
-    val dx = targetX - x
-    val dz = targetZ - z
-    val gap = hypot(dx, dz)
-    val desiredYaw = if (gap > YAW_LOCK_GAP) atan2(dx, dz) else atan2(forward.first, forward.second)
-    val turn = wrapRadians(desiredYaw - yaw).coerceIn(-TURN_RATE * dt, TURN_RATE * dt)
-    yaw = wrapRadians(yaw + turn)
-
-    val ahead = (x - cameraX) * forward.first + (z - cameraZ) * forward.second
-    val gain = if (ahead < MIN_AHEAD) FOLLOW_GAIN * 1.8f else FOLLOW_GAIN
-    val speed = (gap * gain).coerceIn(0f, MAX_SPEED)
-    val step = min(speed * dt, gap)
-    if (gap > 1e-4f && step > 0f) {
-      x += dx / gap * step
-      z += dz / gap * step
-    }
-
-    val clip = when {
-      speed < IDLE_SPEED -> CLIP_IDLE
-      speed < GALLOP_SPEED -> CLIP_WALK
-      else -> CLIP_GALLOP
-    }
-    return frame(visible = true, clip = clip, speed = speed)
-  }
-
-  private fun horizontalForward(lookX: Float, lookZ: Float): Pair<Float, Float>? {
+    // The renderer may run faster than the camera. Repeated samples are not a
+    // tracking pause and must not erase acceleration or the walking animation.
+    if (deltaSeconds == 0f && hasCamera) return frame(placed, speed)
     val length = hypot(lookX, lookZ)
-    if (length >= MIN_HORIZONTAL) {
+    if (length > 0.15f) {
       headingX = lookX / length
       headingZ = lookZ / length
       hasHeading = true
     }
-    if (!hasHeading) return null
-    return headingX to headingZ
+    if (!hasHeading) return frame(false, 0f)
+
+    // Resume tracking without interpreting a pause or relocalization as walking.
+    val continuous = hasCamera && deltaSeconds > 0f && deltaSeconds <= 0.25f
+    val dt = deltaSeconds.coerceIn(0f, 0.05f)
+    if (continuous) {
+      val vx = (cameraX - previousCameraX) / deltaSeconds
+      val vz = (cameraZ - previousCameraZ) / deltaSeconds
+      if (hypot(vx, vz) < 4f) {
+        val blend = 1f - exp(-deltaSeconds / 0.3f)
+        velocityX += (vx - velocityX) * blend
+        velocityZ += (vz - velocityZ) * blend
+      } else {
+        velocityX = 0f
+        velocityZ = 0f
+      }
+    } else {
+      velocityX = 0f
+      velocityZ = 0f
+      speed = 0f
+    }
+    previousCameraX = cameraX
+    previousCameraZ = cameraZ
+    hasCamera = true
+    val along = velocityX * headingX + velocityZ * headingZ
+    if (along < -0.25f) backing = true
+    if (along > -0.08f) backing = false
+
+    // Looking steers intent; measured translation predicts where the walker will be.
+    // While backing up, stay on the visible side and face the approaching walker.
+    val lead = if (placed && backing) 1.0f else DOG_LEAD_METERS
+    val prediction = if (placed) 0.55f else 0f
+    val targetX = cameraX + headingX * lead + velocityX * prediction
+    val targetZ = cameraZ + headingZ * lead + velocityZ * prediction
+    if (!placed) {
+      if (requiresPlacement && !placementRequested) return frame(false, 0f)
+      // A press applies only at this moment; don't spawn later on an unrelated floor.
+      placementRequested = false
+      val ground = floorAt(targetX, targetZ) ?: return frame(false, 0f)
+      x = targetX
+      y = ground
+      z = targetZ
+      yaw = atan2(headingX, headingZ)
+      placed = true
+      return frame(true, 0f)
+    }
+    if (!continuous) return frame(true, 0f)
+
+    val dx = targetX - x
+    val dz = targetZ - z
+    val gap = hypot(dx, dz)
+    var desiredYaw = when {
+      gap > 0.18f -> atan2(dx, dz)
+      backing -> atan2(cameraX - x, cameraZ - z)
+      else -> atan2(headingX, headingZ)
+    }
+
+    // Steering is cheap geometry and reacts to each new camera sample. Only
+    // the actual next step needs AR floor queries, never a long route ahead.
+    var routeFound = gap <= 0.18f
+    if (gap > 0.18f) {
+      val directYaw = desiredYaw
+      var bestScore = Float.POSITIVE_INFINITY
+      for (offset in ROUTE_OFFSETS) {
+        val angle = directYaw + offset
+        val ux = sin(angle)
+        val uz = cos(angle)
+        val distance = min(gap, 0.45f)
+        if (!avoidsWalker(ux, uz, distance, cameraX, cameraZ)) continue
+        val score = hypot(targetX - x - ux * distance, targetZ - z - uz * distance) +
+          abs(wrap(angle - yaw)) * 0.06f
+        if (score < bestScore) {
+          bestScore = score
+          desiredYaw = angle
+          routeFound = true
+        }
+        if (offset == 0f) break
+      }
+    }
+    val bodyYaw = desiredYaw
+    val turn = wrap(bodyYaw - yaw)
+    val previousYaw = yaw
+    yaw = wrap(yaw + turn.coerceIn(-4.5f * dt, 4.5f * dt))
+    val alignment = max(0.25f, cos(wrap(bodyYaw - yaw)))
+    val maxSpeed = 3.6f
+    val wantedSpeed = if (routeFound && gap > 0.18f) min(maxSpeed, gap * 1.8f) * alignment else 0f
+    val acceleration = if (wantedSpeed > speed) 2.8f else 5f
+    speed += (wantedSpeed - speed).coerceIn(-acceleration * dt, acceleration * dt)
+    val step = min(speed * dt, max(0f, gap - 0.12f))
+    val ux = sin(desiredYaw)
+    val uz = cos(desiredYaw)
+    var actualSpeed = 0f
+    if (step > 0f && routeFound && avoidsWalker(ux, uz, step, cameraX, cameraZ)) {
+      val ground = stepFloor(ux, uz, step, floorAt)
+      if (ground != null) {
+        x += ux * step
+        z += uz * step
+        y += (ground - y) * min(1f, dt * 8f)
+        actualSpeed = step / dt
+      }
+    }
+    if (actualSpeed == 0f) speed = 0f
+    val turnRate = wrap(yaw - previousYaw) / dt
+    moving = actualSpeed > 0.07f || abs(turnRate) > 0.4f && abs(turn) > 0.12f
+    val forwardSpeed = actualSpeed * (ux * sin(yaw) + uz * cos(yaw))
+    val rightSpeed = actualSpeed * (ux * cos(yaw) - uz * sin(yaw))
+    animations.update(
+      deltaSeconds.coerceAtMost(0.25f), hypot(velocityX, velocityZ), actualSpeed,
+      forwardSpeed, rightSpeed, turnRate, wrap(bodyYaw - yaw),
+    )
+    return frame(true, actualSpeed)
   }
 
-  private fun frame(visible: Boolean, clip: String, speed: Float) = DogFrame(
-    x = x,
-    y = y,
-    z = z,
-    yawDegrees = Math.toDegrees(yaw.toDouble()).toFloat(),
-    visible = visible && placed,
-    clip = clip,
-    speedMetersPerSecond = speed,
+  private fun avoidsWalker(
+    ux: Float, uz: Float, distance: Float, cameraX: Float, cameraZ: Float,
+  ): Boolean {
+    val dx = x - cameraX
+    val dz = z - cameraZ
+    val closest = (-(dx * ux + dz * uz)).coerceIn(0f, distance)
+    val currentDistance = hypot(dx, dz)
+    val nearestDistance = hypot(dx + ux * closest, dz + uz * closest)
+    return nearestDistance >= min(0.45f, currentDistance) - 0.0001f
+  }
+
+  private fun stepFloor(
+    ux: Float, uz: Float, distance: Float,
+    floorAt: (Float, Float) -> Float?,
+  ): Float? {
+    var previousY = y
+    val samples = ceil(distance / 0.08f).toInt().coerceAtLeast(1)
+    for (i in 1..samples) {
+      val px = x + ux * distance * i / samples
+      val pz = z + uz * distance * i / samples
+      val ground = floorAt(px, pz) ?: return null
+      if (abs(ground - previousY) > 0.08f || abs(ground - y) > 0.18f) return null
+      previousY = ground
+    }
+    return previousY
+  }
+
+  private fun frame(visible: Boolean, actualSpeed: Float) = DogFrame(
+    x, y, z, Math.toDegrees(yaw.toDouble()).toFloat(), visible && placed,
+    animations.current.clip, actualSpeed, animations.current.loop, animations.current.revision, moving,
   )
 
-  private fun wrapRadians(angle: Float): Float {
+  private fun wrap(angle: Float): Float {
     var value = angle
-    while (value > PI) value -= (2.0 * PI).toFloat()
-    while (value < -PI) value += (2.0 * PI).toFloat()
+    while (value > PI) value -= (2 * PI).toFloat()
+    while (value < -PI) value += (2 * PI).toFloat()
     return value
   }
 
   private companion object {
-    const val LEAD_METERS = 1.8f
-    const val MAX_SPEED = 4.2f
-    const val TURN_RATE = 5.2f
-    const val FOLLOW_GAIN = 5f
-    const val GROUND_FOLLOW = 10f
-    const val MIN_HORIZONTAL = 0.15f
-    const val YAW_LOCK_GAP = 0.2f
-    const val MIN_AHEAD = 0.9f
-    const val IDLE_SPEED = 0.18f
-    const val GALLOP_SPEED = 2.05f
-    const val CLIP_IDLE = "Idle"
-    const val CLIP_WALK = "Walk"
-    const val CLIP_GALLOP = "Gallop"
+    val ROUTE_OFFSETS = floatArrayOf(0f, -0.9f, 0.9f, -1.7f, 1.7f)
   }
 }
 
@@ -130,4 +230,7 @@ data class DogFrame(
   val visible: Boolean,
   val clip: String,
   val speedMetersPerSecond: Float,
+  val clipLoop: Boolean = true,
+  val animationRevision: Int = 0,
+  val moving: Boolean = false,
 )

@@ -20,6 +20,16 @@ class ArFloorViewManager : SimpleViewManager<ArFloorView>() {
     view.setActive(active)
   }
 
+  @ReactProp(name = "placementRequest", defaultInt = 0)
+  fun setPlacementRequest(view: ArFloorView, request: Int) {
+    view.requestPlacement(request)
+  }
+
+  @ReactProp(name = "actionRequest")
+  fun setActionRequest(view: ArFloorView, request: String?) {
+    view.requestAction(request.orEmpty())
+  }
+
   override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> =
     mutableMapOf("topTracking" to mutableMapOf("registrationName" to "onTracking"))
 
