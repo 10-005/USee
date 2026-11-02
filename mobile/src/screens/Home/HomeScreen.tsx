@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import { BottomNavigation } from '../../components/common';
@@ -31,6 +31,7 @@ const navigationItems = [
 ] as const;
 
 export function HomeScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const animals = useMemo(
     () =>
@@ -46,7 +47,7 @@ export function HomeScreen({ navigation }: Props) {
       onPress={() => navigation.navigate('AdoptionDetail', { animalId: item.id })}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      <Image source={item.image} style={styles.cardImage} />
+      <Image resizeMode="cover" source={item.image} style={styles.cardImage} />
       <View style={[styles.statusBadge, item.status === '종료' && styles.endedBadge]}>
         <Text style={styles.statusText}>{item.status}</Text>
       </View>
@@ -101,14 +102,14 @@ export function HomeScreen({ navigation }: Props) {
       </ScrollView>
       <FlatList
         columnWrapperStyle={styles.column}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: 88 + insets.bottom }]}
         data={animals}
         keyExtractor={item => item.id}
         numColumns={2}
         renderItem={renderAnimal}
         showsVerticalScrollIndicator={false}
       />
-      <View style={styles.navigationWrap}>
+      <View style={[styles.navigationWrap, { bottom: Math.max(insets.bottom, 12) }]}>
         <BottomNavigation
           centerAction={{
             accessibilityLabel: '등록',
@@ -151,9 +152,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   filterText: { ...typography.bodyRegular14, color: colors.gray500 },
-  listContent: { paddingBottom: 100, paddingHorizontal: 20 },
+  listContent: { paddingHorizontal: 20 },
   column: { gap: 12 },
-  card: { marginBottom: 18, width: '48.3%' },
+  card: { flex: 1, height: 316, marginBottom: 18, minWidth: 0 },
   cardImage: { aspectRatio: 1, borderRadius: radius.sm, width: '100%' },
   statusBadge: {
     alignSelf: 'flex-start',
@@ -170,7 +171,7 @@ const styles = StyleSheet.create({
   cardMeta: { ...typography.bodyRegular14, color: colors.gray700, marginTop: 3 },
   cardSummary: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
   cardDescription: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
-  navigationWrap: { bottom: 12, left: 25, position: 'absolute', right: 25 },
+  navigationWrap: { left: 25, position: 'absolute', right: 25 },
   plus: { color: colors.white, fontSize: 28 },
   pressed: { opacity: 0.75 },
 });

@@ -38,7 +38,7 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
     adoptionAnimals.find(item => item.id === route.params.animalId) ?? adoptionAnimals[0];
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
       <AppHeader onBackPress={navigation.goBack} title="게시글" />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.shelterProfile}>
@@ -47,7 +47,7 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
             style={styles.profileImage}
           />
           <Text style={styles.shelterName}>익산유기동물보호소</Text>
-          <Text style={styles.profileMeta}>구미 인동 | 26.10.26</Text>
+          <Text style={styles.profileMeta}>26.10.26</Text>
         </View>
         <Image
           source={require('../../assets/images/adoption/animal-detail.jpg')}
