@@ -362,7 +362,7 @@ function StepOne({ form, update }: StepProps) {
             우사기　<Text style={styles.profileMeta}>2000.00.00</Text>
           </Text>
           <Pressable accessibilityLabel="신청자 정보 수정" accessibilityRole="button">
-            <EditIcon />
+            <EditIcon height={20} width={20} />
           </Pressable>
         </View>
         <View style={styles.profileMetaRow}>

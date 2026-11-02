@@ -13,6 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
+import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import DateIcon from '../../assets/icons/common/date.svg';
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
@@ -74,6 +75,7 @@ const navigationItems = [
 export function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(() => new Set());
   const [selectedTab, setSelectedTab] =
     useState<(typeof navigationItems)[number]['key']>('adoption');
   const animals = useMemo(
@@ -83,6 +85,17 @@ export function HomeScreen({ navigation }: Props) {
       ),
     [query],
   );
+  const toggleBookmark = (animalId: string) => {
+    setBookmarkedIds(current => {
+      const next = new Set(current);
+      if (next.has(animalId)) {
+        next.delete(animalId);
+      } else {
+        next.add(animalId);
+      }
+      return next;
+    });
+  };
 
   const renderAnimal = ({ item }: { item: AdoptionAnimal }) => (
     <Pressable
@@ -91,6 +104,22 @@ export function HomeScreen({ navigation }: Props) {
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
       <Image resizeMode="cover" source={item.image} style={styles.cardImage} />
+      <Pressable
+        accessibilityLabel={`${item.name} 북마크`}
+        accessibilityRole="button"
+        accessibilityState={{ selected: bookmarkedIds.has(item.id) }}
+        onPress={event => {
+          event.stopPropagation();
+          toggleBookmark(item.id);
+        }}
+        style={({ pressed }) => [
+          styles.bookmarkButton,
+          bookmarkedIds.has(item.id) && styles.bookmarkButtonSelected,
+          pressed && styles.pressed,
+        ]}
+      >
+        <BookmarkIcon />
+      </Pressable>
       <View style={[styles.statusBadge, item.status === '종료' && styles.endedBadge]}>
         <Text style={styles.statusText}>{item.status}</Text>
       </View>
@@ -209,6 +238,19 @@ const styles = StyleSheet.create({
   column: { gap: 12 },
   card: { flex: 1, height: 316, marginBottom: 18, minWidth: 0 },
   cardImage: { aspectRatio: 1, borderRadius: radius.sm, width: '100%' },
+  bookmarkButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 16,
+    height: 32,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 8,
+    top: 8,
+    width: 32,
+    zIndex: 1,
+  },
+  bookmarkButtonSelected: { backgroundColor: '#DCFCE7' },
   statusBadge: {
     alignSelf: 'flex-start',
     backgroundColor: colors.green100,

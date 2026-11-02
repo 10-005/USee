@@ -1,8 +1,10 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
+import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import { AppHeader, Button } from '../../components/common';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals } from './data';
@@ -34,6 +36,7 @@ function InfoRows({ rows }: { rows: string[][] }) {
 }
 
 export function AdoptionDetailScreen({ navigation, route }: Props) {
+  const [bookmarked, setBookmarked] = useState(false);
   const animal =
     adoptionAnimals.find(item => item.id === route.params.animalId) ?? adoptionAnimals[0];
 
@@ -58,7 +61,19 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
             <Text style={styles.badgeText}>보호중</Text>
           </View>
           <Text style={styles.title}>[{animal.species}] 믹스견</Text>
-          <Text style={styles.bookmark}>♡</Text>
+          <Pressable
+            accessibilityLabel="북마크"
+            accessibilityRole="button"
+            accessibilityState={{ selected: bookmarked }}
+            onPress={() => setBookmarked(current => !current)}
+            style={({ pressed }) => [
+              styles.bookmark,
+              bookmarked && styles.bookmarkSelected,
+              pressed && styles.pressed,
+            ]}
+          >
+            <BookmarkIcon />
+          </Pressable>
         </View>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>기본정보</Text>
@@ -131,7 +146,14 @@ const styles = StyleSheet.create({
   },
   badgeText: { ...typography.bodyRegular14, color: colors.white },
   title: { ...typography.titleSemiBold18, color: colors.black, flex: 1 },
-  bookmark: { fontSize: 24 },
+  bookmark: {
+    alignItems: 'center',
+    borderRadius: 16,
+    height: 32,
+    justifyContent: 'center',
+    width: 32,
+  },
+  bookmarkSelected: { backgroundColor: '#DCFCE7' },
   section: {
     borderTopColor: colors.gray200,
     borderTopWidth: 1,
@@ -149,4 +171,5 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8, paddingHorizontal: 15, paddingTop: 20 },
   action: { flex: 1 },
   applyButton: { backgroundColor: '#FAB45B' },
+  pressed: { opacity: 0.7 },
 });
