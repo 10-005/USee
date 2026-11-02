@@ -19,20 +19,74 @@ import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 const filters = ['기간', '지역', '축종', '상태', '성별', '중성화여부', '최신순'];
-const adoptIcon = () => <Text>♧</Text>;
-const findIcon = () => <Text>⌕</Text>;
-const chatIcon = () => <Text>◯</Text>;
-const myIcon = () => <Text>♙</Text>;
 const navigationItems = [
-  { key: 'adopt', label: '입양', icon: adoptIcon },
-  { key: 'find', label: '찾아요', icon: findIcon },
-  { key: 'chat', label: '채팅', icon: chatIcon },
-  { key: 'my', label: '마이페이지', icon: myIcon },
+  {
+    key: 'adoption',
+    label: '입양',
+    icon: (selected: boolean) => (
+      <Image
+        resizeMode="contain"
+        source={
+          selected
+            ? require('../../assets/icons/navigation/adoption-active.png')
+            : require('../../assets/icons/navigation/adoption.png')
+        }
+        style={styles.navigationIcon}
+      />
+    ),
+  },
+  {
+    key: 'search',
+    label: '찾아요',
+    icon: (selected: boolean) => (
+      <Image
+        resizeMode="contain"
+        source={
+          selected
+            ? require('../../assets/icons/navigation/search-active.png')
+            : require('../../assets/icons/navigation/search.png')
+        }
+        style={styles.navigationIcon}
+      />
+    ),
+  },
+  {
+    key: 'chat',
+    label: '채팅',
+    icon: (selected: boolean) => (
+      <Image
+        resizeMode="contain"
+        source={
+          selected
+            ? require('../../assets/icons/navigation/chat-active.png')
+            : require('../../assets/icons/navigation/chat.png')
+        }
+        style={styles.navigationIcon}
+      />
+    ),
+  },
+  {
+    key: 'mypage',
+    label: '마이페이지',
+    icon: (selected: boolean) => (
+      <Image
+        resizeMode="contain"
+        source={
+          selected
+            ? require('../../assets/icons/navigation/mypage-active.png')
+            : require('../../assets/icons/navigation/mypage.png')
+        }
+        style={styles.navigationIcon}
+      />
+    ),
+  },
 ] as const;
 
 export function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
+  const [selectedTab, setSelectedTab] =
+    useState<(typeof navigationItems)[number]['key']>('adoption');
   const animals = useMemo(
     () =>
       adoptionAnimals.filter(item =>
@@ -113,12 +167,17 @@ export function HomeScreen({ navigation }: Props) {
         <BottomNavigation
           centerAction={{
             accessibilityLabel: '등록',
-            icon: <Text style={styles.plus}>＋</Text>,
+            icon: (
+              <Image
+                source={require('../../assets/icons/navigation/create.png')}
+                style={styles.navigationIcon}
+              />
+            ),
             onPress: () => undefined,
           }}
           items={navigationItems}
-          onSelect={() => undefined}
-          selectedKey="adopt"
+          onSelect={setSelectedTab}
+          selectedKey={selectedTab}
         />
       </View>
     </SafeAreaView>
@@ -172,6 +231,6 @@ const styles = StyleSheet.create({
   cardSummary: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
   cardDescription: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
   navigationWrap: { left: 25, position: 'absolute', right: 25 },
-  plus: { color: colors.white, fontSize: 28 },
+  navigationIcon: { height: 24, width: 24 },
   pressed: { opacity: 0.75 },
 });
