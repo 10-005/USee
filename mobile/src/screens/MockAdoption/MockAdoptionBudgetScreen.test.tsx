@@ -38,10 +38,10 @@ test('accepts digits only and persists only when starting, with retry on save fa
   expect(button().props.disabled).toBe(true);
   expect(input().props.placeholder).toBe('0');
   for (const [label, expected] of [
-    ['10,000원 추가', '10000'],
-    ['50,000원 추가', '60000'],
-    ['100,000원 추가', '160000'],
-    ['1,000,000원 추가', '1160000'],
+    ['10,000원 추가', '10,000'],
+    ['50,000원 추가', '60,000'],
+    ['100,000원 추가', '160,000'],
+    ['1,000,000원 추가', '1,160,000'],
   ]) {
     await ReactTestRenderer.act(() => {
       renderer.root.findAllByProps({ accessibilityLabel: label })[0].props.onPress();
@@ -52,12 +52,12 @@ test('accepts digits only and persists only when starting, with retry on save fa
   await ReactTestRenderer.act(() => {
     renderer.root.findAllByProps({ accessibilityLabel: '10,000원 추가' })[0].props.onPress();
   });
-  expect(input().props.value).toBe('100010000');
+  expect(input().props.value).toBe('100,010,000');
   expect(button().props.disabled).toBe(true);
-  await ReactTestRenderer.act(() => input().props.onChangeText('35000'));
+  await ReactTestRenderer.act(() => input().props.onChangeText('35,000'));
   expect(button().props.disabled).toBe(false);
   await ReactTestRenderer.act(() => input().props.onChangeText('35a000'));
-  expect(input().props.value).toBe('35000');
+  expect(input().props.value).toBe('35,000');
   await expect(getActiveMockAdoption()).resolves.toBeNull();
   const save = jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('disk full'));
   await ReactTestRenderer.act(async () => {

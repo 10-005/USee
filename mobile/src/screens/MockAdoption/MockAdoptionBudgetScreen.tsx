@@ -87,10 +87,11 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
               keyboardType="number-pad"
               inputMode="numeric"
               editable={!saving}
-              value={value}
+              value={value.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
               onChangeText={text => {
-                if (/^[0-9]*$/.test(text)) {
-                  setValue(text);
+                const digits = text.replace(/,/g, '');
+                if (/^[0-9]*$/.test(digits)) {
+                  setValue(digits);
                   setSaveError(undefined);
                 }
               }}
@@ -204,7 +205,7 @@ const styles = StyleSheet.create({
   incrementRow: { flexDirection: 'row', gap: 8 },
   incrementButton: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 30,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.md,
