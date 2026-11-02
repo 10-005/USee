@@ -2,6 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
+  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -32,6 +33,7 @@ import SearchActiveIcon from '../../assets/icons/navigation/search-active.svg';
 import SearchIcon from '../../assets/icons/navigation/search.svg';
 import { BottomNavigation } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
+import { getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
 import { MockAdoptionScreen } from '../MockAdoption/MockAdoptionScreen';
@@ -235,7 +237,20 @@ export function HomeScreen({ navigation }: Props) {
         centerAction={{
           accessibilityLabel: '모의입양',
           icon: <PlusIcon height={24} width={24} />,
-          onPress: () => setSelectedTab('mockAdoption'),
+          onPress: async () => {
+            try {
+              const session = await getActiveMockAdoption();
+              setSelectedTab('mockAdoption');
+              if (session) {
+                navigation.navigate('MockAdoptionActivity', { petId: session.petId });
+              }
+            } catch {
+              Alert.alert(
+                '모의 입양',
+                '진행 중인 모의입양을 불러오지 못했어요. 다시 시도해주세요.',
+              );
+            }
+          },
           selected: selectedTab === 'mockAdoption',
         }}
         items={navigationItems}
