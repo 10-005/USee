@@ -21,6 +21,12 @@ import { mockAdoptionPets } from './data';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionBudget'>;
 const SOURCE_URL = 'https://www.mafra.go.kr/bbs/home/792/594753/download.do';
+const budgetIncrements = [
+  { label: '+1만', amount: 10_000 },
+  { label: '+5만', amount: 50_000 },
+  { label: '+10만', amount: 100_000 },
+  { label: '+100만', amount: 1_000_000 },
+];
 
 export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
@@ -72,23 +78,60 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
               선택한 동물을 찾을 수 없어요. 이전 화면에서 다시 선택해주세요.
             </Text>
           )}
-          <TextInput
-            label="일주일 예상 양육비 (원)"
-            accessibilityLabel="일주일 예상 양육비"
-            placeholder="최소 10,000원"
-            keyboardType="number-pad"
-            inputMode="numeric"
-            editable={!saving}
-            value={value}
-            onChangeText={text => {
-              if (/^[0-9]*$/.test(text)) {
-                setValue(text);
-                setSaveError(undefined);
-              }
-            }}
-            onBlur={() => setTouched(true)}
-            errorMessage={touched || value ? error : undefined}
-          />
+          <Text style={styles.inputLabel}>일주일 예상 양육비</Text>
+          <View style={styles.amountField}>
+            <TextInput
+              accessibilityLabel="일주일 예상 양육비"
+              placeholder="0"
+              style={styles.amountInput}
+              keyboardType="number-pad"
+              inputMode="numeric"
+              editable={!saving}
+              value={value}
+              onChangeText={text => {
+                if (/^[0-9]*$/.test(text)) {
+                  setValue(text);
+                  setSaveError(undefined);
+                }
+              }}
+              onBlur={() => setTouched(true)}
+              aria-invalid={Boolean((touched || value) && error)}
+            />
+            <View pointerEvents="none" style={styles.currencyWrap}>
+              <Text style={styles.currency}>원</Text>
+            </View>
+          </View>
+          {(touched || value) && error ? (
+            <Text accessibilityLiveRegion="polite" style={styles.error}>
+              {error}
+            </Text>
+          ) : null}
+          <View style={styles.incrementRow}>
+            {budgetIncrements.map(increment => (
+              <Pressable
+                key={increment.amount}
+                accessibilityRole="button"
+                accessibilityLabel={`${increment.amount.toLocaleString('ko-KR')}원 추가`}
+                accessibilityState={{ disabled: saving }}
+                disabled={saving}
+                onPress={() => {
+                  setTouched(true);
+                  setSaveError(undefined);
+                  setValue(current => {
+                    const next = Number(current || '0') + increment.amount;
+                    return Number.isSafeInteger(next) ? String(next) : current;
+                  });
+                }}
+                style={({ pressed }) => [
+                  styles.incrementButton,
+                  pressed && styles.pressed,
+                  saving && styles.disabled,
+                ]}
+              >
+                <Text style={styles.incrementLabel}>{increment.label}</Text>
+              </Pressable>
+            ))}
+          </View>
           <Text style={styles.helper}>최소 10,000원부터 입력할 수 있어요.</Text>
           <View style={styles.guide}>
             <Text style={styles.guideTitle}>일주일 예산, 이 정도부터 계획해보세요</Text>
@@ -147,6 +190,31 @@ const styles = StyleSheet.create({
   },
   petImage: { width: 60, height: 60 },
   petName: { ...typography.bodySemiBold16, color: colors.gray700 },
+  inputLabel: { ...typography.bodyRegular14, color: colors.gray600 },
+  amountField: { position: 'relative' },
+  amountInput: { textAlign: 'right', paddingRight: 36 },
+  currencyWrap: {
+    position: 'absolute',
+    top: 0,
+    right: 16,
+    height: '100%',
+    justifyContent: 'center',
+  },
+  currency: { ...typography.bodyRegular16, color: colors.gray700 },
+  incrementRow: { flexDirection: 'row', gap: 8 },
+  incrementButton: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    backgroundColor: colors.gray10,
+    borderColor: colors.gray200,
+    borderWidth: 1,
+  },
+  incrementLabel: { ...typography.bodyRegular14, color: colors.gray600 },
+  pressed: { opacity: 0.7 },
+  disabled: { opacity: 0.45 },
   helper: { ...typography.bodyRegular14, color: colors.gray500 },
   guide: {
     borderRadius: radius.lg,
