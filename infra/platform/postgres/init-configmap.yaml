@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: data
+data:
+  01-init.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<EOSQL
+    CREATE ROLE core_app LOGIN PASSWORD '${CORE_APP_PASSWORD}';
+    CREATE ROLE chat_app LOGIN PASSWORD '${CHAT_APP_PASSWORD}';
+    CREATE ROLE notification_app LOGIN PASSWORD '${NOTIFICATION_APP_PASSWORD}';
+    CREATE ROLE simulation_app LOGIN PASSWORD '${SIMULATION_APP_PASSWORD}';
+
+    REVOKE ALL ON DATABASE animal FROM PUBLIC;
+    GRANT CONNECT ON DATABASE animal TO core_app, chat_app, notification_app, simulation_app;
+    REVOKE ALL ON SCHEMA public FROM PUBLIC;
+
+    CREATE SCHEMA core AUTHORIZATION core_app;
+    CREATE SCHEMA chat AUTHORIZATION chat_app;
+    CREATE SCHEMA notification AUTHORIZATION notification_app;
+    CREATE SCHEMA simulation AUTHORIZATION simulation_app;
+
+    ALTER ROLE core_app SET search_path = core;
+    ALTER ROLE chat_app SET search_path = chat;
+    ALTER ROLE notification_app SET search_path = notification;
+    ALTER ROLE simulation_app SET search_path = simulation;
+
+    GRANT USAGE ON SCHEMA core TO chat_app, notification_app, simulation_app;
+    ALTER DEFAULT PRIVILEGES FOR ROLE core_app IN SCHEMA core
+      GRANT SELECT, REFERENCES ON TABLES TO chat_app, notification_app, simulation_app;
+
+    GRANT USAGE ON SCHEMA chat TO notification_app;
+    ALTER DEFAULT PRIVILEGES FOR ROLE chat_app IN SCHEMA chat
+      GRANT SELECT ON TABLES TO notification_app;
+    EOSQL
