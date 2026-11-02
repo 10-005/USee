@@ -26,6 +26,7 @@ $RECYCLE.BIN/
 *.iws
 *.ipr
 out/
+!**/src/**/out/
 
 # VS Code (공유할 설정만 예외로 허용)
 .vscode/*
