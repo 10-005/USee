@@ -1,0 +1,84 @@
+# 백엔드 CI: develop-backend 에 머지되면
+#   1) 바뀐 서비스의 이미지를 빌드해 자체 레지스트리에 push  (태그 = 커밋 짧은 SHA)
+#   2) infra 브랜치의 overlays/dev/kustomization.yaml newTag 를 그 SHA로 커밋 → ArgoCD 가 배포
+# 필요한 CI 변수 (Settings → CI/CD → Variables, Masked and hidden + Protected):
+#   REGISTRY_CI_PASSWORD : 레지스트리 ci 계정 비밀번호
+#   INFRA_PUSH_TOKEN     : infra 브랜치 push 용 프로젝트 액세스 토큰 (read/write_repository)
+
+variables:
+  REGISTRY: k15d106.p.ssafy.io
+  INFRA_REPO: lab.ssafy.com/s15-final/S15P31D106.git
+
+# ---------- 공통 작업 틀 ----------
+
+.build-image:
+  stage: build
+  image: docker:29-cli
+  # Runner 가 노드 2 의 Docker(/var/run/docker.sock)를 그대로 쓴다 → 빌드 캐시가 작업 사이에 남음
+  script:
+    - echo "$REGISTRY_CI_PASSWORD" | docker login "$REGISTRY" -u ci --password-stdin
+    - docker build -f "backend/$SERVICE/Dockerfile" -t "$REGISTRY/animal/$SERVICE:$CI_COMMIT_SHORT_SHA" backend
+    - docker push "$REGISTRY/animal/$SERVICE:$CI_COMMIT_SHORT_SHA"
+  after_script:
+    - docker logout "$REGISTRY" || true
+    # 노드 2 디스크(30GB) 보호: 올린 이미지 태그는 지우고, 쓰지 않는 이미지 정리 (빌드 캐시는 유지)
+    - docker image rm "$REGISTRY/animal/$SERVICE:$CI_COMMIT_SHORT_SHA" || true
+    - docker image prune -f || true
+
+.deploy-tag:
+  stage: deploy
+  image: alpine:3.22
+  script:
+    - apk add --no-cache git
+    - git config --global user.name "s15p31d106-ci"
+    - git config --global user.email "ci@k15d106.p.ssafy.io"
+    - git clone --depth 5 --branch infra --single-branch "https://ci:${INFRA_PUSH_TOKEN}@${INFRA_REPO}" infra-repo
+    - cd infra-repo
+    - KFILE="infra/services/$SERVICE/overlays/dev/kustomization.yaml"
+    # ": " 가 들어간 명령은 YAML 이 키·값으로 오해하므로 블록(|)으로 감싼다
+    - |
+      sed -i "s|newTag: .*|newTag: \"$CI_COMMIT_SHORT_SHA\"|" "$KFILE"
+    - git add "$KFILE"
+    - |
+      if git diff --cached --quiet; then
+        echo "태그 변경 없음 ($CI_COMMIT_SHORT_SHA)"; exit 0
+      fi
+    - |
+      git commit -m "chore(deploy): $SERVICE $CI_COMMIT_SHORT_SHA" -m "Source: $CI_PROJECT_URL/-/commit/$CI_COMMIT_SHA"
+    # 다른 서비스 배포 커밋과 겹치면 rebase 후 재시도 (최대 3번)
+    - |
+      for i in 1 2 3; do
+        if git push origin infra; then exit 0; fi
+        git pull --rebase origin infra
+      done
+      exit 1
+
+# ---------- core-api ----------
+
+# 경로 필터: core-api 자체, 공통 모듈, 빌드 설정, CI 파일이 바뀐 경우에만
+.core-api-rules:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop-backend"
+      changes:
+        - backend/core-api/**/*
+        - backend/common/**/*
+        - backend/gradle/**/*
+        - backend/*.gradle.kts
+        - backend/gradle.properties
+        - backend/gradlew
+        - backend/.gitlab-ci.yml
+        - .gitlab-ci.yml
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "develop-backend"
+
+core-api:build:
+  extends: [.build-image, .core-api-rules]
+  variables:
+    SERVICE: core-api
+
+core-api:deploy:
+  extends: [.deploy-tag, .core-api-rules]
+  needs: ["core-api:build"]
+  variables:
+    SERVICE: core-api
+
+# chat / notification / simulation 은 매니페스트가 준비되면 위 두 작업을 복사해 SERVICE 와 경로만 바꾼다
