@@ -18,19 +18,18 @@ function renderApp(path: string) {
 describe('앱 탐색', () => {
   beforeEach(() => useUiStore.setState({ navigationOpen: false }));
 
-  it('홈 화면에서 메뉴를 열고 홈 이동 시 닫는다', () => {
+  it('opens the animal list from the dashboard count', () => {
     renderApp('/');
-    expect(screen.getByRole('heading', { name: '서비스 준비 중입니다' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '메뉴' }));
-    expect(screen.getByRole('navigation', { name: '주 메뉴' })).toBeVisible();
-    fireEvent.click(screen.getByRole('link', { name: '홈' }));
-    expect(screen.getByRole('button', { name: '메뉴' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('보호소 홈');
+    fireEvent.click(screen.getByRole('link', { name: /보호동물 12마리/ }));
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('보호동물 목록');
+    expect(screen.getByRole('status')).toHaveTextContent('총 12마리');
   });
 
   it('알 수 없는 주소는 404를 표시하고 홈으로 복귀한다', () => {
     renderApp('/unknown/deep-link');
     expect(screen.getByRole('heading', { name: '페이지를 찾을 수 없습니다' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: '홈으로 돌아가기' }));
-    expect(screen.getByRole('heading', { name: '서비스 준비 중입니다' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '보호소 홈' })).toBeInTheDocument();
   });
 });
