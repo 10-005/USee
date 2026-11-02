@@ -1,7 +1,7 @@
 # 유실·발견동물·보호소·입양 플랫폼 API 명세서 — v3
 
-> **작성일:** 2026-11-02  
-> **근거:** `animal_service_db_spec_v10.md`(DB 통합 명세 v10, 현행 45개 테이블, 스키마 2개) + Q406·Q413~Q429·S1~S8 확정 + 백엔드 스켈레톤 코드(`backend/common` 응답·예외·인증 규약). 이전 버전 `animal_service_api_spec_v2.md`는 보존합니다.  
+> **작성일:** 2026-11-02 (최종 갱신 2026-11-03)  
+> **근거:** `animal_service_db_spec_v10.md`(DB 통합 명세 v10, 현행 45개 테이블, 스키마 2개) + Q406·Q413~Q429·S1~S8 확정 + R1~R16·Q430~Q445(2026-11-02~03 검토, 20.1) + 백엔드 스켈레톤 코드(`backend/common` 응답·예외·인증 규약). 이전 버전 `animal_service_api_spec_v2.md`는 보존합니다.  
 > **문서 목적:** Android·BE·AI·보호소 화면이 공유하는 REST API 계약. 공통 규약(1장)은 코드와 일치하며, 각 엔드포인트의 DTO는 구현 중 조정될 수 있는 [초안]입니다.  
 > **백엔드 스택 [확정]:** JDK 21, Spring Boot 4.1.2, Kotlin 2.3.21, JPA + QueryDSL, PostgreSQL 17, Redis 7.4, RabbitMQ(STOMP relay + 서비스 간 이벤트), AWS S3(presigned PUT), 네이버 지도 역지오코딩. OpenSearch는 도입하지 않습니다(S7). 서비스 4개: core-api(8080) / chat(8081) / notification(8082) / simulation(8083).
 
@@ -181,7 +181,7 @@
 ### 1.4 목록 응답 DTO
 
 - `Page<T>` **[확정 정책 — 코드 `PageResponse`]**: `{content: T[], page, size, totalElements, totalPages, hasNext}`. `page`는 0부터.
-- `ImageRef`: `{imageSeq: number, imageUrl: string|null, displayOrder: number}`. `imageUrl`은 서버가 반환한 접근 URL이며 DB의 `image_key`를 임의 조합하지 않습니다.
+- `ImageRef`: `{imageSeq: number, imageUrl: string|null, displayOrder: number}`. `imageUrl`은 서버가 반환한 접근 URL이며 DB의 `image_key`를 앱이 임의 조합하지 않습니다. **[확정 정책] 읽기 방식(Q443):** 사진(`images/` 접두어)은 버킷 정책으로 **공개 읽기**를 허용한 **고정 URL**(`{public-base-url}/{image_key}`, 만료 없음, 앱 캐시 가능)입니다. 수료증(`certificates/`)만 비공개 객체이며 12.3 `certificateUrl`로 **presigned GET**(TTL 10분 [가안])을 내려줍니다.
 - `AnimalClassification`: `{combinationSeq, speciesSeq, speciesName, breedSeq, breedName, colorSeq, colorName}`. **저장은 `combinationSeq`만** 사용합니다. `speciesSeq/breedSeq/colorSeq`는 표시를 위한 JOIN 파생 필드입니다.
 - `ActorSummary`: `{userSeq, displayName, role, profileImage?: ImageRef|null}`. 회원 탈퇴 시 표시 이름 대체. SHELTER는 표시 이름으로 해당 보호소명 사용. 프로필 이미지는 USER·SHELTER 모두 공통 `images` 참조(Q408).
 - `GeoPoint`: `{address, latitude, longitude, districtCode}`. 위도 -90~90/경도 -180~180 검증은 [초안] 구현 규약. `districtCode`는 서버가 역지오코딩으로 채우며 실패 시 `null`(Q406).
@@ -268,6 +268,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 - **[확정 정책]** LOCAL은 SHELTER 전용, 계정 사전 발급(Flyway 시드, Q412). `password_hash`만 보관하며 비밀번호 재설정 API는 구현 제외. ADMIN 계정은 발급하지 않습니다(Q411). 발급 토큰의 클레임에 `shelterSeq`를 넣으며, `shelter_members` 행이 없는 SHELTER 계정은 로그인 거부합니다(토큰 검증기가 `role=SHELTER`에 `shelterSeq` 없는 토큰을 거부).
 - **[초안]** 존재하지 않는 ID/틀린 비밀번호는 동일 401 `AUTH_INVALID_CREDENTIALS`.
+- **[확정 정책] 실패 제한(Q445):** 같은 `loginId` 기준 연속 실패 횟수를 Redis `auth:login-fail:{loginId}`에 세고, **5회 실패 시 15분 동안 로그인을 거부**합니다 **[가안: 횟수·시간은 코드 설정]**. 차단 중에는 비밀번호가 맞아도 429 `AUTH_LOGIN_LOCKED`를 돌려주고, 차단은 TTL 만료로만 자동 해제됩니다(수동 해제 API·DB 컬럼 없음, 비밀번호 재설정이 없으므로 영구 잠금은 두지 않음). 성공 시 카운터를 삭제합니다. 존재하지 않는 ID도 같은 규칙으로 세어 계정 존재 여부를 노출하지 않습니다.
 
 ### 2.3 POST /auth/refresh · 2.4 POST /auth/logout
 
@@ -379,7 +380,9 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 **4.2 요청 [초안]** `{ "imageKey":"images/2026/11/generated-key.jpg" }`.
 
-**4.2 성공 201 `data` [초안]** `{ "imageSeq":1001, "imageUrl":"https://{cdn-or-bucket}/images/2026/11/generated-key.jpg", "mimeType":"image/jpeg", "byteSize":1234567 }`.
+**4.2 성공 201 `data` [초안]** `{ "imageSeq":1001, "imageUrl":"https://{public-base-url}/images/2026/11/generated-key.jpg", "mimeType":"image/jpeg", "byteSize":1234567 }`.
+
+- **[확정 정책] 읽기 URL(Q443):** `images/` 접두어 객체는 버킷 정책으로 익명 GET을 허용하고, 모든 `imageUrl`은 `{public-base-url}` + `image_key`의 **고정 URL**입니다(서명·만료 없음). 서버는 이 조합만 하고 앱은 URL을 그대로 씁니다. 키는 서버가 생성한 랜덤 값이라 추측이 어렵고, 사진은 모두 공개 게시물·프로필용이라 로그인 없이 열리는 것을 허용합니다. 업로드(PUT)는 계속 presigned만 허용하며 익명 쓰기는 열지 않습니다. `{public-base-url}`은 버킷 도메인 또는 CDN 도메인이며 코드 설정값입니다.
 
 - **[확정 정책] 발급 컨텍스트:** 4.1이 `imageKey`를 서버가 생성하고 Redis `upload:image:{imageKey}`에 발급자 `userSeq`·`contentType`·`fileName`을 TTL 10분 **[가안]**으로 저장합니다. 4.2는 그 키의 발급자가 요청자와 같을 때만 받아들이고(아니면 404 `IMAGE_NOT_FOUND`), **S3 `HEAD` 호출로 실제 객체의 `Content-Length`·`Content-Type`을 읽어** 10MB·허용 MIME을 검증한 뒤 `images` 행을 INSERT하고 Redis 키를 삭제합니다. 클라이언트가 보낸 크기·MIME은 신뢰하지 않습니다. presigned 서명에는 `Content-Type`을 포함해 다른 타입 PUT을 거부합니다.
 - **[확정 정책] 고아 객체:** 4.1 뒤 4.2가 오지 않은 객체는 DB 행이 없으므로 버킷 **수명주기 규칙**(`images/` 접두어의 미확정 객체를 24시간 뒤 삭제 **[가안]**, 확정 객체는 4.2에서 태그를 붙여 제외)으로 정리합니다.
@@ -395,6 +398,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 - **[확정 정책]** 교육 수료증은 신청서당 선택 1건, JPG/PNG/PDF 최대 10MB. 저장 위치는 `adoption_applications.certificate_storage_key`이고 공통 `images.imageSeq` FK가 아닙니다. 발급 컨텍스트는 4.1과 같이 Redis `upload:file:{storageKey}`에 두고, 12.5에서 `certificateStorageKey`를 저장할 때 발급자 일치와 S3 `HEAD` 검증을 수행합니다.
 - 수료증(`certificateStorageKey`)만 저장소 키 문자열 방식이고, 프로필 이미지를 포함한 모든 사진은 공통 `imageSeq` 참조입니다(Q408). 두 방식을 섞지 않습니다.
+- **[확정 정책] 읽기(Q443):** `certificates/` 접두어는 **비공개**(익명 GET 불허)입니다. 12.3 상세 조회에서 권한을 통과한 요청자(신청자 본인·담당 보호소)에게만 서버가 **presigned GET URL**을 만들어 `certificateUrl`로 내려주며 TTL 10분 **[가안]**, 매 조회마다 새로 발급합니다. 목록(12.2·12.9)에는 URL을 넣지 않고 `certificateAttached` 불리언만 둡니다.
 - **오류 [초안]** 413 `ADOPTION_CERTIFICATE_TOO_LARGE`, 415 `ADOPTION_CERTIFICATE_UNSUPPORTED_TYPE`, 404 `ADOPTION_CERTIFICATE_NOT_FOUND`(12.5에서 미업로드·타인 발급 키).
 
 ---
@@ -929,6 +933,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 ```
 
 - **[확정 정책]** DRAFT에서는 신청자 인적사항을 현재 `users`에서 읽고, SUBMITTED 이후에는 `applicant_name/birth_date/phone` 스냅샷을 조회합니다. 작성된 답변 `answers`는 JSONB 객체이며 키는 **문자열 `questionSeq`**입니다.
+- **[확정 정책] `certificateUrl`(Q443):** `certificate_storage_key`가 있으면 서버가 이 응답을 만들 때 **presigned GET URL**(TTL 10분 [가안])을 생성해 넣고, 없으면 `null`. 수료증 객체는 비공개라 URL이 만료되면 상세를 다시 조회해야 합니다. 사진(`images/`)과 달리 고정 URL이 아닙니다.
 - 신청자 본인 외에는 소속 보호소 담당자의 업무 조회로만 상세 노출. 탈퇴 신청자의 과거 신청서와 수료증도 업무상 유지합니다(일반 공개 API에는 노출하지 않음). 담당 보호소는 12.15로 신청자의 해당 동물 모의 입양 리포트를 함께 열람할 수 있습니다(M14·M17, FK 없는 파생 조회).
 - 문항을 수정해도 과거 `answers`는 **현재 문항 문구**와 함께 표시합니다. 별도 이력/버전/원본 문항 스냅샷 요청 API는 만들지 않습니다.
 - **오류 [초안]** 404 `ADOPTION_APPLICATION_NOT_FOUND`. 신청자 본인도 담당 보호소도 아니면 403이 아니라 이 404로 존재를 감춥니다(Q434; 종전 `ADOPTION_APPLICATION_ACCESS_DENIED` 삭제).
@@ -1390,7 +1395,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 - **이벤트(M11·M15):** 집 돌발 이벤트, 산책 중 동물 행동, 아픔(병)을 **시나리오→선택지 2개→효과 JSON** 엔진 하나로 처리합니다. 시나리오는 `HOME/WALK` 장소와 `RANDOM/CONDITION`(스탯 조건) 발생 유형을 가집니다. "아픔"은 건강 등 스탯 조건으로 발생하는 HOME·CONDITION 이벤트이고, 동물병원은 그 이벤트의 선택지(진료비·진단 문구 `resultText`)입니다. **별도 병원·진단 API는 없습니다.** 미응답(PENDING) 이벤트는 세션당 동시에 1개.
 - **산책(M12):** 개·고양이 모두 가능. 고양이는 종 배율로 스트레스 증가·활동 회복 감소 **[가안]**. 산책 중 동물 행동은 WALK 시나리오로 하트비트 응답에 실려 오고, 사용자가 먼저 하는 행동은 물 주기·간식 주기 두 가지입니다.
 - **알림(M13·M16):** 일반 `notifications`와 **완전 분리**된 `simulation_notifications`에 simulation이 저장·커밋한 뒤, RabbitMQ 이벤트 `SimulationPushRequested`로 notification 서비스에 넘기고 notification이 활성 FCM 토큰으로 푸시합니다(`device_tokens`는 notification 소유라 simulation이 직접 읽지 않음). 유형은 `NEGLECT/EVENT/SESSION_END`와 스탯별 경고 7종 `STAT_HUNGER_WARNING/STAT_HYDRATION_WARNING/STAT_CLEANLINESS_WARNING/STAT_FRIENDSHIP_WARNING/STAT_STRESS_WARNING/STAT_HEALTH_WARNING/STAT_ACTIVITY_WARNING`(총 10종, Q438). 스탯 경고를 유형으로 나눈 이유는 "스탯당 하루 1회" 억제를 같은 세션·같은 유형의 최근 24시간 행 존재 여부로 판정하기 위해서입니다(별도 컬럼 없음). 산책 중 WALK 이벤트는 푸시 없이 하트비트 응답으로 전달합니다.
-- **리포트(M14·M17·Q435):** 유저에게 쌓이고 보호소는 **종료 리포트만** 열람합니다. "보호소"는 **세션 동물의 `shelter_seq` 소속 SHELTER 회원**을 뜻하며, 자기 보호동물로 진행된 세션의 리포트(18.18·18.20)와 입양 신청 상세 경로(12.15)로 열람합니다. 세션 상세·행동 이력·지출 내역(18.4·18.7·18.11)은 **본인 전용**이며, 그 정보는 종료 시 리포트 생성 과정에서 집약됩니다. **리포트 `summary`는 세션 상세·행동 이력·지출 내역을 LLM에 보내 생성**하고(`port/out` 어댑터로 격리), 호출 실패 시에는 집계값 기반 규칙 문구로 대체합니다 **[가안]**. 수정·삭제 API는 없습니다.
+- **리포트(M14·M17·Q435):** 유저에게 쌓이고 보호소는 **종료 리포트만** 열람합니다. "보호소"는 **세션 동물의 `shelter_seq` 소속 SHELTER 회원**을 뜻하며, 자기 보호동물로 진행된 세션의 리포트(18.18·18.20)와 입양 신청 상세 경로(12.15)로 열람합니다. 세션 상세·행동 이력·지출 내역(18.4·18.7·18.11)은 **본인 전용**이며, 그 정보는 종료 시 리포트 생성 과정에서 집약됩니다. **리포트 `summary`는 비동기로 생성합니다(Q444):** 종료 트랜잭션은 집계 컬럼만 채우고 `summary=NULL`로 리포트를 저장·커밋 → 커밋 후 리스너(`@TransactionalEventListener(AFTER_COMMIT)` + `@Async`, simulation 내부)가 세션 상세·행동 이력·지출 내역을 LLM 어댑터(`port/out`)에 보내 문구를 받아 `summary`만 UPDATE. 실패하면 1회 재시도 후 집계값 기반 규칙 문구를 대신 저장합니다 **[가안: 타임아웃 20초, 재시도 1회]**. DB 트랜잭션 안에서 LLM을 호출하지 않으며, 앱은 `summary`가 `null`이면 "요약 준비 중"으로 표시합니다. 수정·삭제 API는 없습니다.
 - **마스터 데이터(Q412):** 펫샵 물품·이벤트 시나리오·선택지는 Flyway 시드로 적재하며 관리 API가 없습니다.
 
 **권한 표기:** "본인" = `simulation_sessions.user_seq` 가 요청자. "보호소" = 세션 스냅샷 `shelter_seq` = 토큰 `shelterSeq`이며 **18.18·18.20·18.21에만** 등장합니다(Q435). 그 외 접근은 404 `SIMULATION_NOT_FOUND`로 존재를 감춥니다(1.3 공통 필터). 변경 계열(행동·구매·이벤트 응답·산책·포기)은 세션이 `IN_PROGRESS`일 때만 허용하고 아니면 409 `SIMULATION_NOT_IN_PROGRESS`.
@@ -1665,7 +1670,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
   "summary": "예상보다 32,000원을 더 썼어요. 돌발 이벤트 비용이 가장 컸습니다."
 }
 ```
-- **[확정 정책]** 세션 종료(COMPLETED/ABANDONED/FAILED) 트랜잭션에서 `simulation_reports`를 **1회 생성**해 영구 보존합니다(`isFinal:true`). 세션이 진행 중이면 같은 형식의 **중간 리포트를 조회 시 계산만** 하고 저장하지 않습니다(`isFinal:false`, `endedDttm:null`). 리포트 수정·삭제 API 없음. `spentByCategory`는 PURCHASE는 물품 분류, 이벤트 비용은 `EVENT` 키로 집계. `dailySpent` 키는 세션 1~7일차.
+- **[확정 정책]** 세션 종료(COMPLETED/ABANDONED/FAILED) 트랜잭션에서 `simulation_reports`를 **1회 생성**해 영구 보존합니다(`isFinal:true`). `summary`는 커밋 후 비동기로 채워지므로 종료 직후 조회(18.5 응답 포함)에서는 `null`일 수 있고, 앱은 "요약 준비 중"으로 표시하다가 재조회합니다(Q444). 중간 리포트(`isFinal:false`)의 `summary`는 항상 `null`입니다. 세션이 진행 중이면 같은 형식의 **중간 리포트를 조회 시 계산만** 하고 저장하지 않습니다(`isFinal:false`, `endedDttm:null`). 리포트 수정·삭제 API 없음. `spentByCategory`는 PURCHASE는 물품 분류, 이벤트 비용은 `EVENT` 키로 집계. `dailySpent` 키는 세션 1~7일차.
 - FAILED면 `summary`에 "돌봄 부족으로 중단" 취지를 담고 죽음 표현을 쓰지 않습니다(M6).
 - `18.19` 요청 `?page=0&size=20&sort=endedDttm,desc` → `data.content[]` `{ sessionSeq, animal:{...}, status, startedDttm, endedDttm, expectedCost, totalSpent, difference }`. 정렬 화이트리스트 `endedDttm`. USER 본인 전체.
 - `18.20` 요청 `?animalSeq=700&page=0&size=20&sort=endedDttm,desc` → 같은 목록 DTO + `user:{ActorSummary}`(`core.users` 읽기 전용 JOIN). **자기 보호동물**(세션 스냅샷 `shelter_seq` = 토큰 `shelterSeq`)로 진행된 **종료된** 세션만. 필터 `animalSeq`. 진행 중 세션은 보호소에 노출하지 않습니다(Q435).
@@ -1727,7 +1732,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 |---|---|---|---|
 | `COMMON_`/`AUTH_` (공통) | `COMMON_INVALID_INPUT`, `COMMON_INVALID_JSON`, `AUTH_UNAUTHORIZED`, `AUTH_TOKEN_EXPIRED`, `AUTH_TOKEN_INVALID`, `AUTH_FORBIDDEN`, `COMMON_NOT_FOUND`, `COMMON_METHOD_NOT_ALLOWED`, `COMMON_INTERNAL_ERROR`, `COMMON_SERVICE_UNAVAILABLE` | 400/400/401/401/401/403/404/405/500/503 | 1.3 참조 |
 | `AUTH_` | `AUTH_INVALID_KAKAO_TOKEN`, `AUTH_INVALID_CREDENTIALS`, `AUTH_INVALID_REFRESH_TOKEN`, `AUTH_INVALID_REGISTRATION_CONTEXT` | 401 | 인증 실패(refresh 재사용 감지 포함) |
-| `AUTH_` | `AUTH_ACCOUNT_UNAVAILABLE`, `AUTH_KAKAO_ACCOUNT_CONFLICT` | 403/409 | 계정 상태 / 같은 카카오 계정 동시 가입 |
+| `AUTH_` | `AUTH_ACCOUNT_UNAVAILABLE`, `AUTH_KAKAO_ACCOUNT_CONFLICT`, `AUTH_LOGIN_LOCKED` | 403/409/429 | 계정 상태 / 같은 카카오 계정 동시 가입 / LOCAL 로그인 연속 실패로 일시 차단(Q445) |
 | `USER_` | `USER_DUPLICATE_NICKNAME`, `USER_DUPLICATE_PHONE` | 409 | 활성 USER 유니크 충돌 |
 | `USER_` | `USER_REQUIRED_PROFILE_MISSING`, `USER_NOT_FOUND` | 400/404 | 최종 USER 필수 개인정보 불충족 / 탈퇴·없는 회원 |
 | `USER_` (북마크, R12) | `USER_BOOKMARK_ALREADY_EXISTS`, `USER_BOOKMARK_NOT_FOUND` | 409/404 | 중복 등록 / 없는 북마크 해제 |
@@ -1870,10 +1875,13 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | Q441 이벤트 만료 감지 | **조회(18.2·18.12·18.13)와 스케줄러 양쪽**에서 감지해 EXPIRED + `EVENT_EXPIRE` 로그. 산책 종료 시 PENDING WALK 이벤트도 EXPIRED | 18.13·18.17 |
 | Q442 오류 코드 재검토 | 11.4 DONE 아닌 구조 409 `RESCUE_NOT_DONE`; 11.8 오류 코드 확정(400/409/404); 10.3은 삭제 신고 404·CLOSED 신고 접수 허용; simulation은 `SIMULATION_ANIMAL_NOT_FOUND` 자체 코드; 신규 `CHAT_ROOM_NOT_FOUND`·`CHAT_MESSAGE_NOT_IN_ROOM`; `SIMULATION_SPECIES_NOT_SUPPORTED`·`SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES` 400→409; `CATALOG_DISTRICT_NOT_FOUND`→`CATALOG_INVALID_DISTRICT_CODE`; 각 절 오류 항목에 404·이미지 코드 보강 | 19장·각 절 |
 | 문구 통일 2차 (2026-11-03) | DB §5 구조 연결 선택, 11.7·12.11·12.12에 `end_reason`·`protection_ended_dttm` 설정 명시, `NotificationRequested` 발행 주체에서 chat 제거, 18.6 요청 `actionType`→`actionCode`, 교차 스키마 읽기 목록(simulation→`users` 포함, core-api→`simulation_sessions` 포함) | 해당 절 |
+| Q443 이미지·수료증 읽기 URL | **A** 사진(`images/`)은 버킷 공개 읽기 + 고정 URL(`{public-base-url}/{image_key}`, 만료 없음). 수료증(`certificates/`)은 비공개 + 12.3 조회 시 presigned GET(TTL 10분 [가안]), 목록에는 `certificateAttached`만. 업로드는 계속 presigned PUT만 | 1.4·4.1·4.3·12.3 |
+| Q444 리포트 `summary` 생성 | **비동기.** 종료 트랜잭션은 `summary=NULL`로 저장·커밋, 커밋 후 리스너가 LLM 어댑터 호출 → `summary` UPDATE. 실패 시 1회 재시도 후 규칙 문구 [가안: 타임아웃 20초]. 앱은 null이면 "요약 준비 중" | 18.0·18.18·21.5 |
+| Q445 LOCAL 로그인 실패 제한 | Redis `auth:login-fail:{loginId}` 카운터, 5회 실패 시 15분 차단 [가안], 차단 중 429 `AUTH_LOGIN_LOCKED`, TTL 만료로만 해제, 성공 시 카운터 삭제 | 2.2·19장 |
 
 ### 20.2 미결 안건
 
-**없음.** 남은 조정 항목은 [가안]으로 표시한 수치뿐입니다: 토큰 수명(1시간/14일), 업로드 컨텍스트 TTL(10분)·고아 객체 정리(24시간), 모의 입양 튜닝값(18.0 표), 채팅 구독 목적지 이름. 모두 코드 설정값이며 명세 버전을 올리지 않고 조정합니다. 시드 적재의 세부 절차(Q431)는 적재 시점에 별도 논의합니다. 새 안건은 Q443부터 번호를 붙입니다.
+**없음.** 남은 조정 항목은 [가안]으로 표시한 수치뿐입니다: 토큰 수명(1시간/14일), 업로드 컨텍스트 TTL(10분)·고아 객체 정리(24시간), 모의 입양 튜닝값(18.0 표), 채팅 구독 목적지 이름. 모두 코드 설정값이며 명세 버전을 올리지 않고 조정합니다. 시드 적재의 세부 절차(Q431)는 적재 시점에 별도 논의합니다. 새 안건은 Q446부터 번호를 붙입니다.
 
 ### 아직 스펙에 **없는 것** (의도된 제외)
 
@@ -1929,7 +1937,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 3. 돌봄 행동(18.6): 세션 잠금 → 지연 계산 → 기구 보유·소모품 수량 검사 → 수량 -1 → 물품 효과 반영 → `action_logs(CARE)` → `last_action_dttm` 갱신. 돈은 쓰지 않음.
 4. 구매(18.9): 세션 잠금 → `simulation_transactions(PURCHASE)` INSERT → `balance -= amount`(음수 허용) → `simulation_inventory_items` UPSERT. 기구는 수량 1·재구매 409.
 5. 이벤트: HOME·RANDOM은 스케줄러가 하루 1~2회 추첨, HOME·CONDITION은 지연 계산 시점·스케줄러에서 조건 판정(쿨다운 적용), WALK는 하트비트(18.15)에서 추첨. PENDING 1개 부분 UNIQUE. 응답(18.13): `occurrence FOR UPDATE` → PENDING·미만료 확인 → 효과 반영 → `cost>0`이면 `transactions(EVENT)` + 잔액 차감 → `action_logs(EVENT_ANSWER)` → ANSWERED. 만료는 EXPIRED + `action_logs(EVENT_EXPIRE)`, 효과 없음.
-6. 종료(COMPLETED/ABANDONED/FAILED 공통): 스탯 최종 계산 → 진행 중 산책 ENDED·PENDING 이벤트 EXPIRED → 상태·`ended_dttm` 갱신 → `simulation_reports` INSERT(지출 집계·최종 스탯·카운트·summary) → `action_logs(SYSTEM, SESSION_END)` → `simulation_notifications(SESSION_END)` INSERT(같은 트랜잭션, Q440) → 커밋 → `SimulationPushRequested` 이벤트(notification이 FCM). 리포트의 `summary`는 세션 상세·행동 이력·지출 내역을 LLM 어댑터에 보내 생성, 실패 시 규칙 문구 [가안](Q435). 리포트는 세션당 1건 UNIQUE, 영구 보존.
+6. 종료(COMPLETED/ABANDONED/FAILED 공통): 스탯 최종 계산 → 진행 중 산책 ENDED·PENDING 이벤트 EXPIRED → 상태·`ended_dttm` 갱신 → `simulation_reports` INSERT(지출 집계·최종 스탯·카운트·summary) → `action_logs(SYSTEM, SESSION_END)` → `simulation_notifications(SESSION_END)` INSERT(같은 트랜잭션, Q440) → 커밋 → `SimulationPushRequested` 이벤트(notification이 FCM) + 커밋 후 비동기 리스너가 LLM 어댑터로 `summary` 생성·UPDATE(실패 시 1회 재시도 후 규칙 문구, Q444). 리포트는 `summary=NULL`로 먼저 저장되며 세션당 1건 UNIQUE, 영구 보존.
 7. 알림 스케줄러(S8, 10분 [가안]): simulation의 `@Scheduled` 작업 하나가 진행 중 세션마다 2단계 계산 → 방치(`last_action_dttm` 8시간 경과) `NEGLECT`, 스탯 20 미만 `STAT_{스탯}_WARNING`(같은 세션·같은 유형 24시간 내 1회, Q438), 조건 이벤트 발생 `EVENT`를 `simulation_notifications`에 저장 후 커밋 → `SimulationPushRequested` 이벤트 → notification이 FCM 발송. simulation은 `device_tokens`를 읽지 않고 일반 `notifications`에도 쓰지 않음. 하트비트 10분 끊긴 산책은 자동 종료. core·notification에는 스케줄 작업 없음.
 
 ### 21.6 서비스 간 이벤트(RabbitMQ) 목록 [가안]
@@ -1984,4 +1992,4 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 
 ---
 
-**v3 종료.** 이 문서는 DB v10과 백엔드 공통 코드 규약을 기준으로 한 API 계약이며, [가안] 수치와 [초안] DTO 세부는 구현 중 조정할 수 있습니다. Q430~Q442는 2026-11-03에 확정해 v3에 반영했습니다. 새 안건은 Q443부터 번호를 붙여 질의응답으로 확정한 뒤 반영합니다. v2는 `animal_service_api_spec_v2.md`로 보존합니다.
+**v3 종료.** 이 문서는 DB v10과 백엔드 공통 코드 규약을 기준으로 한 API 계약이며, [가안] 수치와 [초안] DTO 세부는 구현 중 조정할 수 있습니다. Q430~Q445는 2026-11-03에 확정해 v3에 반영했습니다. 새 안건은 Q446부터 번호를 붙여 질의응답으로 확정한 뒤 반영합니다. v2는 `animal_service_api_spec_v2.md`로 보존합니다.
