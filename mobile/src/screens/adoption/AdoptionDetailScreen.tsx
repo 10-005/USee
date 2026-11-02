@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../app/navigation/types';
 import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
+import RightArrowIcon from '../../assets/icons/common/right-arrow.svg';
 import { AppHeader, Button } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { colors, radius, typography } from '../../theme';
@@ -101,7 +102,19 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
           />
         </View>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>보호센터 정보</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, styles.sectionTitleInHeader]}>보호센터 정보</Text>
+            <Pressable
+              accessibilityLabel="보호센터 상세 보기"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={() => navigation.navigate('ShelterDetail', { shelterId: 'iksan-shelter' })}
+              style={({ pressed }) => [styles.shelterLink, pressed && styles.pressed]}
+            >
+              <Text style={styles.shelterLinkText}>보호센터 보기</Text>
+              <RightArrowIcon />
+            </Pressable>
+          </View>
           <InfoRows
             rows={[
               ['관할기관', '전북특별자치도 익산시'],
@@ -161,6 +174,10 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   sectionTitle: { ...typography.titleBold18, color: colors.black, marginBottom: 8 },
+  sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  sectionTitleInHeader: { marginBottom: 0 },
+  shelterLink: { alignItems: 'center', flexDirection: 'row', gap: 2 },
+  shelterLinkText: { ...typography.bodyRegular14, color: colors.green400 },
   subTitle: { ...typography.titleBold18, color: colors.black, marginTop: 12 },
   bodyText: { ...typography.bodyRegular16, color: colors.gray500 },
   infoRows: { gap: 10 },
