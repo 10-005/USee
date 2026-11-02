@@ -12,6 +12,15 @@ class DogLeader(
   private var placed = false
   val isPlaced: Boolean get() = placed
   private var placementRequested = false
+  private val wallAvoidance = WallAvoidance()
+
+  fun updateWalls(walls: List<WallSegment>) {
+    wallAvoidance.walls = walls
+  }
+
+  fun canPlaceAt(cameraX: Float, cameraZ: Float, targetX: Float, targetZ: Float, floorY: Float) =
+    wallAvoidance.isClear(cameraX, cameraZ, targetX, targetZ, floorY)
+
   fun requestPlacement() {
     if (!placed) placementRequested = true
   }
@@ -104,6 +113,7 @@ class DogLeader(
       // A press applies only at this moment; don't spawn later on an unrelated floor.
       placementRequested = false
       val ground = floorAt(targetX, targetZ) ?: return frame(false, 0f)
+      if (!canPlaceAt(cameraX, cameraZ, targetX, targetZ, ground)) return frame(false, 0f)
       x = targetX
       y = ground
       z = targetZ
@@ -144,27 +154,37 @@ class DogLeader(
         if (offset == 0f) break
       }
     }
-    val bodyYaw = desiredYaw
+    val wallRoute = if (routeFound && gap > 0.18f) wallAvoidance.steer(
+      x, z, y, desiredYaw, min(gap, max(0.35f, min(0.8f, speed * 0.4f))),
+      atan2(headingX, headingZ), dt,
+    ) else WallRoute(desiredYaw)
+    if (wallRoute.blocked) routeFound = false
+    val bodyYaw = if (wallRoute.detouring && !backing) atan2(headingX, headingZ) else desiredYaw
     val turn = wrap(bodyYaw - yaw)
     val previousYaw = yaw
     yaw = wrap(yaw + turn.coerceIn(-4.5f * dt, 4.5f * dt))
     val alignment = max(0.25f, cos(wrap(bodyYaw - yaw)))
-    val maxSpeed = 3.6f
+    val maxSpeed = if (wallRoute.detouring) 1.1f else 3.6f
     val wantedSpeed = if (routeFound && gap > 0.18f) min(maxSpeed, gap * 1.8f) * alignment else 0f
     val acceleration = if (wantedSpeed > speed) 2.8f else 5f
     speed += (wantedSpeed - speed).coerceIn(-acceleration * dt, acceleration * dt)
     val step = min(speed * dt, max(0f, gap - 0.12f))
-    val ux = sin(desiredYaw)
-    val uz = cos(desiredYaw)
+    val ux = sin(wallRoute.yaw)
+    val uz = cos(wallRoute.yaw)
     var actualSpeed = 0f
-    if (step > 0f && routeFound && avoidsWalker(ux, uz, step, cameraX, cameraZ)) {
+    if (step > 0f && routeFound && avoidsWalker(ux, uz, step, cameraX, cameraZ) &&
+      wallAvoidance.isClear(x, z, x + ux * step, z + uz * step, y)) {
       val ground = stepFloor(ux, uz, step, floorAt)
       if (ground != null) {
         x += ux * step
         z += uz * step
         y += (ground - y) * min(1f, dt * 8f)
         actualSpeed = step / dt
+      } else if (wallRoute.detouring) {
+        wallAvoidance.rejectRoute(wallRoute.yaw)
       }
+    } else if (step > 0f && wallRoute.detouring) {
+      wallAvoidance.rejectRoute(wallRoute.yaw)
     }
     if (actualSpeed == 0f) speed = 0f
     val turnRate = wrap(yaw - previousYaw) / dt

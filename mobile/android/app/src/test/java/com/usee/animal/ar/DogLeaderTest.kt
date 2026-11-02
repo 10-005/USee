@@ -123,4 +123,41 @@ class DogLeaderTest {
       assertEquals(0f, dog.y, 0f)
     }
   }
+
+  @Test fun finiteWallIsBypassedWithSideStepsWithoutCrossing() {
+    val leader = DogLeader()
+    val wall = WallSegment(-0.5f, -1.8f, 0.5f, -1.8f)
+    var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.updateWalls(listOf(wall))
+    var sawSideStep = false
+    for (i in 1..500) {
+      val cameraZ = -min(i * 0.01f, 1f)
+      val next = leader.update(0.02f, 0f, cameraZ, 0f, -1f, floor)
+      assertFalse("Crossed wall: $dog -> $next", wall.blocks(dog.x, dog.z, next.x, next.z, dog.y))
+      if (next.clip == "WalkLeft" || next.clip == "WalkRight") sawSideStep = true
+      dog = next
+    }
+    assertTrue("Dog should get around wall: $dog", dog.z < -2.1f)
+    assertTrue("Wall bypass should use side-step animation", sawSideStep)
+  }
+
+  @Test fun placementCannotPutDogBehindRecognizedWall() {
+    val leader = DogLeader(requiresPlacement = true)
+    leader.updateWalls(listOf(WallSegment(-1f, -0.8f, 1f, -0.8f)))
+    leader.requestPlacement()
+    assertFalse(leader.update(0f, 0f, 0f, 0f, -1f, floor).visible)
+  }
+
+  @Test fun wallDetourNeverLeavesKnownFloor() {
+    val leader = DogLeader()
+    var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.updateWalls(listOf(WallSegment(-2f, -1.8f, 2f, -1.8f)))
+    for (i in 1..200) {
+      dog = leader.update(0.02f, 0f, -min(i * 0.01f, 1f), 0f, -1f) { x, _ ->
+        if (abs(x) <= 0.2f) 0f else null
+      }
+      assertTrue(abs(dog.x) <= 0.2f)
+      assertTrue(dog.z >= -1.8f)
+    }
+  }
 }

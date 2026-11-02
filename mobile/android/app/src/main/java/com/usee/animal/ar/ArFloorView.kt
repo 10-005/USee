@@ -98,7 +98,7 @@ class ArFloorView(
       context = activity,
       sharedLifecycle = activity.lifecycle,
       sessionConfiguration = { _, config ->
-        config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL
+        config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL_AND_VERTICAL
         // Walking uses plane polygons, so per-frame depth processing is unnecessary.
         config.depthMode = Config.DepthMode.DISABLED
         config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR

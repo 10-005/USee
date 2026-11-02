@@ -15,6 +15,7 @@ internal class SessionScratch {
   var lastTimestamp = 0L
   var planesTimestamp = 0L
   var planes: Collection<Plane> = emptyList()
+  var walls: List<WallSegment> = emptyList()
   var lostSince = 0L
   var lastShown = ShownDog("searching", hiddenDog())
 }
@@ -62,6 +63,8 @@ internal fun updateDog(
   // for every candidate point; refresh the plane collection only at 5 Hz.
   if (scratch.planesTimestamp == 0L || now - scratch.planesTimestamp >= 200_000_000L) {
     scratch.planes = session.getAllTrackables(Plane::class.java)
+    scratch.walls = scratch.planes.mapNotNull { wallSegment(it) }
+    leader.updateWalls(scratch.walls)
     scratch.planesTimestamp = now
   }
   val cameraY = pose.ty()
@@ -74,7 +77,7 @@ internal fun updateDog(
     val targetX = pose.tx() + scratch.lookWorld[0] / lookLength * DOG_LEAD_METERS
     val targetZ = pose.tz() + scratch.lookWorld[2] / lookLength * DOG_LEAD_METERS
     val ground = floorYAt(scratch.planes, cameraY, targetX, targetZ)
-    ready = ground != null
+    ready = ground != null && leader.canPlaceAt(pose.tx(), pose.tz(), targetX, targetZ, ground)
   }
   val status = when {
     dog.visible -> "anchored"
@@ -87,6 +90,36 @@ internal fun updateDog(
 }
 
 private fun hiddenDog() = DogFrame(0f, 0f, 0f, 0f, false, "Idle", 0f)
+
+private fun wallSegment(plane: Plane): WallSegment? {
+  if (plane.type != Plane.Type.VERTICAL || plane.trackingState == TrackingState.STOPPED || plane.subsumedBy != null) return null
+  val polygon = plane.polygon.duplicate().apply { rewind() }
+  if (polygon.remaining() < 6) return null
+  val pose = plane.centerPose
+  val normal = pose.rotateVector(floatArrayOf(0f, 1f, 0f))
+  val horizontal = hypot(normal[0], normal[2])
+  if (horizontal < 0.8f) return null
+  val tangentX = -normal[2] / horizontal
+  val tangentZ = normal[0] / horizontal
+  var low = Float.POSITIVE_INFINITY
+  var high = Float.NEGATIVE_INFINITY
+  var minY = Float.POSITIVE_INFINITY
+  var maxY = Float.NEGATIVE_INFINITY
+  while (polygon.remaining() >= 2) {
+    val world = pose.transformPoint(floatArrayOf(polygon.get(), 0f, polygon.get()))
+    val along = (world[0] - pose.tx()) * tangentX + (world[2] - pose.tz()) * tangentZ
+    low = minOf(low, along)
+    high = maxOf(high, along)
+    minY = minOf(minY, world[1])
+    maxY = maxOf(maxY, world[1])
+  }
+  if (high - low < 0.05f) return null
+  return WallSegment(
+    pose.tx() + tangentX * low, pose.tz() + tangentZ * low,
+    pose.tx() + tangentX * high, pose.tz() + tangentZ * high,
+    minY, maxY,
+  )
+}
 
 private fun floorYAt(planes: Collection<Plane>, cameraY: Float, x: Float, z: Float): Float? {
   val standingHeight = cameraY - 1.35f
