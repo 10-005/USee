@@ -13,6 +13,15 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
+import AdoptionActiveIcon from '../../assets/icons/navigation/adoption-active.svg';
+import AdoptionIcon from '../../assets/icons/navigation/adoption.svg';
+import ChatActiveIcon from '../../assets/icons/navigation/chat-active.svg';
+import ChatIcon from '../../assets/icons/navigation/chat.svg';
+import MyPageActiveIcon from '../../assets/icons/navigation/mypage-active.svg';
+import MyPageIcon from '../../assets/icons/navigation/mypage.svg';
+import PlusIcon from '../../assets/icons/navigation/plus.svg';
+import SearchActiveIcon from '../../assets/icons/navigation/search-active.svg';
+import SearchIcon from '../../assets/icons/navigation/search.svg';
 import { BottomNavigation } from '../../components/common';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
@@ -23,62 +32,38 @@ const navigationItems = [
   {
     key: 'adoption',
     label: '입양',
-    icon: (selected: boolean) => (
-      <Image
-        resizeMode="contain"
-        source={
-          selected
-            ? require('../../assets/icons/navigation/adoption-active.png')
-            : require('../../assets/icons/navigation/adoption.png')
-        }
-        style={styles.navigationIcon}
-      />
-    ),
+    icon: (selected: boolean) =>
+      selected ? (
+        <AdoptionActiveIcon height={24} width={24} />
+      ) : (
+        <AdoptionIcon height={24} width={24} />
+      ),
   },
   {
     key: 'search',
     label: '찾아요',
-    icon: (selected: boolean) => (
-      <Image
-        resizeMode="contain"
-        source={
-          selected
-            ? require('../../assets/icons/navigation/search-active.png')
-            : require('../../assets/icons/navigation/search.png')
-        }
-        style={styles.navigationIcon}
-      />
-    ),
+    icon: (selected: boolean) =>
+      selected ? (
+        <SearchActiveIcon height={24} width={24} />
+      ) : (
+        <SearchIcon height={24} width={24} />
+      ),
   },
   {
     key: 'chat',
     label: '채팅',
-    icon: (selected: boolean) => (
-      <Image
-        resizeMode="contain"
-        source={
-          selected
-            ? require('../../assets/icons/navigation/chat-active.png')
-            : require('../../assets/icons/navigation/chat.png')
-        }
-        style={styles.navigationIcon}
-      />
-    ),
+    icon: (selected: boolean) =>
+      selected ? <ChatActiveIcon height={24} width={24} /> : <ChatIcon height={24} width={24} />,
   },
   {
     key: 'mypage',
     label: '마이페이지',
-    icon: (selected: boolean) => (
-      <Image
-        resizeMode="contain"
-        source={
-          selected
-            ? require('../../assets/icons/navigation/mypage-active.png')
-            : require('../../assets/icons/navigation/mypage.png')
-        }
-        style={styles.navigationIcon}
-      />
-    ),
+    icon: (selected: boolean) =>
+      selected ? (
+        <MyPageActiveIcon height={24} width={24} />
+      ) : (
+        <MyPageIcon height={24} width={24} />
+      ),
   },
 ] as const;
 
@@ -156,23 +141,18 @@ export function HomeScreen({ navigation }: Props) {
       </ScrollView>
       <FlatList
         columnWrapperStyle={styles.column}
-        contentContainerStyle={[styles.listContent, { paddingBottom: 88 + insets.bottom }]}
+        contentContainerStyle={[styles.listContent, { paddingBottom: 104 + insets.bottom }]}
         data={animals}
         keyExtractor={item => item.id}
         numColumns={2}
         renderItem={renderAnimal}
         showsVerticalScrollIndicator={false}
       />
-      <View style={[styles.navigationWrap, { bottom: Math.max(insets.bottom, 12) }]}>
+      <View style={[styles.navigationWrap, { bottom: insets.bottom + 16 }]}>
         <BottomNavigation
           centerAction={{
             accessibilityLabel: '등록',
-            icon: (
-              <Image
-                source={require('../../assets/icons/navigation/create.png')}
-                style={styles.navigationIcon}
-              />
-            ),
+            icon: <PlusIcon height={24} width={24} />,
             onPress: () => undefined,
           }}
           items={navigationItems}
@@ -231,6 +211,5 @@ const styles = StyleSheet.create({
   cardSummary: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
   cardDescription: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
   navigationWrap: { left: 25, position: 'absolute', right: 25 },
-  navigationIcon: { height: 24, width: 24 },
   pressed: { opacity: 0.75 },
 });
