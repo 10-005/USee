@@ -1,7 +1,7 @@
 # 유실·발견동물·보호소·입양 플랫폼 API 명세서 — v3
 
-> **작성일:** 2026-11-02  
-> **근거:** `animal_service_db_spec_v10.md`(DB 통합 명세 v10, 현행 45개 테이블, 스키마 2개) + Q406·Q413~Q429·S1~S8 확정 + 백엔드 스켈레톤 코드(`backend/common` 응답·예외·인증 규약). 이전 버전 `animal_service_api_spec_v2.md`는 보존합니다.  
+> **작성일:** 2026-11-02 (최종 갱신 2026-11-03)  
+> **근거:** `animal_service_db_spec_v10.md`(DB 통합 명세 v10, 현행 45개 테이블, 스키마 2개) + Q406·Q413~Q429·S1~S8 확정 + R1~R16·Q430~Q445(2026-11-02~03 검토, 20.1) + 백엔드 스켈레톤 코드(`backend/common` 응답·예외·인증 규약). 이전 버전 `animal_service_api_spec_v2.md`는 보존합니다.  
 > **문서 목적:** Android·BE·AI·보호소 화면이 공유하는 REST API 계약. 공통 규약(1장)은 코드와 일치하며, 각 엔드포인트의 DTO는 구현 중 조정될 수 있는 [초안]입니다.  
 > **백엔드 스택 [확정]:** JDK 21, Spring Boot 4.1.2, Kotlin 2.3.21, JPA + QueryDSL, PostgreSQL 17, Redis 7.4, RabbitMQ(STOMP relay + 서비스 간 이벤트), AWS S3(presigned PUT), 네이버 지도 역지오코딩. OpenSearch는 도입하지 않습니다(S7). 서비스 4개: core-api(8080) / chat(8081) / notification(8082) / simulation(8083).
 
