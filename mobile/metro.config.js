@@ -6,6 +6,11 @@ const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
  *
  * @type {import('@react-native/metro-config').MetroConfig}
  */
-const config = {};
+const config = {
+  resolver: {
+    // Gradle recreates these directories while Metro is watching the project.
+    blockList: [/[/\\]android[/\\](?:.*[/\\])?(?:build|\.gradle|\.cxx)(?:[/\\]|$)/],
+  },
+};
 
 module.exports = mergeConfig(getDefaultConfig(__dirname), config);
