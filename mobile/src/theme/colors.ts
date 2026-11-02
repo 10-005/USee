@@ -12,6 +12,7 @@ export const colors = {
   green200: '#17B85C',
   green400: '#009D58',
   blue: '#5B9DFA',
+  danger: '#E5484D',
   transparent: 'transparent',
 } as const;
 
