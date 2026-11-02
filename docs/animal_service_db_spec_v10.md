@@ -101,12 +101,13 @@
 - DDL·시드: **Flyway**(Q412 A). `core` 마이그레이션은 core-api가, `simulation` 마이그레이션은 simulation이 보유. chat·notification은 `ddl-auto=validate`. 초기 데이터(보호소·SHELTER 계정·행정구역·동물 카탈로그·입양 문항·상점·시나리오)는 마이그레이션에 포함하며 API로 관리하지 않음.
 - 백엔드 스택(S1~S8 확정): JDK 21, Spring Boot 4.1.2, Kotlin 2.3.21, JPA + QueryDSL(OpenFeign 포크, KSP), Redis 7.4, RabbitMQ(서비스 간 도메인 이벤트·채팅 STOMP relay), AWS S3(presigned PUT), OpenSearch 미도입(키워드 검색은 `ILIKE`, pg_trgm GIN 인덱스 [가안]), 위치 검색은 위경도 + 하버사인(PostGIS 미사용), 스케줄러는 simulation `@Scheduled` 10분 주기 1개(core·notification 스케줄 없음).
 - 시간: `TIMESTAMPTZ`로 절대 시점을 저장(내부 UTC 기준), **DB 연결·세션 `TimeZone='Asia/Seoul'` 설정**으로 한국 시간으로 조회·표시. `reg_dttm`은 생성 시점, `mod_dttm`은 수정 시점. `DATE`는 날짜 의미 그대로 보관. API 날짜 직렬화도 동일 기준 적용(Q393).
+- 감사 시각 매핑(Q430 확정): `mod_dttm`은 **NULL 허용, INSERT 시 NULL, UPDATE 시에만 채움**. JPA는 `@UpdateTimestamp`(INSERT에도 값을 넣음)를 쓰지 않고 `@PreUpdate` 콜백으로 갱신. 엔티티 베이스는 둘로 나눔: `BaseCreatedEntity`(`reg_dttm`만; `images`·`districts`·`pet_images`·`auth_providers`·이미지 연결 테이블 등 `mod_dttm`이 없는 테이블)와 이를 상속한 `BaseTimeEntity`(`mod_dttm NULL` 추가; `users`·`pets`·신고·보호동물 등). Flyway DDL과 `ddl-auto=validate`가 이 매핑 기준으로 통과해야 함.
 - 삭제: 도메인 본문은 `is_deleted DEFAULT FALSE` 소프트 삭제 기본. 특별히 입양 DRAFT와 북마크 해제는 물리 삭제.
 - 이미지: 공통 `images` + 다중 이미지 콘텐츠/반려동물 연결 행. 댓글/채팅은 **각 본문 테이블의 `image_seq NULL` 직접 FK**, 회원·보호소 프로필은 **`profile_image_seq NULL` 직접 FK**(Q408). 콘텐츠/반려동물 사진 1~3장, 댓글/채팅 사진 최대 1장, JPG/JPEG/PNG, 최대 10MB. `display_order=1` 대표. 원본을 공유하면 마지막 참조 해제 전 공통 이미지 메타데이터/S3 객체를 삭제하지 않음(Q383). `images.reg_usr_seq`로 업로더를 기록하고 이미지 연결은 업로더 본인만 허용(Q407).
 - 관계: FK에 의한 물리 연쇄 삭제 대신 참조 정보 보존. 다형성 `target_type+target_seq`는 직접 FK 불가하므로 BE 존재·권한 검증. 공통 대상 코드와 테이블별 허용 코드를 구분(Q387).
 - 일반회원만 `pets`·`adoption_applications`·`simulation_sessions` 생성. SHELTER는 소속 업무와 댓글·보호소 채팅 수행. ADMIN은 `users.role`의 예약값일 뿐 이번 구현 범위에서 계정 발급·권한·API가 없음(Q411). 식별자 규칙: **`user_seq`는 행위자**(작성자·수신자·감사 컬럼), **`shelter_seq`는 보호소 자원의 소유·배정 범위**. 요청에서 shelterSeq를 받지 않고 토큰 클레임에서만 꺼냄.
-- 인증 토큰: RS256 JWT, core-api만 발급하고 나머지 서비스는 공개키로 검증. 클레임 `userSeq`·`role`(USER/SHELTER)·SHELTER만 `shelterSeq`. refresh token은 Redis TTL 저장이며 DB 테이블 없음(Q409 B). 카카오 가입 컨텍스트(registrationToken)는 Redis `auth:register:{token}` TTL 10분, 가입 성공 시 삭제(Q414 A). access 블랙리스트 없음(탈퇴·정지 후 최대 1시간 유효).
-- 행정구역: 법정동 코드 앞 5자리(시군구)를 `district_code VARCHAR(5)`로 통일(Q406 A). 마스터는 `districts`(시드). 신고 등록·위치 수정 시 서버가 네이버 역지오코딩(`legalcode`)으로 도출하고 실패하면 NULL 저장·등록은 진행(Q406-2 A). 보호소는 시드 적재 시 일괄 도출.
+- 인증 토큰: RS256 JWT, core-api만 발급하고 나머지 서비스는 공개키로 검증. access 클레임 `userSeq`·`role`(USER/SHELTER)·SHELTER만 `shelterSeq`·`typ=access`. **refresh도 같은 RS256 키로 서명한 JWT**(클레임 `userSeq`·`jti`·`typ=refresh`, Q433 확정)이며 Redis `auth:refresh:{userSeq}:{jti}` 키 존재로 유효성을 판단, DB 테이블 없음(Q409 B). 검증기는 `typ != access`인 토큰을 API 인증에서 거부(refresh를 access로 쓰는 것 차단). 카카오 가입 컨텍스트(registrationToken)는 Redis `auth:register:{token}` TTL 10분, 가입 성공 시 삭제(Q414 A). access 블랙리스트 없음(탈퇴·정지 후 최대 1시간 유효). 대신 **모든 쓰기 요청(POST·PATCH·DELETE·STOMP SEND)에서 `users.is_deleted`·`account_status`를 재확인**하고 조회는 자연 만료까지 허용(Q433).
+- 행정구역: 법정동 코드 앞 5자리(시군구)를 `district_code VARCHAR(5)`로 통일(Q406 A). 마스터는 `districts`(시드). 신고 등록·위치 수정 시 서버가 네이버 역지오코딩(`legalcode`)으로 도출하고 실패하면 NULL 저장·등록은 진행(Q406-2 A). 보호소는 **오프라인에서 미리 계산한 코드를 시드 SQL에 직접 삽입**(Q431 확정; 마이그레이션이 외부 API를 호출하지 않음).
 - 모의 입양: 접두어 `simulation_` 11개 테이블. 세션·로그·리포트는 소프트 삭제 없이 영구 보존. 스탯 수치·배율·발생 확률 같은 튜닝값은 DB가 아닌 코드 설정값(§3 "코드 설정 가안").
 - 일반 API는 로그인 필수. 탈퇴 작성자의 게시물·상세는 숨기되, 채팅·댓글·알림과 보호소 업무용 **과거 입양 신청서·현재 상태 기록**은 예외적으로 보존(별도 신청 상태 전이 이력 테이블 없음).
 
@@ -188,7 +189,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - `role=USER`인 경우 `nickname/name/birth_date/phone` 전부 입력 필수(DB CHECK). SHELTER/ADMIN은 NULL 허용. 공백·형식은 BE 검증(Q370). **ADMIN은 CHECK 값으로만 예약**하며 이번 프로젝트에서 계정 발급·권한·API를 구현하지 않음(Q411). 이하 문서의 ADMIN 언급은 모두 "범위 외"로 읽음.
 - `profile_image_seq`는 `images.image_seq` 직접 FK(Q408). 업로드는 공통 이미지 업로드 경로를 사용하고 교체·해제 시 마지막 참조 해제 정책(Q383) 적용. 연결 가능한 이미지는 `images.reg_usr_seq`가 본인인 것만(Q407). 카카오 프로필 사진·이메일은 가져오지 않으며 가입 시점에는 NULL, 가입 후 프로필 수정으로 설정(Q408-1).
 - 활성 USER 기준 `lower(nickname)` 및 `phone` 각각 부분 UNIQUE(`role=USER AND is_deleted=FALSE`). 탈퇴 뒤 닉네임·번호 재사용 가능(Q300·328). SMS 인증은 구현하지 않음(Q329).
-- 탈퇴 시 `users`·`user_accounts` 모두 소프트 삭제, 모든 활성 FCM 토큰 비활성화. USER 소유 게시물은 행을 직접 변경하지 않고 서비스에서 비노출(가상 삭제)(Q301·312·327).
+- 탈퇴 시 `users`·`user_accounts` 모두 소프트 삭제(core-api 트랜잭션). 활성 FCM 토큰은 core-api가 직접 바꾸지 않고 커밋 후 `UserDeleted` 이벤트를 받은 notification이 `is_active=FALSE`로 비활성화(행 삭제 아님, Q420). USER 소유 게시물은 행을 직접 변경하지 않고 서비스에서 비노출(가상 삭제)(Q301·312·327).
 - 탈퇴 회원의 댓글/답글, 기존 채팅·알림은 작성자 표시를 `(탈퇴한 사용자)`로 대체해 유지. 탈퇴 회원 루트 댓글에는 신규 답글 금지(Q314~317).
 - 탈퇴 회원 관련 일반 조회는 별도 오류로 구별. 보호소는 업무상 과거 입양 신청서/증명서를 계속 열람할 수 있음(Q313·319).
 - USER는 KAKAO, SHELTER는 LOCAL 인증만 이용(서비스 검증; ADMIN은 범위 외). SUSPENDED 등 계정 상태 상세는 보류.
@@ -238,7 +239,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 | `description` | `TEXT` | N | ※초안 | 소개·운영 안내 |
 | `operating_hours` | `TEXT` | N | - | 운영시간(확정) |
 | `closed_days` | `TEXT` | N | - | 휴무일(확정) |
-| `district_code` | `VARCHAR(5)` | N | FK → districts | 보호소 소재 시·군·구 코드(Q406 A). 시드 적재 시 서버 역지오코딩으로 일괄 도출, 실패 시 NULL |
+| `district_code` | `VARCHAR(5)` | N | FK → districts | 보호소 소재 시·군·구 코드(Q406 A). 오프라인에서 미리 계산해 시드 SQL에 직접 삽입(Q431), 미확인 시 NULL |
 | `profile_image_seq` | `BIGINT` | N | FK → images | 보호소 프로필 이미지 0~1장 |
 | `background_image_seq` | `BIGINT` | N | FK → images | 보호소 배경 이미지 0~1장(Q394) |
 | `is_deleted` | `BOOLEAN` | Y | DEFAULT FALSE | 논리 삭제 |
@@ -249,7 +250,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 
 **확정 규칙 / 참고사항**
 - `profile_image_seq`와 `background_image_seq`는 각각 `images.image_seq`를 직접 참조하고 공통 마지막 참조 해제 후 삭제 정책(Q383)을 적용.
-- `district_code`는 목록 필터(API 9.1 `districtCode`)용이며 발견 신고 배정에는 쓰지 않음(배정은 `shelter_district_assignments`). 보호소 좌표·주소는 시드이므로 코드도 시드 적재 시 한 번만 도출(Q406 A).
+- `district_code`는 목록 필터(API 9.1 `districtCode`)용이며 발견 신고 배정에는 쓰지 않음(배정은 `shelter_district_assignments`). 보호소 좌표·주소는 시드이므로 코드도 오프라인에서 한 번 계산해 시드 SQL에 넣음(Q406 A·Q431).
 - 보호소 이름·주소·좌표·전화번호 필수. 운영 정보는 소속 담당자가 수정. 식별 정보(이름·외부 코드) 수정과 보호소 신규 등록은 ADMIN 범위 외(Q411)이므로 Flyway 시드로만 처리(Q412 A).
 - `external_shelter_code`는 NULL 허용 UNIQUE이며 공공데이터 재적재 시 식별키. 원천 코드 고유성은 사전 검증(Q350).
 - 보호소당 SHELTER 계정은 1개. 보호소 삭제 운영정책은 Q356 사용자 요청에 따라 질문 제외/보류.
@@ -1166,7 +1167,8 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 보호동물 비교 대상은 `PROTECTING`이며 비삭제인 기록. 입양 상태 AVAILABLE/UNAVAILABLE 무관, RETURNED/ENDED/ADOPTED 제외(Q344).
 - 실종 신고 등록 시 기존 발견 신고/보호동물과, 발견 신고/보호동물 등록 시 기존 실종 신고와 비교(Q346).
 - 사진의 추가·교체·삭제가 발생하면 유효 상태의 신고·동물에 대해 다시 비교(Q347). 재개된 ACTIVE 신고도 다시 비교 대상.
-- 알림 수신자는 실종 신고 작성자 **1명만**. 동일 `(missing_report_seq,target_type,target_seq)`에 `notification_type='AI_MATCH'`인 알림을 한 번만 생성, 알림 소프트 삭제해도 재발행하지 않음(Q291·345). **AI 알림 전용 DB UNIQUE는 없음**. 동일 실종 신고 행 잠금(`SELECT ... FOR UPDATE`) → BE 중복 검사 → 미존재 시 생성 → 커밋 후 FCM 발송(Q389·390). 이 트랜잭션은 **core-api**가 수행하므로 `AI_MATCH` 행은 core-api가 `notifications`에 직접 INSERT하고(쓰기 소유권 예외) notification은 `NotificationRequested` 이벤트를 받아 FCM만 발송.
+- 알림 수신자는 실종 신고 작성자 **1명만**. 동일 `(missing_report_seq,target_type,target_seq)`에 `notification_type='AI_MATCH'`인 알림을 한 번만 생성, 알림 소프트 삭제해도 재발행하지 않음(Q291·345). **AI 알림 전용 DB UNIQUE는 없음**. 동일 실종 신고 행 잠금(`SELECT ... FOR UPDATE`) → BE 중복 검사 → 미존재 시 생성 → 커밋 후 FCM 발송(Q389·390). 이 트랜잭션은 **core-api**가 수행하므로 `AI_MATCH` 행은 core-api가 `notifications`에 직접 INSERT하고(쓰기 소유권 예외) notification은 `NotificationCreated` 이벤트(저장 완료, 발송만 요청)를 받아 FCM만 발송. 저장까지 맡기는 다른 유형의 `NotificationRequested`와 이름을 구분함.
+- **AI 워커 연동(Q432 확정): 양방향 모두 RabbitMQ.** 요청은 core-api가 실종·발견·보호동물의 등록·재개·사진 변경 시 `{ sourceType: MISSING|FOUND|SHELTER_ANIMAL, sourceSeq, imageKeys[], speciesCode, occurredAt }`를 발행하고, 워커는 DB를 읽지 않고 이벤트 페이로드와 S3 키만으로 동작. 결과는 워커가 쌍마다 `AiMatchFound { missingReportSeq, targetType: FOUND|SHELTER_ANIMAL, targetSeq, score, modelVersion }`를 발행하며 `score`·`modelVersion`은 저장하지 않는 로그용 선택 필드. 유사도 임계값 판단은 워커, 수신 시점의 ACTIVE·PROTECTING 자격 재검사와 중복 처리는 core-api(위 순서). 워커의 임베딩 저장 위치는 기존대로 POC 범위.
 - AI 결과/확정 동일개체 관계를 따로 저장하지 않음. 임베딩 저장 방식/벡터 모델/벡터 인덱스는 기존 보류 상태.
 
 ## 7. 개념 제약 SQL (정책 일치성 참고용)
@@ -1563,7 +1565,7 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 | 사건 | 단일 트랜잭션·BE 검증 항목 |
 |---|---|
 | 회원가입·탈퇴 | 카카오는 앱 SDK access token을 서버가 카카오 사용자 조회 API로 검증, 미가입자는 Redis `auth:register:{token}`(TTL 10분) 컨텍스트로 2.5에서 최종 가입(Q413 A·Q414 A); USER 필수 개인정보 CHECK + 활성 닉네임·전화 UNIQUE; 카카오 프로필 사진·이메일 미수집, 가입 시 `profile_image_seq=NULL`(Q408-1); 탈퇴 시 core-api 트랜잭션에서 users/user_accounts 소프트 삭제 + 본인 활성 신청 CANCELED + Redis refresh 키 삭제, 커밋 후 `UserDeleted` 이벤트(RabbitMQ) → notification이 토큰 비활성, simulation이 진행 중 세션 ABANDONED·리포트 생성(Q420); 옛 콘텐츠 일반 API 비노출 |
-| 로그인·토큰 | RS256, core-api만 발급(개인키), 나머지 서비스는 공개키 검증. 클레임 `userSeq`·`role`·`shelterSeq`; access 1시간/refresh 14일 [가안]; refresh는 Redis `auth:refresh:{userSeq}:{jti}` TTL 저장, 갱신 시 기존 키 삭제 후 재발급(rotation), 삭제된 jti 재사용 시 사용자 키 전부 삭제, 로그아웃 시 키 삭제 + 요청의 `fcmToken`이 있으면 해당 기기 토큰 비활성(Q409 B·Q419 A). access 블랙리스트 없음 |
+| 로그인·토큰 | RS256, core-api만 발급(개인키), 나머지 서비스는 공개키 검증. access 클레임 `userSeq`·`role`·`shelterSeq`·`typ=access`; refresh는 같은 키로 서명한 JWT(`userSeq`·`jti`·`typ=refresh`, Q433)이며 검증기는 `typ != access`를 API 인증에서 거부; access 1시간/refresh 14일 [가안]; refresh는 Redis `auth:refresh:{userSeq}:{jti}` TTL 저장, 갱신 시 기존 키 삭제 후 재발급(rotation), 삭제된 jti 재사용 시 사용자 키 전부 삭제, 로그아웃 시 키 삭제 + 요청의 `fcmToken`이 있으면 해당 기기 토큰 비활성(Q409 B·Q419 A). access 블랙리스트 없음, 대신 모든 쓰기 요청에서 `users.is_deleted` 재확인(Q433) |
 | 이미지 연결 소유권 | 게시물·반려동물·프로필·댓글·채팅·모의 입양에 `image_seq`를 연결할 때 `images.reg_usr_seq = 요청자`만 허용, 아니면 403(Q407). 시드 이미지(NULL)는 회원 연결 불가 |
 | 실종 등록·재개 | 선택한 pet_seq 본인 소유 검증, 당시 속성 스냅샷 복사, **회원당** 비삭제 ACTIVE 1건 부분 UNIQUE(신규 등록·재개 모두 적용), AI 비교 작업 요청 |
 | 발견 등록 | USER만 작성(Q421); 서버가 좌표를 네이버 역지오코딩해 `district_code`(법정동 앞 5자리) 저장, 실패·미등록 코드면 NULL(Q406 A·Q406-2 A); 코드로 `shelter_district_assignments` 매핑 우선, NULL·미매핑이면 하버사인 최근접 보호소; 수동 재배정은 ADMIN 범위 외라 경로 없음(Q411); 기존 구조 기록 보호소는 유지. 실종 신고도 같은 방식으로 `district_code`만 저장(배정 없음) |
@@ -1587,7 +1589,7 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 | AI 알림 | ACTIVE/PROTECTING 자격 확인, 등록·재개·사진 수정 시 비교; `missing_reports` 행 `FOR UPDATE` 잠금 → `AI_MATCH`와 `(missing_report_seq,target_type,target_seq)`로 삭제된 알림까지 포함해 쌍 존재 조회 → 최초 1회 저장. AI 중복 UNIQUE 없음 |
 | 일반 알림·푸시 | COMMENT/AI_MATCH/ADOPTION/SHELTER/SYSTEM만 저장; `message TEXT NOT NULL` 저장한 같은 값으로 FCM body 발송, 실패 시 DB 보존·재시도 없음; 채팅 푸시는 별도 저장 없음 |
 | FCM 토큰 | 기존 활성 토큰 비활성화 후 신규 활성화(재등록은 upsert 200); 사용자/토큰 활성 부분 UNIQUE; 탈퇴 시 전부 비활성(`UserDeleted` 이벤트); 로그아웃 요청의 `fcmToken`이 있으면 그 기기 토큰만 비활성(Q419 A) |
-| 일반 알림 생성 이벤트 | 최소 집합(Q426 A): COMMENT는 내 게시물 댓글·내 댓글 답글, AI_MATCH는 실종 신고자에게 쌍당 1회, ADOPTION은 신청자에게 APPROVED·REJECTED·ADOPTED와 보호소에 SUBMITTED, SHELTER는 담당 발견 신고 배정. SYSTEM은 발송 주체(ADMIN)가 없어 유형만 예약. core-api(댓글·입양·배정)와 chat이 RabbitMQ `NotificationRequested` 이벤트를 내고 notification이 저장·FCM. AI_MATCH만 core-api가 행을 직접 INSERT하고 notification은 FCM만(쓰기 소유권 예외) |
+| 일반 알림 생성 이벤트 | 최소 집합(Q426 A): COMMENT는 내 게시물 댓글·내 댓글 답글, AI_MATCH는 실종 신고자에게 쌍당 1회, ADOPTION은 신청자에게 APPROVED·REJECTED·ADOPTED와 보호소에 SUBMITTED, SHELTER는 담당 발견 신고 배정. SYSTEM은 발송 주체(ADMIN)가 없어 유형만 예약. core-api(댓글·입양·배정)와 chat이 RabbitMQ `NotificationRequested` 이벤트를 내고 notification이 저장·FCM. AI_MATCH만 core-api가 행을 직접 INSERT하고 `NotificationCreated` 이벤트로 notification에 FCM만 요청(쓰기 소유권 예외, 이벤트 2종 구분) |
 | 모의 입양 세션 시작 | USER만; simulation이 `core.shelter_animals`를 읽기 전용 JOIN(잠금 없음)으로 비삭제·종 DOG/CAT·[가안] PROTECTING 검증; 활성 세션 조회를 잠근 뒤 IN_PROGRESS 부분 UNIQUE 확인; 종·성격·`shelter_seq`·품종명·색상명·대표 사진 키 스냅샷(NULL 성격은 랜덤 가안); 초기 스탯·잔액·예정 종료 설정; `SESSION_START` 로그 |
 | 모의 입양 돌봄 행동 | 세션 행 `FOR UPDATE` → IN_PROGRESS 확인 → 지연 계산 → 필요 기구 보유·소모품 수량 검증 → 소모품 -1 → 효과·성격 배율 적용·0~100 보정 → `action_logs` INSERT + `last_action_dttm` 갱신 → 종료 조건(건강 0) 판정 |
 | 모의 입양 구매 | 세션 행 잠금 → 물품 활성·종 범위 검증 → 기구 중복 보유 거부 → `simulation_transactions(PURCHASE)` INSERT → `balance` 차감(음수 허용) → 인벤토리 UPSERT |
@@ -1595,7 +1597,7 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 | 모의 입양 산책 | 시작: 세션당 IN_PROGRESS 1건 부분 UNIQUE; 하트비트: `last_heartbeat_dttm` 갱신 + 경과 반영 + WALK 이벤트 추첨; 종료: 길이·종·성격 배율로 효과 적용, `WALK_END` 로그; 10분 무응답 시 스케줄러 자동 종료 |
 | 모의 입양 종료·리포트 | 예정 종료·건강 0·포기·탈퇴 → 상태 변경 + `ended_dttm` + 진행 중 산책 ENDED·PENDING 이벤트 EXPIRED + 거래·로그 집계로 `simulation_reports` INSERT + `SESSION_END` 알림을 **한 트랜잭션**에 반영. 진행 중 중간 리포트는 저장 없이 계산 |
 | 모의 입양 알림 | `simulation_notifications`에 저장·커밋 후 RabbitMQ 이벤트로 notification에 넘겨 활성 FCM 토큰으로 발송; 방치·스탯 위험 중복 발송 억제 기준은 코드 설정; 일반 `notifications` 미사용 |
-| 초기 데이터 | 행정구역 마스터·보호소(시드 시 `district_code` 일괄 역지오코딩)·SHELTER 계정·행정구역 배정·종/품종(성격 포함)/색상/조합·입양 질문 21개·상점 물품(`image_key`)·시나리오/선택지는 Flyway 마이그레이션에 포함해 적재(Q412 A); 시드 이미지의 `reg_usr_seq`는 NULL |
+| 초기 데이터 | 행정구역 마스터·보호소(`district_code`는 오프라인 계산값을 SQL에 직접 삽입, Q431)·SHELTER 계정·행정구역 배정·종/품종(성격 포함)/색상/조합·입양 질문 21개·상점 물품(`image_key`)·시나리오/선택지는 Flyway 마이그레이션에 포함해 적재(Q412 A). 시드 SQL은 외부 API·S3를 호출하지 않으며, 시드 이미지는 팀이 S3에 먼저 올린 뒤 그 키를 SQL에 적음(`reg_usr_seq` NULL). 세부 적재 절차는 적재 시점에 별도 논의(Q431) |
 | 교차 스키마 접근 | 쓰기는 자기 스키마만(서비스별 DB 계정 권한으로 강제 가능). simulation → `core.shelter_animals`·`animal_*`·`images` 읽기, core-api → `simulation.simulation_reports`·`simulation_sessions` 읽기. 교차 FK 없음, 존재·상태 검증은 읽는 쪽 BE(Q420 D) |
 
 ## 9. 구현 제외·보류·추가 검증
@@ -1613,7 +1615,7 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 
 ### v10 확정 완료 — 남은 [가안] 목록 (튜닝·구현 수치, 스키마 결정 아님)
 
-> v9의 [미정]·보류 목록(Q406, Q412, Q413~Q419, S1~S8)은 2026-11-02에 모두 확정되어 §14 추적표로 옮겼습니다. 아래는 **값만 조정 가능한 [가안]**이며 구조 재질문 대상이 아닙니다.
+> v9의 [미정]·보류 목록(Q406, Q412, Q413~Q419, S1~S8)은 2026-11-02에 모두 확정되어 §14 추적표로 옮겼습니다. 2026-11-03에 Q430~Q433(감사 시각 매핑·시드 적재·AI 워커 MQ·refresh JWT)을 추가 확정했습니다(§14). 새 안건은 Q434부터 번호를 붙입니다. 아래는 **값만 조정 가능한 [가안]**이며 구조 재질문 대상이 아닙니다.
 
 | 번호 | 항목 | 현재 가안 |
 |---|---|---|
@@ -1886,7 +1888,7 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 |---|---|---|
 | Q0-1 | [확정] A: 새 파일 생성 | v9/v2에 이어 v10/v3 신규. 이전 버전 보존 |
 | Q0-2 | [확정] Kotlin + Spring Boot, Redis 사용. RabbitMQ·OpenSearch·S1~S8은 v10에서 확정(아래 S1~S8) | refresh token Redis 저장의 근거 |
-| Q406 | **[확정] A**: `shelters`·`missing_reports`·`found_reports`에 `district_code VARCHAR(5) NULL`(법정동 코드 앞 5자리) + 서버 역지오코딩(네이버 `legalcode`, port/out 어댑터). 보호소는 시드 때 일괄 도출, 신고는 등록·위치 수정 시 재도출 | 컬럼 3개 추가, `districts` FK. `shelter_district_assignments.district_code`는 `VARCHAR(5)`로 통일 |
+| Q406 | **[확정] A**: `shelters`·`missing_reports`·`found_reports`에 `district_code VARCHAR(5) NULL`(법정동 코드 앞 5자리) + 서버 역지오코딩(네이버 `legalcode`, port/out 어댑터). 보호소는 오프라인 계산값을 시드에 삽입(Q431), 신고는 등록·위치 수정 시 재도출 | 컬럼 3개 추가, `districts` FK. `shelter_district_assignments.district_code`는 `VARCHAR(5)`로 통일 |
 | Q406-1 | [확정] A: 행정구역 마스터 `districts(district_code PK, sido_name, sigungu_name)` 시드 테이블 + `GET /districts` | 07번 테이블(이후 번호 +1, 총 45개). 네 테이블의 `district_code` FK 대상 |
 | Q406-2 | [확정] A: 역지오코딩 실패·미등록 코드는 NULL 저장, 발견 신고 배정은 최근접으로 진행, 필터에서 제외, 등록 거부 없음 | 스키마 영향 없음(NULL 허용 전제) |
 | Q407 | [확정] A: 이미지 업로더 기록 | `images.reg_usr_seq INTEGER NULL FK→users`. 시드·공공데이터 NULL. 연결 시 본인만(BE), ADMIN 예외 없음 |
@@ -1952,6 +1954,16 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 | R15 | 고아 S3 객체 수명주기 1일 | 없음 |
 | R16 | **B** 채팅 전송은 STOMP SEND `/app/rooms/{chatRoomSeq}/messages`, REST 전송 삭제, 오류는 `/user/queue/errors`에 같은 봉투 | 없음(27번 `chat_messages` 규칙에 기재) |
 
+### Q430~Q433 (4차, 2026-11-03 확정) 및 문구 통일
+
+| 번호 | 결정 | 데이터 모델 영향 |
+|---|---|---|
+| Q430 | [확정] `mod_dttm`은 NULL 허용·INSERT 시 NULL·UPDATE 시에만 채움. JPA는 `@UpdateTimestamp` 대신 `@PreUpdate`. 베이스 엔티티를 `BaseCreatedEntity`(`reg_dttm`만)와 `BaseTimeEntity`(`mod_dttm` 추가)로 분리 | 컬럼 변경 없음(§1 매핑 규칙 추가). 코드 수정 |
+| Q431 | [확정] 보호소 `district_code`는 오프라인에서 미리 계산해 시드 SQL에 직접 삽입. 시드 이미지는 팀이 S3에 올린 뒤 키를 SQL에 기록. 마이그레이션은 외부 API·S3 호출 없음. 세부 절차는 적재 시점에 논의 | 없음 |
+| Q432 | [확정] AI 워커 연동은 양방향 RabbitMQ. 요청 `{sourceType, sourceSeq, imageKeys[], speciesCode, occurredAt}`, 결과 `AiMatchFound {missingReportSeq, targetType, targetSeq, score, modelVersion}`. 워커는 DB 미접근, 임계값은 워커, 자격 재검사·중복 처리는 core-api | 없음(`score`·`modelVersion` 미저장) |
+| Q433 | [확정] refresh는 access와 같은 RS256 키로 서명한 JWT(`userSeq`·`jti`·`typ=refresh`), access에 `typ=access`. 검증기는 `typ != access` 거부. "민감한 쓰기 API" 목록 대신 **모든 쓰기 요청(POST·PATCH·DELETE·STOMP SEND)**에서 `users.is_deleted` 재확인, 조회는 1시간 유예 | 없음 |
+| 문구 | simulation은 `device_tokens`를 읽지 않음(푸시는 `SimulationPushRequested`로 notification 위임) · 알림 이벤트 2종 구분(`NotificationRequested` 저장+발송 / `NotificationCreated` AI_MATCH 발송만) · 세션 스냅샷은 `animal_image_key`(키) 복사, URL은 응답 변환 · 탈퇴 시 FCM 토큰 비활성화는 `UserDeleted` 이벤트로 notification이 처리(soft) · STOMP SUBSCRIBE 참여자 검증은 chat 모듈 별도 인터셉터 | 없음 |
+
 ### M1~M17 (모의 입양)
 
 | 질문 | 최종 결정 | 현행 데이터 모델 영향 |
@@ -1998,7 +2010,7 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 - 유저 차단/보호소 이관/ADMIN 기능/신고 내역 조회/입양 이후 사후 관리는 구현하지 않음.
 
 ### 이후 개발 작업 순서 제안 (추가 정책 확정 아님)
-- ① `core`·`simulation` 두 스키마의 Flyway 마이그레이션 초안 작성(V1 테이블·제약, V2 시드) 및 시드 검증(행정구역 마스터, 종·품종(성격)·색상 조합, 구역→보호소 매핑, 보호소 `district_code` 일괄 역지오코딩, 상점 물품 `image_key`, 시나리오·선택지 2개씩). 백엔드 코드의 스키마 4개 초기화 SQL과 yml `default_schema`를 2개 체계로 정리.
+- ① `core`·`simulation` 두 스키마의 Flyway 마이그레이션 초안 작성(V1 테이블·제약, V2 시드) 및 시드 검증(행정구역 마스터, 종·품종(성격)·색상 조합, 구역→보호소 매핑, 보호소 `district_code` 오프라인 계산값(Q431), 상점 물품 `image_key`, 시나리오·선택지 2개씩). 백엔드 코드의 스키마 4개 초기화 SQL과 yml `default_schema`를 2개 체계로 정리.
 - ② FK·부분 UNIQUE·CHECK 제약과 실제 마이그레이션 순서 검증(신규/기존 DB 각각; 모의 입양 11개 테이블 FK 순서, 교차 스키마 읽기 전용 매핑의 `validate` 통과 여부 포함).
 - ③ API 명세서(v3)대로 서비스별 경로·봉투·에러 코드 적용, 신고/구조/입양 상태 전이, 모의 입양 세션·행동·이벤트·산책·리포트 흐름, 역할별 조회·탈퇴 콘텐츠 필터 구현.
 - ④ RabbitMQ 도메인 이벤트(알림 생성·`UserDeleted`·AI 매칭·모의 입양 푸시)와 STOMP relay 연결. AI 중복 알림 경쟁 조건은 `missing_reports` 행 잠금 및 BE 중복 조회·트랜잭션으로 검증(전용 UNIQUE 없음). 모의 입양 스케줄러는 단일 인스턴스 `@Scheduled`.
@@ -2009,4 +2021,4 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 > 현재 DB 기준 문서는 `animal_service_db_spec_v10.md`이고 2026-11-02에 Q406·Q413~Q429·S1~S8을 모두 확정해 반영했습니다(45개 현행 테이블 = `core` 스키마 34개 + `simulation` 스키마 11개). 기존 v9보다 최신 결정을 우선하십시오. [미정] 항목은 없고 §9의 [가안]은 값 조정만 가능합니다. 백엔드는 Kotlin + Spring Boot 서비스 4개(core-api·chat·notification·simulation)에 PostgreSQL 1개·스키마 2개입니다. `core`는 세 서비스가 공유하되 테이블마다 쓰는 서비스는 하나이고 FK는 그대로입니다. `simulation`은 교차 스키마 FK 없이 `user_seq`·`animal_seq`·`shelter_seq`를 논리 참조로 두고 교차 읽기 JOIN만 허용합니다. DDL·시드는 Flyway입니다. 행정구역 코드는 법정동 코드 앞 5자리이며 `districts` 마스터와 `shelters`·`missing_reports`·`found_reports`의 NULL 허용 `district_code`로 관리하고, 서버가 네이버 역지오코딩으로 도출합니다. 알림은 SYSTEM을 포함한 5종이고 AI 매칭 식별은 notifications의 target_type/target_seq를 활용하며, 모의 입양 알림은 `simulation_notifications`로 완전히 분리됩니다. 입양 템플릿·버전·과거 질문 이력은 없으며 question_seq를 답변 JSONB 키로 사용합니다. 구조 정보는 rescue_records에서 JOIN 조회합니다. 회원당 ACTIVE 실종 신고는 최대 1건이고 CLOSED 신고는 읽기 전용입니다. 회원 프로필 이미지는 `users.profile_image_seq`(images FK)이고 `images.reg_usr_seq`로 업로더를 기록하며, 이미지 업로드는 S3 presigned PUT, 원본 삭제는 커밋 후 best-effort입니다. refresh token과 가입 컨텍스트는 Redis TTL 저장이며 DB 테이블이 없습니다. ADMIN은 `users.role`의 예약값일 뿐 이번 범위에서 구현하지 않습니다(구조 접수·보호동물 등록은 SHELTER 전용, 신고 작성은 USER 전용). 모의 입양은 실제 보호동물(DOG/CAT)에서 시작해 실시간 7일, 스탯 7종 지연 계산, 펫샵·인벤토리·거래, 시나리오→선택지 2개 이벤트 엔진(RANDOM/CONDITION, 아픔·병원 포함), 산책, 리포트로 구성되며 튜닝 수치는 코드 설정입니다. 이미지 임베딩 상세, 보호소 이관, 차단, 보호소 삭제 엣지케이스, 신고 내역 조회는 재질문하지 마십시오. 추가 명세 변경은 먼저 질의응답으로 확정하고 사용자가 요청할 때만 새 버전 파일을 생성하십시오.
 
 ---
-**버전:** v10  |  **기준:** Q406~Q412·Q413~Q419·Q420~Q429·S1~S8 전부 확정 + 모의 입양 M1~M17 확정(M3·M4 등 튜닝값은 가안)  |  **현행 테이블:** 45개(`core` 34 + `simulation` 11)  |  **작성 목적:** 전체 테이블 명세 + 개념 제약 SQL + 충돌 처리 + 결정 추적 + 설계 인수인계 일체형
+**버전:** v10  |  **기준:** Q406~Q412·Q413~Q419·Q420~Q429·Q430~Q433·S1~S8 전부 확정 + 모의 입양 M1~M17 확정(M3·M4 등 튜닝값은 가안)  |  **현행 테이블:** 45개(`core` 34 + `simulation` 11)  |  **작성 목적:** 전체 테이블 명세 + 개념 제약 SQL + 충돌 처리 + 결정 추적 + 설계 인수인계 일체형

@@ -35,6 +35,7 @@
 | Q429 A | 모의 입양 튜닝값은 코드 설정 [가안] 유지 | 18.0 |
 | S1~S8 | 스택 확정(머리말). S4 presigned PUT + S3, S5·S6 RabbitMQ, S7 ILIKE 검색, S8 simulation 스케줄러 10분 | 4·7.1·8.1·9.1·11.1·14·18.0 |
 | 인증 세부 | RS256, core-api 발급·전 서비스 공개키 검증, 클레임 `userSeq/role/shelterSeq`, STOMP CONNECT·SUBSCRIBE 인가 | 1.1·14장 |
+| Q430~Q433 (2026-11-03) | `mod_dttm` NULL·`@PreUpdate`·베이스 엔티티 2개(Q430), 시드 `district_code`·이미지는 오프라인 준비 후 SQL 삽입(Q431), AI 워커 양방향 RabbitMQ 페이로드(Q432), refresh는 `typ=refresh` RS256 JWT + 모든 쓰기 요청에서 `is_deleted` 재확인(Q433). 문구 통일: simulation은 `device_tokens` 미접근, 알림 이벤트 `NotificationRequested`/`NotificationCreated` 구분, 세션 스냅샷은 이미지 키, SUBSCRIBE 인가는 chat 모듈 인터셉터 | 1.1·2.3·14·17.6·17.8·18.0·20.1·21.1·21.5·21.6 |
 | 2차 검토 R1~R16 | 포크 가안 검토 결과. AI_MATCH 쓰기 예외 유지(R1), 세션 스냅샷 4컬럼(R2), 보호소 업무 정책(R3~R6, 전용 수정 API 없음), 삭제 댓글·채팅방 생성(R7·R8), **채팅 푸시는 FCM 데이터 메시지 + 앱 판단(R9 C)**, 8.8 필터(R10), 도메인 재분류 `catalog`·`user`(R11·R12), `assignmentMethod` 응답 전용(R13), `districts` 07번(R14), 고아 객체 1일(R15), **채팅 전송은 STOMP SEND(R16 B)** | 20.1·14·19장 |
 
 ## 0. 기준 및 적용 범위
@@ -76,9 +77,9 @@
 | Base URL | `https://{host}/api/{service}/v1`. `service`는 `core`(2~13·15·16장) / `chat`(14장) / `notification`(17장) / `simulation`(18장). 내부 포트 8080/8081/8082/8083, Ingress는 `/api/**`만 라우팅 | [확정 정책] 코드 |
 | 요청 본문 | UTF-8 JSON; `camelCase`; enum은 문자열; 응답은 null 필드 포함 | [확정 정책] 코드 직렬화 규칙 |
 | 식별자 | DB `*_seq` → API `*Seq` 숫자형. 클라이언트가 신규 DB PK 부여 금지 | [확정 정책] |
-| 인증 헤더 | `Authorization: Bearer {accessToken}`. **RS256** JWT, core-api만 개인키로 발급하고 네 서비스 모두 공개키로 검증. 클레임 `userSeq`, `role`(`USER`/`SHELTER`), SHELTER만 `shelterSeq`. refresh는 Redis rotation(2.3). 수명 access 1시간·refresh 14일 | [확정 정책] 구조 / [가안] 수명 |
+| 인증 헤더 | `Authorization: Bearer {accessToken}`. **RS256** JWT, core-api만 개인키로 발급하고 네 서비스 모두 공개키로 검증. access 클레임 `userSeq`, `role`(`USER`/`SHELTER`), SHELTER만 `shelterSeq`, `typ=access`. refresh도 같은 키로 서명한 JWT(`userSeq`·`jti`·`typ=refresh`)이며 검증기는 `typ != access`인 토큰을 API 인증에서 거부(Q433). refresh는 Redis rotation(2.3). 수명 access 1시간·refresh 14일 | [확정 정책] 구조 / [가안] 수명 |
 | 추적 헤더 | 요청 `X-Trace-Id`가 있으면 이어받고 없으면 서버가 생성. 응답 헤더·봉투 `traceId`·로그에 같은 값 | [확정 정책] 코드 |
-| 권한 | `USER` 일반회원 / `SHELTER` 소속 보호소 담당자. 역할은 메서드 단위 `@PreAuthorize`, 소유·소속은 서비스 코드에서 검증. `ADMIN`은 DB `users.role` CHECK에 예약값으로만 남고 **이번 범위에서 계정·권한·API 없음**(Q410·Q411). 즉시 차단 없음: 탈퇴·정지 뒤에도 access 토큰은 자연 만료(최대 1시간)까지 유효하며 민감한 쓰기 API만 `users.is_deleted`를 재확인 | [확정 정책] |
+| 권한 | `USER` 일반회원 / `SHELTER` 소속 보호소 담당자. 역할은 메서드 단위 `@PreAuthorize`, 소유·소속은 서비스 코드에서 검증. `ADMIN`은 DB `users.role` CHECK에 예약값으로만 남고 **이번 범위에서 계정·권한·API 없음**(Q410·Q411). 즉시 차단 없음: 탈퇴·정지 뒤에도 access 토큰은 자연 만료(최대 1시간)까지 유효. 대신 **모든 쓰기 요청(POST·PATCH·DELETE·STOMP SEND)**은 처리 전에 `users.is_deleted`·`account_status`를 재확인하고 탈퇴 계정이면 401 `AUTH_TOKEN_INVALID`, 정지면 403 `AUTH_ACCOUNT_UNAVAILABLE`. 조회(GET·SUBSCRIBE)는 재확인 없이 만료까지 허용(Q433). 별도 "민감 API" 목록은 두지 않음 | [확정 정책] Q433 |
 | 시간 | `OffsetDateTime` → ISO-8601 `+09:00`, 예: `2026-10-29T17:50:00+09:00` | [확정 정책] Q416 A |
 | 날짜 | `YYYY-MM-DD`, 예: `2026-10-29` | [확정 정책] DATE 의미 |
 | 페이지네이션 | `page=0&size=20`(0-base, size 기본 20·최대 100). 응답은 1.4의 `Page<T>` | [확정 정책] Q417 |
@@ -270,8 +271,8 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 ### 2.3 POST /auth/refresh · 2.4 POST /auth/logout
 
-- **[확정 정책] refresh token은 Redis에 TTL로 저장하고 DB 테이블은 없습니다(Q409 B).** 운영 규칙 **[가안]**:
-  - 키 `auth:refresh:{userSeq}:{jti}`, 값은 refresh 토큰 해시, TTL 14일. access 토큰 수명 1시간.
+- **[확정 정책] refresh token은 Redis에 TTL로 저장하고 DB 테이블은 없습니다(Q409 B).** **[확정 정책] 토큰 형태(Q433):** refresh는 access와 **같은 RS256 개인키로 서명한 JWT**이며 클레임은 `userSeq`·`jti`·`typ=refresh`·`exp`(role·shelterSeq 없음). access에는 `typ=access`를 넣고, `JwtVerifier`는 `typ`이 `access`가 아닌 토큰을 거부해 refresh를 API 인증에 쓰지 못하게 합니다. refresh 검증(서명 + Redis 키 존재)은 core-api 2.3·2.4에서만 수행합니다. 운영 규칙 **[가안]**:
+  - 키 `auth:refresh:{userSeq}:{jti}`, 값은 refresh 토큰 해시, TTL 14일(=refresh `exp`). access 토큰 수명 1시간.
   - 로그인마다 새 jti를 발급하므로 기기마다 키 1개 → **다중 기기 로그인 허용**.
   - `2.3` 호출 시 키 존재 확인 → 삭제 → 새 jti로 access·refresh 재발급(**rotation**). 이미 삭제된 jti로 재요청이 오면 탈취로 간주해 **해당 사용자의 refresh 키 전부 삭제**.
   - `2.4` 호출 시 해당 jti 키 삭제. access 토큰 블랙리스트는 두지 않고 1시간 자연 만료.
@@ -625,7 +626,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 ### 9.1 GET /shelters · 9.2 GET /shelters/{id}
 
-**요청 [확정 정책]** `?keyword=행복&districtCode=27110&page=0&size=20&sort=shelterName,asc`. 필터 `keyword`(`shelterName`·`address` ILIKE, S7), `districtCode`(보호소 소재지 코드, 시드 때 일괄 도출, Q406 A). 정렬 화이트리스트 `shelterName`, `regDttm`(기본 `shelterName,asc`). 목록 DTO는 상세에서 `description`·`operatingHours`·`closedDays`·`backgroundImage`를 뺀 것.
+**요청 [확정 정책]** `?keyword=행복&districtCode=27110&page=0&size=20&sort=shelterName,asc`. 필터 `keyword`(`shelterName`·`address` ILIKE, S7), `districtCode`(보호소 소재지 코드, 오프라인 계산값을 시드에 삽입, Q406 A·Q431). 정렬 화이트리스트 `shelterName`, `regDttm`(기본 `shelterName,asc`). 목록 DTO는 상세에서 `description`·`operatingHours`·`closedDays`·`backgroundImage`를 뺀 것.
 
 **상세 성공 200 `data` [초안]**
 ```json
@@ -1131,7 +1132,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 >
 > **[확정 정책] 실시간(S5 B):** WebSocket + STOMP, 엔드포인트 **`/api/chat/v1/ws`**(핸드셰이크는 `security.permit-paths`로 열어 둠). 브로커는 **RabbitMQ STOMP relay**(`enableStompBrokerRelay`)이며 chat 인스턴스를 여러 개 띄워도 같은 방을 공유합니다.
 > - **CONNECT 인증:** CONNECT 프레임의 `Authorization: Bearer {accessToken}` 헤더를 `StompAuthChannelInterceptor`가 검증합니다. 없거나 틀리면 연결 거부(`AUTH_UNAUTHORIZED`/`AUTH_TOKEN_*`).
-> - **SUBSCRIBE 인가:** 구독 목적지 `/topic/rooms/{chatRoomSeq}`. 같은 인터셉터가 SUBSCRIBE 프레임에서 요청자가 `chat_participants`에 있는지 확인하고, 아니면 구독을 거부합니다(`CHAT_ROOM_NOT_PARTICIPANT`). 참여자가 아닌 방을 엿들을 수 없습니다.
+> - **SUBSCRIBE 인가:** 구독 목적지 `/topic/rooms/{chatRoomSeq}`. common의 `StompAuthChannelInterceptor`는 CONNECT 인증만 담당하고 DB에 접근하지 않으므로, **chat 모듈의 별도 `ChannelInterceptor`**가 SUBSCRIBE 프레임에서 요청자가 `chat_participants`에 있는지 확인하고 아니면 구독을 거부합니다(`CHAT_ROOM_NOT_PARTICIPANT`). `/user/queue/errors` 구독은 본인 큐이므로 검사 없이 허용합니다. 참여자가 아닌 방을 엿들을 수 없습니다.
 > - **전송(R16 B):** 클라이언트가 STOMP **SEND** 프레임으로 `/app/rooms/{chatRoomSeq}/messages`에 보냅니다(14.5). 서버 `@MessageMapping`이 참여자·조합·탈퇴 상대·첨부 검증 → `chat_messages` 저장·커밋 → `/topic/rooms/{chatRoomSeq}`로 저장된 메시지 DTO를 브로드캐스트합니다(RabbitMQ relay 경유). 쓰기 경로는 이 하나뿐이며 **REST 메시지 전송은 없습니다.** 방 목록·생성·상세·과거 메시지 조회·읽음·나가기만 REST입니다.
 > - **오류 응답(STOMP):** 검증 실패는 `@MessageExceptionHandler`가 송신자의 `/user/queue/errors`로 보냅니다. 본문은 HTTP와 **같은 `ApiResponse` 봉투**(`status`·`code`·`message`·`data:null`·`errors`·`traceId`)이고 코드도 19장과 같습니다(`CHAT_ROOM_NOT_PARTICIPANT`, `CHAT_INVALID_PAYLOAD`, `CHAT_COUNTERPART_DELETED`, `CHAT_SHARED_POST_NOT_FOUND`, `IMAGE_NOT_OWNED`, `IMAGE_NOT_FOUND`). 클라이언트는 연결 직후 `/user/queue/errors`를 구독합니다.
 > - **푸시(R9 C):** 서버는 구독 여부를 판단하지 않습니다. 저장·커밋 후 chat이 `ChatMessageSent` 이벤트를 내고, notification이 참여자 중 **보낸 사람을 제외한 전원**에게 FCM **데이터 메시지**(`roomSeq`, `messageSeq`, `senderDisplayName`, `preview`)를 보냅니다. 표시 여부는 앱이 "현재 열려 있는 방" 기준으로 판단합니다(같은 방이면 무시, 아니면 로컬 알림). DB 알림 기록은 없습니다(17장).
@@ -1331,7 +1332,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 - **[확정 정책]** 계정당 활성 FCM 토큰 최대 1개, 동일 토큰을 여러 계정에서 동시에 활성화 금지. 등록은 **upsert**이며 같은 토큰을 다시 보내도 200(Q415의 유일한 멱등 예외). 다른 토큰이면 기존 토큰을 비활성화하고 새 토큰을 활성화합니다. 다른 계정에서 활성인 토큰이면 그 계정의 토큰을 비활성화하고 요청 계정으로 옮깁니다(기기 양도). 탈퇴 시 계정의 활성 토큰 전부 비활성화.
 - `17.7` **요청 [초안]** `DELETE /notifications/device-tokens/current` 본문 `{ "fcmToken":"fcm-device-token" }`. 성공 `data:null`; DB에는 활성 해제 시각 `mod_dttm` 기록. **역할 분담(Q419 A):** 로그아웃(2.4)에 `fcmToken`을 실으면 core-api가 같은 비활성화를 이벤트로 요청하므로 앱은 17.7을 따로 부르지 않아도 됩니다. 17.7은 로그아웃 없이 푸시만 끄는 설정 화면용입니다.
-- 모의 입양 푸시(18장)도 **같은 활성 FCM 토큰**으로 발송합니다. 별도 토큰 등록은 없습니다(M16). simulation은 `device_tokens`를 읽기 전용 JOIN으로 조회합니다.
+- 모의 입양 푸시(18장)도 **같은 활성 FCM 토큰**으로 발송합니다. 별도 토큰 등록은 없습니다(M16). simulation은 `device_tokens`를 읽지 않고 `SimulationPushRequested` 이벤트만 보내며, 토큰 조회와 FCM 발송은 notification이 합니다.
 
 ### 17.8 알림 생성·AI 매칭 발송 조건 (내부 비공개 동작)
 
@@ -1350,7 +1351,9 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 실종×보호동물은 실종 ACTIVE + 보호동물 PROTECTING·비삭제(입양 상태 무관). 발생 계기는 실종/발견/보호동물 신규 등록, CLOSED→ACTIVE 재개, 사진 배열 diff. 같은 쌍은 `notification_type='AI_MATCH'` + `(missing_report_seq,target_type,target_seq)` 생애 1회.
 
-**AI 중복 알림 필수 처리 순서 [확정 정책]**: ① 유효 동물/신고 상태 검사 → ② 해당 `missing_reports` 행에 `SELECT ... FOR UPDATE` 획득 → ③ `is_deleted=true` 알림까지 포함해 동일 쌍 `AI_MATCH` 중복 조회 → ④ 없으면 `message TEXT NOT NULL` 및 `targetType/targetSeq`로 한 행 INSERT(core-api 트랜잭션, 같은 `core` 스키마) → ⑤ 트랜잭션 커밋 → ⑥ `NotificationCreated` 이벤트를 RabbitMQ로 발행하면 notification이 DB에 저장된 **똑같은 message 문자열**을 FCM body로 발송. 별도 전용 AI UNIQUE 인덱스는 **없습니다**. FCM 실패 시 DB 알림은 보존하고 재시도하지 않습니다. 그 외 유형은 발행 서비스가 이벤트에 수신자·유형·message·target을 실어 보내고 notification이 INSERT + FCM을 수행합니다.
+**AI 중복 알림 필수 처리 순서 [확정 정책]**: ① 유효 동물/신고 상태 검사 → ② 해당 `missing_reports` 행에 `SELECT ... FOR UPDATE` 획득 → ③ `is_deleted=true` 알림까지 포함해 동일 쌍 `AI_MATCH` 중복 조회 → ④ 없으면 `message TEXT NOT NULL` 및 `targetType/targetSeq`로 한 행 INSERT(core-api 트랜잭션, 같은 `core` 스키마) → ⑤ 트랜잭션 커밋 → ⑥ `NotificationCreated` 이벤트(이미 저장됨, 발송만 요청)를 RabbitMQ로 발행하면 notification이 DB에 저장된 **똑같은 message 문자열**을 FCM body로 발송. 별도 전용 AI UNIQUE 인덱스는 **없습니다**. FCM 실패 시 DB 알림은 보존하고 재시도하지 않습니다. 그 외 유형은 발행 서비스가 `NotificationRequested` 이벤트(저장 + 발송 요청)에 수신자·유형·message·target을 실어 보내고 notification이 INSERT + FCM을 수행합니다. 두 이벤트는 이름으로 구분합니다(21.6).
+
+**AI 워커 연동 [확정 정책, Q432]:** 매칭 요청과 결과 모두 RabbitMQ입니다. core-api는 실종·발견·보호동물의 등록·CLOSED→ACTIVE 재개·사진 배열 diff 때 `{ "sourceType": "MISSING|FOUND|SHELTER_ANIMAL", "sourceSeq": 101, "imageKeys": ["images/2026/11/a.jpg"], "speciesCode": "DOG", "occurredAt": "2026-11-02T17:50:00+09:00" }`를 발행합니다. 워커는 DB를 읽지 않고 페이로드와 S3 키만으로 동작하며, 유사하다고 판단한 쌍마다 `AiMatchFound { "missingReportSeq": 101, "targetType": "FOUND|SHELTER_ANIMAL", "targetSeq": 210, "score": 0.91, "modelVersion": "v1" }`를 발행합니다. `score`·`modelVersion`은 저장하지 않는 로그용 선택 필드이고 임계값 판단은 워커 몫입니다. core-api는 수신 시점에 위 ①(ACTIVE·PROTECTING·비삭제·비탈퇴) 재검사부터 ⑥까지 수행합니다. 워커의 임베딩 저장 위치는 POC 범위로 남깁니다.
 
 ---
 
@@ -1358,9 +1361,9 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 
 > 이 장은 DB v10의 모의 입양 11개 테이블(`simulation_*`)의 API입니다. 결정 번호 M1~M17은 DB v10 추적표와 같습니다. 18.21(=12.15)만 core-api가 제공합니다.
 >
-> **[확정 정책] 서비스·저장소(Q420 D):** simulation 서비스(8083)는 **`simulation` 스키마**만 쓰고, `core` 스키마의 `users`·`shelter_animals`·`shelter_animal_images`·`images`·`animal_breeds`·`animal_species`·`device_tokens`는 **읽기 전용 JOIN**으로만 참조합니다(교차 FK 없음). 반대로 core-api는 `simulation.simulation_reports`를 읽기 전용으로 JOIN해 12.15를 제공합니다. Flyway 마이그레이션은 simulation이 자기 스키마 것을 따로 가집니다.
+> **[확정 정책] 서비스·저장소(Q420 D):** simulation 서비스(8083)는 **`simulation` 스키마**만 쓰고, `core` 스키마의 `users`·`shelter_animals`·`shelter_animal_images`·`images`·`animal_breeds`·`animal_species`는 **읽기 전용 JOIN**으로만 참조합니다(교차 FK 없음). `device_tokens`는 읽지 않고 푸시는 이벤트로 notification에 위임합니다. 반대로 core-api는 `simulation.simulation_reports`를 읽기 전용으로 JOIN해 12.15를 제공합니다. Flyway 마이그레이션은 simulation이 자기 스키마 것을 따로 가집니다.
 >
-> **[확정 정책] 스냅샷:** 세션 시작 시 `species_type`·`personality`에 더해 동물의 **`shelter_seq`와 표시 정보(대표 이미지 URL, 분류명)**를 세션에 복사합니다. 보호소 열람 권한(18.4·18.20)은 세션의 `shelter_seq`와 토큰 `shelterSeq` 비교로 simulation 혼자 판단하고, 동물 상태가 바뀌어도 진행 중 세션은 영향을 받지 않습니다. 상점 물품 사진은 `images` FK가 아니라 시드의 키 문자열로 저장하고 `imageUrl`로 노출합니다.
+> **[확정 정책] 스냅샷:** 세션 시작 시 `species_type`·`personality`에 더해 동물의 **`shelter_seq`와 표시 정보(대표 사진 `image_key`, 품종명·색상명)**를 세션에 복사합니다(R2). 키는 저장만 하고 응답의 `representativeImageUrl`은 그때그때 URL로 변환합니다. 보호소 열람 권한(18.4·18.20)은 세션의 `shelter_seq`와 토큰 `shelterSeq` 비교로 simulation 혼자 판단하고, 동물 상태가 바뀌어도 진행 중 세션은 영향을 받지 않습니다. 상점 물품 사진은 `images` FK가 아니라 시드의 키 문자열로 저장하고 `imageUrl`로 노출합니다.
 >
 > **[확정 정책] 스케줄러(S8 A):** `@Scheduled` 10분 주기 작업 **하나**가 진행 중 세션을 순회합니다(21.5의 7). simulation 인스턴스는 1개 전제이며 2개 이상이면 ShedLock을 붙입니다. core·notification에는 스케줄 작업이 없습니다.
 
@@ -1834,10 +1837,15 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | R14 `districts` 번호 | **B** DB 문서에서 07번으로 넣고 이후 재번호 | DB v10 |
 | R15 고아 S3 객체 | **A** 수명주기 1일 | 4.1 |
 | R16 채팅 전송 방식 | **B** STOMP SEND `/app/rooms/{chatRoomSeq}/messages`, 서버 `@MessageMapping` 검증·저장·브로드캐스트, 오류는 `/user/queue/errors`에 HTTP와 같은 봉투. REST 메시지 전송 삭제, `clientMessageId`로 전송 확인 | 14장·21.4·22장 |
+| Q430 감사 시각 매핑 | `mod_dttm` NULL 허용·INSERT 시 NULL·UPDATE 시만 채움(`@PreUpdate`). 베이스 엔티티 `BaseCreatedEntity`/`BaseTimeEntity` 분리 | DB v10 §1 (API 영향 없음) |
+| Q431 시드 적재 | 보호소 `district_code`는 오프라인 계산값을 시드 SQL에 삽입, 시드 이미지는 S3에 먼저 올린 키를 SQL에 기록. 세부 절차는 적재 시점에 논의 | 9.1·DB v10 |
+| Q432 AI 워커 연동 | 양방향 RabbitMQ. 요청 `{sourceType, sourceSeq, imageKeys[], speciesCode, occurredAt}`, 결과 `AiMatchFound {missingReportSeq, targetType, targetSeq, score, modelVersion}`. 워커 DB 미접근, 임계값은 워커, 자격 재검사·중복 처리는 core-api | 17.8·21.1·21.6 |
+| Q433 refresh·탈퇴 계정 | refresh는 같은 RS256 키의 JWT(`userSeq`·`jti`·`typ=refresh`), access `typ=access`, 검증기가 `typ` 확인. 모든 쓰기 요청에서 `is_deleted` 재확인, 조회는 1시간 유예 | 1.1·2.3 |
+| 문구 통일 (2026-11-03) | simulation `device_tokens` 미접근(17.6·18장), 알림 이벤트 `NotificationRequested`/`NotificationCreated` 구분(17.8·21.6), 세션 스냅샷은 이미지 키(18.0·21.5), SUBSCRIBE 인가는 chat 모듈 인터셉터(14장) | 해당 절 |
 
 ### 20.2 미결 안건
 
-**없음.** 남은 조정 항목은 [가안]으로 표시한 수치뿐입니다: 토큰 수명(1시간/14일), 업로드 컨텍스트 TTL(10분)·고아 객체 정리(24시간), 모의 입양 튜닝값(18.0 표), 채팅 구독 목적지 이름. 모두 코드 설정값이며 명세 버전을 올리지 않고 조정합니다. 새 안건은 Q430부터 번호를 붙입니다.
+**없음.** 남은 조정 항목은 [가안]으로 표시한 수치뿐입니다: 토큰 수명(1시간/14일), 업로드 컨텍스트 TTL(10분)·고아 객체 정리(24시간), 모의 입양 튜닝값(18.0 표), 채팅 구독 목적지 이름. 모두 코드 설정값이며 명세 버전을 올리지 않고 조정합니다. 시드 적재의 세부 절차(Q431)는 적재 시점에 별도 논의합니다. 새 안건은 Q434부터 번호를 붙입니다.
 
 ### 아직 스펙에 **없는 것** (의도된 제외)
 
@@ -1857,9 +1865,9 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 1. 실종 신고 POST 요청의 `userSeq`는 로그인에서 결정(USER만). 유효 조합·사진 1~3장(소유 검증)·필수 속성 검증.
 2. 좌표를 네이버 역지오코딩 어댑터(`port/out`)로 보내 법정동 코드 앞 5자리를 `district_code`로 얻음. 실패하면 NULL(Q406-2). 외부 호출은 트랜잭션 밖에서 먼저 수행.
 3. 회원의 다른 비삭제 ACTIVE 신고 없음 확인 → DB UNIQUE `WHERE status='ACTIVE' AND is_deleted=false`도 적용 → 신고 및 연결 이미지 저장.
-4. 커밋 후 `MissingReportRegistered` 이벤트를 RabbitMQ로 발행. AI 워커가 비삭제·비탈퇴 유효 발견 신고/PROTECTING 보호동물과 비교. 매칭 구현 상세는 별도 POC.
-5. 매칭 결과를 받은 core-api가 같은 쌍을 `missing_reports` 행 잠금 하에 확인하고 최초 1회만 `notifications`에 INSERT(17.8).
-6. 커밋 후 `NotificationCreated` 이벤트 → notification이 저장된 `message`와 동일한 문자열을 FCM에 전달. 실패해도 DB 보존/재시도 없음.
+4. 커밋 후 매칭 요청 이벤트 `{sourceType:MISSING, sourceSeq, imageKeys[], speciesCode, occurredAt}`를 RabbitMQ로 발행(Q432). AI 워커가 페이로드와 S3 키만으로 비삭제·비탈퇴 유효 발견 신고/PROTECTING 보호동물과 비교. 매칭 구현 상세는 별도 POC.
+5. 워커가 `AiMatchFound {missingReportSeq, targetType, targetSeq, score, modelVersion}`를 RabbitMQ로 발행하면 core-api가 자격을 재검사한 뒤 같은 쌍을 `missing_reports` 행 잠금 하에 확인하고 최초 1회만 `notifications`에 INSERT(17.8). `score`·`modelVersion`은 저장하지 않음.
+6. 커밋 후 `NotificationCreated` 이벤트(발송만) → notification이 저장된 `message`와 동일한 문자열을 FCM에 전달. 실패해도 DB 보존/재시도 없음.
 
 ### 21.2 발견 신고 → 구조 접수 → 완료 → 보호동물
 
@@ -1888,7 +1896,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 
 ### 21.5 모의 입양 세션 시작 → 돌봄 → 종료 리포트
 
-1. 세션 시작(18.1): 요청자의 `IN_PROGRESS` 세션을 `SELECT ... FOR UPDATE`로 확인(부분 UNIQUE 병행) → `core` 스키마를 읽기 전용 JOIN해 동물 비삭제·보호 중·종 `DOG/CAT` 검증 → 품종에서 성격 스냅샷(NULL이면 랜덤) + 동물의 `shelter_seq`·대표 이미지 URL·분류명 스냅샷 → 세션 INSERT(초기 스탯, `ends_dttm`, `balance=expected_cost`) → `action_logs(SYSTEM, SESSION_START)`. 교차 스키마라 동물 행은 잠그지 않음.
+1. 세션 시작(18.1): 요청자의 `IN_PROGRESS` 세션을 `SELECT ... FOR UPDATE`로 확인(부분 UNIQUE 병행) → `core` 스키마를 읽기 전용 JOIN해 동물 비삭제·보호 중·종 `DOG/CAT` 검증 → 품종에서 성격 스냅샷(NULL이면 랜덤) + 동물의 `shelter_seq`·대표 사진 `image_key`·품종명·색상명 스냅샷(R2) → 세션 INSERT(초기 스탯, `ends_dttm`, `balance=expected_cost`) → `action_logs(SYSTEM, SESSION_START)`. 교차 스키마라 동물 행은 잠그지 않음.
 2. 모든 조회·행동·스케줄러 진입 시 **스탯 지연 계산**: `stats_calculated_dttm`부터 경과 tick × (기본 변화 × 성격 배율)을 적용해 0~100으로 클램프하고 `stats_calculated_dttm` 갱신. 계산 결과 `health=0`이면 FAILED, `ends_dttm` 경과면 COMPLETED로 6단계 종료 처리.
 3. 돌봄 행동(18.6): 세션 잠금 → 지연 계산 → 기구 보유·소모품 수량 검사 → 수량 -1 → 물품 효과 반영 → `action_logs(CARE)` → `last_action_dttm` 갱신. 돈은 쓰지 않음.
 4. 구매(18.9): 세션 잠금 → `simulation_transactions(PURCHASE)` INSERT → `balance -= amount`(음수 허용) → `simulation_inventory_items` UPSERT. 기구는 수량 1·재구매 409.
@@ -1900,11 +1908,13 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 
 | 이벤트 | 발행 | 소비 | 용도 |
 |---|---|---|---|
-| `NotificationRequested` | core-api·chat·simulation | notification | `notifications` INSERT + FCM(AI_MATCH는 INSERT 없이 FCM만) |
-| `SimulationPushRequested` | simulation | notification | `simulation_notifications` 저장 완료 건의 FCM 발송만(저장은 simulation) |
-| `UserDeleted` | core-api | notification·simulation | 디바이스 토큰 비활성화, 진행 중 세션 ABANDONED + 리포트 |
+| `NotificationRequested` | core-api·chat | notification | `notifications` INSERT + FCM (COMMENT·ADOPTION·SHELTER). 페이로드: 수신자·유형·message·target |
+| `NotificationCreated` | core-api | notification | **FCM 발송만**. core-api가 직접 INSERT한 `AI_MATCH` 행(R1·17.8 ⑥). 페이로드: `notificationSeq`·수신자·message |
+| `SimulationPushRequested` | simulation | notification | `simulation_notifications` 저장 완료 건의 FCM 발송만(저장은 simulation, `device_tokens` 조회는 notification) |
+| `UserDeleted` | core-api | notification·simulation | 디바이스 토큰 `is_active=false`, 진행 중 세션 ABANDONED + 리포트 |
 | `DeviceTokenDeactivateRequested` | core-api(2.4 `fcmToken`) | notification | 로그아웃 기기 토큰 비활성화 |
-| `MissingReportRegistered`·`FoundReportRegistered`·`ShelterAnimalRegistered`·`ImagesChanged` | core-api | AI 워커 | 매칭 요청 |
+| 매칭 요청(`MissingReportRegistered`·`FoundReportRegistered`·`ShelterAnimalRegistered`·`ImagesChanged`) | core-api | AI 워커 | 페이로드 `{sourceType, sourceSeq, imageKeys[], speciesCode, occurredAt}`(Q432). 워커는 DB 미접근 |
+| `AiMatchFound` | AI 워커 | core-api | 페이로드 `{missingReportSeq, targetType, targetSeq, score, modelVersion}`(Q432). core-api가 자격 재검사 후 17.8 순서로 처리 |
 | `ChatMessageSent` | chat | notification | 보낸 사람을 제외한 참여자 전원에게 FCM **데이터 메시지**(`roomSeq, messageSeq, senderDisplayName, preview`). 표시 여부는 앱이 판단, DB 저장 없음(R9 C) |
 
 이벤트 이름·페이로드는 `common`의 `EventPublisher` 포트로 발행하며 MQ 어댑터를 빈으로 등록하면 `LoggingEventAdapter`를 대체합니다.
@@ -1917,7 +1927,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 |---|---|---|---|
 | `users`, `auth_providers`, `user_accounts` | core / core-api | 2·3 | USER 필수 개인정보/LOCAL 사전 발급(SHELTER만)/동시 소프트 삭제. `profile_image_seq` FK(Q408). refresh는 Redis(Q409). chat·notification·simulation은 읽기 전용 |
 | `districts` | core / core-api(시드만) | 5.5·7·8·9 | 시군구 법정동 코드 5자리 마스터(Q406-1). 필터 값 검증·지역 선택 UI |
-| `shelters`, `shelter_members`, `shelter_district_assignments` | core / core-api | 8·9 | 보호소당 계정 1개, `district_code` 단일 PK. 기준정보·배정은 Flyway 시드(Q412). 보호소 `district_code`는 시드 때 도출(Q406) |
+| `shelters`, `shelter_members`, `shelter_district_assignments` | core / core-api | 8·9 | 보호소당 계정 1개, `district_code` 단일 PK. 기준정보·배정은 Flyway 시드(Q412). 보호소 `district_code`는 오프라인 계산값을 시드에 삽입(Q406·Q431) |
 | `animal_species`, `animal_breeds`, `animal_colors`, `animal_combinations` | core / core-api(시드만) | 5·18 | 조합 FK 한 개로 저장. `species_code DOG/CAT/ETC`(M8), `breeds.personality`(M7). simulation 읽기 전용 |
 | `pets`, `pet_images` | core / core-api | 6 | 사진 1~3장, 실종 신고 스냅샷 별도 |
 | `images` | core / core-api | 3·4·6~11·13·14 | `reg_usr_seq` 업로더(Q407), 마지막 참조 해제 후 원본 best-effort 삭제(Q427). chat은 `chat_messages.image_seq` 연결 행만 쓰고 `images` 행은 core-api만 생성 |
@@ -1946,4 +1956,4 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 
 ---
 
-**v3 종료.** 이 문서는 DB v10과 백엔드 공통 코드 규약을 기준으로 한 API 계약이며, [가안] 수치와 [초안] DTO 세부는 구현 중 조정할 수 있습니다. 새 안건은 Q430부터 번호를 붙여 질의응답으로 확정한 뒤 다음 버전에 반영합니다. v2는 `animal_service_api_spec_v2.md`로 보존합니다.
+**v3 종료.** 이 문서는 DB v10과 백엔드 공통 코드 규약을 기준으로 한 API 계약이며, [가안] 수치와 [초안] DTO 세부는 구현 중 조정할 수 있습니다. Q430~Q433은 2026-11-03에 확정해 v3에 반영했습니다. 새 안건은 Q434부터 번호를 붙여 질의응답으로 확정한 뒤 반영합니다. v2는 `animal_service_api_spec_v2.md`로 보존합니다.
