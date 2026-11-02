@@ -19,6 +19,7 @@ import DateIcon from '../../assets/icons/common/date.svg';
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
 import NotificationIcon from '../../assets/icons/common/notification.svg';
+import RightArrowIcon from '../../assets/icons/common/right-arrow.svg';
 import SearchInputIcon from '../../assets/icons/common/search.svg';
 import AdoptionActiveIcon from '../../assets/icons/navigation/adoption-active.svg';
 import AdoptionIcon from '../../assets/icons/navigation/adoption.svg';
@@ -228,64 +229,89 @@ export function HomeScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <View style={styles.header}>
-        <Image
-          resizeMode="contain"
-          source={require('../../assets/images/logo.png')}
-          style={styles.logo}
-        />
-        <Pressable accessibilityLabel="알림" accessibilityRole="button" style={styles.headerIcon}>
-          <NotificationIcon />
-        </Pressable>
-      </View>
-      <View style={styles.searchBox}>
-        <SearchInputIcon />
-        <TextInput
-          onChangeText={setQuery}
-          placeholder="특징으로 검색해보세요"
-          placeholderTextColor={colors.gray400}
-          style={styles.searchInput}
-          value={query}
-        />
-      </View>
-      <ScrollView
-        contentContainerStyle={styles.filters}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterScroll}
-      >
-        {filterItems.map(filter => (
+      {selectedTab === 'mypage' ? (
+        <View style={styles.myPageContent}>
+          <Text style={styles.myPageTitle}>마이페이지</Text>
           <Pressable
-            accessibilityLabel={`${filter.label} 필터`}
             accessibilityRole="button"
-            key={filter.key}
-            onPress={() => setActiveFilter(current => (current === filter.key ? null : filter.key))}
-            style={[
-              styles.filterChip,
-              activeFilter === filter.key && styles.filterChipOpen,
-              isFilterApplied(filter.key) && styles.filterChipApplied,
-            ]}
+            onPress={() => navigation.navigate('AdoptionApplicationList')}
+            style={({ pressed }) => [styles.myPageMenu, pressed && styles.pressed]}
           >
-            <Text
-              style={[styles.filterText, isFilterApplied(filter.key) && styles.filterTextApplied]}
-            >
-              {getFilterLabel(filter.key, filter.label)}
-            </Text>
-            <FilterArrowIcon />
+            <Text style={styles.myPageMenuText}>입양 신청 내역</Text>
+            <RightArrowIcon height={20} width={20} />
           </Pressable>
-        ))}
-      </ScrollView>
-      <FlatList
-        columnWrapperStyle={styles.column}
-        contentContainerStyle={[styles.listContent, { paddingBottom: 104 + insets.bottom }]}
-        data={animals}
-        key={listKey}
-        keyExtractor={item => item.id}
-        numColumns={2}
-        ref={listRef}
-        renderItem={renderAnimal}
-        showsVerticalScrollIndicator={false}
-      />
+        </View>
+      ) : (
+        <>
+          <View style={styles.header}>
+            <Image
+              resizeMode="contain"
+              source={require('../../assets/images/logo.png')}
+              style={styles.logo}
+            />
+            <Pressable
+              accessibilityLabel="알림"
+              accessibilityRole="button"
+              style={styles.headerIcon}
+            >
+              <NotificationIcon />
+            </Pressable>
+          </View>
+          <View style={styles.searchBox}>
+            <SearchInputIcon />
+            <TextInput
+              onChangeText={setQuery}
+              placeholder="특징으로 검색해보세요"
+              placeholderTextColor={colors.gray400}
+              style={styles.searchInput}
+              value={query}
+            />
+          </View>
+          <ScrollView
+            contentContainerStyle={styles.filters}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterScroll}
+          >
+            {filterItems.map(filter => (
+              <Pressable
+                accessibilityLabel={`${filter.label} 필터`}
+                accessibilityRole="button"
+                key={filter.key}
+                onPress={() =>
+                  setActiveFilter(current => (current === filter.key ? null : filter.key))
+                }
+                style={[
+                  styles.filterChip,
+                  activeFilter === filter.key && styles.filterChipOpen,
+                  isFilterApplied(filter.key) && styles.filterChipApplied,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    isFilterApplied(filter.key) && styles.filterTextApplied,
+                  ]}
+                >
+                  {getFilterLabel(filter.key, filter.label)}
+                </Text>
+                <FilterArrowIcon />
+              </Pressable>
+            ))}
+          </ScrollView>
+          <FlatList
+            columnWrapperStyle={styles.column}
+            contentContainerStyle={[styles.listContent, { paddingBottom: 104 + insets.bottom }]}
+            data={animals}
+            key={listKey}
+            keyExtractor={item => item.id}
+            numColumns={2}
+            ref={listRef}
+            renderItem={renderAnimal}
+            showsVerticalScrollIndicator={false}
+          />
+        </>
+      )}
       <View style={[styles.navigationWrap, { bottom: insets.bottom + 16 }]}>
         <BottomNavigation
           centerAction={{
@@ -298,18 +324,31 @@ export function HomeScreen({ navigation }: Props) {
           selectedKey={selectedTab}
         />
       </View>
-      <AdoptionFilterSheet
-        activeFilter={activeFilter}
-        filters={filterValues}
-        onChange={updateFilter}
-        onClose={() => setActiveFilter(null)}
-      />
+      {selectedTab !== 'mypage' ? (
+        <AdoptionFilterSheet
+          activeFilter={activeFilter}
+          filters={filterValues}
+          onChange={updateFilter}
+          onClose={() => setActiveFilter(null)}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
+  myPageContent: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
+  myPageTitle: { ...typography.titleBold18, color: colors.black, marginBottom: 28 },
+  myPageMenu: {
+    alignItems: 'center',
+    borderBottomColor: colors.gray200,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    height: 58,
+    justifyContent: 'space-between',
+  },
+  myPageMenuText: { ...typography.bodySemiBold16, color: colors.gray700 },
   header: { alignItems: 'center', flexDirection: 'row', height: 56, justifyContent: 'center' },
   logo: { height: 34, width: 88 },
   headerIcon: { position: 'absolute', right: 20 },
