@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, shadows, spacing, typography } from '../../../theme';
+import { colors, spacing, typography } from '../../../theme';
 
 export type BottomNavigationItem<Key extends string = string> = {
   icon: (selected: boolean) => ReactNode;
@@ -36,7 +36,7 @@ export function BottomNavigation<Key extends string>({
         return (
           <Fragment key={item.key}>
             {centerAction && index === centerIndex ? (
-              <View style={styles.itemSlot}>
+              <View style={styles.centerSlot}>
                 <Pressable
                   accessibilityLabel={centerAction.accessibilityLabel}
                   accessibilityRole="button"
@@ -68,27 +68,26 @@ export function BottomNavigation<Key extends string>({
 
 const styles = StyleSheet.create({
   container: {
-    ...shadows.level2,
     alignItems: 'center',
-    backgroundColor: 'rgba(247, 246, 242, 0.96)',
-    borderRadius: radius.pill,
+    backgroundColor: 'rgba(247, 246, 242, 0.6)',
+    borderRadius: 28,
+    boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.15)',
     flexDirection: 'row',
     height: 60,
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing[8],
     paddingVertical: spacing[4],
   },
   itemSlot: {
     alignItems: 'center',
-    flex: 1,
     justifyContent: 'center',
+    width: 56,
   },
   item: {
     alignItems: 'center',
-    gap: spacing[1],
+    gap: spacing[2],
     justifyContent: 'center',
-    minHeight: 44,
-    minWidth: 56,
+    width: 56,
   },
   icon: {
     alignItems: 'center',
@@ -98,7 +97,7 @@ const styles = StyleSheet.create({
   },
   label: {
     ...typography.captionSemiBold12,
-    color: colors.gray400,
+    color: '#777671',
   },
   selectedLabel: {
     color: colors.green100,
@@ -109,10 +108,12 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     height: 50,
     justifyContent: 'center',
-    position: 'absolute',
-    top: -35,
     width: 50,
-    zIndex: 1,
+  },
+  centerSlot: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 50,
   },
   pressed: {
     opacity: 0.7,
