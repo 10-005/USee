@@ -234,7 +234,6 @@ export function HomeScreen({ navigation }: Props) {
         centerAction={{
           accessibilityLabel: '모의입양',
           icon: <PlusIcon height={24} width={24} />,
-          label: '모의입양',
           onPress: () => setSelectedTab('mockAdoption'),
           selected: selectedTab === 'mockAdoption',
         }}
