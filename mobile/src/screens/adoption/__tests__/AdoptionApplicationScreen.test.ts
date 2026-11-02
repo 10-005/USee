@@ -2,13 +2,29 @@ import { isAdoptionStepValid } from '../AdoptionApplicationScreen';
 
 describe('adoption application validation', () => {
   it('requires the address and visit date on the applicant step', () => {
-    const empty = { address: '', visitDate: '' } as Parameters<typeof isAdoptionStepValid>[0];
-    expect(isAdoptionStepValid(empty, 1)).toBe(false);
-
-    const complete = { address: '서울시 강남구', visitDate: '2026.10.10' } as Parameters<
+    const empty = { address: '', email: '', visitDate: '' } as Parameters<
       typeof isAdoptionStepValid
     >[0];
+    expect(isAdoptionStepValid(empty, 1)).toBe(false);
+
+    const complete = {
+      address: '서울시 강남구',
+      email: 'usee@example.com',
+      visitDate: '2026.10.10',
+    } as Parameters<typeof isAdoptionStepValid>[0];
     expect(isAdoptionStepValid(complete, 1)).toBe(true);
+  });
+
+  it('rejects an invalid email format when an email is entered', () => {
+    const applicant = {
+      address: '서울시 강남구',
+      email: 'wrong-email',
+      visitDate: '2026.10.10',
+    } as Parameters<typeof isAdoptionStepValid>[0];
+
+    expect(isAdoptionStepValid(applicant, 1)).toBe(false);
+    applicant.email = 'usee@example.com';
+    expect(isAdoptionStepValid(applicant, 1)).toBe(true);
   });
 
   it('allows the optional public consent to remain unchecked', () => {
@@ -88,5 +104,13 @@ describe('adoption application validation', () => {
     carePlan.educationCourse = '입양 교육';
     carePlan.educationDate = '2026.10.10';
     expect(isAdoptionStepValid(carePlan, 3)).toBe(true);
+  });
+
+  it('requires the final confirmation before submission', () => {
+    const confirmation = { finalConfirmation: false } as Parameters<typeof isAdoptionStepValid>[0];
+
+    expect(isAdoptionStepValid(confirmation, 5)).toBe(false);
+    confirmation.finalConfirmation = true;
+    expect(isAdoptionStepValid(confirmation, 5)).toBe(true);
   });
 });
