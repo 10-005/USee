@@ -21,11 +21,14 @@ spec:
     spec:
       imagePullSecrets:
         - name: registry-pull
-      # 두 노드에 한 개씩 나눠 배치. 한 노드가 꺼지면 남은 노드에 둘 다 뜨도록 ScheduleAnyway
+      # 두 노드에 한 개씩 강제 배치. 같은 ReplicaSet(pod-template-hash) Pod끼리만 세어 롤링 업데이트 중 옛 Pod는 제외
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          matchLabelKeys:
+            - pod-template-hash
           labelSelector:
             matchLabels:
               app: core-api
