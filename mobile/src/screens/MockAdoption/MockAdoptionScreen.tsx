@@ -82,7 +82,9 @@ export function MockAdoptionScreen() {
         <Button
           disabled={!selectedPet}
           onPress={() => {
-            if (selectedPet) navigation.navigate('MockAdoptionActivity', { petId: selectedPet.id });
+            if (selectedPet) {
+              navigation.navigate('MockAdoptionActivity', { petId: selectedPet.id });
+            }
           }}
         >
           모의입양 시작하기
