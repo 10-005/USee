@@ -176,7 +176,7 @@
 
 - **명명 규칙(Q418 A):** 응답 `code`는 서버 enum 상수명 그대로이며 `{도메인}_상황` 형식입니다. 공통 코드는 `COMMON_*`·`AUTH_*`, 도메인 코드는 각 도메인 패키지의 `{도메인}ErrorCode`에 둡니다(19장). 파일 크기·타입 오류는 공통이 아니라 `IMAGE_TOO_LARGE`(413)·`IMAGE_UNSUPPORTED_TYPE`(415)처럼 도메인 코드입니다.
 
-**공통 필터:** 로그인 필수; `users.is_deleted=true` 작성자의 일반 게시물·AI 후보를 비노출합니다. 단 채팅 메시지, 기존 댓글·답글, 저장 알림, 보호소 업무상 과거 입양 기록, 모의 입양 리포트 등은 보존하고 작성자를 `(탈퇴한 사용자)`로 표기합니다. 동물 및 신고의 `is_deleted` 등 비노출은 각 API에서도 확인합니다. 공개하지 않을 정보는 403 대신 404로 존재를 감춥니다.
+**공통 필터:** 로그인 필수; `users.is_deleted=true` 작성자의 일반 게시물·AI 후보를 비노출합니다. 단 채팅 메시지, 기존 댓글·답글, 저장 알림, 보호소 업무상 과거 입양 기록, 모의 입양 리포트 등은 보존하고 작성자를 `(탈퇴한 사용자)`로 표기합니다. 동물 및 신고의 `is_deleted` 등 비노출은 각 API에서도 확인합니다. **[확정 정책] 403/404 원칙(Q434):** REST에서 타인·타 보호소의 자원에 접근하거나 비노출 자원을 조회하면 403이 아니라 해당 도메인의 `*_NOT_FOUND` 404로 존재를 감춥니다(실종·발견·구조·보호동물·입양 신청·댓글·알림·채팅방·모의 입양 공통). 403은 **요청자가 자기 것이 아닌 것을 자기 자원에 연결하려는 경우**(`IMAGE_NOT_OWNED`, Q407)와 **STOMP SUBSCRIBE·SEND**(`CHAT_ROOM_NOT_PARTICIPANT`, 방 존재가 이미 드러난 맥락)에만 씁니다. 역할 자체가 맞지 않는 요청(USER가 SHELTER 전용 API 호출 등)은 `@PreAuthorize`가 403 `AUTH_FORBIDDEN`을 냅니다.
 
 ### 1.4 목록 응답 DTO
 
@@ -185,7 +185,7 @@
 - `AnimalClassification`: `{combinationSeq, speciesSeq, speciesName, breedSeq, breedName, colorSeq, colorName}`. **저장은 `combinationSeq`만** 사용합니다. `speciesSeq/breedSeq/colorSeq`는 표시를 위한 JOIN 파생 필드입니다.
 - `ActorSummary`: `{userSeq, displayName, role, profileImage?: ImageRef|null}`. 회원 탈퇴 시 표시 이름 대체. SHELTER는 표시 이름으로 해당 보호소명 사용. 프로필 이미지는 USER·SHELTER 모두 공통 `images` 참조(Q408).
 - `GeoPoint`: `{address, latitude, longitude, districtCode}`. 위도 -90~90/경도 -180~180 검증은 [초안] 구현 규약. `districtCode`는 서버가 역지오코딩으로 채우며 실패 시 `null`(Q406).
-- `District`: `{districtCode, sidoName, sigunguName}`. 5.5 참조.
+- `District`: `{districtCode, sidoName, sigunguName}`. 5.5 참조. 목록 필터 `districtCode`가 `districts`에 없는 값이면 400 `CATALOG_INVALID_DISTRICT_CODE`(7.1·8.1·9.1·11.1 공통).
 - 목록마다 "정렬 화이트리스트"와 "필터" 한 줄을 명시합니다(Q417). 명시가 없는 목록은 `regDttm`만 허용합니다.
 
 ### 1.5 접근 권한 요약 (DB 정책과 직접 연동)
@@ -202,7 +202,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 | 구조·보호동물 등록·관리 | 불가 | 소속 보호소 업무 |
 | 보호동물 반환/입양 심사·완료 | 불가 | 소속 보호소 |
 | 입양 신청·저장·제출·취소 | **본인만** | 불가(SUBMITTED 이후 업무 열람만, Q422) |
-| 모의 입양 세션·돌봄·구매·이벤트·산책 | **본인만** | 불가(자기 보호동물 세션의 리포트·이력 열람만) |
+| 모의 입양 세션·돌봄·구매·이벤트·산책 | **본인만** | 불가(자기 보호동물 세션의 **종료 리포트만** 열람, Q435) |
 | 댓글 작성 | 허용 | 허용 |
 | 채팅방 생성·메시지 전송 | 허용(USER↔USER, USER↔SHELTER). 전송은 STOMP SEND(R16 B) | 허용(USER 대상만, SHELTER가 먼저 생성 가능 R8). 전송은 STOMP SEND |
 | 댓글 수정/삭제 | 작성자 본인(Q423) | 작성자 본인(Q423) |
@@ -465,7 +465,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 - `6.4` **요청 [초안]** 6.3의 수정할 필드만 보냄; 이미지 변경 시 `imageSeqs` **전체 최종 배열**을 원하는 순서대로 전송하고 서버가 diff·순서를 계산합니다(Q424, 4.1). 성공 200 상세 DTO. `pets.mod_dttm`만 갱신(제거된 `mod_usr_seq`를 되살리지 않음). 소유자 본인만(Q423).
 - `6.5` 성공 200 `data:null`. **기존 `missing_reports.pet_seq` 연결을 유지하고 실종 신고/AI 매칭에도 영향 없음.** 이미지 참조도 다른 도메인에서 참조 중이면 원본 삭제 금지.
-- **오류 [초안]** 403 `PET_NOT_OWNED`, 404 `PET_NOT_FOUND`.
+- **오류 [초안]** 404 `PET_NOT_FOUND`(없음·삭제·타인 소유 모두, Q434); 6.4는 추가로 404 `CATALOG_COMBINATION_NOT_FOUND`·`IMAGE_NOT_FOUND`, 403 `IMAGE_NOT_OWNED`, 400 `IMAGE_INVALID_COUNT`.
 
 ---
 
@@ -508,6 +508,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 - **[확정 정책]** 공개 연락처는 **로그인 사용자에게만** 보이며, 기본 비공개 시에는 **작성자만** 실제 번호를 열람합니다. 접근 불가 시 `contactPhone:null`로 응답 [초안]. `isPhonePublic` 자체는 반환 가능.
 - **[확정 정책]** 탈퇴 작성자·삭제 신고는 일반 목록/상세에서 비노출. `circumstances` 필드는 존재하지 않습니다.
+- **오류 [초안]** 7.2: 404 `MISSING_REPORT_NOT_FOUND`(없음·삭제·비노출). 7.1: 400 `CATALOG_INVALID_DISTRICT_CODE`, `COMMON_INVALID_INPUT`(정렬 화이트리스트 밖).
 
 ### 7.4 POST /missing-reports
 
@@ -537,7 +538,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 - 실종 주소/좌표/시각/이름/연락처/유효 조합/성별/사진 1~3장을 검증합니다. `contactPhone`은 회원 전화번호로 초기 제안하되 신고별로 수정 가능. **USER만 작성**(Q421).
 - **[확정 정책] 행정구역 코드(Q406 A):** 서버가 좌표를 네이버 역지오코딩(`legalcode`)으로 조회해 앞 5자리를 `districtCode`에 저장합니다. 실패하면 `null`로 저장하고 등록은 그대로 진행합니다(Q406-2). 앱이 코드를 보내지 않습니다.
 - **[확정 정책]** 작성 USER당 비삭제 ACTIVE 실종 신고 최대 1건(동일 반려동물 여부와 무관). 최초 등록/재개 시 유효한 발견 신고·보호동물과 AI 매칭 후보. 서버 트랜잭션과 부분 UNIQUE로 경합 차단.
-- **오류 [초안]** 409 `MISSING_ACTIVE_ALREADY_EXISTS`, 403 `PET_NOT_OWNED`, 400 `IMAGE_INVALID_COUNT`.
+- **오류 [초안]** 409 `MISSING_ACTIVE_ALREADY_EXISTS`; 404 `PET_NOT_FOUND`(타인 소유 포함, Q434), `CATALOG_COMBINATION_NOT_FOUND`, `IMAGE_NOT_FOUND`; 403 `IMAGE_NOT_OWNED`(Q407); 400 `IMAGE_INVALID_COUNT`.
 
 ### 7.5 PATCH /missing-reports/{id} · 7.6 PATCH /.../status · 7.7 DELETE /...
 
@@ -545,6 +546,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 - `7.6` **요청 [초안]** `{ "status":"CLOSED" }` 또는 `{ "status":"ACTIVE" }`. 성공 200 `data:{missingReportSeq,status}`. ACTIVE 재개 시 다른 ACTIVE 신고가 있으면 409 `MISSING_ACTIVE_ALREADY_EXISTS`. 실종 신고의 종료 사유/종료 시각 API 필드는 **없습니다**. 작성자 본인만.
 - `7.7` 성공 200 `data:null`. [확정 정책] 논리 삭제(ACTIVE·CLOSED 모두 가능); AI 대상 제외, 사진은 마지막 참조 해제 시만 정리. 작성자 본인만.
 - 신고/보호동물 반환, 발견/구조 완료를 이유로 실종 신고가 자동 종료되지는 않습니다.
+- **오류 [초안]** 7.5~7.7 공통 404 `MISSING_REPORT_NOT_FOUND`(없음·삭제·**타인 신고**, Q434). 7.5: 409 `MISSING_REPORT_CLOSED`, 404 `CATALOG_COMBINATION_NOT_FOUND`·`IMAGE_NOT_FOUND`, 403 `IMAGE_NOT_OWNED`, 400 `IMAGE_INVALID_COUNT`. 7.6: 409 `MISSING_ACTIVE_ALREADY_EXISTS`(재개), 400 `COMMON_INVALID_INPUT`(현재와 같은 상태).
 
 ---
 
@@ -573,6 +575,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 - **[확정 정책]** 비공개 `reporterPhone`은 작성자·**이 발견 신고의 담당 보호소**만 열람. 다른 사용자·다른 보호소에는 `null` 반환 [초안]. `reporterName` 별도 DB 컬럼 없음. 필요한 경우 `users.name`을 권한 범위 내 JOIN합니다.
 - 삭제·탈퇴 작성자는 일반 노출에서 제외합니다. **발견 당시 목격 상황 전용 `circumstances` 없음**.
+- **오류 [초안]** 8.2: 404 `FOUND_REPORT_NOT_FOUND`(없음·삭제·비노출). 8.1: 400 `CATALOG_INVALID_DISTRICT_CODE`, `COMMON_INVALID_INPUT`.
 
 ### 8.4 POST /found-reports
 
@@ -600,7 +603,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 - 주소/좌표/시각/신고자 연락처/조합/성별/사진 1~3장은 필수입니다. 기본 비공개. 신고자 이름은 별도 필드가 아니므로 요청하지 않습니다. **USER만 작성**(Q421).
 - **[확정 정책] 담당 보호소 자동 배정(Q406 A·Q406-2 A), 서버 수행:** ① 좌표를 네이버 역지오코딩(`legalcode`)으로 조회해 앞 5자리를 `districtCode`로 저장 → ② `shelter_district_assignments`에 그 코드가 있으면 지정 보호소(`assignmentMethod:"DISTRICT"`) → ③ 코드가 없거나(역지오코딩 실패, `districtCode:null`) 배정표에 없으면 위경도 하버사인 최근접 비삭제 보호소(`assignmentMethod:"NEAREST"`, S3 A). 역지오코딩 실패로 **등록을 거부하지 않습니다**. `assignmentMethod`는 **응답 전용** 값이며 DB에 저장하지 않습니다(R13 A). 보호소가 하나도 없을 때만 409 `FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE`(시드 전 환경). `shelterSeq` 임의 입력 불허. 수동 재배정 API는 없습니다(ADMIN 범위 외).
 - **[확정 정책]** 이 시점에 발견 신고 상태는 ACTIVE; 기존 ACTIVE 실종 신고와 AI 비교 후보. 담당 보호소의 SHELTER 계정에 `SHELTER` 알림(17.8, Q426).
-- **오류 [초안]** 409 `FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE`, 404 `CATALOG_COMBINATION_NOT_FOUND`, 400 `IMAGE_INVALID_COUNT`.
+- **오류 [초안]** 409 `FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE`; 404 `CATALOG_COMBINATION_NOT_FOUND`, `IMAGE_NOT_FOUND`; 403 `IMAGE_NOT_OWNED`(Q407); 400 `IMAGE_INVALID_COUNT`.
 
 ### 8.5 PATCH /found-reports/{id} · 8.6 PATCH /.../status · 8.7 DELETE /...
 
@@ -608,6 +611,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 - `8.6` **요청 [초안]** `{ "status":"CLOSED", "closedReason":"보호자가 직접 찾아감" }` 또는 `{ "status":"ACTIVE" }`. 성공 200 `data:{foundReportSeq,status,closedReason,closedDttm}`. CLOSED에서 `closedDttm`은 서버 생성 필수, `closedReason` 선택. ACTIVE 재개 시 두 값은 `null`로 초기화. **권한(Q421):** 작성자는 CLOSED·ACTIVE 모두 가능, **담당 SHELTER(토큰 `shelterSeq` = 신고의 `shelterSeq`)는 CLOSED만** 가능하고 재개는 불가.
 - `8.7` 성공 200 `data:null`. 작성자 본인만. 기존 구조 기록이 연결되어 있더라도 **구조 기록/FK/진행 상태는 변경하지 않습니다**.
 - **중요:** 구조 접수·완료, 직접 반환, 보호동물 상태 전환 시에도 발견 신고를 자동 CLOSED로 바꾸지 않습니다.
+- **오류 [초안]** 8.5~8.7 공통 404 `FOUND_REPORT_NOT_FOUND`(없음·삭제·**타인 신고**; 8.6은 작성자도 담당 보호소도 아닌 경우, Q434). 8.5: 409 `FOUND_REPORT_CLOSED`, 404 `CATALOG_COMBINATION_NOT_FOUND`·`IMAGE_NOT_FOUND`, 403 `IMAGE_NOT_OWNED`, 400 `IMAGE_INVALID_COUNT`. 8.6: 담당 SHELTER가 `ACTIVE` 재개를 요청하면 403 `AUTH_FORBIDDEN`(역할상 허용되지 않는 동작), 현재와 같은 상태면 400 `COMMON_INVALID_INPUT`.
 
 ### 8.8 GET /shelters/me/found-reports
 
@@ -651,7 +655,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 - `9.3` 소속 보호소 상세와 관리 가능한 항목 반환.
 - `9.4` **요청 [초안]** `{ "description":"...", "operatingHours":"...", "closedDays":"...", "profileImageSeq":1701, "backgroundImageSeq":1702 }` (부분 수정). **주소·이름·전화·좌표·행정구역 코드 등 식별정보는 SHELTER 수정 불가**이며 Flyway 시드·직접 DB 작업으로만 변경합니다(ADMIN API 없음, Q412). 대상 보호소는 토큰 `shelterSeq`. 이미지 두 필드는 보호소 계정이 업로드한 이미지만 연결 가능(403 `IMAGE_NOT_OWNED`, Q407).
-- **오류 [초안]** 403 `SHELTER_NOT_OWNED`, `IMAGE_NOT_OWNED`; 404 `SHELTER_NOT_FOUND`.
+- **오류 [초안]** 403 `IMAGE_NOT_OWNED`; 404 `SHELTER_NOT_FOUND`(토큰의 `shelterSeq`가 삭제된 보호소), `IMAGE_NOT_FOUND`. 대상이 토큰에서만 정해지므로 "타 보호소 수정" 상황 자체가 없어 `SHELTER_NOT_OWNED`는 두지 않습니다(Q442).
 
 ---
 
@@ -688,6 +692,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 }
 ```
 - **주의:** 응답은 `regDttm`을 그대로 사용합니다. DB에 `received_dttm` 컬럼은 없습니다. 화면의 “접수 시각”은 이 값을 표시합니다.
+- **오류 [초안]** 10.2·10.4~10.6 공통 404 `RESCUE_NOT_FOUND`(없음·삭제·**다른 보호소의 구조**, Q434).
 
 ### 10.3 POST /rescues
 
@@ -695,7 +700,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 **성공 201 `data` [초안]** `{ "rescueSeq":301, "status":"PROCESSING", "regDttm":"..." }`.
 
-- **[확정 정책]** 발견 신고를 선택하여 접수하면 즉시 PROCESSING 생성, 신고 없이 자체 접수도 가능. **SHELTER 전용**이며 `shelter_seq`는 토큰 `shelterSeq`로 서버가 설정합니다. 요청에 `shelterSeq` 필드는 **없습니다**(Q410). 발견 신고 1건에 비삭제 `PROCESSING/DONE` 합계 최대 1건. **[가안]** 담당 보호소가 아닌 발견 신고도 접수할 수 있습니다(구조는 실제 현장 대응이라 배정과 무관). 
+- **[확정 정책]** 발견 신고를 선택하여 접수하면 즉시 PROCESSING 생성, 신고 없이 자체 접수도 가능. **SHELTER 전용**이며 `shelter_seq`는 토큰 `shelterSeq`로 서버가 설정합니다. 요청에 `shelterSeq` 필드는 **없습니다**(Q410). 발견 신고 1건에 비삭제 `PROCESSING/DONE` 합계 최대 1건. **[확정 정책] R3 A:** 담당 보호소가 아닌 발견 신고도 접수할 수 있습니다(구조는 실제 현장 대응이라 배정과 무관). **[확정 정책] 대상 신고 상태(Q442):** 소프트 삭제된 발견 신고는 404 `FOUND_REPORT_NOT_FOUND`, **CLOSED 신고는 접수 허용**(구조는 신고 상태와 독립, 8.5의 CLOSED 읽기 전용은 신고 본문에만 적용).
 - **오류 [초안]** 409 `RESCUE_ACTIVE_ALREADY_EXISTS`, 404 `FOUND_REPORT_NOT_FOUND`.
 
 ### 10.4 PATCH /rescues/{id} · 10.5 PATCH /.../status
@@ -704,11 +709,11 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 - `10.5` **DONE 요청 [초안]** `{ "status":"DONE", "rescuedDate":"2026-10-29", "rescueAddress":"대구광역시 ...", "rescueReason":"배회 동물 구조", "rescueMemo":"..." }`.
 - `10.5` **FAILED/CANCELED 요청 [초안]** `{ "status":"FAILED", "resultReason":"현장 도착 전 이동" }` 또는 CANCELED.
 - **[확정 정책]** 최초 `PROCESSING → DONE/FAILED/CANCELED`. PROCESSING은 `completedDttm:null`; 종료 상태 3개는 서버가 시각 기록. DONE이면 `rescuedDate`와 공백 아닌 `rescueAddress` 필수. FAILED/CANCELED이면 공백 아닌 `resultReason` 필수.
-- **오류 [초안]** 409 `RESCUE_INVALID_TRANSITION`, 400 `RESCUE_COMPLETION_FIELDS_REQUIRED`, `RESCUE_RESULT_REASON_REQUIRED`.
+- **오류 [초안]** 404 `RESCUE_NOT_FOUND`; 409 `RESCUE_INVALID_TRANSITION`; 400 `RESCUE_COMPLETION_FIELDS_REQUIRED`, `RESCUE_RESULT_REASON_REQUIRED`, `COMMON_INVALID_INPUT`(종료 상태에서 `rescueMemo` 외 필드).
 
 ### 10.6 DELETE /rescues/{id}
 
-성공 200 `data:null`. **연결된 보호동물이 한 마리라도 있으면 삭제 거부**(409 `RESCUE_HAS_ANIMALS`). 발견 신고가 삭제되었다는 이유로 기존 구조 기록이 삭제되거나 중단되지 않습니다.
+성공 200 `data:null`. **연결된 보호동물이 한 마리라도 있으면 삭제 거부**(409 `RESCUE_HAS_ANIMALS`), 없으면 404 `RESCUE_NOT_FOUND`. 발견 신고가 삭제되었다는 이유로 기존 구조 기록이 삭제되거나 중단되지 않습니다.
 
 ---
 
@@ -768,6 +773,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 - **[확정 정책]** 보호동물에 `name` 없음. `rescueInfo`는 **완료 구조 기록을 LEFT JOIN해 파생**하며 `rescueSeq=null`이면 `rescueInfo`의 4개 필드도 모두 `null` [초안: 객체 자체 null 대신]. DB에 `rescued_date/rescue_reason/rescue_address/rescue_memo`를 보호동물 컬럼으로 추가하지 않습니다.
 - **[확정 정책]** PROTECTING이면서 비삭제이면 AVAILABLE/UNAVAILABLE 관계없이 AI 매칭 후보.
 - **[초안] `simulation`** 블록은 상세 화면의 "모의 입양" 버튼용 파생 정보입니다. `speciesCode`는 조합→품종→종의 `species_code`, `personality`는 품종의 값(NULL 가능), `canStart`는 요청자가 USER이고 종이 DOG/CAT이며 동물이 보호 중이고 요청자에게 진행 중 세션이 없을 때 `true`, `activeSessionSeq`는 요청자의 진행 중 세션(있으면). 18.1 참조.
+- **오류 [초안]** 11.2: 404 `ANIMAL_NOT_FOUND`(없음·삭제). 11.5~11.9: 404 `ANIMAL_NOT_FOUND`에 **다른 보호소 소속**도 포함(Q434). 11.1: 400 `CATALOG_INVALID_DISTRICT_CODE`, `COMMON_INVALID_INPUT`.
 
 ### 11.4 POST /shelter-animals
 
@@ -788,23 +794,24 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 ```
 **성공 201 `data` [초안]** `{ "animalSeq":700, "protectionStatus":"PROTECTING", "adoptionStatus":"UNAVAILABLE", "noticeStartDate":"2026-10-29", "noticeEndDate":"2026-11-08" }`.
 
-- **SHELTER 전용.** `shelter_seq`는 토큰 `shelterSeq`로 서버가 설정하며 요청에 `shelterSeq` 필드는 **없습니다**(Q410). `rescueSeq` 선택. 값이 있으면 **DONE인 구조**만 참조 가능. 같은 구조에서 여러 마리를 등록할 수 있으며 `rescue_records.shelter_seq`와 새 보호동물의 보호소가 서로 달라도 연결을 허용합니다(DB v10 확정 규칙: 구조한 보호소와 보호하는 보호소가 다를 수 있음). 존재하지 않거나 DONE이 아닌 구조는 404 `RESCUE_NOT_FOUND`.
+- **SHELTER 전용.** `shelter_seq`는 토큰 `shelterSeq`로 서버가 설정하며 요청에 `shelterSeq` 필드는 **없습니다**(Q410). `rescueSeq` 선택. 값이 있으면 **DONE인 구조**만 참조 가능. 같은 구조에서 여러 마리를 등록할 수 있으며 `rescue_records.shelter_seq`와 새 보호동물의 보호소가 서로 달라도 연결을 허용합니다(DB v10 확정 규칙: 구조한 보호소와 보호하는 보호소가 다를 수 있음). 존재하지 않거나 삭제된 구조는 404 `RESCUE_NOT_FOUND`, 존재하지만 DONE이 아니면 409 `RESCUE_NOT_DONE`(Q442).
 - `rescueSeq=null`이면 직접 등록이며 `rescueInfo`는 전부 null. USER는 작성 불가.
 - **[확정 정책]** `PROTECTING+UNAVAILABLE` 초기 상태, 사진 1~3장, 공고 시작일=등록일, 종료일=시작+10일 (직접 등록 기준). 공공데이터 시드 적재 시에는 적재자가 공고 날짜를 직접 결정·입력합니다. 날짜 경과로 자동 상태 변경하지 않습니다(core에 스케줄러 없음, S8).
 - `11.4`는 SHELTER의 수동 등록용이며 일반 요청에 공고 날짜를 받지 않습니다. 공공데이터 적재는 API가 아니라 Flyway 시드입니다(Q412).
-- **오류 [초안]** 409 `RESCUE_NOT_DONE`, 404 `RESCUE_NOT_FOUND`, `CATALOG_COMBINATION_NOT_FOUND`, 400 `IMAGE_INVALID_COUNT`.
+- **오류 [초안]** 409 `RESCUE_NOT_DONE`; 404 `RESCUE_NOT_FOUND`, `CATALOG_COMBINATION_NOT_FOUND`, `IMAGE_NOT_FOUND`; 403 `IMAGE_NOT_OWNED`(Q407); 400 `IMAGE_INVALID_COUNT`.
 
 ### 11.5 PATCH /shelter-animals/{id}
 
 - **요청 [초안]** `{ "combinationSeq":88, "gender":"UNKNOWN", "description":"...", "healthCheck":"...", "vaccinationStatus":"...", "noticeEndDate":"2026-11-15", "imageSeqs":[1702] }` (보내는 필드만 변경). `imageSeqs`는 전체 최종 배열(Q424). **[확정 정책] R5 A:** `noticeEndDate`는 담당 SHELTER가 이 PATCH의 일반 필드로 수정 가능(시작일 이후여야 함), `noticeStartDate`는 수정 불가. **공고 종료일 전용 엔드포인트는 두지 않습니다.** 기존 구조 정보는 보호동물 수정 요청에 포함하지 않으며 구조 수정이 필요하면 `10.4`에서 수정합니다. 범위는 토큰 `shelterSeq`.
 - 사진 diff가 있고 PROTECTING이면 재매칭 작업 요청.
+- **오류 [초안]** 404 `ANIMAL_NOT_FOUND`(타 보호소 포함), `CATALOG_COMBINATION_NOT_FOUND`, `IMAGE_NOT_FOUND`; 403 `IMAGE_NOT_OWNED`; 400 `IMAGE_INVALID_COUNT`, `COMMON_INVALID_INPUT`(`noticeEndDate`가 시작일 이전).
 
 ### 11.6 PATCH /.../adoption-status
 
 **요청 [초안]** `{ "adoptionStatus":"AVAILABLE" }` 또는 `UNAVAILABLE` → 성공 200 `data:{animalSeq,protectionStatus,adoptionStatus}`.
 
-- **[확정 정책]** PROTECTING에서만 AVAILABLE/UNAVAILABLE 지정. RETURNED/ENDED는 UNAVAILABLE, ADOPTED는 ADOPTED여야 합니다. AVAILABLE→UNAVAILABLE이어도 기존 DRAFT/SUBMITTED/APPROVED 신청은 자동 거절하지 않으며 새 신청만 차단.
-- **오류 [초안]** 409 `ANIMAL_INVALID_STATUS_COMBINATION`.
+- **[확정 정책]** PROTECTING에서만 AVAILABLE/UNAVAILABLE 지정. RETURNED/ENDED는 UNAVAILABLE, ADOPTED는 ADOPTED여야 합니다. AVAILABLE→UNAVAILABLE이어도 기존 DRAFT/SUBMITTED/APPROVED 신청은 자동 거절하지 않습니다. 다만 **새 신청(12.4)과 기존 DRAFT의 제출(12.6)은 차단**합니다(Q437).
+- **오류 [초안]** 404 `ANIMAL_NOT_FOUND`, 409 `ANIMAL_INVALID_STATUS_COMBINATION`.
 
 ### 11.7 POST /.../returns
 
@@ -827,14 +834,15 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 ```
 - **`regDttm`이 실제 반환 완료 처리 시각**입니다. DB 및 응답 어디에도 별도 `returnedDttm`을 두지 않습니다.
 - **[확정 정책]** 실제로 인계가 완료된 사건만 생성, 보호동물당 1건 UNIQUE. 이름·전화 필수, 회원/비회원 모두 가능. 동일 전화번호로 활성 USER가 **정확히 1명** 일치하는 경우만 `returnedUserSeq` 연결하며 이것이 본인·소유권 검증을 의미하지 않습니다.
-- 반환 INSERT, 보호 상태 RETURNED + 입양 상태 UNAVAILABLE, 해당 동물의 DRAFT/SUBMITTED/APPROVED 신청 자동 REJECTED를 **하나의 트랜잭션**으로 처리. 실종 신고·발견 신고 자동 종료 없음.
-- **오류 [초안]** 409 `ANIMAL_ALREADY_RETURNED`, `ANIMAL_NOT_PROTECTING`.
+- 반환 INSERT, 보호 상태 RETURNED + 입양 상태 UNAVAILABLE + **`end_reason='RETURNED'` + `protection_ended_dttm`(= 반환 행의 `reg_dttm`)**, 해당 동물의 DRAFT/SUBMITTED/APPROVED 신청 자동 REJECTED를 **하나의 트랜잭션**으로 처리. 두 종료 컬럼을 함께 바꾸지 않으면 DB CHECK `ck_shelter_protection_end`에 걸립니다. 실종 신고·발견 신고 자동 종료 없음.
+- **오류 [초안]** 404 `ANIMAL_NOT_FOUND`(타 보호소 포함); 409 `ANIMAL_ALREADY_RETURNED`, `ANIMAL_NOT_PROTECTING`; 400 `COMMON_INVALID_INPUT`(이름·번호 누락).
 
 ### 11.8 PATCH /.../protection-status · 11.9 DELETE /...
 
 - `11.8` **요청 [초안]** `{ "protectionStatus":"ENDED", "endReason":"NATURAL_DEATH" }` (종료 사유는 RETURNED/ADOPTED/NATURAL_DEATH/EUTHANIZED/OTHER 중 규칙에 맞게 사용). 서버가 `protectionEndedDttm` 설정. **RETURNED는 11.7**, **ADOPTED는 12.11/12.12**를 통해 처리하여 관련 테이블 누락을 막습니다. 단순 상태 PATCH로 반환·입양 기록을 회피할 수 없도록 합니다.
 - ENDED 처리 시 활성 신청 DRAFT/SUBMITTED/APPROVED는 자동 REJECTED(사유 자연어, 처리시각 기록). **[확정 정책] R6 A:** ENDED는 담당 SHELTER 단독 처리이며 별도 승인 단계가 없고, `endReason`은 선택입니다(생략 시 `OTHER`).
-- `11.9` 성공 200 `data:null`. DRAFT/SUBMITTED/APPROVED 신청서가 하나라도 있으면 **409 `ANIMAL_HAS_ACTIVE_APPLICATIONS`**. 삭제된 보호동물은 일반 조회/AI 제외.
+- `11.8` **오류 [초안] (Q442):** `protectionStatus`가 `ENDED`가 아니거나 `endReason`이 `RETURNED/ADOPTED`이면 400 `COMMON_INVALID_INPUT`(각각 11.7·12.11/12.12로만 처리); 현재 PROTECTING이 아니면(이미 종료) 409 `ANIMAL_NOT_PROTECTING`; 404 `ANIMAL_NOT_FOUND`. 서버는 `end_reason`과 `protection_ended_dttm`을 함께 설정합니다.
+- `11.9` 성공 200 `data:null`. DRAFT/SUBMITTED/APPROVED 신청서가 하나라도 있으면 **409 `ANIMAL_HAS_ACTIVE_APPLICATIONS`**, 없으면 404 `ANIMAL_NOT_FOUND`. 삭제된 보호동물은 일반 조회/AI 제외.
 
 ---
 ## 12. 입양 문항·신청·심사·완료 (ADOPTION)
@@ -923,7 +931,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 - **[확정 정책]** DRAFT에서는 신청자 인적사항을 현재 `users`에서 읽고, SUBMITTED 이후에는 `applicant_name/birth_date/phone` 스냅샷을 조회합니다. 작성된 답변 `answers`는 JSONB 객체이며 키는 **문자열 `questionSeq`**입니다.
 - 신청자 본인 외에는 소속 보호소 담당자의 업무 조회로만 상세 노출. 탈퇴 신청자의 과거 신청서와 수료증도 업무상 유지합니다(일반 공개 API에는 노출하지 않음). 담당 보호소는 12.15로 신청자의 해당 동물 모의 입양 리포트를 함께 열람할 수 있습니다(M14·M17, FK 없는 파생 조회).
 - 문항을 수정해도 과거 `answers`는 **현재 문항 문구**와 함께 표시합니다. 별도 이력/버전/원본 문항 스냅샷 요청 API는 만들지 않습니다.
-- **오류 [초안]** 404 `ADOPTION_APPLICATION_NOT_FOUND`, 403 `ADOPTION_APPLICATION_ACCESS_DENIED`.
+- **오류 [초안]** 404 `ADOPTION_APPLICATION_NOT_FOUND`. 신청자 본인도 담당 보호소도 아니면 403이 아니라 이 404로 존재를 감춥니다(Q434; 종전 `ADOPTION_APPLICATION_ACCESS_DENIED` 삭제).
 
 ### 12.4 POST /adoption-applications (DRAFT 생성)
 
@@ -957,9 +965,9 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 **요청 [초안]** `{}` 또는 본문 없음. **성공 200 `data` [초안]** `{ "applicationSeq":901, "status":"SUBMITTED", "submittedDttm":"2026-10-29T17:50:00+09:00" }`.
 
 - **[확정 정책]** DRAFT→SUBMITTED, 별도 새 신청서 행 생성하지 않음. 현재 질문 **21개** 기준 조건/필수/보기 응답 검증. 숨겨진 답변 제거, 제출 후 답변 불변. 신청자 실명·생년월일·전화번호를 **제출 시점**에 스냅샷.
-- 제출 시 대상 동물의 입양 가능 여부와 동시성 재검증. 이 시점 이후에도 동일 회원·동물 활성 신청서 중복 생성 불가.
+- 제출 시 대상 동물의 입양 가능 여부(PROTECTING + AVAILABLE)와 동시성 재검증. **동물이 UNAVAILABLE로 바뀐 뒤에는 기존 DRAFT도 제출할 수 없습니다**(409 `ADOPTION_ANIMAL_NOT_AVAILABLE`, Q437). DRAFT 행 자체는 유지되며 다시 AVAILABLE이 되면 제출 가능합니다. 이 시점 이후에도 동일 회원·동물 활성 신청서 중복 생성 불가.
 - 제출 시 보호소 SHELTER 계정에 `ADOPTION` 알림(17.8, Q426).
-- **오류 [초안]** 409 `ADOPTION_APPLICATION_NOT_DRAFT`, `ADOPTION_ANIMAL_NOT_AVAILABLE`; 400 `ADOPTION_REQUIRED_ANSWER_MISSING`, `ADOPTION_INVALID_ANSWER`.
+- **오류 [초안]** 404 `ADOPTION_APPLICATION_NOT_FOUND`(타인 신청서 포함); 409 `ADOPTION_APPLICATION_NOT_DRAFT`, `ADOPTION_ANIMAL_NOT_AVAILABLE`; 400 `ADOPTION_REQUIRED_ANSWER_MISSING`, `ADOPTION_INVALID_ANSWER`.
 
 ### 12.7 DELETE /adoption-applications/{id} · 12.8 POST /.../cancel
 
@@ -974,6 +982,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 **성공 200 `data.content[]` [초안]** `{ "applicationSeq":901, "animalSeq":700, "applicantName":"김가람", "status":"SUBMITTED", "submittedDttm":"...", "certificateAttached":true }`.
 
 - **[확정 정책]** 소속 보호소(토큰 `shelterSeq`)에 제출된 신청 및 보존된 과거 기록을 업무상 조회. 심사 대상은 SUBMITTED. **DRAFT는 목록·상세·건수 어디에도 노출하지 않습니다**(Q422 A). 12.3을 DRAFT 신청서에 SHELTER가 호출하면 404 `ADOPTION_APPLICATION_NOT_FOUND`.
+- **오류 [초안]** 400 `COMMON_INVALID_INPUT`(`status=DRAFT` 지정, 화이트리스트 밖 정렬).
 
 ### 12.10 POST /adoption-applications/{id}/review
 
@@ -986,7 +995,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 - **[확정 정책]** `SUBMITTED → APPROVED/REJECTED`; REJECTED면 공백 아닌 **자연어 설명** 필수. `reviewedUsrSeq`에는 수동 처리자, `reviewedDttm`에는 심사 시각. 상태 이력/거절 단계/거절 코드 생성 금지.
 - 여러 사용자 신청서의 APPROVED가 동시에 존재할 수 있습니다. **서류 승인만으로 보호동물을 ADOPTED로 만들지 않습니다.**
 - 심사 결과는 신청자에게 `ADOPTION` 알림(17.8, Q426).
-- **오류 [초안]** 409 `ADOPTION_APPLICATION_NOT_SUBMITTED`, 400 `ADOPTION_REJECTION_REASON_REQUIRED`.
+- **오류 [초안]** 404 `ADOPTION_APPLICATION_NOT_FOUND`(타 보호소 신청서 포함); 409 `ADOPTION_APPLICATION_NOT_SUBMITTED`; 400 `ADOPTION_REJECTION_REASON_REQUIRED`.
 
 ### 12.11 POST /adoption-applications/{id}/complete (실제 입양 완료)
 
@@ -1005,17 +1014,18 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 }
 ```
 
-- **[확정 정책]** 대상 신청서는 APPROVED 상태이고 실제 입양이 완료된 경우에만 호출. **원자적 변경:** 채택 신청서 ADOPTED → 보호동물 `protection_status=ADOPTED` + `adoption_status=ADOPTED` + `completed_application_seq=해당 신청서` → 다른 신청자의 DRAFT/SUBMITTED/APPROVED는 자동 REJECTED.
+- **[확정 정책]** 대상 신청서는 APPROVED 상태이고 실제 입양이 완료된 경우에만 호출. **원자적 변경:** 채택 신청서 ADOPTED → 보호동물 `protection_status=ADOPTED` + `adoption_status=ADOPTED` + `end_reason='ADOPTED'` + `protection_ended_dttm=now()` + `completed_application_seq=해당 신청서` → 다른 신청자의 DRAFT/SUBMITTED/APPROVED는 자동 REJECTED. 종료 컬럼 두 개는 DB CHECK `ck_shelter_protection_end` 때문에 함께 설정합니다.
 - 자동 거절 `rejectionReason`은 실제 사유를 설명하는 한국어 문장; `reviewedDttm`은 자동 거절 시각, `reviewedUsrSeq=null`. 이미 승인된 다른 신청의 예전 심사시각은 별도로 남지 않습니다.
 - 채택 신청자에게 `ADOPTION`(ADOPTED) 알림, 자동 거절된 신청자들에게 `ADOPTION`(REJECTED) 알림(17.8, Q426).
-- **오류 [초안]** 409 `ADOPTION_APPLICATION_NOT_APPROVED`, `ADOPTION_ANIMAL_ALREADY_FINISHED`.
+- **오류 [초안]** 404 `ADOPTION_APPLICATION_NOT_FOUND`(타 보호소 포함); 409 `ADOPTION_APPLICATION_NOT_APPROVED`, `ADOPTION_ANIMAL_ALREADY_FINISHED`.
 
 ### 12.12 POST /shelter-animals/{animalSeq}/external-adoption
 
 **요청 [초안]** `{}`. **성공 200 `data` [초안]** `{ "animalSeq":700, "protectionStatus":"ADOPTED", "adoptionStatus":"ADOPTED", "completedApplicationSeq":null }`.
 
-- **[확정 정책]** 앱 내 신청서 없이 외부 경로를 통해 실제 입양 완료 가능. 서비스 신청 완료 FK는 **NULL 유지**. 반면 동물 상태는 ADOPTED/ADOPTED로 변경하며 기존 활성 신청은 자연어 이유와 함께 자동 REJECTED.
+- **[확정 정책]** 앱 내 신청서 없이 외부 경로를 통해 실제 입양 완료 가능. 서비스 신청 완료 FK는 **NULL 유지**. 반면 동물 상태는 ADOPTED/ADOPTED + `end_reason='ADOPTED'` + `protection_ended_dttm`으로 변경하며 기존 활성 신청은 자연어 이유와 함께 자동 REJECTED(12.11과 같은 트랜잭션 구성).
 - 외부 입양자의 신상/입양 시각은 현행 테이블에 별도 칼럼이 없으므로 받지 않습니다(범위 외).
+- **오류 [초안]** 404 `ANIMAL_NOT_FOUND`(타 보호소 포함); 409 `ANIMAL_NOT_PROTECTING`(이미 반환·입양·종료된 동물).
 
 ### 12.13 POST /adoption-applications/{id}/fail
 
@@ -1024,6 +1034,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 **성공 200 `data` [초안]** `{ "applicationSeq":901, "status":"REJECTED", "rejectionReason":"승인 이후 입양 진행 과정이 완료되지 못했습니다." }`.
 
 - **[확정 정책]** 승인 후 실제 입양 진행 실패 시 해당 APPROVED 신청서를 REJECTED로 변경하고 `reviewedDttm`을 실패 처리 시각으로 갱신. 별도 입양 프로세스/실패 이력 테이블 생성 금지. 호출 주체는 담당 보호소. 신청자에게 `ADOPTION`(REJECTED) 알림.
+- **오류 [초안]** 404 `ADOPTION_APPLICATION_NOT_FOUND`(타 보호소 포함); 409 `ADOPTION_APPLICATION_NOT_APPROVED`; 400 `ADOPTION_REJECTION_REASON_REQUIRED`.
 
 ### 12.14 자동 상태 변경과 입양 알림 (클라이언트 이벤트)
 
@@ -1038,7 +1049,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 | 외부 입양 완료 | 다른 활성→REJECTED | ADOPTED/ADOPTED, 완료 FK NULL | 동일 트랜잭션 |
 | 실제 반환 완료 | 활성→REJECTED | RETURNED/UNAVAILABLE | 반환 기록 생성 |
 | 보호 종료(ENDED) | 활성→REJECTED | ENDED/UNAVAILABLE | 자연어 자동 거절 |
-| AVAILABLE→UNAVAILABLE | **기존 활성 상태 유지** | PROTECTING+UNAVAILABLE | 새 신청만 차단 |
+| AVAILABLE→UNAVAILABLE | **기존 활성 상태 유지**(DRAFT 행도 유지하되 제출 불가) | PROTECTING+UNAVAILABLE | 새 신청(12.4)과 DRAFT 제출(12.6) 차단(Q437) |
 | 회원 탈퇴 | 본인 활성→CANCELED | 없음 | ADOPTED 이력은 보존 |
 
 **[확정 정책] `ADOPTION` 알림 이벤트(Q426 A):**
@@ -1115,7 +1126,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 - **[확정 정책]** 텍스트와 이미지 중 **최소 하나 필수**. `imageSeq`는 0~1개만 직접 연결. 본문만/이미지만/둘 다 가능. 사용자 댓글은 `user_seq`, SHELTER 담당자의 댓글도 실제 계정 `user_seq`에 저장하고 표시명은 소속 보호소명 조회.
 - **[확정 정책]** 새 답글은 루트에만 허용. 탈퇴한 루트 댓글에는 신규 답글 불가. **[가안]** 삭제된 부모 댓글에도 새 답글은 불가(409 `COMMENT_PARENT_UNAVAILABLE`), 기존 답글 보존은 확정.
 - `imageSeq`는 요청자가 업로드한 이미지만 연결 가능(403 `IMAGE_NOT_OWNED`, Q407).
-- 게시물 작성자(본인 댓글 제외)와 루트 댓글 작성자(답글일 때, 본인 제외)에게 `COMMENT` 알림(17.8, Q426).
+- `COMMENT` 알림 수신자(17.8, Q426·Q436): **루트 댓글이면 게시물 작성자**, **답글이면 루트 댓글 작성자만**(게시물 작성자에게는 보내지 않음). 어느 경우든 본인에게는 보내지 않습니다.
 - **오류 [초안]** 400 `COMMENT_EMPTY`, `COMMENT_DEPTH_EXCEEDED`; 403 `IMAGE_NOT_OWNED`; 404 `COMMENT_TARGET_NOT_FOUND`; 409 `COMMENT_PARENT_UNAVAILABLE`.
 
 ### 13.4 PATCH /comments/{type}/{id} · 13.5 DELETE /comments/{type}/{id}
@@ -1182,6 +1193,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 - `14.4` 요청 **[확정 정책]** `?beforeMessageSeq=4000&size=30` (**채팅 메시지는 offset 대신 seq 기준 역방향 커서**, 일반 목록 규약의 유일한 예외, Q417). 최초는 `beforeMessageSeq` 생략. `size` 최대 100. **응답 [초안]** `{ "content":[ChatMessage], "nextBeforeMessageSeq":3990, "hasNext":true }`.
 - **[확정 정책]** 현재 참여자의 `last_hidden_message_seq` 이후만 반환. 공유 게시물이 삭제되면 메시지는 유지하고 게시물 상세는 `sharedPostUnavailable:true`로 표시 [초안]. 탈퇴 송신자는 `(탈퇴한 사용자)`로 표시.
 - **[초안]** 해당 메시지 방 소속/정렬/페이징 경계는 서버에서 검증합니다.
+- **오류 [초안]** 14.3·14.4·14.6·14.7 공통 404 `CHAT_ROOM_NOT_FOUND`(없는 방 또는 **요청자가 참여자가 아닌 방**, Q434). REST에서는 `CHAT_ROOM_NOT_PARTICIPANT`(403)를 쓰지 않습니다(STOMP 전용). 14.4: `beforeMessageSeq`가 이 방 메시지가 아니면 400 `CHAT_MESSAGE_NOT_IN_ROOM`.
 
 ### 14.5 STOMP SEND /app/rooms/{id}/messages
 
@@ -1221,7 +1233,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 ### 14.6 PATCH /chats/rooms/{id}/read · 14.7 POST /.../leave
 
-- `14.6` 요청 [초안] `{ "lastReadMessageSeq":4003 }` → 성공 200 `data:{lastReadMessageSeq:4003, unreadCount:0}`. 메시지 ID는 **해당 방 소속**이어야 하고 읽음 포인터를 과거로 되돌리지 않는 규칙을 [초안] 제안.
+- `14.6` 요청 [초안] `{ "lastReadMessageSeq":4003 }` → 성공 200 `data:{lastReadMessageSeq:4003, unreadCount:0}`. 메시지 ID는 **해당 방 소속**이어야 하며(아니면 400 `CHAT_MESSAGE_NOT_IN_ROOM`, BE가 복합 FK 위반 전에 검증) 읽음 포인터를 과거로 되돌리는 요청은 무시하고 현재 값을 반환합니다 [초안].
 - `14.7` 요청 [초안] `{}` → 성공 200 `data:{lastHiddenMessageSeq:4003}`. 마지막 메시지 기준으로 과거 대화를 **본인에게만** 숨기며 방/메시지는 삭제하지 않습니다. 재입장 시 기존 방을 사용하고 이후 새 메시지만 표시.
 
 ---
@@ -1281,7 +1293,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 ## 17. 알림·FCM (NOTIFICATION) — 서비스 `notification`, 접두어 `/api/notification/v1`
 
-> **[확정 정책] 서비스·저장소:** notification 서비스(8082)가 `core` 스키마의 `notifications`·`device_tokens`를 **쓰고**, `users`는 읽기 전용 JOIN(Q420 D). 알림 생성 요청은 core-api·chat·simulation이 **RabbitMQ 이벤트**로 보내고 notification이 저장 후 FCM을 발송합니다. 단 AI 매칭 중복 방지(17.8)는 `missing_reports` 행 잠금과 한 트랜잭션이어야 하므로 **core-api가 `notifications` 행을 직접 INSERT**하고 notification은 FCM 발송만 맡습니다(이 한 건만 쓰기 소유권 예외).
+> **[확정 정책] 서비스·저장소:** notification 서비스(8082)가 `core` 스키마의 `notifications`·`device_tokens`를 **쓰고**, `users`는 읽기 전용 JOIN(Q420 D). 저장형 알림 생성 요청(`NotificationRequested`)은 **core-api만** 보내고 notification이 저장 후 FCM을 발송합니다. chat(`ChatMessageSent`)과 simulation(`SimulationPushRequested`)은 저장 없이 FCM 발송만 요청합니다. 단 AI 매칭 중복 방지(17.8)는 `missing_reports` 행 잠금과 한 트랜잭션이어야 하므로 **core-api가 `notifications` 행을 직접 INSERT**하고 notification은 FCM 발송만 맡습니다(이 한 건만 쓰기 소유권 예외).
 
 | # | Method | Path | 권한 | 기능 |
 |---|---|---|---|---|
@@ -1319,9 +1331,9 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 ### 17.2~17.5 알림 읽음·삭제
 
-- `17.2` 성공 200 `data:{notificationSeq,isRead:true,readDttm:"..."}`; 타인 알림 수정 금지.
+- `17.2` 성공 200 `data:{notificationSeq,isRead:true,readDttm:"..."}`; 타인 알림이거나 삭제된 알림이면 404 `NOTIFICATION_NOT_FOUND`(Q434).
 - `17.3` 성공 200 `data:{updatedCount:5}` [초안]. 읽은 시간은 서버가 설정.
-- `17.4` 및 `17.5` 성공 200 `data:null` [초안]. **[확정 정책]** `is_deleted=true`로 소프트 삭제(개별/전체), 별도 숨김 기능 없음.
+- `17.4` 및 `17.5` 성공 200 `data:null` [초안]. **[확정 정책]** `is_deleted=true`로 소프트 삭제(개별/전체), 별도 숨김 기능 없음. 17.4는 타인·삭제된 알림이면 404 `NOTIFICATION_NOT_FOUND`.
 - 삭제된 AI_MATCH 알림도 **과거 알림 존재 확인에 포함**되어 같은 쌍의 알림을 재생성하지 않습니다.
 
 ### 17.6 POST /notifications/device-tokens · 17.7 DELETE /.../current
@@ -1330,7 +1342,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 **등록 성공 200 `data` [초안]** `{ "active":true }`.
 
-- **[확정 정책]** 계정당 활성 FCM 토큰 최대 1개, 동일 토큰을 여러 계정에서 동시에 활성화 금지. 등록은 **upsert**이며 같은 토큰을 다시 보내도 200(Q415의 유일한 멱등 예외). 다른 토큰이면 기존 토큰을 비활성화하고 새 토큰을 활성화합니다. 다른 계정에서 활성인 토큰이면 그 계정의 토큰을 비활성화하고 요청 계정으로 옮깁니다(기기 양도). 탈퇴 시 계정의 활성 토큰 전부 비활성화.
+- **[확정 정책]** 계정당 활성 FCM 토큰 최대 1개, 동일 토큰을 여러 계정에서 동시에 활성화 금지. 등록은 **upsert**이며 같은 토큰을 다시 보내도 200(Q415의 유일한 멱등 예외). 다른 토큰이면 기존 토큰을 비활성화하고 새 토큰을 활성화합니다. 다른 계정에서 활성인 토큰이면 그 계정의 토큰을 비활성화하고 요청 계정으로 옮깁니다(기기 양도). 모든 충돌을 서버가 이렇게 해소하므로 **409를 돌려주는 경우가 없고, 종전 `NOTIFICATION_DEVICE_TOKEN_CONFLICT`는 삭제**합니다(Q439). 탈퇴 시 계정의 활성 토큰 전부 비활성화.
 - `17.7` **요청 [초안]** `DELETE /notifications/device-tokens/current` 본문 `{ "fcmToken":"fcm-device-token" }`. 성공 `data:null`; DB에는 활성 해제 시각 `mod_dttm` 기록. **역할 분담(Q419 A):** 로그아웃(2.4)에 `fcmToken`을 실으면 core-api가 같은 비활성화를 이벤트로 요청하므로 앱은 17.7을 따로 부르지 않아도 됩니다. 17.7은 로그아웃 없이 푸시만 끄는 설정 화면용입니다.
 - 모의 입양 푸시(18장)도 **같은 활성 FCM 토큰**으로 발송합니다. 별도 토큰 등록은 없습니다(M16). simulation은 `device_tokens`를 읽지 않고 `SimulationPushRequested` 이벤트만 보내며, 토큰 조회와 FCM 발송은 notification이 합니다.
 
@@ -1361,9 +1373,9 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 
 > 이 장은 DB v10의 모의 입양 11개 테이블(`simulation_*`)의 API입니다. 결정 번호 M1~M17은 DB v10 추적표와 같습니다. 18.21(=12.15)만 core-api가 제공합니다.
 >
-> **[확정 정책] 서비스·저장소(Q420 D):** simulation 서비스(8083)는 **`simulation` 스키마**만 쓰고, `core` 스키마의 `users`·`shelter_animals`·`shelter_animal_images`·`images`·`animal_breeds`·`animal_species`는 **읽기 전용 JOIN**으로만 참조합니다(교차 FK 없음). `device_tokens`는 읽지 않고 푸시는 이벤트로 notification에 위임합니다. 반대로 core-api는 `simulation.simulation_reports`를 읽기 전용으로 JOIN해 12.15를 제공합니다. Flyway 마이그레이션은 simulation이 자기 스키마 것을 따로 가집니다.
+> **[확정 정책] 서비스·저장소(Q420 D):** simulation 서비스(8083)는 **`simulation` 스키마**만 쓰고, `core` 스키마의 `users`(18.20 `ActorSummary`)·`shelter_animals`·`shelter_animal_images`·`images`·`animal_breeds`·`animal_species`는 **읽기 전용 JOIN**으로만 참조합니다(교차 FK 없음). `device_tokens`는 읽지 않고 푸시는 이벤트로 notification에 위임합니다. 반대로 core-api는 `simulation.simulation_reports`·`simulation_sessions`를 읽기 전용으로 JOIN해 12.15를 제공합니다(서비스별 DB 계정 권한을 줄 때 이 목록이 기준). Flyway 마이그레이션은 simulation이 자기 스키마 것을 따로 가집니다.
 >
-> **[확정 정책] 스냅샷:** 세션 시작 시 `species_type`·`personality`에 더해 동물의 **`shelter_seq`와 표시 정보(대표 사진 `image_key`, 품종명·색상명)**를 세션에 복사합니다(R2). 키는 저장만 하고 응답의 `representativeImageUrl`은 그때그때 URL로 변환합니다. 보호소 열람 권한(18.4·18.20)은 세션의 `shelter_seq`와 토큰 `shelterSeq` 비교로 simulation 혼자 판단하고, 동물 상태가 바뀌어도 진행 중 세션은 영향을 받지 않습니다. 상점 물품 사진은 `images` FK가 아니라 시드의 키 문자열로 저장하고 `imageUrl`로 노출합니다.
+> **[확정 정책] 스냅샷:** 세션 시작 시 `species_type`·`personality`에 더해 동물의 **`shelter_seq`와 표시 정보(대표 사진 `image_key`, 품종명·색상명)**를 세션에 복사합니다(R2). 키는 저장만 하고 응답의 `representativeImageUrl`은 그때그때 URL로 변환합니다. 보호소 열람 권한(18.18·18.20, **종료 리포트만**, Q435)은 세션의 `shelter_seq`와 토큰 `shelterSeq` 비교로 simulation 혼자 판단하고, 동물 상태가 바뀌어도 진행 중 세션은 영향을 받지 않습니다. 상점 물품 사진은 `images` FK가 아니라 시드의 키 문자열로 저장하고 `imageUrl`로 노출합니다.
 >
 > **[확정 정책] 스케줄러(S8 A):** `@Scheduled` 10분 주기 작업 **하나**가 진행 중 세션을 순회합니다(21.5의 7). simulation 인스턴스는 1개 전제이며 2개 이상이면 ShedLock을 붙입니다. core·notification에는 스케줄 작업이 없습니다.
 
@@ -1377,11 +1389,11 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 - **세션 상태(M6):** `IN_PROGRESS / COMPLETED / ABANDONED / FAILED`. USER당 진행 중 세션 **1개**. 예정 종료 시각 도달 → COMPLETED, 포기 → ABANDONED, 건강 0 → FAILED("돌봄 부족" 표현, 죽음 표현 없음). 종료 시 리포트를 1회 생성해 **영구 보존**하고 새 세션을 시작할 수 있습니다. 탈퇴 시 진행 중 세션은 ABANDONED.
 - **이벤트(M11·M15):** 집 돌발 이벤트, 산책 중 동물 행동, 아픔(병)을 **시나리오→선택지 2개→효과 JSON** 엔진 하나로 처리합니다. 시나리오는 `HOME/WALK` 장소와 `RANDOM/CONDITION`(스탯 조건) 발생 유형을 가집니다. "아픔"은 건강 등 스탯 조건으로 발생하는 HOME·CONDITION 이벤트이고, 동물병원은 그 이벤트의 선택지(진료비·진단 문구 `resultText`)입니다. **별도 병원·진단 API는 없습니다.** 미응답(PENDING) 이벤트는 세션당 동시에 1개.
 - **산책(M12):** 개·고양이 모두 가능. 고양이는 종 배율로 스트레스 증가·활동 회복 감소 **[가안]**. 산책 중 동물 행동은 WALK 시나리오로 하트비트 응답에 실려 오고, 사용자가 먼저 하는 행동은 물 주기·간식 주기 두 가지입니다.
-- **알림(M13·M16):** 일반 `notifications`와 **완전 분리**된 `simulation_notifications`에 simulation이 저장·커밋한 뒤, RabbitMQ 이벤트 `SimulationPushRequested`로 notification 서비스에 넘기고 notification이 활성 FCM 토큰으로 푸시합니다(`device_tokens`는 notification 소유라 simulation이 직접 읽지 않음). 유형 `NEGLECT/STAT_WARNING/EVENT/SESSION_END`. 산책 중 WALK 이벤트는 푸시 없이 하트비트 응답으로 전달합니다.
-- **리포트(M14·M17):** 유저에게 쌓이고 보호소는 열람만. "보호소"는 **세션 동물의 `shelter_seq` 소속 SHELTER 회원**을 뜻하며, 자기 보호동물로 진행된 세션의 리포트·이력과 입양 신청 상세 경로(12.15)로 열람합니다. 수정·삭제 API는 없습니다.
+- **알림(M13·M16):** 일반 `notifications`와 **완전 분리**된 `simulation_notifications`에 simulation이 저장·커밋한 뒤, RabbitMQ 이벤트 `SimulationPushRequested`로 notification 서비스에 넘기고 notification이 활성 FCM 토큰으로 푸시합니다(`device_tokens`는 notification 소유라 simulation이 직접 읽지 않음). 유형은 `NEGLECT/EVENT/SESSION_END`와 스탯별 경고 7종 `STAT_HUNGER_WARNING/STAT_HYDRATION_WARNING/STAT_CLEANLINESS_WARNING/STAT_FRIENDSHIP_WARNING/STAT_STRESS_WARNING/STAT_HEALTH_WARNING/STAT_ACTIVITY_WARNING`(총 10종, Q438). 스탯 경고를 유형으로 나눈 이유는 "스탯당 하루 1회" 억제를 같은 세션·같은 유형의 최근 24시간 행 존재 여부로 판정하기 위해서입니다(별도 컬럼 없음). 산책 중 WALK 이벤트는 푸시 없이 하트비트 응답으로 전달합니다.
+- **리포트(M14·M17·Q435):** 유저에게 쌓이고 보호소는 **종료 리포트만** 열람합니다. "보호소"는 **세션 동물의 `shelter_seq` 소속 SHELTER 회원**을 뜻하며, 자기 보호동물로 진행된 세션의 리포트(18.18·18.20)와 입양 신청 상세 경로(12.15)로 열람합니다. 세션 상세·행동 이력·지출 내역(18.4·18.7·18.11)은 **본인 전용**이며, 그 정보는 종료 시 리포트 생성 과정에서 집약됩니다. **리포트 `summary`는 세션 상세·행동 이력·지출 내역을 LLM에 보내 생성**하고(`port/out` 어댑터로 격리), 호출 실패 시에는 집계값 기반 규칙 문구로 대체합니다 **[가안]**. 수정·삭제 API는 없습니다.
 - **마스터 데이터(Q412):** 펫샵 물품·이벤트 시나리오·선택지는 Flyway 시드로 적재하며 관리 API가 없습니다.
 
-**권한 표기:** "본인" = `simulation_sessions.user_seq` 가 요청자. "보호소" = 세션 스냅샷 `shelter_seq` = 토큰 `shelterSeq`. 그 외 접근은 404 `SIMULATION_NOT_FOUND`로 존재를 감춥니다(1.3 공통 필터). 변경 계열(행동·구매·이벤트 응답·산책·포기)은 세션이 `IN_PROGRESS`일 때만 허용하고 아니면 409 `SIMULATION_NOT_IN_PROGRESS`.
+**권한 표기:** "본인" = `simulation_sessions.user_seq` 가 요청자. "보호소" = 세션 스냅샷 `shelter_seq` = 토큰 `shelterSeq`이며 **18.18·18.20·18.21에만** 등장합니다(Q435). 그 외 접근은 404 `SIMULATION_NOT_FOUND`로 존재를 감춥니다(1.3 공통 필터). 변경 계열(행동·구매·이벤트 응답·산책·포기)은 세션이 `IN_PROGRESS`일 때만 허용하고 아니면 409 `SIMULATION_NOT_IN_PROGRESS`.
 
 **코드 설정값 [가안, Q429]** (DB 저장 없음, `application.yml`에 두고 플레이 테스트 후 조정)
 
@@ -1407,14 +1419,14 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | 18.1 | POST | `/simulations` | USER | 세션 시작 `{animalSeq, expectedCost}` |
 | 18.2 | GET | `/simulations/me/active` | USER | 진행 중 세션(스탯 계산 반영, PENDING 이벤트·기구·잔액 포함) |
 | 18.3 | GET | `/simulations/me` | USER | 내 세션 목록(종료 포함) |
-| 18.4 | GET | `/simulations/{sessionSeq}` | 본인/보호소 | 세션 상세 |
+| 18.4 | GET | `/simulations/{sessionSeq}` | 본인 | 세션 상세 |
 | 18.5 | POST | `/simulations/{sessionSeq}/abandon` | 본인 | 중도 포기 → ABANDONED + 리포트 |
 | 18.6 | POST | `/simulations/{sessionSeq}/actions` | 본인 | 돌봄 행동 `{actionType, itemSeq?}` |
-| 18.7 | GET | `/simulations/{sessionSeq}/action-logs` | 본인/보호소 | 행동 이력 |
+| 18.7 | GET | `/simulations/{sessionSeq}/action-logs` | 본인 | 행동 이력 |
 | 18.8 | GET | `/simulations/shop/items` | 로그인 | 펫샵 물품 목록 `?speciesType=` |
 | 18.9 | POST | `/simulations/{sessionSeq}/purchases` | 본인 | 구매 `{itemSeq, quantity}` |
 | 18.10 | GET | `/simulations/{sessionSeq}/inventory` | 본인 | 보유 물품 + 잔액 |
-| 18.11 | GET | `/simulations/{sessionSeq}/transactions` | 본인/보호소 | 지출 내역 |
+| 18.11 | GET | `/simulations/{sessionSeq}/transactions` | 본인 | 지출 내역 |
 | 18.12 | GET | `/simulations/{sessionSeq}/events` | 본인 | 발생 이벤트 `?status=` |
 | 18.13 | POST | `/simulations/{sessionSeq}/events/{occurrenceSeq}/answer` | 본인 | 선택지 응답 `{choiceNo}` |
 | 18.14 | POST | `/simulations/{sessionSeq}/walks` | 본인 | 산책 시작 |
@@ -1458,25 +1470,25 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 
 - **[확정 정책]** USER만. 선행 조건: 요청자에게 진행 중 세션 없음(부분 UNIQUE), 동물 비삭제, 종 `DOG/CAT`, **[가안]** 동물이 보호 중(`protectionStatus=PROTECTING`; 입양 완료·반환·종료 동물 불가). `expectedCost`는 0 이상 정수(원). 시작 트랜잭션: 활성 세션 검사(`FOR UPDATE`) → `core.shelter_animals`·`animal_breeds`·`animal_species`·`shelter_animal_images` 읽기 전용 JOIN으로 상태 검증 + 종·성격·`shelter_seq`·표시 정보 스냅샷 → 세션 INSERT(초기 스탯, `ends_dttm = started + 7일`, `balance = expectedCost`) → `action_logs(SYSTEM, SESSION_START)`. 교차 스키마라 동물 행은 잠그지 않으며, 읽기와 INSERT 사이에 동물 상태가 바뀌는 경쟁은 허용합니다(스냅샷 정책상 세션에 영향 없음).
 - 인벤토리는 **비어 있는 상태**로 시작합니다. 밥·물·화장실을 쓰려면 18.9로 기구를 먼저 사야 합니다(M5·M9).
-- **오류 [초안]** 409 `SIMULATION_ACTIVE_ALREADY_EXISTS`, `SIMULATION_ANIMAL_NOT_AVAILABLE`; 400 `SIMULATION_SPECIES_NOT_SUPPORTED`, `COMMON_INVALID_INPUT`; 404 `ANIMAL_NOT_FOUND`.
+- **오류 [초안]** 409 `SIMULATION_ACTIVE_ALREADY_EXISTS`, `SIMULATION_ANIMAL_NOT_AVAILABLE`, `SIMULATION_SPECIES_NOT_SUPPORTED`(동물의 종이 ETC: 자원 상태 충돌이라 409, Q442); 400 `COMMON_INVALID_INPUT`(`expectedCost` 음수 등); 404 `SIMULATION_ANIMAL_NOT_FOUND`(simulation 모듈 자체 코드, core-api의 `ANIMAL_NOT_FOUND`를 빌리지 않음, Q442).
 
 ### 18.2 GET /simulations/me/active · 18.3 GET /simulations/me · 18.4 GET /simulations/{sessionSeq}
 
 - `18.2` 성공 200 `data`: 18.1과 같은 세션 상세. **진행 중 세션이 없으면 `data:null`**(404 아님, [초안]). 조회 시점에 스탯을 지연 계산해 저장·반환합니다. 계산 결과 `health=0`이면 FAILED, `endsDttm` 경과면 COMPLETED로 그 자리에서 종료 처리하며, 이 호출에 한해 **방금 종료된 세션 상세를 `status` 변경 상태로 한 번 반환**합니다(앱이 리포트 화면으로 이동할 수 있도록, [초안]). 다음 호출부터는 `data:null`.
 - `18.3` 요청 `?status=COMPLETED&page=0&size=20&sort=startedDttm,desc` → `data.content[]` `{ sessionSeq, animal:{animalSeq, representativeImageUrl, speciesName, breedName}, speciesType, personality, status, expectedCost, balance, startedDttm, endsDttm, endedDttm, hasReport }`. 필터 `status`. 정렬 화이트리스트 `startedDttm`(기본), `endedDttm`.
-- `18.4` 본인 또는 보호소. 응답은 18.1 상세. 보호소에는 `pendingEvent`·`activeWalkSeq`를 포함하되 읽기 전용.
-- **오류 [초안]** 404 `SIMULATION_NOT_FOUND`.
+- `18.4` 본인만(Q435). 응답은 18.1 상세. 보호소는 세션 상세를 보지 않고 18.18·18.20의 종료 리포트만 봅니다.
+- **오류 [초안]** 404 `SIMULATION_NOT_FOUND`(타인 세션 포함).
 
 ### 18.5 POST /simulations/{sessionSeq}/abandon
 
 **요청 [초안]** `{}` → **성공 200 `data`** `{ "sessionSeq":3001, "status":"ABANDONED", "endedDttm":"...", "report": { ...18.18 리포트 DTO... } }`.
 
-- **[확정 정책]** IN_PROGRESS → ABANDONED. 진행 중 산책은 ENDED, PENDING 이벤트는 EXPIRED 처리. 종료 트랜잭션: 스탯 최종 계산 → 상태·`ended_dttm` 갱신 → `simulation_reports` INSERT → `action_logs(SYSTEM, SESSION_END)` → 커밋 후 `SESSION_END` 알림(저장 + FCM).
+- **[확정 정책]** IN_PROGRESS → ABANDONED. 진행 중 산책은 ENDED, PENDING 이벤트는 EXPIRED 처리. 종료 트랜잭션(Q440): 스탯 최종 계산 → 상태·`ended_dttm` 갱신 → `simulation_reports` INSERT → `action_logs(SYSTEM, SESSION_END)` → **`simulation_notifications(SESSION_END)` INSERT까지 같은 트랜잭션** → 커밋 → `SimulationPushRequested` 발행(FCM은 notification). 알림 행 INSERT가 실패하면 종료 전체가 롤백됩니다.
 - **오류 [초안]** 409 `SIMULATION_NOT_IN_PROGRESS`.
 
 ### 18.6 POST /simulations/{sessionSeq}/actions
 
-**요청 [초안]** `{ "actionType": "FEED", "itemSeq": 11 }`.
+**요청 [초안]** `{ "actionCode": "FEED", "itemSeq": 11 }`. 요청 필드는 DB `action_code` 값(`FEED` 등)을 담는 `actionCode`이며, `actionType`은 응답·18.7 필터에서 분류(`CARE/WALK/EVENT/SYSTEM`)를 뜻하는 다른 필드입니다(문구 통일).
 
 **성공 200 `data` [초안]**
 ```json
@@ -1491,9 +1503,9 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 }
 ```
 
-- **[확정 정책] `actionType`과 필요 기구·소모품(M9):**
+- **[확정 정책] `actionCode`와 필요 기구·소모품(M9):**
 
-| actionType | 필요 기구(영구, 보유 여부) | 소모품(수량 -1) | `itemSeq` |
+| actionCode | 필요 기구(영구, 보유 여부) | 소모품(수량 -1) | `itemSeq` |
 |---|---|---|---|
 | `FEED` | `FOOD_BOWL` | `FOOD` | 소모할 FOOD 필수(여러 종류 보유 가능) |
 | `WATER` | `WATER_BOWL` | 없음(물 무료) | 생략 |
@@ -1505,11 +1517,11 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 
 - 서버 처리: 세션 잠금(`FOR UPDATE`) → 스탯 지연 계산 → 기구·소모품 검사 → 수량 차감 → 물품 `effects_jsonb`에 성격 배율을 적용해 스탯 반영(0~100 클램프) → `action_logs(CARE)` INSERT(`stat_delta_jsonb`, `stats_after_jsonb`) → `last_action_dttm` 갱신. 행동은 돈을 쓰지 않습니다(돈은 18.9에서만).
 - 효과값(`effects_jsonb`)은 물품 마스터에 있으며 예: FOOD `{"hunger":30,"friendship":1}`, SNACK `{"hunger":10,"friendship":3,"stress":-5}`, SHAMPOO `{"cleanliness":40,"stress":5}`, MEDICINE `{"health":20}` **[가안, 초기 데이터]**.
-- **오류 [초안]** 409 `SIMULATION_EQUIPMENT_MISSING`(기구 미보유), `SIMULATION_ITEM_NOT_IN_INVENTORY`(소모품 0개·미보유), `SIMULATION_NOT_IN_PROGRESS`; 400 `SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES`, `COMMON_INVALID_INPUT`(actionType과 물품 분류 불일치); 404 `SIMULATION_SHOP_ITEM_NOT_FOUND`.
+- **오류 [초안]** 404 `SIMULATION_NOT_FOUND`; 409 `SIMULATION_EQUIPMENT_MISSING`(기구 미보유), `SIMULATION_ITEM_NOT_IN_INVENTORY`(소모품 0개·미보유), `SIMULATION_NOT_IN_PROGRESS`, `SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES`(물품 종 범위와 세션 종 불일치, 409로 통일 Q442); 400 `COMMON_INVALID_INPUT`(`actionCode`와 물품 분류 불일치); 404 `SIMULATION_SHOP_ITEM_NOT_FOUND`.
 
 ### 18.7 GET /simulations/{sessionSeq}/action-logs
 
-**요청 [초안]** `?actionType=CARE&page=0&size=50&sort=regDttm,desc` → `data.content[]` `{ actionLogSeq, actionType, actionCode, item:{itemSeq,itemName}|null, walkSeq, occurrenceSeq, statDelta, statsAfter, regDttm }`. 필터 `actionType`. 정렬 화이트리스트 `regDttm`. 본인/보호소.
+**요청 [초안]** `?actionType=CARE&page=0&size=50&sort=regDttm,desc` → `data.content[]` `{ actionLogSeq, actionType, actionCode, item:{itemSeq,itemName}|null, walkSeq, occurrenceSeq, statDelta, statsAfter, regDttm }`. 필터 `actionType`(`CARE/WALK/EVENT/SYSTEM`). 정렬 화이트리스트 `regDttm`. 본인만(Q435). **오류 [초안]** 404 `SIMULATION_NOT_FOUND`.
 
 ### 18.8 GET /simulations/shop/items
 
@@ -1539,10 +1551,10 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
   "inventoryQuantity": 5
 }
 ```
-- **[확정 정책]** 구매 시 `amount = price × quantity`를 잔액에서 차감하며 **잔액이 음수가 되어도 허용**합니다(M5). 기구는 `quantity=1`만 허용하고 이미 보유 중이면 409 `SIMULATION_EQUIPMENT_ALREADY_OWNED`. `species_scope`가 세션 종과 맞지 않으면 400. 트랜잭션: 세션 잠금 → `simulation_transactions(PURCHASE)` INSERT → `balance` 갱신 → `simulation_inventory_items` UPSERT(`UNIQUE(session_seq,item_seq)`).
+- **[확정 정책]** 구매 시 `amount = price × quantity`를 잔액에서 차감하며 **잔액이 음수가 되어도 허용**합니다(M5). 기구는 `quantity=1`만 허용하고 이미 보유 중이면 409 `SIMULATION_EQUIPMENT_ALREADY_OWNED`. `species_scope`가 세션 종과 맞지 않으면 409 `SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES`. 트랜잭션: 세션 잠금 → `simulation_transactions(PURCHASE)` INSERT → `balance` 갱신 → `simulation_inventory_items` UPSERT(`UNIQUE(session_seq,item_seq)`).
 - **18.10 성공 200 `data`** `{ "balance":110000, "expectedCost":150000, "equipment":{SimulationEquipment}, "items":[ { "itemSeq":11, "itemName":"건식 사료 1kg", "category":"FOOD", "isConsumable":true, "quantity":5, "imageUrl":"https://..." } ] }`. 수량 0인 소모품 행도 포함(앱이 "다 썼음" 표시 가능, [초안]).
-- **18.11 요청** `?transactionType=PURCHASE&page=0&size=50&sort=regDttm,desc` → `data.content[]` `{ transactionSeq, transactionType:"PURCHASE"|"EVENT", item:{itemSeq,itemName,category}|null, occurrenceSeq|null, quantity, amount, balanceAfter, description, regDttm }`. 필터 `transactionType`. 정렬 화이트리스트 `regDttm`. 본인/보호소.
-- **오류 [초안]** 404 `SIMULATION_SHOP_ITEM_NOT_FOUND`; 400 `SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES`, `COMMON_INVALID_INPUT`(quantity<1, 비활성 물품); 409 `SIMULATION_EQUIPMENT_ALREADY_OWNED`, `SIMULATION_NOT_IN_PROGRESS`.
+- **18.11 요청** `?transactionType=PURCHASE&page=0&size=50&sort=regDttm,desc` → `data.content[]` `{ transactionSeq, transactionType:"PURCHASE"|"EVENT", item:{itemSeq,itemName,category}|null, occurrenceSeq|null, quantity, amount, balanceAfter, description, regDttm }`. 필터 `transactionType`. 정렬 화이트리스트 `regDttm`. 본인만(Q435).
+- **오류 [초안]** 404 `SIMULATION_NOT_FOUND`, `SIMULATION_SHOP_ITEM_NOT_FOUND`(비활성 물품 포함); 400 `COMMON_INVALID_INPUT`(quantity<1); 409 `SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES`, `SIMULATION_EQUIPMENT_ALREADY_OWNED`, `SIMULATION_NOT_IN_PROGRESS`.
 
 ### 18.12 GET /simulations/{sessionSeq}/events · 18.13 POST /.../events/{occurrenceSeq}/answer
 
@@ -1585,7 +1597,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 ```
 - **[확정 정책] 발생 규칙(M11·M15):** HOME·RANDOM은 하루 1~2회 가중치 추첨 **[가안]**, HOME·CONDITION은 스탯 지연 계산 시점과 스케줄러 주기에 `trigger_condition_jsonb`(예 `{"stat":"health","op":"<","value":40}`)를 판정해 발생하고 같은 시나리오는 `cooldown_hours` 동안 재발생하지 않습니다. WALK 시나리오는 18.15에서만 발생합니다. 세션당 PENDING은 1개(부분 UNIQUE)라 새 이벤트는 기존 PENDING이 응답·만료된 뒤에만 생깁니다. HOME 이벤트 발생 시 `EVENT` 알림(저장 + FCM).
 - **[확정 정책] 응답 처리:** `occurrence FOR UPDATE` → PENDING·미만료 확인 → 선택지 `effects_jsonb`에 성격 배율 적용해 스탯 반영 → `cost>0`이면 `simulation_transactions(EVENT)` INSERT + `balance` 차감(음수 허용) → `action_logs(EVENT, EVENT_ANSWER)` → ANSWERED·`chosen_choice_no`·`answered_dttm` 저장 → `resultText`(선택지 `result_text`, 진단서 문구 등) 반환. 응답은 `last_action_dttm`을 갱신합니다.
-- 만료 처리: `expires_dttm` 경과를 조회·스케줄러에서 감지하면 EXPIRED + `action_logs(EVENT, EVENT_EXPIRE)`, 효과·비용 없음. 이미 EXPIRED/ANSWERED면 409.
+- 만료 처리(Q441): `expires_dttm` 경과를 **조회(18.2·18.12·18.13)와 스케줄러 양쪽**에서 감지하면 EXPIRED + `action_logs(EVENT, EVENT_EXPIRE)`, 효과·비용 없음(스탯 지연 계산과 같은 원칙으로 GET도 이 쓰기를 수행). 산책 종료(18.17·자동 종료) 시 PENDING WALK 이벤트도 같은 방식으로 EXPIRED. 이미 EXPIRED/ANSWERED면 409.
 - 메인 화면의 **동물병원 오브젝트**는 PENDING인 CONDITION 이벤트가 있을 때 활성화되어 이 선택 화면으로 이동합니다(M15).
 - **오류 [초안]** 404 `SIMULATION_EVENT_NOT_FOUND`; 409 `SIMULATION_EVENT_NOT_PENDING`(ANSWERED·EXPIRED·만료 경과), `SIMULATION_NOT_IN_PROGRESS`; 400 `SIMULATION_INVALID_CHOICE`.
 
@@ -1656,9 +1668,10 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 - **[확정 정책]** 세션 종료(COMPLETED/ABANDONED/FAILED) 트랜잭션에서 `simulation_reports`를 **1회 생성**해 영구 보존합니다(`isFinal:true`). 세션이 진행 중이면 같은 형식의 **중간 리포트를 조회 시 계산만** 하고 저장하지 않습니다(`isFinal:false`, `endedDttm:null`). 리포트 수정·삭제 API 없음. `spentByCategory`는 PURCHASE는 물품 분류, 이벤트 비용은 `EVENT` 키로 집계. `dailySpent` 키는 세션 1~7일차.
 - FAILED면 `summary`에 "돌봄 부족으로 중단" 취지를 담고 죽음 표현을 쓰지 않습니다(M6).
 - `18.19` 요청 `?page=0&size=20&sort=endedDttm,desc` → `data.content[]` `{ sessionSeq, animal:{...}, status, startedDttm, endedDttm, expectedCost, totalSpent, difference }`. 정렬 화이트리스트 `endedDttm`. USER 본인 전체.
-- `18.20` 요청 `?animalSeq=700&page=0&size=20&sort=endedDttm,desc` → 같은 목록 DTO + `user:{ActorSummary}`(`core.users` 읽기 전용 JOIN). **자기 보호동물**(세션 스냅샷 `shelter_seq` = 토큰 `shelterSeq`)로 진행된 **종료된** 세션만. 필터 `animalSeq`. 진행 중 세션은 18.4로 상세만 열람.
+- `18.20` 요청 `?animalSeq=700&page=0&size=20&sort=endedDttm,desc` → 같은 목록 DTO + `user:{ActorSummary}`(`core.users` 읽기 전용 JOIN). **자기 보호동물**(세션 스냅샷 `shelter_seq` = 토큰 `shelterSeq`)로 진행된 **종료된** 세션만. 필터 `animalSeq`. 진행 중 세션은 보호소에 노출하지 않습니다(Q435).
+- `18.18`을 보호소가 호출하면 **종료된 세션의 저장 리포트만** 반환하고, 진행 중 세션의 중간 리포트는 본인만 볼 수 있습니다(보호소에는 404 `SIMULATION_NOT_FOUND`, Q435).
 - `18.21` = 12.15. **core-api가 제공**하며 담당 SHELTER가 신청서의 `userSeq`·`animalSeq`로 `simulation.simulation_reports`를 읽기 전용 JOIN해 **파생 조회**한 리포트 목록(FK 없음, M14). 신청자가 탈퇴했어도 보존된 리포트는 반환.
-- **오류 [초안]** 404 `SIMULATION_NOT_FOUND`, `ADOPTION_APPLICATION_NOT_FOUND`; 403 `ADOPTION_APPLICATION_ACCESS_DENIED`.
+- **오류 [초안]** 404 `SIMULATION_NOT_FOUND`, `ADOPTION_APPLICATION_NOT_FOUND`(타 보호소 신청서 포함, Q434).
 
 ### 18.22 GET /simulations/notifications · 18.23 PATCH /.../{notificationSeq}/read
 
@@ -1669,7 +1682,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 {
   "notificationSeq": 120001,
   "sessionSeq": 3001,
-  "notificationType": "STAT_WARNING",
+  "notificationType": "STAT_HYDRATION_WARNING",
   "message": "아이의 수분이 20 아래로 떨어졌어요. 물을 챙겨 주세요.",
   "occurrenceSeq": null,
   "isRead": false,
@@ -1677,7 +1690,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
   "regDttm": "2026-11-02T03:10:00+09:00"
 }
 ```
-- **[확정 정책]** `simulation_notifications`만 조회하며 17장 목록에는 섞이지 않습니다. 유형 `NEGLECT/STAT_WARNING/EVENT/SESSION_END`. `EVENT`는 `occurrenceSeq`로 18.13 화면에 연결. 발송 규칙은 18.0 가안 표(방치 8시간, 위험 임계 20·스탯당 하루 1회, HOME 이벤트 발생, 세션 종료). 저장 후 커밋 → `SimulationPushRequested` 이벤트 → notification이 같은 `message`를 활성 FCM 토큰으로 발송, 실패 시 재시도 없음(17장과 동일).
+- **[확정 정책]** `simulation_notifications`만 조회하며 17장 목록에는 섞이지 않습니다. 유형은 `NEGLECT/EVENT/SESSION_END` + `STAT_{HUNGER|HYDRATION|CLEANLINESS|FRIENDSHIP|STRESS|HEALTH|ACTIVITY}_WARNING` 10종(Q438). `EVENT`는 `occurrenceSeq`로 18.13 화면에 연결. 발송 규칙은 18.0 가안 표(방치 8시간, 위험 임계 20·같은 세션·같은 `STAT_*_WARNING` 유형은 24시간 내 1회, HOME 이벤트 발생, 세션 종료). 저장 후 커밋 → `SimulationPushRequested` 이벤트 → notification이 같은 `message`를 활성 FCM 토큰으로 발송, 실패 시 재시도 없음(17장과 동일).
 - `18.23` 성공 200 `data:{notificationSeq,isRead:true,readDttm}`. 전체 읽음·삭제 API는 두지 않습니다(세션 종료 후에도 이력 보존, [초안]).
 - **오류 [초안]** 404 `SIMULATION_NOTIFICATION_NOT_FOUND`.
 
@@ -1686,6 +1699,8 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 ## 19. 도메인 에러 코드 총괄 **[확정 정책 — 명명 규칙 Q418 A]**
 
 > 응답 `code`는 서버 enum 상수명 그대로이며 **`{도메인}_상황`** 형식입니다. 공통 코드는 `common` 모듈의 `CommonErrorCode`(1.3), 도메인 코드는 각 서비스의 도메인 패키지 `{도메인}ErrorCode` enum에 둡니다(README 규칙). 접두어는 **패키지명 대문자**이며 DB 스키마와 무관합니다(core-api 한 서비스 안에 여러 도메인). HTTP 상태와 기본 메시지는 enum 값에서 가져오고, 메시지 문구는 구현 시 정합니다. 각 절의 "오류" 항목은 이 표의 코드와 일치합니다.
+
+**HTTP 상태 배정 원칙(Q442, 2026-11-03 재검토):** 400 = 요청 입력 자체의 문제(누락·형식·허용값 밖·화이트리스트 밖), 403 = 자기 것이 아닌 것을 자기 자원에 연결(`IMAGE_NOT_OWNED`)·STOMP 참여 권한·역할 불일치(`AUTH_FORBIDDEN`), 404 = 없음·삭제·비노출·**타인/타 보호소 자원**(존재 감춤, Q434), 409 = 자원의 현재 상태와 충돌(중복, 상태 전이 불가, 종·범위 불일치, 이미 보유). 이 원칙에 따라 `*_NOT_OWNED`·`*_ACCESS_DENIED` 계열(이미지 제외)과 발생 경로가 없는 코드는 제거했고, `SIMULATION_SPECIES_NOT_SUPPORTED`·`SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES`는 400→409로, `CATALOG_DISTRICT_NOT_FOUND`(400)는 이름을 `CATALOG_INVALID_DISTRICT_CODE`로 바꿨습니다.
 
 **도메인 패키지 목록 (R11·R12 확정)** — 접두어 = 패키지명 대문자. 기준정보와 행정구역은 `catalog`, 북마크는 `user`에 속하고, `ANIMAL_`은 보호동물이 단독으로 씁니다.
 
@@ -1718,20 +1733,20 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `USER_` (북마크, R12) | `USER_BOOKMARK_ALREADY_EXISTS`, `USER_BOOKMARK_NOT_FOUND` | 409/404 | 중복 등록 / 없는 북마크 해제 |
 | `IMAGE_` | `IMAGE_NOT_FOUND`, `IMAGE_INVALID_COUNT`, `IMAGE_TOO_LARGE`, `IMAGE_UNSUPPORTED_TYPE` | 404/400/413/415 | 이미지 업로드·연결 오류 |
 | `IMAGE_` | `IMAGE_NOT_OWNED` | 403 | 타인이 업로드한 `imageSeq` 연결 시도(Q407) |
-| `CATALOG_` (기준정보·행정구역) | `CATALOG_COMBINATION_NOT_FOUND`, `CATALOG_DISTRICT_NOT_FOUND` | 404/400 | 등록되지 않은 품종·색상 조합 / 필터에 `districts`에 없는 `districtCode` |
-| `PET_` | `PET_NOT_FOUND`, `PET_NOT_OWNED` | 404/403 | 대상·소유권 오류 |
-| `MISSING_` | `MISSING_REPORT_NOT_FOUND` | 404 | 실종 신고 접근 실패(타인 신고 수정 포함) |
+| `CATALOG_` (기준정보·행정구역) | `CATALOG_COMBINATION_NOT_FOUND`, `CATALOG_INVALID_DISTRICT_CODE` | 404/400 | 등록되지 않은 품종·색상 조합 / 목록 필터에 `districts`에 없는 `districtCode`(입력 오류이므로 400, 이름도 맞춤 Q442) |
+| `PET_` | `PET_NOT_FOUND` | 404 | 없음·삭제·**타인 소유**(Q434; `PET_NOT_OWNED` 삭제) |
+| `MISSING_` | `MISSING_REPORT_NOT_FOUND` | 404 | 없음·삭제·비노출·**타인 신고**(Q434) |
 | `MISSING_` | `MISSING_ACTIVE_ALREADY_EXISTS`, `MISSING_REPORT_CLOSED` | 409 | 회원당 ACTIVE 1건 제약 위반 / CLOSED 본문 수정(Q425) |
-| `FOUND_` | `FOUND_REPORT_NOT_FOUND`, `FOUND_REPORT_CLOSED`, `FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE` | 404/409/409 | 발견 대상 없음 / CLOSED 본문 수정 / 비삭제 보호소가 하나도 없음 |
-| `SHELTER_` | `SHELTER_NOT_FOUND`, `SHELTER_NOT_OWNED` | 404/403 | 보호소 조회·소속 오류 |
+| `FOUND_` | `FOUND_REPORT_NOT_FOUND`, `FOUND_REPORT_CLOSED`, `FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE` | 404/409/409 | 없음·삭제·**타인 신고**(8.6은 작성자·담당 보호소 외, Q434) / CLOSED 본문 수정 / 비삭제 보호소가 하나도 없음 |
+| `SHELTER_` | `SHELTER_NOT_FOUND` | 404 | 보호소 없음·삭제(`SHELTER_NOT_OWNED`는 토큰 기반이라 발생 경로 없어 삭제, Q442) |
 | `RESCUE_` | `RESCUE_ACTIVE_ALREADY_EXISTS` | 409 | 동일 발견 PROCESSING/DONE 1건 제약 |
-| `RESCUE_` | `RESCUE_NOT_FOUND`, `RESCUE_INVALID_TRANSITION`, `RESCUE_NOT_DONE` | 404/409/409 | 구조 조회·전이 오류 / 미완료 구조 참조 |
+| `RESCUE_` | `RESCUE_NOT_FOUND`, `RESCUE_INVALID_TRANSITION`, `RESCUE_NOT_DONE` | 404/409/409 | 없음·삭제·**다른 보호소의 구조**(Q434) / 전이 불가 / 11.4에서 DONE 아닌 구조 참조(Q442) |
 | `RESCUE_` | `RESCUE_COMPLETION_FIELDS_REQUIRED`, `RESCUE_RESULT_REASON_REQUIRED` | 400 | DONE 날짜·주소 / 실패·취소 사유 누락 |
 | `RESCUE_` | `RESCUE_HAS_ANIMALS` | 409 | 참조 보호동물 있는 구조 삭제 시도 |
-| `ANIMAL_` (보호동물) | `ANIMAL_NOT_FOUND`, `ANIMAL_INVALID_STATUS_COMBINATION` | 404/409 | 조회 대상 없음 / 보호·입양 상태 조합 CHECK 위반 |
-| `ANIMAL_` (보호동물) | `ANIMAL_ALREADY_RETURNED`, `ANIMAL_NOT_PROTECTING`, `ANIMAL_HAS_ACTIVE_APPLICATIONS` | 409 | 중복 반환 / 보호 중 아님 / 삭제 제한 |
-| `ADOPTION_` | `ADOPTION_ACTIVE_APPLICATION_ALREADY_EXISTS`, `ADOPTION_ANIMAL_NOT_AVAILABLE` | 409 | 활성 신청 중복 / 새 신청 불가 |
-| `ADOPTION_` | `ADOPTION_APPLICATION_NOT_FOUND`, `ADOPTION_APPLICATION_ACCESS_DENIED` | 404/403 | 신청서 조회·권한(DRAFT를 SHELTER가 조회하면 404) |
+| `ANIMAL_` (보호동물) | `ANIMAL_NOT_FOUND`, `ANIMAL_INVALID_STATUS_COMBINATION` | 404/409 | 없음·삭제·**다른 보호소 소속**(쓰기 API, Q434) / 보호·입양 상태 조합 CHECK 위반 |
+| `ANIMAL_` (보호동물) | `ANIMAL_ALREADY_RETURNED`, `ANIMAL_NOT_PROTECTING`, `ANIMAL_HAS_ACTIVE_APPLICATIONS` | 409 | 중복 반환 / 보호 중 아님(11.7·11.8·12.12) / 삭제 제한 |
+| `ADOPTION_` | `ADOPTION_ACTIVE_APPLICATION_ALREADY_EXISTS`, `ADOPTION_ANIMAL_NOT_AVAILABLE` | 409 | 활성 신청 중복 / 새 신청·DRAFT 제출 불가(Q437) |
+| `ADOPTION_` | `ADOPTION_APPLICATION_NOT_FOUND` | 404 | 없음·타인 신청서·타 보호소 신청서·SHELTER가 DRAFT 조회(Q434; `ADOPTION_APPLICATION_ACCESS_DENIED` 삭제) |
 | `ADOPTION_` | `ADOPTION_APPLICATION_NOT_DRAFT`, `ADOPTION_APPLICATION_NOT_SUBMITTED`, `ADOPTION_APPLICATION_NOT_APPROVED` | 409 | 상태 전이 원천 부적합 |
 | `ADOPTION_` | `ADOPTION_REQUIRED_ANSWER_MISSING`, `ADOPTION_INVALID_ANSWER` | 400 | 조건부 필수·보기 응답 오류 |
 | `ADOPTION_` | `ADOPTION_REJECTION_REASON_REQUIRED`, `ADOPTION_ANIMAL_ALREADY_FINISHED` | 400/409 | 사유 누락 / 종료 동물 완료 경합 |
@@ -1739,14 +1754,15 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `COMMENT_` | `COMMENT_EMPTY`, `COMMENT_DEPTH_EXCEEDED`, `COMMENT_PARENT_UNAVAILABLE` | 400/400/409 | 댓글 비어 있음 / 답글 제한 / 삭제·탈퇴 루트에 답글 |
 | `COMMENT_` | `COMMENT_NOT_FOUND`, `COMMENT_TARGET_NOT_FOUND` | 404 | 댓글 없음·타인 댓글 수정 / 게시물 없음 |
 | `CHAT_` | `CHAT_UNSUPPORTED_PARTICIPANTS`, `CHAT_COUNTERPART_DELETED` | 409 | 채팅 조합 / 탈퇴 상대 |
-| `CHAT_` | `CHAT_INVALID_PAYLOAD`, `CHAT_ROOM_NOT_PARTICIPANT` | 400/403 | 메시지 종류 / 참여 권한(REST·SUBSCRIBE 공통) |
-| `CHAT_` | `CHAT_TARGET_NOT_FOUND`, `CHAT_SHARED_POST_NOT_FOUND` | 404 | 방 생성 대상 / 공유 게시물 없음 |
+| `CHAT_` | `CHAT_INVALID_PAYLOAD`, `CHAT_MESSAGE_NOT_IN_ROOM` | 400 | 메시지 종류·필수값 / `lastReadMessageSeq`·`beforeMessageSeq`가 그 방의 메시지가 아님(신규, Q442) |
+| `CHAT_` | `CHAT_ROOM_NOT_PARTICIPANT` | 403 | **STOMP SUBSCRIBE·SEND 전용** 참여 권한. REST는 404 `CHAT_ROOM_NOT_FOUND` 사용(Q434) |
+| `CHAT_` | `CHAT_ROOM_NOT_FOUND`, `CHAT_TARGET_NOT_FOUND`, `CHAT_SHARED_POST_NOT_FOUND` | 404 | REST에서 방 없음·비참여자(신규, Q434) / 방 생성 대상 없음 / 공유 게시물 없음 |
 | `REPORT_` | `REPORT_TARGET_NOT_ALLOWED`, `REPORT_REASON_REQUIRED`, `REPORT_ALREADY_EXISTS`, `REPORT_TARGET_NOT_FOUND` | 400/400/409/404 | 허용 범위 / 사유 누락 / 중복 / 대상 없음 |
-| `NOTIFICATION_` | `NOTIFICATION_NOT_FOUND`, `NOTIFICATION_DEVICE_TOKEN_CONFLICT` | 404/409 | 알림 소유권 / 활성 토큰 유일성 |
-| `SIMULATION_` | `SIMULATION_NOT_FOUND` | 404 | 세션 없음 또는 본인·보호소 아님(존재 감춤) |
+| `NOTIFICATION_` | `NOTIFICATION_NOT_FOUND` | 404 | 없음·삭제·타인 알림(17.2·17.4). `NOTIFICATION_DEVICE_TOKEN_CONFLICT`는 17.6 양도 규칙상 발생 경로가 없어 삭제(Q439) |
+| `SIMULATION_` | `SIMULATION_NOT_FOUND`, `SIMULATION_ANIMAL_NOT_FOUND` | 404 | 세션 없음·본인 아님·보호소가 진행 중 세션 조회(존재 감춤, Q435) / 18.1 대상 보호동물 없음·삭제(simulation 자체 코드, Q442) |
 | `SIMULATION_` | `SIMULATION_ACTIVE_ALREADY_EXISTS`, `SIMULATION_NOT_IN_PROGRESS` | 409 | USER당 진행 중 1개 / 종료된 세션 변경 시도 |
-| `SIMULATION_` | `SIMULATION_SPECIES_NOT_SUPPORTED`, `SIMULATION_ANIMAL_NOT_AVAILABLE` | 400/409 | 종 ETC / 보호 중 아닌 동물 |
-| `SIMULATION_` | `SIMULATION_SHOP_ITEM_NOT_FOUND`, `SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES`, `SIMULATION_EQUIPMENT_ALREADY_OWNED` | 404/400/409 | 펫샵 물품 조회 / 종 범위 / 기구 중복 구매 |
+| `SIMULATION_` | `SIMULATION_SPECIES_NOT_SUPPORTED`, `SIMULATION_ANIMAL_NOT_AVAILABLE` | 409 | 동물의 종이 ETC(자원 상태 충돌, 400→409 Q442) / 보호 중 아닌 동물 |
+| `SIMULATION_` | `SIMULATION_SHOP_ITEM_NOT_FOUND`, `SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES`, `SIMULATION_EQUIPMENT_ALREADY_OWNED` | 404/409/409 | 펫샵 물품 없음·비활성 / 물품 종 범위와 세션 종 불일치(400→409 Q442) / 기구 중복 구매 |
 | `SIMULATION_` | `SIMULATION_EQUIPMENT_MISSING`, `SIMULATION_ITEM_NOT_IN_INVENTORY` | 409 | 기구 미보유 / 소모품 없음 |
 | `SIMULATION_` | `SIMULATION_EVENT_NOT_FOUND`, `SIMULATION_EVENT_NOT_PENDING`, `SIMULATION_INVALID_CHOICE` | 404/409/400 | 이벤트 응답 오류 |
 | `SIMULATION_` | `SIMULATION_WALK_NOT_FOUND`, `SIMULATION_WALK_ALREADY_IN_PROGRESS`, `SIMULATION_WALK_NOT_IN_PROGRESS` | 404/409/409 | 산책 상태 오류 |
@@ -1770,12 +1786,14 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `ACTIVE_APPLICATION_ALREADY_EXISTS`, `APPLICATION_*`, `REQUIRED_ADOPTION_ANSWER_MISSING`, `INVALID_ADOPTION_ANSWER`, `REJECTION_REASON_REQUIRED` | `ADOPTION_ACTIVE_APPLICATION_ALREADY_EXISTS`, `ADOPTION_APPLICATION_*`, `ADOPTION_REQUIRED_ANSWER_MISSING`, `ADOPTION_INVALID_ANSWER`, `ADOPTION_REJECTION_REASON_REQUIRED` |
 | `EMPTY_COMMENT`, `PARENT_COMMENT_UNAVAILABLE` | `COMMENT_EMPTY`, `COMMENT_PARENT_UNAVAILABLE` |
 | `UNSUPPORTED_CHAT_PARTICIPANTS`, `INVALID_CHAT_PAYLOAD`, `SHARED_POST_NOT_FOUND` | `CHAT_UNSUPPORTED_PARTICIPANTS`, `CHAT_INVALID_PAYLOAD`, `CHAT_SHARED_POST_NOT_FOUND` |
-| `DEVICE_TOKEN_CONFLICT` | `NOTIFICATION_DEVICE_TOKEN_CONFLICT` |
+| `DEVICE_TOKEN_CONFLICT` | (삭제: 17.6 upsert·양도 규칙으로 발생 경로 없음, Q439) |
 | `SIMULATION_ACCESS_DENIED` | (삭제: `SIMULATION_NOT_FOUND`로 존재 감춤) |
+| `PET_NOT_OWNED`, `SHELTER_NOT_OWNED`, `ADOPTION_APPLICATION_ACCESS_DENIED` (v3 1차) | (삭제: 각각 `PET_NOT_FOUND`·`SHELTER_NOT_FOUND`·`ADOPTION_APPLICATION_NOT_FOUND` 404로 존재 감춤, Q434) |
+| 신규 (Q442) | `CHAT_ROOM_NOT_FOUND`(404), `CHAT_MESSAGE_NOT_IN_ROOM`(400), `SIMULATION_ANIMAL_NOT_FOUND`(404) |
 | `ACTIVE_SIMULATION_ALREADY_EXISTS`, `SHOP_ITEM_*`, `EQUIPMENT_ALREADY_OWNED`, `REQUIRED_EQUIPMENT_MISSING`, `ITEM_NOT_IN_INVENTORY`, `EVENT_NOT_PENDING`, `INVALID_CHOICE`, `WALK_*` | `SIMULATION_ACTIVE_ALREADY_EXISTS`, `SIMULATION_SHOP_ITEM_*`, `SIMULATION_EQUIPMENT_ALREADY_OWNED`, `SIMULATION_EQUIPMENT_MISSING`, `SIMULATION_ITEM_NOT_IN_INVENTORY`, `SIMULATION_EVENT_NOT_PENDING`, `SIMULATION_INVALID_CHOICE`, `SIMULATION_WALK_*` |
-| 신규 | `MISSING_REPORT_CLOSED`, `FOUND_REPORT_CLOSED`, `CATALOG_DISTRICT_NOT_FOUND`, `COMMENT_NOT_FOUND`, `USER_BOOKMARK_NOT_FOUND`, `ADOPTION_CERTIFICATE_*` |
+| 신규 | `MISSING_REPORT_CLOSED`, `FOUND_REPORT_CLOSED`, `CATALOG_INVALID_DISTRICT_CODE`, `COMMENT_NOT_FOUND`, `USER_BOOKMARK_NOT_FOUND`, `ADOPTION_CERTIFICATE_*` |
 | `ANIMAL_COMBINATION_NOT_FOUND` (v3 1차) | `CATALOG_COMBINATION_NOT_FOUND` (R11·R12: 기준정보는 `catalog` 도메인, `ANIMAL_`은 보호동물 단독) |
-| `DISTRICT_NOT_FOUND` (v3 1차) | `CATALOG_DISTRICT_NOT_FOUND` (R12: `districts`는 `catalog` 도메인) |
+| `DISTRICT_NOT_FOUND` (v3 1차) | `CATALOG_INVALID_DISTRICT_CODE` (R12: `districts`는 `catalog` 도메인; 400 입력 오류라 이름도 Q442에서 변경) |
 | `BOOKMARK_ALREADY_EXISTS` (v3 1차) | `USER_BOOKMARK_ALREADY_EXISTS` (R12: 북마크는 `user` 도메인) |
 | `BOOKMARK_NOT_FOUND` (v3 1차) | `USER_BOOKMARK_NOT_FOUND` (R12) |
 
@@ -1842,10 +1860,20 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | Q432 AI 워커 연동 | 양방향 RabbitMQ. 요청 `{sourceType, sourceSeq, imageKeys[], speciesCode, occurredAt}`, 결과 `AiMatchFound {missingReportSeq, targetType, targetSeq, score, modelVersion}`. 워커 DB 미접근, 임계값은 워커, 자격 재검사·중복 처리는 core-api | 17.8·21.1·21.6 |
 | Q433 refresh·탈퇴 계정 | refresh는 같은 RS256 키의 JWT(`userSeq`·`jti`·`typ=refresh`), access `typ=access`, 검증기가 `typ` 확인. 모든 쓰기 요청에서 `is_deleted` 재확인, 조회는 1시간 유예 | 1.1·2.3 |
 | 문구 통일 (2026-11-03) | simulation `device_tokens` 미접근(17.6·18장), 알림 이벤트 `NotificationRequested`/`NotificationCreated` 구분(17.8·21.6), 세션 스냅샷은 이미지 키(18.0·21.5), SUBSCRIBE 인가는 chat 모듈 인터셉터(14장) | 해당 절 |
+| Q434 403/404 정책 | **A** REST는 타인·타 보호소·비노출 자원 모두 도메인 `*_NOT_FOUND` 404. 403은 `IMAGE_NOT_OWNED`·STOMP `CHAT_ROOM_NOT_PARTICIPANT`·역할 불일치 `AUTH_FORBIDDEN`만. `PET_NOT_OWNED`·`SHELTER_NOT_OWNED`·`ADOPTION_APPLICATION_ACCESS_DENIED` 삭제 | 1.3·6~12·14·17·18·19장 |
+| Q435 보호소의 모의 입양 열람 | **리포트만.** 18.4·18.7·18.11은 본인 전용. 세션 상세·행동 이력·지출 내역은 종료 시 LLM에 보내 리포트 `summary`로 집약 [가안: 실패 시 규칙 문구]. 보호소는 진행 중 세션 열람 불가 | 18.0·18.4·18.7·18.11·18.18·18.20·21.5 |
+| Q436 답글 알림 수신자 | **루트 댓글 작성자만**(게시물 작성자에게 중복 발송 없음) | 13.3·17.8 |
+| Q437 UNAVAILABLE 동물의 DRAFT 제출 | **차단.** 새 신청과 기존 DRAFT 제출 모두 409 `ADOPTION_ANIMAL_NOT_AVAILABLE`, DRAFT 행은 유지 | 11.6·12.6·12.14 |
+| Q438 스탯 경고 알림 유형 | `STAT_WARNING` 대신 **스탯별 7종** `STAT_{HUNGER|HYDRATION|CLEANLINESS|FRIENDSHIP|STRESS|HEALTH|ACTIVITY}_WARNING`(총 10종). "스탯당 하루 1회"는 같은 세션·같은 유형 24시간 내 행 존재로 판정, 컬럼 추가 없음 | 18.0·18.22·21.5 |
+| Q439 FCM 토큰 충돌 코드 | 17.6 upsert·양도로 충돌이 해소되므로 `NOTIFICATION_DEVICE_TOKEN_CONFLICT` 삭제 | 17.6·19장 |
+| Q440 SESSION_END 트랜잭션 | 세션 종료·리포트·`simulation_notifications(SESSION_END)` INSERT까지 **한 트랜잭션**, `SimulationPushRequested` 발행만 커밋 후 | 18.5·21.5 |
+| Q441 이벤트 만료 감지 | **조회(18.2·18.12·18.13)와 스케줄러 양쪽**에서 감지해 EXPIRED + `EVENT_EXPIRE` 로그. 산책 종료 시 PENDING WALK 이벤트도 EXPIRED | 18.13·18.17 |
+| Q442 오류 코드 재검토 | 11.4 DONE 아닌 구조 409 `RESCUE_NOT_DONE`; 11.8 오류 코드 확정(400/409/404); 10.3은 삭제 신고 404·CLOSED 신고 접수 허용; simulation은 `SIMULATION_ANIMAL_NOT_FOUND` 자체 코드; 신규 `CHAT_ROOM_NOT_FOUND`·`CHAT_MESSAGE_NOT_IN_ROOM`; `SIMULATION_SPECIES_NOT_SUPPORTED`·`SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES` 400→409; `CATALOG_DISTRICT_NOT_FOUND`→`CATALOG_INVALID_DISTRICT_CODE`; 각 절 오류 항목에 404·이미지 코드 보강 | 19장·각 절 |
+| 문구 통일 2차 (2026-11-03) | DB §5 구조 연결 선택, 11.7·12.11·12.12에 `end_reason`·`protection_ended_dttm` 설정 명시, `NotificationRequested` 발행 주체에서 chat 제거, 18.6 요청 `actionType`→`actionCode`, 교차 스키마 읽기 목록(simulation→`users` 포함, core-api→`simulation_sessions` 포함) | 해당 절 |
 
 ### 20.2 미결 안건
 
-**없음.** 남은 조정 항목은 [가안]으로 표시한 수치뿐입니다: 토큰 수명(1시간/14일), 업로드 컨텍스트 TTL(10분)·고아 객체 정리(24시간), 모의 입양 튜닝값(18.0 표), 채팅 구독 목적지 이름. 모두 코드 설정값이며 명세 버전을 올리지 않고 조정합니다. 시드 적재의 세부 절차(Q431)는 적재 시점에 별도 논의합니다. 새 안건은 Q434부터 번호를 붙입니다.
+**없음.** 남은 조정 항목은 [가안]으로 표시한 수치뿐입니다: 토큰 수명(1시간/14일), 업로드 컨텍스트 TTL(10분)·고아 객체 정리(24시간), 모의 입양 튜닝값(18.0 표), 채팅 구독 목적지 이름. 모두 코드 설정값이며 명세 버전을 올리지 않고 조정합니다. 시드 적재의 세부 절차(Q431)는 적재 시점에 별도 논의합니다. 새 안건은 Q443부터 번호를 붙입니다.
 
 ### 아직 스펙에 **없는 것** (의도된 제외)
 
@@ -1901,14 +1929,14 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 3. 돌봄 행동(18.6): 세션 잠금 → 지연 계산 → 기구 보유·소모품 수량 검사 → 수량 -1 → 물품 효과 반영 → `action_logs(CARE)` → `last_action_dttm` 갱신. 돈은 쓰지 않음.
 4. 구매(18.9): 세션 잠금 → `simulation_transactions(PURCHASE)` INSERT → `balance -= amount`(음수 허용) → `simulation_inventory_items` UPSERT. 기구는 수량 1·재구매 409.
 5. 이벤트: HOME·RANDOM은 스케줄러가 하루 1~2회 추첨, HOME·CONDITION은 지연 계산 시점·스케줄러에서 조건 판정(쿨다운 적용), WALK는 하트비트(18.15)에서 추첨. PENDING 1개 부분 UNIQUE. 응답(18.13): `occurrence FOR UPDATE` → PENDING·미만료 확인 → 효과 반영 → `cost>0`이면 `transactions(EVENT)` + 잔액 차감 → `action_logs(EVENT_ANSWER)` → ANSWERED. 만료는 EXPIRED + `action_logs(EVENT_EXPIRE)`, 효과 없음.
-6. 종료(COMPLETED/ABANDONED/FAILED 공통): 스탯 최종 계산 → 진행 중 산책 ENDED·PENDING 이벤트 EXPIRED → 상태·`ended_dttm` 갱신 → `simulation_reports` INSERT(지출 집계·최종 스탯·카운트·summary) → `action_logs(SYSTEM, SESSION_END)` → 커밋 → `simulation_notifications(SESSION_END)` 저장 → `SimulationPushRequested` 이벤트(notification이 FCM). 리포트는 세션당 1건 UNIQUE, 영구 보존.
-7. 알림 스케줄러(S8, 10분 [가안]): simulation의 `@Scheduled` 작업 하나가 진행 중 세션마다 2단계 계산 → 방치(`last_action_dttm` 8시간 경과) `NEGLECT`, 스탯 20 미만 `STAT_WARNING`(스탯당 하루 1회), 조건 이벤트 발생 `EVENT`를 `simulation_notifications`에 저장 후 커밋 → `SimulationPushRequested` 이벤트 → notification이 FCM 발송. simulation은 `device_tokens`를 읽지 않고 일반 `notifications`에도 쓰지 않음. 하트비트 10분 끊긴 산책은 자동 종료. core·notification에는 스케줄 작업 없음.
+6. 종료(COMPLETED/ABANDONED/FAILED 공통): 스탯 최종 계산 → 진행 중 산책 ENDED·PENDING 이벤트 EXPIRED → 상태·`ended_dttm` 갱신 → `simulation_reports` INSERT(지출 집계·최종 스탯·카운트·summary) → `action_logs(SYSTEM, SESSION_END)` → `simulation_notifications(SESSION_END)` INSERT(같은 트랜잭션, Q440) → 커밋 → `SimulationPushRequested` 이벤트(notification이 FCM). 리포트의 `summary`는 세션 상세·행동 이력·지출 내역을 LLM 어댑터에 보내 생성, 실패 시 규칙 문구 [가안](Q435). 리포트는 세션당 1건 UNIQUE, 영구 보존.
+7. 알림 스케줄러(S8, 10분 [가안]): simulation의 `@Scheduled` 작업 하나가 진행 중 세션마다 2단계 계산 → 방치(`last_action_dttm` 8시간 경과) `NEGLECT`, 스탯 20 미만 `STAT_{스탯}_WARNING`(같은 세션·같은 유형 24시간 내 1회, Q438), 조건 이벤트 발생 `EVENT`를 `simulation_notifications`에 저장 후 커밋 → `SimulationPushRequested` 이벤트 → notification이 FCM 발송. simulation은 `device_tokens`를 읽지 않고 일반 `notifications`에도 쓰지 않음. 하트비트 10분 끊긴 산책은 자동 종료. core·notification에는 스케줄 작업 없음.
 
 ### 21.6 서비스 간 이벤트(RabbitMQ) 목록 [가안]
 
 | 이벤트 | 발행 | 소비 | 용도 |
 |---|---|---|---|
-| `NotificationRequested` | core-api·chat | notification | `notifications` INSERT + FCM (COMMENT·ADOPTION·SHELTER). 페이로드: 수신자·유형·message·target |
+| `NotificationRequested` | core-api | notification | `notifications` INSERT + FCM (COMMENT·ADOPTION·SHELTER). 페이로드: 수신자·유형·message·target. chat은 이 이벤트를 내지 않음(채팅은 `ChatMessageSent`만, R9) |
 | `NotificationCreated` | core-api | notification | **FCM 발송만**. core-api가 직접 INSERT한 `AI_MATCH` 행(R1·17.8 ⑥). 페이로드: `notificationSeq`·수신자·message |
 | `SimulationPushRequested` | simulation | notification | `simulation_notifications` 저장 완료 건의 FCM 발송만(저장은 simulation, `device_tokens` 조회는 notification) |
 | `UserDeleted` | core-api | notification·simulation | 디바이스 토큰 `is_active=false`, 진행 중 세션 ABANDONED + 리포트 |
@@ -1956,4 +1984,4 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 
 ---
 
-**v3 종료.** 이 문서는 DB v10과 백엔드 공통 코드 규약을 기준으로 한 API 계약이며, [가안] 수치와 [초안] DTO 세부는 구현 중 조정할 수 있습니다. Q430~Q433은 2026-11-03에 확정해 v3에 반영했습니다. 새 안건은 Q434부터 번호를 붙여 질의응답으로 확정한 뒤 반영합니다. v2는 `animal_service_api_spec_v2.md`로 보존합니다.
+**v3 종료.** 이 문서는 DB v10과 백엔드 공통 코드 규약을 기준으로 한 API 계약이며, [가안] 수치와 [초안] DTO 세부는 구현 중 조정할 수 있습니다. Q430~Q442는 2026-11-03에 확정해 v3에 반영했습니다. 새 안건은 Q443부터 번호를 붙여 질의응답으로 확정한 뒤 반영합니다. v2는 `animal_service_api_spec_v2.md`로 보존합니다.
