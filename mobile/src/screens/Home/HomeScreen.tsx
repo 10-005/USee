@@ -133,7 +133,13 @@ export function HomeScreen({ navigation }: Props) {
           <BookmarkIcon height={24} width={24} />
         )}
       </Pressable>
-      <View style={[styles.statusBadge, item.status === '종료' && styles.endedBadge]}>
+      <View
+        style={[
+          styles.statusBadge,
+          { top: cardWidth - 24 },
+          item.status === '종료' && styles.endedBadge,
+        ]}
+      >
         <Text style={styles.statusText}>{item.status}</Text>
       </View>
       <Text numberOfLines={1} style={styles.cardTitle}>
@@ -264,9 +270,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.green100,
     borderBottomLeftRadius: radius.xs,
     borderTopRightRadius: radius.xs,
-    marginTop: -24,
+    height: 24,
+    justifyContent: 'center',
+    left: 0,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    position: 'absolute',
+    zIndex: 1,
   },
   endedBadge: { backgroundColor: colors.gray400 },
   statusText: { ...typography.captionSemiBold12, color: colors.white },

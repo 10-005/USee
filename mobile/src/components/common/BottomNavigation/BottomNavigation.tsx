@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   container: {
     ...shadows.level2,
     alignItems: 'center',
-    backgroundColor: 'rgba(247, 246, 242, 0.6)',
+    backgroundColor: 'rgb(247, 246, 242)',
     borderRadius: 28,
     flexDirection: 'row',
     height: 60,
