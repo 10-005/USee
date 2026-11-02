@@ -2,6 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import Geolocation from '@react-native-community/geolocation';
 import { Fragment, useEffect, useRef, useState } from 'react';
+import { saveSubmittedAdoptionApplication } from '../../services/storage/adoptionApplicationStorage';
 import {
   Image,
   Modal,
@@ -34,7 +35,7 @@ import {
 import { colors, radius, spacing, typography } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AdoptionApplication'>;
-type FormState = {
+export type AdoptionApplicationForm = {
   address: string;
   email: string;
   visitDate: string;
@@ -75,6 +76,8 @@ type FormState = {
   consentPublic: boolean;
   finalConfirmation: boolean;
 };
+
+type FormState = AdoptionApplicationForm;
 
 const initialForm: FormState = {
   address: '',
@@ -299,7 +302,7 @@ function ConsentRow({
   );
 }
 
-export function AdoptionApplicationScreen({ navigation }: Props) {
+export function AdoptionApplicationScreen({ navigation, route }: Props) {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState('');
@@ -313,7 +316,7 @@ export function AdoptionApplicationScreen({ navigation }: Props) {
   const update = <Key extends keyof FormState>(key: Key, value: FormState[Key]) =>
     setForm(current => ({ ...current, [key]: value }));
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!isAdoptionStepValid(form, step)) {
       setError('필수 항목을 모두 입력해 주세요.');
       return;
@@ -322,7 +325,13 @@ export function AdoptionApplicationScreen({ navigation }: Props) {
     if (step < 5) {
       setStep(current => current + 1);
     } else {
-      setDraftFeedback('제출 API 연동 전이라 신청서가 전송되지는 않았습니다.');
+      try {
+        await saveSubmittedAdoptionApplication(route.params.animalId, form);
+        await removeAdoptionApplicationDraft();
+        navigation.replace('AdoptionApplicationHistory', { animalId: route.params.animalId });
+      } catch {
+        setError('신청서를 저장하지 못했습니다. 다시 시도해 주세요.');
+      }
     }
   };
   const canContinue = isAdoptionStepValid(form, step);

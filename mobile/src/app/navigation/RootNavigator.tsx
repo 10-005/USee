@@ -4,6 +4,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { HomeScreen } from '../../screens/Home/HomeScreen';
 import { ArWalkScreen } from '../../screens/ArWalk/ArWalkScreen';
 import { AdoptionApplicationScreen } from '../../screens/adoption/AdoptionApplicationScreen';
+import { AdoptionApplicationHistoryScreen } from '../../screens/adoption/AdoptionApplicationHistoryScreen';
+import { AdoptionApplicationListScreen } from '../../screens/adoption/AdoptionApplicationListScreen';
+import { AdoptionApplicationReviewScreen } from '../../screens/adoption/AdoptionApplicationReviewScreen';
 import { AdoptionDetailScreen } from '../../screens/adoption/AdoptionDetailScreen';
 import { ShelterDetailScreen } from '../../screens/shelter/ShelterDetailScreen';
 import type { RootStackParamList } from './types';
@@ -30,6 +33,15 @@ export function RootNavigator() {
         />
         <Stack.Screen name="AdoptionDetail" component={AdoptionDetailScreen} />
         <Stack.Screen name="AdoptionApplication" component={AdoptionApplicationScreen} />
+        <Stack.Screen
+          name="AdoptionApplicationHistory"
+          component={AdoptionApplicationHistoryScreen}
+        />
+        <Stack.Screen name="AdoptionApplicationList" component={AdoptionApplicationListScreen} />
+        <Stack.Screen
+          name="AdoptionApplicationReview"
+          component={AdoptionApplicationReviewScreen}
+        />
         <Stack.Screen name="ShelterDetail" component={ShelterDetailScreen} />
       </Stack.Navigator>
     </NavigationContainer>

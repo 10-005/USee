@@ -7,6 +7,8 @@ import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import RightArrowIcon from '../../assets/icons/common/right-arrow.svg';
 import { AppHeader, Button } from '../../components/common';
+import { getAdoptionApplicationRecord } from '../../services/storage/adoptionApplicationStorage';
+import { getAdoptionApplicationDraft } from '../../services/storage/adoptionDraftStorage';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals } from './data';
@@ -42,6 +44,25 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
     adoptionAnimals.find(item => item.id === route.params.animalId) ?? adoptionAnimals[0];
   const bookmarked = useAdoptionBookmarkStore(state => state.bookmarkedIds.includes(animal.id));
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
+  const openApplication = async () => {
+    const [record, draft] = await Promise.all([
+      getAdoptionApplicationRecord(),
+      getAdoptionApplicationDraft(),
+    ]);
+    if (draft || record?.status === 'DRAFT') {
+      navigation.navigate('AdoptionApplication', { animalId: animal.id });
+      return;
+    }
+    if (record?.status === 'CANCELED' || record?.status === 'REJECTED') {
+      navigation.navigate('AdoptionApplication', { animalId: animal.id });
+      return;
+    }
+    if (record) {
+      navigation.navigate('AdoptionApplicationHistory', { animalId: animal.id });
+      return;
+    }
+    navigation.navigate('AdoptionApplication', { animalId: animal.id });
+  };
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
@@ -127,10 +148,7 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
         </View>
         <View style={styles.actions}>
           <Button style={styles.action}>채팅 보내기</Button>
-          <Button
-            onPress={() => navigation.navigate('AdoptionApplication')}
-            style={[styles.action, styles.applyButton]}
-          >
+          <Button onPress={openApplication} style={[styles.action, styles.applyButton]}>
             입양 신청하기
           </Button>
         </View>
