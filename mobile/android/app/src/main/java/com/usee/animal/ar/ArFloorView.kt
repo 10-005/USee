@@ -239,6 +239,17 @@ class ArFloorView(
     sharedLifecycle = sharedLifecycle,
     sessionConfiguration = sessionConfiguration,
   ) {
+    override fun destroy() {
+      onSessionUpdated = null
+      // SceneView destroys its material loader before user-created renderables.
+      // Detach also calls destroy(), so release the shadow here for every exit path.
+      childNodes.filterIsInstance<CylinderNode>().forEach { shadow ->
+        removeChildNode(shadow)
+        shadow.destroy()
+      }
+      super.destroy()
+    }
+
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
       val rotation = display?.rotation ?: return
       session?.setDisplayGeometry(rotation, width, height)
