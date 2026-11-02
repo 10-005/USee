@@ -108,7 +108,7 @@
   font-size: 14px;
 }
 .ui-table .ui-status-badge {
-  padding: 5px 6px;
+  padding: 5px 7px;
 }
 .ui-table .ui-button {
   white-space: nowrap;
@@ -126,14 +126,19 @@
   width: 40px;
   min-height: 40px;
   padding: 8px;
-  border: 1px solid #ebeae5;
-  border-radius: 6px;
+  border: 1px solid #d9dfdc;
+  border-radius: 12px;
   background: white;
   color: #363532;
-  font-weight: 400;
+  font-weight: 600;
+}
+.ui-pagination .ui-button:hover:not(:disabled):not([aria-current='page']) {
+  background: #f2f5f3;
+  border-color: #b8c6bf;
 }
 .ui-pagination .ui-button[aria-current='page'] {
-  background: #17b85c;
+  background: #22c55e;
+  border-color: #22c55e;
   color: white;
 }
 .ui-pagination .ui-button:disabled {

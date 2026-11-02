@@ -1,9 +1,11 @@
+import type { ReactNode } from 'react';
 import './shared-ui.css';
 
 export type ActivityCardProps = {
   title: string;
   description: string;
-  timeLabel: string;
+  timeLabel?: string;
+  badge?: ReactNode;
   dateTime?: string;
   onClick?: () => void;
 };
@@ -12,6 +14,7 @@ export function ActivityCard({
   title,
   description,
   timeLabel,
+  badge,
   dateTime,
   onClick,
 }: ActivityCardProps) {
@@ -19,7 +22,7 @@ export function ActivityCard({
     <>
       <span className="ui-activity-card__row">
         <span className="ui-activity-card__title">{title}</span>
-        <time dateTime={dateTime}>{timeLabel}</time>
+        {badge ?? (timeLabel && <time dateTime={dateTime}>{timeLabel}</time>)}
       </span>
       <span className="ui-activity-card__description">{description}</span>
     </>
