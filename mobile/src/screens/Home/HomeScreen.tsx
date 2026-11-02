@@ -8,11 +8,13 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
+import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import DateIcon from '../../assets/icons/common/date.svg';
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
@@ -74,6 +76,8 @@ const navigationItems = [
 
 export function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const cardWidth = (screenWidth - 52) / 2;
   const [query, setQuery] = useState('');
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(() => new Set());
   const [selectedTab, setSelectedTab] =
@@ -101,24 +105,33 @@ export function HomeScreen({ navigation }: Props) {
     <Pressable
       accessibilityRole="button"
       onPress={() => navigation.navigate('AdoptionDetail', { animalId: item.id })}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.card,
+        { height: cardWidth + 118, width: cardWidth },
+        pressed && styles.pressed,
+      ]}
     >
-      <Image resizeMode="cover" source={item.image} style={styles.cardImage} />
+      <Image
+        resizeMode="cover"
+        source={item.image}
+        style={[styles.cardImage, { height: cardWidth, width: cardWidth }]}
+      />
       <Pressable
         accessibilityLabel={`${item.name} 북마크`}
         accessibilityRole="button"
         accessibilityState={{ selected: bookmarkedIds.has(item.id) }}
+        hitSlop={8}
         onPress={event => {
           event.stopPropagation();
           toggleBookmark(item.id);
         }}
-        style={({ pressed }) => [
-          styles.bookmarkButton,
-          bookmarkedIds.has(item.id) && styles.bookmarkButtonSelected,
-          pressed && styles.pressed,
-        ]}
+        style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
       >
-        <BookmarkIcon />
+        {bookmarkedIds.has(item.id) ? (
+          <BookmarkActiveIcon height={24} width={24} />
+        ) : (
+          <BookmarkIcon height={24} width={24} />
+        )}
       </Pressable>
       <View style={[styles.statusBadge, item.status === '종료' && styles.endedBadge]}>
         <Text style={styles.statusText}>{item.status}</Text>
@@ -236,21 +249,16 @@ const styles = StyleSheet.create({
   filterText: { ...typography.bodyRegular14, color: colors.gray500 },
   listContent: { paddingHorizontal: 20 },
   column: { gap: 12 },
-  card: { flex: 1, height: 316, marginBottom: 18, minWidth: 0 },
-  cardImage: { aspectRatio: 1, borderRadius: radius.sm, width: '100%' },
+  card: { marginBottom: 18 },
+  cardImage: { borderRadius: radius.sm },
   bookmarkButton: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 16,
-    height: 32,
-    justifyContent: 'center',
+    height: 24,
     position: 'absolute',
     right: 8,
     top: 8,
-    width: 32,
+    width: 24,
     zIndex: 1,
   },
-  bookmarkButtonSelected: { backgroundColor: '#DCFCE7' },
   statusBadge: {
     alignSelf: 'flex-start',
     backgroundColor: colors.green100,

@@ -4,6 +4,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
+import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import { AppHeader, Button } from '../../components/common';
 import { colors, radius, typography } from '../../theme';
@@ -65,14 +66,15 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
             accessibilityLabel="북마크"
             accessibilityRole="button"
             accessibilityState={{ selected: bookmarked }}
+            hitSlop={8}
             onPress={() => setBookmarked(current => !current)}
-            style={({ pressed }) => [
-              styles.bookmark,
-              bookmarked && styles.bookmarkSelected,
-              pressed && styles.pressed,
-            ]}
+            style={({ pressed }) => [styles.bookmark, pressed && styles.pressed]}
           >
-            <BookmarkIcon />
+            {bookmarked ? (
+              <BookmarkActiveIcon height={24} width={24} />
+            ) : (
+              <BookmarkIcon height={24} width={24} />
+            )}
           </Pressable>
         </View>
         <View style={styles.section}>
@@ -147,13 +149,9 @@ const styles = StyleSheet.create({
   badgeText: { ...typography.bodyRegular14, color: colors.white },
   title: { ...typography.titleSemiBold18, color: colors.black, flex: 1 },
   bookmark: {
-    alignItems: 'center',
-    borderRadius: 16,
-    height: 32,
-    justifyContent: 'center',
-    width: 32,
+    height: 24,
+    width: 24,
   },
-  bookmarkSelected: { backgroundColor: '#DCFCE7' },
   section: {
     borderTopColor: colors.gray200,
     borderTopWidth: 1,
