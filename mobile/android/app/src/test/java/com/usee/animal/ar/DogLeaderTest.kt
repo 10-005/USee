@@ -14,7 +14,7 @@ class DogLeaderTest {
     leader.requestPlacement()
     val dog = leader.update(0.02f, 2f, 3f, 1f, 0f, floor)
     assertTrue(dog.visible)
-    assertEquals(3.4f, dog.x, 0.001f)
+    assertEquals(3f, dog.x, 0.001f)
     assertEquals(3f, dog.z, 0.001f)
     leader.requestPlacement()
     val next = leader.update(0.02f, 4f, 3f, 1f, 0f, floor)
@@ -46,7 +46,7 @@ class DogLeaderTest {
       assertTrue(hypot(next.x, next.z) >= 0.44f)
       dog = next
     }
-    assertTrue("Dog should reach the new forward side: $dog", dog.z > 1f)
+    assertTrue("Dog should reach the new forward side: $dog", dog.z > 0.7f)
   }
 
   @Test fun backingUpMakesDogFaceWalkerAndFollow() {
@@ -131,7 +131,7 @@ class DogLeaderTest {
     leader.updateWalls(listOf(wall))
     var sawSideStep = false
     for (i in 1..500) {
-      val cameraZ = -min(i * 0.01f, 1f)
+      val cameraZ = -min(i * 0.01f, 1.5f)
       val next = leader.update(0.02f, 0f, cameraZ, 0f, -1f, floor)
       assertFalse("Crossed wall: $dog -> $next", wall.blocks(dog.x, dog.z, next.x, next.z, dog.y))
       if (next.clip == "WalkLeft" || next.clip == "WalkRight") sawSideStep = true

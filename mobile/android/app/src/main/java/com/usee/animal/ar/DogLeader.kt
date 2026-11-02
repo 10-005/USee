@@ -3,7 +3,8 @@ package com.usee.animal.ar
 import kotlin.math.*
 
 /** Predicts a walking companion's route in AR world coordinates. Model forward is local +Z. */
-internal const val DOG_LEAD_METERS = 1.4f
+internal const val DOG_LEAD_METERS = 1.0f
+internal const val DOG_MODEL_UNITS = 0.825f
 
 class DogLeader(
   private val requiresPlacement: Boolean = false,
@@ -12,7 +13,7 @@ class DogLeader(
   private var placed = false
   val isPlaced: Boolean get() = placed
   private var placementRequested = false
-  private val wallAvoidance = WallAvoidance()
+  private val wallAvoidance = WallAvoidance(bodyRadius = 0.42f, bodyHeight = DOG_MODEL_UNITS)
 
   fun updateWalls(walls: List<WallSegment>) {
     wallAvoidance.walls = walls

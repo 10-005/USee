@@ -7,15 +7,18 @@ data class WallSegment(
   val bx: Float, val bz: Float,
   val minY: Float = -10f, val maxY: Float = 10f,
 ) {
-  fun blocks(x: Float, z: Float, nextX: Float, nextZ: Float, floorY: Float): Boolean {
-    if (maxY < floorY + 0.04f || minY > floorY + 0.55f) return false
+  fun blocks(
+    x: Float, z: Float, nextX: Float, nextZ: Float, floorY: Float,
+    bodyRadius: Float = 0.28f, bodyHeight: Float = 0.55f,
+  ): Boolean {
+    if (maxY < floorY + 0.04f || minY > floorY + bodyHeight) return false
     val start = pointDistanceSquared(x, z)
     val end = pointDistanceSquared(nextX, nextZ)
     val distance = if (intersects(x, z, nextX, nextZ)) 0f else minOf(
       start, end, pointSegmentDistanceSquared(ax, az, x, z, nextX, nextZ),
       pointSegmentDistanceSquared(bx, bz, x, z, nextX, nextZ),
     )
-    val clearanceSquared = 0.28f * 0.28f
+    val clearanceSquared = bodyRadius * bodyRadius
     if (distance >= clearanceSquared) return false
     // A newly detected wall may already overlap the dog. Allow escape along
     // or away from that wall, but never a deeper approach or a crossing.
@@ -54,7 +57,10 @@ data class WallSegment(
 
 data class WallRoute(val yaw: Float, val detouring: Boolean = false, val blocked: Boolean = false)
 
-class WallAvoidance {
+class WallAvoidance(
+  private val bodyRadius: Float = 0.28f,
+  private val bodyHeight: Float = 0.55f,
+) {
   var walls: List<WallSegment> = emptyList()
   private var detourYaw: Float? = null
   private var intentYaw = 0f
@@ -63,7 +69,7 @@ class WallAvoidance {
   private var rejectedSeconds = 0f
 
   fun isClear(x: Float, z: Float, nextX: Float, nextZ: Float, y: Float) =
-    walls.none { it.blocks(x, z, nextX, nextZ, y) }
+    walls.none { it.blocks(x, z, nextX, nextZ, y, bodyRadius, bodyHeight) }
 
   fun steer(x: Float, z: Float, y: Float, desiredYaw: Float, distance: Float, intent: Float, dt: Float): WallRoute {
     rejectedSeconds -= dt
@@ -75,7 +81,7 @@ class WallAvoidance {
     intentYaw = intent
     val dx = sin(desiredYaw) * distance
     val dz = cos(desiredYaw) * distance
-    val blocker = walls.firstOrNull { it.blocks(x, z, x + dx, z + dz, y) }
+    val blocker = walls.firstOrNull { it.blocks(x, z, x + dx, z + dz, y, bodyRadius, bodyHeight) }
     if (blocker == null) {
       clearSeconds += dt
       if (clearSeconds >= 0.3f) {

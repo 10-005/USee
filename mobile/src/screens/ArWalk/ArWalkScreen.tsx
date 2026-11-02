@@ -19,7 +19,7 @@ const STATUS_COPY: Record<FloorTrackingStatus | 'leading', { label: string; hint
   },
   ready: {
     label: '강아지를 놓을 수 있어요',
-    hint: '버튼을 누르면 내 앞 약 1.4m의 바닥에서 산책을 시작합니다.',
+    hint: '버튼을 누르면 내 앞 약 1m의 바닥에서 산책을 시작합니다.',
   },
   anchored: {
     label: '앞에서 기다리는 중',

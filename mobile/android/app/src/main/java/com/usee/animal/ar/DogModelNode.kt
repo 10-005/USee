@@ -4,7 +4,7 @@ import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.node.ModelNode
 
 internal class DogModelNode(instance: ModelInstance) : ModelNode(
-  modelInstance = instance, autoAnimate = false, scaleToUnits = 0.55f,
+  modelInstance = instance, autoAnimate = false, scaleToUnits = DOG_MODEL_UNITS,
 ) {
   private val indices = (0 until animationCount).associateBy { animator.getAnimationName(it) }
   val durations = indices.mapValues { animator.getAnimationDuration(it.value) }

@@ -123,7 +123,7 @@ class ArFloorView(
         node.isVisible = false
         val shadow = CylinderNode(
           engine = view.engine,
-          radius = 0.15f,
+          radius = 0.225f,
           height = 0.01f,
           materialInstance = view.materialLoader.createColorInstance(
             colorOf(r = 0f, g = 0f, b = 0f, a = 0.42f),
