@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-api
+  namespace: app
+  labels:
+    app: core-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: core-api
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0   # 새 Pod가 준비된 뒤에 옛 Pod를 내린다 (무중단)
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: core-api
+    spec:
+      imagePullSecrets:
+        - name: registry-pull
+      # 두 노드에 한 개씩 나눠 배치. 한 노드가 꺼지면 남은 노드에 둘 다 뜨도록 ScheduleAnyway
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: core-api
+      containers:
+        - name: core-api
+          image: k15d106.p.ssafy.io/animal/core-api   # 태그는 overlay(kustomization images)에서 지정
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # application.yml의 local 프로필(DB·Redis 설정)을 쓰지 않고, 아래 환경 변수로 주입
+            - name: SPRING_PROFILES_ACTIVE
+              value: dev
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres.data.svc.cluster.local:5432/animal?currentSchema=core
+            - name: SPRING_DATASOURCE_USERNAME
+              value: core_app
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: core-api-secrets, key: DB_PASSWORD }
+            - name: SPRING_DATA_REDIS_HOST
+              value: redis.data.svc.cluster.local
+            - name: SPRING_DATA_REDIS_PORT
+              value: "6379"
+            - name: SPRING_DATA_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: core-api-secrets, key: REDIS_PASSWORD }
+            # 마이그레이션 도구 도입 전까지 개발 서버는 엔티티 기준으로 테이블 자동 갱신
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              value: update
+            - name: JWT_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef: { name: core-api-secrets, key: JWT_PUBLIC_KEY }
+          # JVM 기동이 느리므로 startupProbe로 최대 150초까지 기다린 뒤 liveness/readiness 시작
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 250m, memory: 768Mi }
+            limits: { memory: 1Gi }   # Dockerfile의 MaxRAMPercentage=75 → 힙 약 768MB

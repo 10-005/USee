@@ -1,0 +1,19 @@
+# 컨트롤러가 /api/core/v1/... 로 매핑되어 있으므로 경로를 자르지 않고 그대로 전달
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: core-api
+  namespace: app
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: k15d106.p.ssafy.io
+      http:
+        paths:
+          - path: /api/core
+            pathType: Prefix
+            backend:
+              service:
+                name: core-api
+                port:
+                  number: 8080
