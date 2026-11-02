@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, shadows, spacing, typography } from '../../../theme';
+import { colors, spacing, typography } from '../../../theme';
 
 export type BottomNavigationItem<Key extends string = string> = {
   icon: (selected: boolean) => ReactNode;
@@ -68,10 +68,10 @@ export function BottomNavigation<Key extends string>({
 
 const styles = StyleSheet.create({
   container: {
-    ...shadows.level2,
     alignItems: 'center',
-    backgroundColor: 'rgb(247, 246, 242)',
+    backgroundColor: 'rgba(247, 246, 242, 0.6)',
     borderRadius: 28,
+    boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.15)',
     flexDirection: 'row',
     height: 60,
     justifyContent: 'space-between',

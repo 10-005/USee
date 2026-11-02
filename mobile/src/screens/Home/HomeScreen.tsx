@@ -15,7 +15,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
-import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import DateIcon from '../../assets/icons/common/date.svg';
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
@@ -30,6 +29,7 @@ import PlusIcon from '../../assets/icons/navigation/plus.svg';
 import SearchActiveIcon from '../../assets/icons/navigation/search-active.svg';
 import SearchIcon from '../../assets/icons/navigation/search.svg';
 import { BottomNavigation } from '../../components/common';
+import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
 
@@ -79,7 +79,8 @@ export function HomeScreen({ navigation }: Props) {
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = (screenWidth - 52) / 2;
   const [query, setQuery] = useState('');
-  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(() => new Set());
+  const bookmarkedIds = useAdoptionBookmarkStore(state => state.bookmarkedIds);
+  const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
   const [selectedTab, setSelectedTab] =
     useState<(typeof navigationItems)[number]['key']>('adoption');
   const animals = useMemo(
@@ -89,17 +90,6 @@ export function HomeScreen({ navigation }: Props) {
       ),
     [query],
   );
-  const toggleBookmark = (animalId: string) => {
-    setBookmarkedIds(current => {
-      const next = new Set(current);
-      if (next.has(animalId)) {
-        next.delete(animalId);
-      } else {
-        next.add(animalId);
-      }
-      return next;
-    });
-  };
 
   const renderAnimal = ({ item }: { item: AdoptionAnimal }) => (
     <Pressable
@@ -116,23 +106,21 @@ export function HomeScreen({ navigation }: Props) {
         source={item.image}
         style={[styles.cardImage, { height: cardWidth, width: cardWidth }]}
       />
-      <Pressable
-        accessibilityLabel={`${item.name} 북마크`}
-        accessibilityRole="button"
-        accessibilityState={{ selected: bookmarkedIds.has(item.id) }}
-        hitSlop={8}
-        onPress={event => {
-          event.stopPropagation();
-          toggleBookmark(item.id);
-        }}
-        style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
-      >
-        {bookmarkedIds.has(item.id) ? (
-          <BookmarkActiveIcon height={24} width={24} />
-        ) : (
-          <BookmarkIcon height={24} width={24} />
-        )}
-      </Pressable>
+      {bookmarkedIds.includes(item.id) ? (
+        <Pressable
+          accessibilityLabel={`${item.name} 북마크 해제`}
+          accessibilityRole="button"
+          accessibilityState={{ selected: true }}
+          hitSlop={8}
+          onPress={event => {
+            event.stopPropagation();
+            toggleBookmark(item.id);
+          }}
+          style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
+        >
+          <BookmarkActiveIcon />
+        </Pressable>
+      ) : null}
       <View
         style={[
           styles.statusBadge,

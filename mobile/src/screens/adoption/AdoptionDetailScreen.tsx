@@ -1,5 +1,4 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,6 +6,7 @@ import type { RootStackParamList } from '../../app/navigation/types';
 import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import { AppHeader, Button } from '../../components/common';
+import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals } from './data';
 
@@ -37,9 +37,10 @@ function InfoRows({ rows }: { rows: string[][] }) {
 }
 
 export function AdoptionDetailScreen({ navigation, route }: Props) {
-  const [bookmarked, setBookmarked] = useState(false);
   const animal =
     adoptionAnimals.find(item => item.id === route.params.animalId) ?? adoptionAnimals[0];
+  const bookmarked = useAdoptionBookmarkStore(state => state.bookmarkedIds.includes(animal.id));
+  const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
@@ -67,13 +68,13 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
             accessibilityRole="button"
             accessibilityState={{ selected: bookmarked }}
             hitSlop={8}
-            onPress={() => setBookmarked(current => !current)}
+            onPress={() => toggleBookmark(animal.id)}
             style={({ pressed }) => [styles.bookmark, pressed && styles.pressed]}
           >
             {bookmarked ? (
-              <BookmarkActiveIcon height={24} width={24} />
+              <BookmarkActiveIcon height={20} width={20} />
             ) : (
-              <BookmarkIcon height={24} width={24} />
+              <BookmarkIcon height={20} width={20} />
             )}
           </Pressable>
         </View>
@@ -149,8 +150,8 @@ const styles = StyleSheet.create({
   badgeText: { ...typography.bodyRegular14, color: colors.white },
   title: { ...typography.titleSemiBold18, color: colors.black, flex: 1 },
   bookmark: {
-    height: 24,
-    width: 24,
+    height: 20,
+    width: 20,
   },
   section: {
     borderTopColor: colors.gray200,
