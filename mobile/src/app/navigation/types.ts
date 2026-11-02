@@ -1,6 +1,7 @@
 import type { AdoptionApplicationStatus } from '../../services/storage/adoptionApplicationStorage';
 
 export type RootStackParamList = {
+  ArWalk: undefined;
   AdoptionApplication: { animalId: string };
   AdoptionApplicationHistory: {
     animalId: string;

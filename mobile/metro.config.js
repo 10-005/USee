@@ -14,6 +14,7 @@ const config = {
     babelTransformerPath: require.resolve('react-native-svg-transformer/react-native'),
   },
   resolver: {
+    blockList: [/[/\\]android[/\\](?:.*[/\\])?(?:build|\.gradle|\.cxx)(?:[/\\]|$)/],
     assetExts: assetExts.filter(ext => ext !== 'svg'),
     sourceExts: [...sourceExts, 'svg'],
   },

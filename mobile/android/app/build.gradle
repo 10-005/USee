@@ -1,3 +1,5 @@
+project.ext.REACT_NATIVE_NODE_MODULES_DIR = file("../../node_modules/react-native")
+
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
@@ -7,6 +9,10 @@ apply plugin: "com.facebook.react"
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
 react {
+    if (gradle.ext.has("nodeBinary") && gradle.ext.nodeBinary != "node") {
+        nodeExecutableAndArgs = [gradle.ext.nodeBinary]
+    }
+
     /* Folders */
     //   The root of your project, i.e. where "package.json" lives. Default is '../..'
     // root = file("../../")
@@ -113,8 +119,10 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    implementation("io.github.sceneview:arsceneview:2.3.3")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
