@@ -35,6 +35,7 @@
 | Q429 A | 모의 입양 튜닝값은 코드 설정 [가안] 유지 | 18.0 |
 | S1~S8 | 스택 확정(머리말). S4 presigned PUT + S3, S5·S6 RabbitMQ, S7 ILIKE 검색, S8 simulation 스케줄러 10분 | 4·7.1·8.1·9.1·11.1·14·18.0 |
 | 인증 세부 | RS256, core-api 발급·전 서비스 공개키 검증, 클레임 `userSeq/role/shelterSeq`, STOMP CONNECT·SUBSCRIBE 인가 | 1.1·14장 |
+| 2차 검토 R1~R16 | 포크 가안 검토 결과. AI_MATCH 쓰기 예외 유지(R1), 세션 스냅샷 4컬럼(R2), 보호소 업무 정책(R3~R6, 전용 수정 API 없음), 삭제 댓글·채팅방 생성(R7·R8), **채팅 푸시는 FCM 데이터 메시지 + 앱 판단(R9 C)**, 8.8 필터(R10), 도메인 재분류 `catalog`·`user`(R11·R12), `assignmentMethod` 응답 전용(R13), `districts` 07번(R14), 고아 객체 1일(R15), **채팅 전송은 STOMP SEND(R16 B)** | 20.1·14·19장 |
 
 ## 0. 기준 및 적용 범위
 
@@ -56,7 +57,7 @@
 4. 보호동물은 **이름 컬럼이 없고** 첫 등록이 `PROTECTING+UNAVAILABLE`입니다. 반환 완료 시간은 `animal_returns.reg_dttm`을 사용합니다.
 5. 입양 신청은 `DRAFT/SUBMITTED/APPROVED/REJECTED/CANCELED/ADOPTED` 6종이며, 동일 회원·동물의 비삭제 활성(DRAFT/SUBMITTED/APPROVED) 신청은 **통틀어 1건**입니다. `CLOSED` 상태는 없습니다.
 6. 공통 입양 문항은 **현재 21개**, 답변은 `questionSeq`를 문자열 키로 하는 단일 JSON 객체입니다. 템플릿·버전·질문 이력·제출 당시 문항 스냅샷은 없습니다.
-7. 댓글·채팅 이미지에는 각각 **`imageSeq` 단일 선택 필드(최대 1장)**를 사용합니다. 댓글의 부모 삭제 후 기존 답글은 유지합니다. 게시물·반려동물·보호동물의 사진 수정은 **`imageSeqs` 전체 최종 배열**로 보내고 서버가 diff와 순서를 계산합니다(Q424).
+7. 댓글·채팅 이미지에는 각각 **`imageSeq` 단일 선택 필드(최대 1장)**를 사용합니다(채팅은 STOMP SEND 본문의 `imageSeq`, R16 B). 댓글의 부모 삭제 후 기존 답글은 유지합니다. 게시물·반려동물·보호동물의 사진 수정은 **`imageSeqs` 전체 최종 배열**로 보내고 서버가 diff와 순서를 계산합니다(Q424).
 8. 사용자 차단·신고 심사·신고 내역 조회(Q428)·보호소 이관·입양 후 관리·AI 동일 동물 확정 링크 API와 **ADMIN 전용 API 전체**는 **범위 밖**입니다. 모의 입양은 **범위 안**(18장)입니다.
 9. 알림 저장 유형은 `COMMENT/AI_MATCH/ADOPTION/SHELTER/SYSTEM` **5종**, 채팅 푸시는 DB 알림 기록을 남기지 않습니다. 생성 이벤트는 17.8의 최소 집합(Q426)이며 `SYSTEM`은 유형만 예약하고 이번 범위에서 발송하지 않습니다. 모의 입양 알림은 별도 테이블 `simulation_notifications`와 별도 API(18장)로 분리합니다.
 10. `TIMESTAMPTZ`를 유지하고 DB 세션 시간대는 `Asia/Seoul`입니다. API는 `OffsetDateTime`을 ISO-8601 `+09:00`으로 직렬화합니다(Q416).
@@ -201,8 +202,10 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 | 보호동물 반환/입양 심사·완료 | 불가 | 소속 보호소 |
 | 입양 신청·저장·제출·취소 | **본인만** | 불가(SUBMITTED 이후 업무 열람만, Q422) |
 | 모의 입양 세션·돌봄·구매·이벤트·산책 | **본인만** | 불가(자기 보호동물 세션의 리포트·이력 열람만) |
-| 댓글·채팅 작성 | 허용 | 허용(대화 조합 제한) |
-| 댓글·채팅 수정/삭제 | 작성자 본인(Q423) | 작성자 본인(Q423) |
+| 댓글 작성 | 허용 | 허용 |
+| 채팅방 생성·메시지 전송 | 허용(USER↔USER, USER↔SHELTER). 전송은 STOMP SEND(R16 B) | 허용(USER 대상만, SHELTER가 먼저 생성 가능 R8). 전송은 STOMP SEND |
+| 댓글 수정/삭제 | 작성자 본인(Q423) | 작성자 본인(Q423) |
+| 채팅 메시지 수정/삭제 | 없음(기능 자체 없음) | 없음 |
 | 신고 | 허용; 보호소 계정 대상 신고 불가 | 허용(USER·게시물·댓글 대상) |
 | 북마크 | USER | 불가 |
 | 일반 알림 | 수신자 본인 | 수신자 본인 |
@@ -455,7 +458,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 - **[확정 정책]** USER만 등록; 이름/유효 `combinationSeq`/성별 필수, 성별 `MALE/FEMALE/UNKNOWN`; 사진 1~3장. 첫 이미지가 대표. 중성화는 `true/false/null`, 몸무게와 나이는 선택 자유 텍스트.
 - `userSeq`는 JWT 인증 주체에서 설정합니다. `imageSeqs`는 순서대로 `pet_images.display_order=1..N`로 연결합니다.
-- **오류 [초안]** 404 `ANIMAL_COMBINATION_NOT_FOUND`/`IMAGE_NOT_FOUND`, 400 `IMAGE_INVALID_COUNT`, 403 `IMAGE_NOT_OWNED`.
+- **오류 [초안]** 404 `CATALOG_COMBINATION_NOT_FOUND`/`IMAGE_NOT_FOUND`, 400 `IMAGE_INVALID_COUNT`, 403 `IMAGE_NOT_OWNED`.
 
 ### 6.4 PATCH /pets/{petSeq} · 6.5 DELETE /pets/{petSeq}
 
@@ -594,9 +597,9 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 **성공 201 `data` [초안]** `{ "foundReportSeq":210, "status":"ACTIVE", "districtCode":"27110", "assignedShelterSeq":7, "assignmentMethod":"DISTRICT" }`.
 
 - 주소/좌표/시각/신고자 연락처/조합/성별/사진 1~3장은 필수입니다. 기본 비공개. 신고자 이름은 별도 필드가 아니므로 요청하지 않습니다. **USER만 작성**(Q421).
-- **[확정 정책] 담당 보호소 자동 배정(Q406 A·Q406-2 A), 서버 수행:** ① 좌표를 네이버 역지오코딩(`legalcode`)으로 조회해 앞 5자리를 `districtCode`로 저장 → ② `shelter_district_assignments`에 그 코드가 있으면 지정 보호소(`assignmentMethod:"DISTRICT"`) → ③ 코드가 없거나(역지오코딩 실패, `districtCode:null`) 배정표에 없으면 위경도 하버사인 최근접 비삭제 보호소(`assignmentMethod:"NEAREST"`, S3 A). 역지오코딩 실패로 **등록을 거부하지 않습니다**. 보호소가 하나도 없을 때만 409 `FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE`(시드 전 환경). `shelterSeq` 임의 입력 불허. 수동 재배정 API는 없습니다(ADMIN 범위 외).
+- **[확정 정책] 담당 보호소 자동 배정(Q406 A·Q406-2 A), 서버 수행:** ① 좌표를 네이버 역지오코딩(`legalcode`)으로 조회해 앞 5자리를 `districtCode`로 저장 → ② `shelter_district_assignments`에 그 코드가 있으면 지정 보호소(`assignmentMethod:"DISTRICT"`) → ③ 코드가 없거나(역지오코딩 실패, `districtCode:null`) 배정표에 없으면 위경도 하버사인 최근접 비삭제 보호소(`assignmentMethod:"NEAREST"`, S3 A). 역지오코딩 실패로 **등록을 거부하지 않습니다**. `assignmentMethod`는 **응답 전용** 값이며 DB에 저장하지 않습니다(R13 A). 보호소가 하나도 없을 때만 409 `FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE`(시드 전 환경). `shelterSeq` 임의 입력 불허. 수동 재배정 API는 없습니다(ADMIN 범위 외).
 - **[확정 정책]** 이 시점에 발견 신고 상태는 ACTIVE; 기존 ACTIVE 실종 신고와 AI 비교 후보. 담당 보호소의 SHELTER 계정에 `SHELTER` 알림(17.8, Q426).
-- **오류 [초안]** 409 `FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE`, 404 `ANIMAL_COMBINATION_NOT_FOUND`, 400 `IMAGE_INVALID_COUNT`.
+- **오류 [초안]** 409 `FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE`, 404 `CATALOG_COMBINATION_NOT_FOUND`, 400 `IMAGE_INVALID_COUNT`.
 
 ### 8.5 PATCH /found-reports/{id} · 8.6 PATCH /.../status · 8.7 DELETE /...
 
@@ -607,7 +610,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 ### 8.8 GET /shelters/me/found-reports
 
-**요청 [초안]** `?status=ACTIVE&hasRescue=false&page=0&size=20&sort=regDttm,desc`. 필터 `status`, `hasRescue`(비삭제 PROCESSING/DONE 구조 존재 여부). 정렬 화이트리스트 `regDttm`, `occurredDttm`. **응답** 담당 보호소(토큰 `shelterSeq`)의 발견 신고 목록, 각 항목에 8.1 목록 필드 + `reporterPhone`(담당 보호소이므로 열람 가능), `activeRescueSeq`(없으면 null).
+**요청 [초안]** `?status=ACTIVE&hasRescue=false&page=0&size=20&sort=regDttm,desc`. 필터 `status`, `hasRescue`(비삭제 PROCESSING/DONE 구조 존재 여부)는 모두 **선택**이며, 생략하면 담당 발견 신고 전량을 반환합니다(R10 A). 정렬 화이트리스트 `regDttm`, `occurredDttm`. **응답** 담당 보호소(토큰 `shelterSeq`)의 발견 신고 목록, 각 항목에 8.1 목록 필드 + `reporterPhone`(담당 보호소이므로 열람 가능), `activeRescueSeq`(없으면 null).
 
 ---
 
@@ -696,7 +699,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 
 ### 10.4 PATCH /rescues/{id} · 10.5 PATCH /.../status
 
-- `10.4` **요청 [초안]** `{ "rescueReason":"...", "rescueAddress":"...", "rescueMemo":"..." }`. **[가안]** 종료 상태(DONE/FAILED/CANCELED)에서도 `rescueMemo`만 수정 가능, 나머지 필드는 PROCESSING에서만.
+- `10.4` **요청 [초안]** `{ "rescueReason":"...", "rescueAddress":"...", "rescueMemo":"..." }`. **[확정 정책] R4 A:** 종료 상태(DONE/FAILED/CANCELED)에서는 같은 PATCH로 `rescueMemo`만 수정 가능하고, 다른 필드가 포함되면 400 `COMMON_INVALID_INPUT`. 나머지 필드는 PROCESSING에서만. **종료 후 수정 전용 엔드포인트는 두지 않습니다.**
 - `10.5` **DONE 요청 [초안]** `{ "status":"DONE", "rescuedDate":"2026-10-29", "rescueAddress":"대구광역시 ...", "rescueReason":"배회 동물 구조", "rescueMemo":"..." }`.
 - `10.5` **FAILED/CANCELED 요청 [초안]** `{ "status":"FAILED", "resultReason":"현장 도착 전 이동" }` 또는 CANCELED.
 - **[확정 정책]** 최초 `PROCESSING → DONE/FAILED/CANCELED`. PROCESSING은 `completedDttm:null`; 종료 상태 3개는 서버가 시각 기록. DONE이면 `rescuedDate`와 공백 아닌 `rescueAddress` 필수. FAILED/CANCELED이면 공백 아닌 `resultReason` 필수.
@@ -788,11 +791,11 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 - `rescueSeq=null`이면 직접 등록이며 `rescueInfo`는 전부 null. USER는 작성 불가.
 - **[확정 정책]** `PROTECTING+UNAVAILABLE` 초기 상태, 사진 1~3장, 공고 시작일=등록일, 종료일=시작+10일 (직접 등록 기준). 공공데이터 시드 적재 시에는 적재자가 공고 날짜를 직접 결정·입력합니다. 날짜 경과로 자동 상태 변경하지 않습니다(core에 스케줄러 없음, S8).
 - `11.4`는 SHELTER의 수동 등록용이며 일반 요청에 공고 날짜를 받지 않습니다. 공공데이터 적재는 API가 아니라 Flyway 시드입니다(Q412).
-- **오류 [초안]** 409 `RESCUE_NOT_DONE`, 404 `RESCUE_NOT_FOUND`, `ANIMAL_COMBINATION_NOT_FOUND`, 400 `IMAGE_INVALID_COUNT`.
+- **오류 [초안]** 409 `RESCUE_NOT_DONE`, 404 `RESCUE_NOT_FOUND`, `CATALOG_COMBINATION_NOT_FOUND`, 400 `IMAGE_INVALID_COUNT`.
 
 ### 11.5 PATCH /shelter-animals/{id}
 
-- **요청 [초안]** `{ "combinationSeq":88, "gender":"UNKNOWN", "description":"...", "healthCheck":"...", "vaccinationStatus":"...", "noticeEndDate":"2026-11-15", "imageSeqs":[1702] }` (보내는 필드만 변경). `imageSeqs`는 전체 최종 배열(Q424). **[가안]** `noticeEndDate`는 담당 SHELTER가 수정 가능(시작일 이후여야 함), `noticeStartDate`는 수정 불가. 기존 구조 정보는 보호동물 수정 요청에 포함하지 않으며 구조 수정이 필요하면 `10.4`에서 수정합니다. 범위는 토큰 `shelterSeq`.
+- **요청 [초안]** `{ "combinationSeq":88, "gender":"UNKNOWN", "description":"...", "healthCheck":"...", "vaccinationStatus":"...", "noticeEndDate":"2026-11-15", "imageSeqs":[1702] }` (보내는 필드만 변경). `imageSeqs`는 전체 최종 배열(Q424). **[확정 정책] R5 A:** `noticeEndDate`는 담당 SHELTER가 이 PATCH의 일반 필드로 수정 가능(시작일 이후여야 함), `noticeStartDate`는 수정 불가. **공고 종료일 전용 엔드포인트는 두지 않습니다.** 기존 구조 정보는 보호동물 수정 요청에 포함하지 않으며 구조 수정이 필요하면 `10.4`에서 수정합니다. 범위는 토큰 `shelterSeq`.
 - 사진 diff가 있고 PROTECTING이면 재매칭 작업 요청.
 
 ### 11.6 PATCH /.../adoption-status
@@ -829,7 +832,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 ### 11.8 PATCH /.../protection-status · 11.9 DELETE /...
 
 - `11.8` **요청 [초안]** `{ "protectionStatus":"ENDED", "endReason":"NATURAL_DEATH" }` (종료 사유는 RETURNED/ADOPTED/NATURAL_DEATH/EUTHANIZED/OTHER 중 규칙에 맞게 사용). 서버가 `protectionEndedDttm` 설정. **RETURNED는 11.7**, **ADOPTED는 12.11/12.12**를 통해 처리하여 관련 테이블 누락을 막습니다. 단순 상태 PATCH로 반환·입양 기록을 회피할 수 없도록 합니다.
-- ENDED 처리 시 활성 신청 DRAFT/SUBMITTED/APPROVED는 자동 REJECTED(사유 자연어, 처리시각 기록). **[가안]** ENDED는 담당 SHELTER 단독 처리이며 별도 승인 단계가 없습니다.
+- ENDED 처리 시 활성 신청 DRAFT/SUBMITTED/APPROVED는 자동 REJECTED(사유 자연어, 처리시각 기록). **[확정 정책] R6 A:** ENDED는 담당 SHELTER 단독 처리이며 별도 승인 단계가 없고, `endReason`은 선택입니다(생략 시 `OTHER`).
 - `11.9` 성공 200 `data:null`. DRAFT/SUBMITTED/APPROVED 신청서가 하나라도 있으면 **409 `ANIMAL_HAS_ACTIVE_APPLICATIONS`**. 삭제된 보호동물은 일반 조회/AI 제외.
 
 ---
@@ -1128,9 +1131,10 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 >
 > **[확정 정책] 실시간(S5 B):** WebSocket + STOMP, 엔드포인트 **`/api/chat/v1/ws`**(핸드셰이크는 `security.permit-paths`로 열어 둠). 브로커는 **RabbitMQ STOMP relay**(`enableStompBrokerRelay`)이며 chat 인스턴스를 여러 개 띄워도 같은 방을 공유합니다.
 > - **CONNECT 인증:** CONNECT 프레임의 `Authorization: Bearer {accessToken}` 헤더를 `StompAuthChannelInterceptor`가 검증합니다. 없거나 틀리면 연결 거부(`AUTH_UNAUTHORIZED`/`AUTH_TOKEN_*`).
-> - **SUBSCRIBE 인가:** 구독 목적지 `/topic/rooms/{chatRoomSeq}` **[가안]**. 같은 인터셉터가 SUBSCRIBE 프레임에서 요청자가 `chat_participants`에 있는지 확인하고, 아니면 구독을 거부합니다(`CHAT_ROOM_NOT_PARTICIPANT`). 참여자가 아닌 방을 엿들을 수 없습니다.
-> - **전송:** 메시지 저장은 REST 14.5가 담당하고, 커밋 후 서버가 `/topic/rooms/{chatRoomSeq}`로 저장된 메시지 DTO(14.5 응답과 동일)를 브로드캐스트합니다. 클라이언트 SEND 프레임으로 직접 보내는 경로는 두지 않습니다(검증·저장을 한 곳에 모으기 위해, [가안]). 읽음(14.6)도 REST.
-> - **푸시:** 상대가 구독 중이 아니면 FCM(17장과 같은 토큰). 구독 여부 판단은 "메시지 커밋 시점에 상대의 활성 세션이 그 방을 구독 중인가"이며 **[가안]** 구독 상태는 chat이 Redis `chat:subscribed:{userSeq}`에 둡니다.
+> - **SUBSCRIBE 인가:** 구독 목적지 `/topic/rooms/{chatRoomSeq}`. 같은 인터셉터가 SUBSCRIBE 프레임에서 요청자가 `chat_participants`에 있는지 확인하고, 아니면 구독을 거부합니다(`CHAT_ROOM_NOT_PARTICIPANT`). 참여자가 아닌 방을 엿들을 수 없습니다.
+> - **전송(R16 B):** 클라이언트가 STOMP **SEND** 프레임으로 `/app/rooms/{chatRoomSeq}/messages`에 보냅니다(14.5). 서버 `@MessageMapping`이 참여자·조합·탈퇴 상대·첨부 검증 → `chat_messages` 저장·커밋 → `/topic/rooms/{chatRoomSeq}`로 저장된 메시지 DTO를 브로드캐스트합니다(RabbitMQ relay 경유). 쓰기 경로는 이 하나뿐이며 **REST 메시지 전송은 없습니다.** 방 목록·생성·상세·과거 메시지 조회·읽음·나가기만 REST입니다.
+> - **오류 응답(STOMP):** 검증 실패는 `@MessageExceptionHandler`가 송신자의 `/user/queue/errors`로 보냅니다. 본문은 HTTP와 **같은 `ApiResponse` 봉투**(`status`·`code`·`message`·`data:null`·`errors`·`traceId`)이고 코드도 19장과 같습니다(`CHAT_ROOM_NOT_PARTICIPANT`, `CHAT_INVALID_PAYLOAD`, `CHAT_COUNTERPART_DELETED`, `CHAT_SHARED_POST_NOT_FOUND`, `IMAGE_NOT_OWNED`, `IMAGE_NOT_FOUND`). 클라이언트는 연결 직후 `/user/queue/errors`를 구독합니다.
+> - **푸시(R9 C):** 서버는 구독 여부를 판단하지 않습니다. 저장·커밋 후 chat이 `ChatMessageSent` 이벤트를 내고, notification이 참여자 중 **보낸 사람을 제외한 전원**에게 FCM **데이터 메시지**(`roomSeq`, `messageSeq`, `senderDisplayName`, `preview`)를 보냅니다. 표시 여부는 앱이 "현재 열려 있는 방" 기준으로 판단합니다(같은 방이면 무시, 아니면 로컬 알림). DB 알림 기록은 없습니다(17장).
 
 | # | Method | Path | 권한 | 기능 |
 |---|---|---|---|---|
@@ -1138,7 +1142,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 | 14.2 | POST | `/chats/rooms` | USER/SHELTER | 상대와 대화방 생성 또는 기존 방 재입장 |
 | 14.3 | GET | `/chats/rooms/{chatRoomSeq}` | 참여자 | 방 상세·상대방 정보 |
 | 14.4 | GET | `/chats/rooms/{chatRoomSeq}/messages` | 참여자 | 메시지 내역 조회 |
-| 14.5 | POST | `/chats/rooms/{chatRoomSeq}/messages` | 참여자 | TEXT/IMAGE/SHARED_POST 발송 [REST 초안] |
+| 14.5 | STOMP SEND | `/app/rooms/{chatRoomSeq}/messages` | 참여자 | TEXT/IMAGE/SHARED_POST 발송 (R16 B, REST 아님) |
 | 14.6 | PATCH | `/chats/rooms/{chatRoomSeq}/read` | 참여자 | 마지막 읽은 메시지 갱신 |
 | 14.7 | POST | `/chats/rooms/{chatRoomSeq}/leave` | 참여자 | 대화방 나가기/기존 기록 숨김 |
 
@@ -1178,34 +1182,41 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 - **[확정 정책]** 현재 참여자의 `last_hidden_message_seq` 이후만 반환. 공유 게시물이 삭제되면 메시지는 유지하고 게시물 상세는 `sharedPostUnavailable:true`로 표시 [초안]. 탈퇴 송신자는 `(탈퇴한 사용자)`로 표시.
 - **[초안]** 해당 메시지 방 소속/정렬/페이징 경계는 서버에서 검증합니다.
 
-### 14.5 POST /chats/rooms/{id}/messages
+### 14.5 STOMP SEND /app/rooms/{id}/messages
 
-**TEXT 요청 [초안]** `{ "messageType":"TEXT", "body":"안녕하세요." }`.
+> **[확정 정책] R16 B:** 메시지 전송은 REST가 아니라 STOMP SEND입니다. v2의 `POST /chats/rooms/{id}/messages`는 **삭제(R16)**했고 번호 14.5는 이 SEND 규약에 재사용합니다.
 
-**IMAGE 요청 [초안]** `{ "messageType":"IMAGE", "imageSeq":1701, "body":"사진입니다." }`.
+**SEND 프레임** 목적지 `/app/rooms/{chatRoomSeq}/messages`, 본문 JSON **[초안]**:
 
-**SHARED_POST 요청 [초안]** `{ "messageType":"SHARED_POST", "sharedTargetType":"FOUND", "sharedTargetSeq":210, "body":null }`.
+**TEXT** `{ "clientMessageId":"c-20261102-0001", "type":"TEXT", "content":"안녕하세요." }`
 
-**성공 201 `data` [초안]**
+**IMAGE** `{ "clientMessageId":"c-20261102-0002", "type":"IMAGE", "imageSeq":1701, "content":"사진입니다." }`
+
+**SHARED_POST** `{ "clientMessageId":"c-20261102-0003", "type":"SHARED_POST", "sharedTargetType":"FOUND", "sharedTargetSeq":210, "content":null }`
+
+**브로드캐스트 `/topic/rooms/{chatRoomSeq}` 본문 [초안]** (방 참여자 전원이 수신, 송신자 포함)
 ```json
 {
   "chatMessageSeq": 4003,
+  "clientMessageId": "c-20261102-0003",
   "chatRoomSeq": 501,
   "senderUserSeq": 17,
   "messageType": "SHARED_POST",
   "body": null,
   "imageSeq": null,
+  "imageUrl": null,
   "sharedTargetType": "FOUND",
   "sharedTargetSeq": 210,
   "regDttm": "2026-10-29T17:50:00+09:00"
 }
 ```
 
-- **[확정 정책]** TEXT는 비공백 본문 필수. IMAGE는 `imageSeq` **정확히 하나 필수**(송신자가 업로드한 이미지만, 아니면 403 `IMAGE_NOT_OWNED`), body는 선택. SHARED_POST는 `sharedTargetType/sharedTargetSeq` 필수이며 코드 `MISSING/FOUND/SHELTER_ANIMAL`만. 다형성 대상 존재·접근 권한은 BE 검증. `senderUserSeq`는 인증 계정(보호소 담당자도 users PK)에서 설정.
-- 상대가 탈퇴했다면 신규 메시지 거부. **차단 기능이 없으므로 차단 상태 검증 API는 작성하지 않습니다.** 메시지 개별 삭제·수정 기능 없음(Q423의 "수정·삭제"는 채팅에는 해당 없음).
-- DB `notifications`에 채팅 메시지 알림을 저장하지 않으며 FCM 푸시만 발송합니다. 발송 실패 시 재시도 없음.
-- **[확정 정책] 실시간 수신(S5 B):** 이 REST로 저장·커밋한 뒤 서버가 `/topic/rooms/{chatRoomSeq}`로 같은 DTO를 브로드캐스트합니다(14장 머리말). 클라이언트는 응답과 브로드캐스트 중 `chatMessageSeq`가 같은 것을 중복 제거합니다.
-- **오류 [초안]** 400 `CHAT_INVALID_PAYLOAD`; 403 `CHAT_ROOM_NOT_PARTICIPANT`, `IMAGE_NOT_OWNED`; 409 `CHAT_COUNTERPART_DELETED`; 404 `CHAT_SHARED_POST_NOT_FOUND`.
+- **[확정 정책] 처리 순서:** `@MessageMapping`이 (1) 송신자가 `chat_participants`에 있는지, (2) 상대가 탈퇴하지 않았는지, (3) 본문 종류별 필수값을 검증 → `chat_messages` INSERT·커밋 → `/topic/rooms/{chatRoomSeq}`로 위 DTO 브로드캐스트(RabbitMQ relay) → `ChatMessageSent` 이벤트 발행(푸시는 notification, 14장 머리말). 인증 주체는 CONNECT 시 검증된 `AuthUser`이며 `senderUserSeq`는 그 `userSeq`(보호소 담당자도 users PK)입니다.
+- **[확정 정책] 전송 확인·중복 제거:** 송신자는 브로드캐스트에서 자기가 보낸 `clientMessageId`를 받으면 "전송 완료"로 표시하고 `chatMessageSeq`를 붙입니다. `clientMessageId`는 클라이언트가 생성하는 임의 문자열(최대 64자)이며 서버는 저장하지 않고 **되돌려 주기만** 합니다. 재연결 후 재전송은 클라이언트 책임이며 서버 측 멱등 처리는 없습니다 **[가안]**.
+- **[확정 정책] 본문 규칙:** TEXT는 비공백 `content` 필수. IMAGE는 `imageSeq` **정확히 하나 필수**(송신자가 업로드한 이미지만, 아니면 `IMAGE_NOT_OWNED`), `content`는 선택. SHARED_POST는 `sharedTargetType/sharedTargetSeq` 필수이며 코드 `MISSING/FOUND/SHELTER_ANIMAL`만. 다형성 대상 존재·접근 권한은 BE 검증. `imageUrl`은 서버가 `images`를 읽어 채운 접근 URL입니다.
+- 상대가 탈퇴했다면 신규 메시지 거부. **차단 기능이 없으므로 차단 상태 검증은 작성하지 않습니다.** 메시지 개별 삭제·수정 기능 없음(Q423의 "수정·삭제"는 채팅에는 해당 없음).
+- DB `notifications`에 채팅 메시지 알림을 저장하지 않으며 FCM 데이터 메시지만 발송합니다(R9 C). 발송 실패 시 재시도 없음.
+- **오류(STOMP `/user/queue/errors`, 봉투는 HTTP와 동일):** `CHAT_INVALID_PAYLOAD`(400), `CHAT_ROOM_NOT_PARTICIPANT`(403), `IMAGE_NOT_OWNED`(403), `IMAGE_NOT_FOUND`(404), `CHAT_COUNTERPART_DELETED`(409), `CHAT_SHARED_POST_NOT_FOUND`(404). 오류 본문에 원래 `clientMessageId`를 `data`에 실어 어떤 전송이 실패했는지 알립니다 **[초안]**: `"data": { "clientMessageId": "c-20261102-0002" }`.
 
 ### 14.6 PATCH /chats/rooms/{id}/read · 14.7 POST /.../leave
 
@@ -1262,8 +1273,8 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 **요청 [초안]** `{ "targetType":"MISSING", "targetSeq":101 }`.
 
 - `16.2` **성공 201 `data` [초안]** `{ "bookmarkSeq":701, "targetType":"MISSING", "targetSeq":101 }`.
-- `16.3` **성공 200 `data:null`**. 경로는 `DELETE /bookmarks/{targetType}/{targetSeq}`로 확정합니다(본문 없는 DELETE). 없는 북마크 해제는 404 `BOOKMARK_NOT_FOUND`.
-- **[확정 정책]** 대상은 `MISSING/FOUND/SHELTER_ANIMAL` 3종. 회원+대상 UNIQUE, 해제는 **물리 DELETE**. 동일 북마크 추가 시 409 `BOOKMARK_ALREADY_EXISTS`(Q415 A, 멱등 200 아님). 앱은 상세의 `isBookmarked`로 상태를 알고 있으므로 409를 "이미 저장됨"으로 처리합니다.
+- `16.3` **성공 200 `data:null`**. 경로는 `DELETE /bookmarks/{targetType}/{targetSeq}`로 확정합니다(본문 없는 DELETE). 없는 북마크 해제는 404 `USER_BOOKMARK_NOT_FOUND`. 북마크는 `user` 도메인에 속합니다(R12).
+- **[확정 정책]** 대상은 `MISSING/FOUND/SHELTER_ANIMAL` 3종. 회원+대상 UNIQUE, 해제는 **물리 DELETE**. 동일 북마크 추가 시 409 `USER_BOOKMARK_ALREADY_EXISTS`(Q415 A, 멱등 200 아님). 앱은 상세의 `isBookmarked`로 상태를 알고 있으므로 409를 "이미 저장됨"으로 처리합니다.
 
 ---
 
@@ -1334,7 +1345,7 @@ ADMIN 열은 v2에서 제거했습니다(구현 범위 외). 식별정보 수정
 | `ADOPTION` | 12.14 표의 전이 | 표 참조 | core-api |
 | `SHELTER` | 발견 신고 자동 배정(8.4) | 담당 보호소 SHELTER 계정 | core-api |
 | `SYSTEM` | 없음(유형만 예약) | — | — |
-| 채팅 수신 | **FCM만**, `notifications` DB 행 저장하지 않음 | 상대 참여자 | chat |
+| 채팅 수신 | **FCM 데이터 메시지만**, `notifications` DB 행 저장하지 않음. 표시 여부는 앱이 현재 방 기준으로 판단(R9 C) | 보낸 사람 외 참여자 | chat → `ChatMessageSent` → notification |
 | 모의 입양 | `notifications`에 저장하지 않음. `simulation_notifications` 별도 저장 + FCM(18.22) | 세션 소유 USER | simulation |
 
 AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 실종×보호동물은 실종 ACTIVE + 보호동물 PROTECTING·비삭제(입양 상태 무관). 발생 계기는 실종/발견/보호동물 신규 등록, CLOSED→ACTIVE 재개, 사진 배열 diff. 같은 쌍은 `notification_type='AI_MATCH'` + `(missing_report_seq,target_type,target_seq)` 생애 1회.
@@ -1671,7 +1682,28 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 
 ## 19. 도메인 에러 코드 총괄 **[확정 정책 — 명명 규칙 Q418 A]**
 
-> 응답 `code`는 서버 enum 상수명 그대로이며 **`{도메인}_상황`** 형식입니다. 공통 코드는 `common` 모듈의 `CommonErrorCode`(1.3), 도메인 코드는 각 서비스의 도메인 패키지 `{도메인}ErrorCode` enum에 둡니다(README 규칙). 접두어는 아래 "도메인" 열이며 DB 스키마와 무관합니다(core-api 한 서비스 안에 여러 도메인). HTTP 상태와 기본 메시지는 enum 값에서 가져오고, 메시지 문구는 구현 시 정합니다. 각 절의 "오류" 항목은 이 표의 코드와 일치합니다.
+> 응답 `code`는 서버 enum 상수명 그대로이며 **`{도메인}_상황`** 형식입니다. 공통 코드는 `common` 모듈의 `CommonErrorCode`(1.3), 도메인 코드는 각 서비스의 도메인 패키지 `{도메인}ErrorCode` enum에 둡니다(README 규칙). 접두어는 **패키지명 대문자**이며 DB 스키마와 무관합니다(core-api 한 서비스 안에 여러 도메인). HTTP 상태와 기본 메시지는 enum 값에서 가져오고, 메시지 문구는 구현 시 정합니다. 각 절의 "오류" 항목은 이 표의 코드와 일치합니다.
+
+**도메인 패키지 목록 (R11·R12 확정)** — 접두어 = 패키지명 대문자. 기준정보와 행정구역은 `catalog`, 북마크는 `user`에 속하고, `ANIMAL_`은 보호동물이 단독으로 씁니다.
+
+| 서비스 | 패키지 | 담당 | 접두어 |
+|---|---|---|---|
+| core-api | `auth` | 카카오·LOCAL 로그인, 토큰, 가입 컨텍스트 (2장) | `AUTH_` |
+| core-api | `user` | 회원 프로필·탈퇴 (3장), **북마크** (16장) | `USER_` |
+| core-api | `image` | 공통 이미지 업로드·연결·참조 정리 (4장) | `IMAGE_` |
+| core-api | `catalog` | 종·품종·색상·조합, **`districts`** (5장) | `CATALOG_` |
+| core-api | `pet` | 내 반려동물 (6장) | `PET_` |
+| core-api | `missing` | 실종 신고 (7장) | `MISSING_` |
+| core-api | `found` | 발견 신고·자동 배정 (8장) | `FOUND_` |
+| core-api | `shelter` | 보호소 정보·배정표 (9장) | `SHELTER_` |
+| core-api | `rescue` | 구조 기록 (10장) | `RESCUE_` |
+| core-api | `animal` | 보호동물·반환 (11장) | `ANIMAL_` |
+| core-api | `adoption` | 입양 문항·신청·심사·완료·수료증 (12장) | `ADOPTION_` |
+| core-api | `comment` | 댓글·답글 (13장) | `COMMENT_` |
+| core-api | `report` | 신고 접수 (15장) | `REPORT_` |
+| chat | `chat` | 대화방·메시지·STOMP (14장) | `CHAT_` |
+| notification | `notification` | 일반 알림·디바이스 토큰·FCM 발송 (17장) | `NOTIFICATION_` |
+| simulation | `simulation` | 모의 입양 전체 (18장) | `SIMULATION_` |
 
 | 도메인(접두어) | 에러 code | HTTP | 주된 발생 조건 |
 |---|---|---|---|
@@ -1680,10 +1712,10 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `AUTH_` | `AUTH_ACCOUNT_UNAVAILABLE`, `AUTH_KAKAO_ACCOUNT_CONFLICT` | 403/409 | 계정 상태 / 같은 카카오 계정 동시 가입 |
 | `USER_` | `USER_DUPLICATE_NICKNAME`, `USER_DUPLICATE_PHONE` | 409 | 활성 USER 유니크 충돌 |
 | `USER_` | `USER_REQUIRED_PROFILE_MISSING`, `USER_NOT_FOUND` | 400/404 | 최종 USER 필수 개인정보 불충족 / 탈퇴·없는 회원 |
+| `USER_` (북마크, R12) | `USER_BOOKMARK_ALREADY_EXISTS`, `USER_BOOKMARK_NOT_FOUND` | 409/404 | 중복 등록 / 없는 북마크 해제 |
 | `IMAGE_` | `IMAGE_NOT_FOUND`, `IMAGE_INVALID_COUNT`, `IMAGE_TOO_LARGE`, `IMAGE_UNSUPPORTED_TYPE` | 404/400/413/415 | 이미지 업로드·연결 오류 |
 | `IMAGE_` | `IMAGE_NOT_OWNED` | 403 | 타인이 업로드한 `imageSeq` 연결 시도(Q407) |
-| `ANIMAL_` (기준정보) | `ANIMAL_COMBINATION_NOT_FOUND` | 404 | 등록되지 않은 품종·색상 조합 |
-| `DISTRICT_` | `DISTRICT_NOT_FOUND` | 400 | 필터에 `districts`에 없는 `districtCode` |
+| `CATALOG_` (기준정보·행정구역) | `CATALOG_COMBINATION_NOT_FOUND`, `CATALOG_DISTRICT_NOT_FOUND` | 404/400 | 등록되지 않은 품종·색상 조합 / 필터에 `districts`에 없는 `districtCode` |
 | `PET_` | `PET_NOT_FOUND`, `PET_NOT_OWNED` | 404/403 | 대상·소유권 오류 |
 | `MISSING_` | `MISSING_REPORT_NOT_FOUND` | 404 | 실종 신고 접근 실패(타인 신고 수정 포함) |
 | `MISSING_` | `MISSING_ACTIVE_ALREADY_EXISTS`, `MISSING_REPORT_CLOSED` | 409 | 회원당 ACTIVE 1건 제약 위반 / CLOSED 본문 수정(Q425) |
@@ -1707,7 +1739,6 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `CHAT_` | `CHAT_INVALID_PAYLOAD`, `CHAT_ROOM_NOT_PARTICIPANT` | 400/403 | 메시지 종류 / 참여 권한(REST·SUBSCRIBE 공통) |
 | `CHAT_` | `CHAT_TARGET_NOT_FOUND`, `CHAT_SHARED_POST_NOT_FOUND` | 404 | 방 생성 대상 / 공유 게시물 없음 |
 | `REPORT_` | `REPORT_TARGET_NOT_ALLOWED`, `REPORT_REASON_REQUIRED`, `REPORT_ALREADY_EXISTS`, `REPORT_TARGET_NOT_FOUND` | 400/400/409/404 | 허용 범위 / 사유 누락 / 중복 / 대상 없음 |
-| `BOOKMARK_` | `BOOKMARK_ALREADY_EXISTS`, `BOOKMARK_NOT_FOUND` | 409/404 | 중복 등록 / 없는 북마크 해제 |
 | `NOTIFICATION_` | `NOTIFICATION_NOT_FOUND`, `NOTIFICATION_DEVICE_TOKEN_CONFLICT` | 404/409 | 알림 소유권 / 활성 토큰 유일성 |
 | `SIMULATION_` | `SIMULATION_NOT_FOUND` | 404 | 세션 없음 또는 본인·보호소 아님(존재 감춤) |
 | `SIMULATION_` | `SIMULATION_ACTIVE_ALREADY_EXISTS`, `SIMULATION_NOT_IN_PROGRESS` | 409 | USER당 진행 중 1개 / 종료된 세션 변경 시도 |
@@ -1739,7 +1770,11 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `DEVICE_TOKEN_CONFLICT` | `NOTIFICATION_DEVICE_TOKEN_CONFLICT` |
 | `SIMULATION_ACCESS_DENIED` | (삭제: `SIMULATION_NOT_FOUND`로 존재 감춤) |
 | `ACTIVE_SIMULATION_ALREADY_EXISTS`, `SHOP_ITEM_*`, `EQUIPMENT_ALREADY_OWNED`, `REQUIRED_EQUIPMENT_MISSING`, `ITEM_NOT_IN_INVENTORY`, `EVENT_NOT_PENDING`, `INVALID_CHOICE`, `WALK_*` | `SIMULATION_ACTIVE_ALREADY_EXISTS`, `SIMULATION_SHOP_ITEM_*`, `SIMULATION_EQUIPMENT_ALREADY_OWNED`, `SIMULATION_EQUIPMENT_MISSING`, `SIMULATION_ITEM_NOT_IN_INVENTORY`, `SIMULATION_EVENT_NOT_PENDING`, `SIMULATION_INVALID_CHOICE`, `SIMULATION_WALK_*` |
-| 신규 | `MISSING_REPORT_CLOSED`, `FOUND_REPORT_CLOSED`, `DISTRICT_NOT_FOUND`, `COMMENT_NOT_FOUND`, `BOOKMARK_NOT_FOUND`, `ADOPTION_CERTIFICATE_*` |
+| 신규 | `MISSING_REPORT_CLOSED`, `FOUND_REPORT_CLOSED`, `CATALOG_DISTRICT_NOT_FOUND`, `COMMENT_NOT_FOUND`, `USER_BOOKMARK_NOT_FOUND`, `ADOPTION_CERTIFICATE_*` |
+| `ANIMAL_COMBINATION_NOT_FOUND` (v3 1차) | `CATALOG_COMBINATION_NOT_FOUND` (R11·R12: 기준정보는 `catalog` 도메인, `ANIMAL_`은 보호동물 단독) |
+| `DISTRICT_NOT_FOUND` (v3 1차) | `CATALOG_DISTRICT_NOT_FOUND` (R12: `districts`는 `catalog` 도메인) |
+| `BOOKMARK_ALREADY_EXISTS` (v3 1차) | `USER_BOOKMARK_ALREADY_EXISTS` (R12: 북마크는 `user` 도메인) |
+| `BOOKMARK_NOT_FOUND` (v3 1차) | `USER_BOOKMARK_NOT_FOUND` (R12) |
 
 ---
 
@@ -1783,7 +1818,22 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | 채팅 브로커 S5 · MQ S6 | **B** RabbitMQ STOMP relay. 서비스 간 이벤트도 RabbitMQ | 14장·17.8·2.6 |
 | 검색 S7 | **OpenSearch 미도입**. `keyword`는 ILIKE, pg_trgm 인덱스 [가안] | 7.1·8.1·9.1·11.1 |
 | 스케줄러 S8 | **A** `@Scheduled` 10분 주기 1개, simulation만. 다중 인스턴스 시 ShedLock | 18장·21.5 |
-| 인증 세부 | RS256, core-api 발급·전 서비스 공개키 검증, 클레임 `userSeq/role/shelterSeq`, `@PreAuthorize` + 서비스 코드 소유권, STOMP CONNECT·SUBSCRIBE 인가, 즉시 차단 없음 | 1.1·14장 |
+| 인증 세부 | RS256, core-api 발급·전 서비스 공개키 검증, 클레임 `userSeq/role/shelterSeq`, `@PreAuthorize` + 서비스 코드 소유권, STOMP CONNECT·SUBSCRIBE·SEND 인가, 즉시 차단 없음 | 1.1·14장 |
+| R1 AI_MATCH 쓰기 주체 | **A** core-api가 실종 신고 행 잠금과 한 트랜잭션에서 `notifications`에 직접 INSERT, notification은 FCM만(쓰기 소유권 유일 예외, Q389·390 유지) | 17장·17.8 |
+| R2 세션 스냅샷 컬럼 | **A** `shelter_seq` + 품종명·색상명·대표 사진 키. 값 복사(스냅샷)이며 FK 아님 | 18.0·18.1 |
+| R3 발견 신고 구조 접수 범위 | **A** 담당이 아닌 보호소도 접수 가능(제약 없음). 보호소 업무 목록(8.8)은 담당 신고만 | 10.3 |
+| R4 종료된 구조 기록 수정 | **A** DONE·FAILED·CANCELED 이후엔 기존 PATCH 10.4로 `rescueMemo`만. 전용 수정 API 없음 | 10.4 |
+| R5 공고 종료일 수정 | **A** `noticeEndDate`는 기존 PATCH 11.5 필드로 수정 허용. 전용 API 없음 | 11.5 |
+| R6 보호 종료 단독 처리 | **A** 반환·입양 없이 ENDED 허용, 사유 선택 | 11.8 |
+| R7 삭제된 댓글 | **A** "(삭제된 댓글)"로 자리 유지, 삭제된 루트에 새 답글 불가, 기존 답글 유지 | 13장 |
+| R8 채팅방 생성 주체 | **A** USER·SHELTER 모두 먼저 생성 가능 | 14.2 |
+| R9 채팅 푸시 | **C** 서버는 구독 여부를 판단하지 않고 보낸 사람 외 전원에게 FCM 데이터 메시지, 표시 여부는 앱이 현재 방 기준으로 판단. Redis 구독 상태 없음 | 14장·17.8·21.6 |
+| R10 8.8 보조 필드 | **A** `hasRescue` 선택 필터·`activeRescueSeq` 응답 유지, 기본은 전량 | 8.8 |
+| R11·R12 도메인 분류 | 기준정보+행정구역 → `catalog`(`CATALOG_`), 북마크 → `user`(`USER_BOOKMARK_*`), 보호동물은 `animal`(`ANIMAL_`) 단독. core-api 13개 패키지 | 19장 |
+| R13 배정 방식 필드 | **A** `assignmentMethod: DISTRICT|NEAREST` 응답 전용, DB 저장 없음 | 8.4 |
+| R14 `districts` 번호 | **B** DB 문서에서 07번으로 넣고 이후 재번호 | DB v10 |
+| R15 고아 S3 객체 | **A** 수명주기 1일 | 4.1 |
+| R16 채팅 전송 방식 | **B** STOMP SEND `/app/rooms/{chatRoomSeq}/messages`, 서버 `@MessageMapping` 검증·저장·브로드캐스트, 오류는 `/user/queue/errors`에 HTTP와 같은 봉투. REST 메시지 전송 삭제, `clientMessageId`로 전송 확인 | 14장·21.4·22장 |
 
 ### 20.2 미결 안건
 
@@ -1828,11 +1878,12 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 5. 실제 채택한 승인 신청에 완료 호출 → 신청 ADOPTED + 동물 ADOPTED/ADOPTED + completedApplicationSeq 일치 + 다른 활성 신청 자동 REJECTED **한 트랜잭션**.
 6. 외부 입양이면 completedApplicationSeq NULL; 반환이면 단일 반환 INSERT + RETURNED/UNAVAILABLE + 활성 신청 자동 REJECTED.
 
-### 21.4 채팅 나가기와 재입장
+### 21.4 채팅 전송·나가기와 재입장
 
-1. `roomType=USER`면 두 USER 정렬/단일방 제약, `roomType=SHELTER`면 USER+보호소 제약 확인.
-2. 나갈 때 참여자의 `lastHiddenMessageSeq`를 해당 방 최신 메시지 기준으로 갱신(기존 메시지 삭제 없음).
-3. 같은 상대와 재입장해도 방은 재사용하고, **그 참가자에게만** 과거 메시지 조회 제외.
+1. `roomType=USER`면 두 USER 정렬/단일방 제약, `roomType=SHELTER`면 USER+보호소 제약 확인(14.2).
+2. **전송(R16 B):** 클라이언트 SEND `/app/rooms/{chatRoomSeq}/messages` → `@MessageMapping`이 참여자·탈퇴 상대·본문 검증(실패 시 `/user/queue/errors`로 봉투 응답) → `chat_messages` INSERT·커밋 → `/topic/rooms/{chatRoomSeq}`로 `messageSeq`·`clientMessageId`를 실은 DTO 브로드캐스트(RabbitMQ relay) → `ChatMessageSent` 이벤트 → notification이 보낸 사람 외 참여자에게 FCM 데이터 메시지(R9 C, 표시는 앱 판단).
+3. 나갈 때 참여자의 `lastHiddenMessageSeq`를 해당 방 최신 메시지 기준으로 갱신(기존 메시지 삭제 없음).
+4. 같은 상대와 재입장해도 방은 재사용하고, **그 참가자에게만** 과거 메시지 조회 제외.
 4. `lastReadMessageSeq`와 `lastHiddenMessageSeq`는 반드시 그 방의 메시지를 참조. 미읽음은 쿼리 계산.
 
 ### 21.5 모의 입양 세션 시작 → 돌봄 → 종료 리포트
@@ -1854,7 +1905,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `UserDeleted` | core-api | notification·simulation | 디바이스 토큰 비활성화, 진행 중 세션 ABANDONED + 리포트 |
 | `DeviceTokenDeactivateRequested` | core-api(2.4 `fcmToken`) | notification | 로그아웃 기기 토큰 비활성화 |
 | `MissingReportRegistered`·`FoundReportRegistered`·`ShelterAnimalRegistered`·`ImagesChanged` | core-api | AI 워커 | 매칭 요청 |
-| `ChatMessageSent` | chat | notification | 미구독 상대에게 FCM(DB 저장 없음) |
+| `ChatMessageSent` | chat | notification | 보낸 사람을 제외한 참여자 전원에게 FCM **데이터 메시지**(`roomSeq, messageSeq, senderDisplayName, preview`). 표시 여부는 앱이 판단, DB 저장 없음(R9 C) |
 
 이벤트 이름·페이로드는 `common`의 `EventPublisher` 포트로 발행하며 MQ 어댑터를 빈으로 등록하면 `LoggingEventAdapter`를 대체합니다.
 
@@ -1877,7 +1928,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `animal_returns` | core / core-api | 11 | 반환 시점=regDttm, 소유권 검증 아님 |
 | `adoption_form_questions` | core / core-api(시드만) | 12 | 현재 21문항, 문항 이력/버전 없음, 관리 API 없음 |
 | `adoption_applications` | core / core-api | 12 | JSONB questionSeq 키, 6상태, 별도 프로세스 없음. DRAFT는 보호소 비노출(Q422). 12.15 리포트 파생 조회 |
-| `chat_rooms`, `chat_participants`, `chat_messages` | core / **chat** | 14 | 마지막 읽음/나가기 포인터, 직접 imageSeq. STOMP SUBSCRIBE 인가 근거 |
+| `chat_rooms`, `chat_participants`, `chat_messages` | core / **chat** | 14 | 마지막 읽음/나가기 포인터, 직접 imageSeq. STOMP SUBSCRIBE·SEND 인가 근거, 메시지 쓰기는 SEND 핸들러만(R16 B) |
 | `missing_report_comments`, `found_report_comments`, `shelter_animal_comments` | core / core-api | 13 | 각각 imageSeq 직접 FK, 삭제 루트의 답글 유지 |
 | `reports` | core / core-api | 15 | PENDING만, 신고 심사 없음, 열람 주체·조회 API 없음(Q428) |
 | `bookmarks` | core / core-api | 16 | 해제 물리 삭제, 중복 409 |

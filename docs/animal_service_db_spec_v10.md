@@ -72,7 +72,7 @@
 | ADMIN | 이번 프로젝트 구현 범위 외. `users.role` CHECK의 `ADMIN`은 예약값으로 유지하되 계정 발급·권한·API 모두 미구현. 구조 접수·보호동물 등록은 SHELTER 전용 | Q410·Q411 |
 | 초기 데이터 | 보호소·SHELTER 계정·행정구역 배정·동물 카탈로그·입양 질문·모의 입양 상점/시나리오는 **API로 관리하지 않음** [확정]. 적재 경로는 v10에서 Flyway로 확정 | Q412 |
 | 종·품종 | `animal_species.species_code VARCHAR(10) NOT NULL UNIQUE` CHECK `DOG/CAT/ETC`. `animal_breeds.personality VARCHAR(20) NULL` CHECK 4종 | M7·M8 |
-| 모의 입양 | `simulation_` 접두 11개 테이블 신설(34~44번). 실제 보호동물에서 시작, 실시간 7일, 스탯 7종 지연 계산, 펫샵·인벤토리·거래, 시나리오→선택지 2개 이벤트 엔진(RANDOM/CONDITION), 산책, 리포트, 별도 알림 | M1~M17 |
+| 모의 입양 | `simulation_` 접두 11개 테이블 신설(v9 34~44번, v10 재번호 후 35~45번). 실제 보호동물에서 시작, 실시간 7일, 스탯 7종 지연 계산, 펫샵·인벤토리·거래, 시나리오→선택지 2개 이벤트 엔진(RANDOM/CONDITION), 산책, 리포트, 별도 알림 | M1~M17 |
 | 알림 | 일반 `notifications`는 변경 없음. 모의 입양 알림은 `simulation_notifications`로 완전 분리 | M13·M16 |
 | 테이블 수 | 33개 → **44개**(모의 입양 11개 추가) | M1~M17 |
 
@@ -83,7 +83,7 @@
 | 문서 | v10 DB / v3 API 신규 파일 생성, v9/v2 보존 | 2026-11-02 |
 | 스키마 | PostgreSQL 1개에 **스키마 2개**. `core`(core-api·chat·notification 공유, 34개 테이블, FK 그대로) + `simulation`(simulation 전용, 11개). 교차 스키마 FK 없음, 교차 읽기 JOIN 허용, 쓰기는 자기 스키마만 | Q420 D |
 | DDL·초기 데이터 | **Flyway**. 스키마마다 마이그레이션 1벌(core-api가 `core`, simulation이 `simulation`), chat·notification은 `ddl-auto=validate`. 시드(보호소·계정·행정구역·카탈로그·입양 문항·상점·시나리오)는 마이그레이션에 포함 | Q412 A |
-| 행정구역 코드 | `shelters`·`missing_reports`·`found_reports`에 `district_code VARCHAR(5) NULL`(법정동 코드 앞 5자리) 추가. 서버가 네이버 역지오코딩으로 도출, 실패 시 NULL. 행정구역 마스터 `districts` 신설(45번째) | Q406 A·Q406-1 A·Q406-2 A |
+| 행정구역 코드 | `shelters`·`missing_reports`·`found_reports`에 `district_code VARCHAR(5) NULL`(법정동 코드 앞 5자리) 추가. 서버가 네이버 역지오코딩으로 도출, 실패 시 NULL. 행정구역 마스터 `districts` 신설(07번, 이후 테이블 번호 +1, 총 45개) | Q406 A·Q406-1 A·Q406-2 A |
 | 모의 입양 참조 | `simulation_*`의 `user_seq`·`animal_seq`는 논리 참조(FK 없음). `simulation_sessions`에 `shelter_seq`와 표시용 동물 스냅샷 컬럼 추가. `simulation_shop_items.image_seq` → `image_key` | Q420 D |
 | 인증·가입 | 카카오는 앱 SDK access token을 서버가 검증하는 2단계 가입. `registrationToken`은 Redis `auth:register:{token}` TTL 10분. RS256, core-api만 발급 | Q413 A·Q414 A |
 | 공통 규약 | 응답 봉투·204 미사용·시간 `+09:00`·페이징·에러 코드 명명은 백엔드 스켈레톤 코드 기준으로 확정(API v3 1장) | Q415~Q418 |
@@ -96,7 +96,7 @@
 ## 1. DB 공통 설계 규칙
 
 - DB: PostgreSQL 17 **1개**, 스키마 **2개**(Q420 D). PK는 `*_seq` 원칙, `IDENTITY` 사용. 로그·이미지·메시지 일부 BIGINT는 기존 v5 초안을 유지.
-- 스키마 배치: `core` 스키마에 01~33번 테이블과 `districts`(34개), `simulation` 스키마에 `simulation_*` 11개. **교차 스키마 FK는 두지 않고**(논리 참조, BE 검증), 같은 DB이므로 **교차 스키마 읽기 JOIN은 허용**(simulation이 `core.shelter_animals`·`animal_breeds`·`animal_species`·`images`를 읽고, core-api가 `simulation.simulation_reports`를 읽음). 쓰기는 자기 스키마만 하며 서비스별 DB 계정 권한(자기 스키마 쓰기, 타 스키마 읽기)으로 강제할 수 있음.
+- 스키마 배치: `core` 스키마에 01~34번 테이블(34개, `districts`는 07번), `simulation` 스키마에 35~45번 `simulation_*` 11개. **교차 스키마 FK는 두지 않고**(논리 참조, BE 검증), 같은 DB이므로 **교차 스키마 읽기 JOIN은 허용**(simulation이 `core.shelter_animals`·`animal_breeds`·`animal_species`·`images`를 읽고, core-api가 `simulation.simulation_reports`를 읽음). 쓰기는 자기 스키마만 하며 서비스별 DB 계정 권한(자기 스키마 쓰기, 타 스키마 읽기)으로 강제할 수 있음.
 - 쓰기 소유권: 같은 `core` 스키마를 세 서비스가 쓰지만 **테이블마다 쓰는 서비스는 하나**. `chat_rooms`·`chat_participants`·`chat_messages`는 chat, `notifications`·`device_tokens`는 notification, 나머지 29개는 core-api. 소유하지 않는 테이블은 읽기 전용 매핑(`@Immutable`) 또는 QueryDSL 프로젝션으로만 접근. **유일한 예외:** `AI_MATCH` 알림 행은 `missing_reports` 행 잠금과 한 트랜잭션이어야 하므로(Q389·390) core-api가 `notifications`에 직접 INSERT하고 notification은 FCM 발송만 맡음.
 - DDL·시드: **Flyway**(Q412 A). `core` 마이그레이션은 core-api가, `simulation` 마이그레이션은 simulation이 보유. chat·notification은 `ddl-auto=validate`. 초기 데이터(보호소·SHELTER 계정·행정구역·동물 카탈로그·입양 문항·상점·시나리오)는 마이그레이션에 포함하며 API로 관리하지 않음.
 - 백엔드 스택(S1~S8 확정): JDK 21, Spring Boot 4.1.2, Kotlin 2.3.21, JPA + QueryDSL(OpenFeign 포크, KSP), Redis 7.4, RabbitMQ(서비스 간 도메인 이벤트·채팅 STOMP relay), AWS S3(presigned PUT), OpenSearch 미도입(키워드 검색은 `ILIKE`, pg_trgm GIN 인덱스 [가안]), 위치 검색은 위경도 + 하버사인(PostGIS 미사용), 스케줄러는 simulation `@Scheduled` 10분 주기 1개(core·notification 스케줄 없음).
@@ -280,7 +280,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 발견 신고 등록 시 `found_reports.district_code`로 이 표를 조회해 매핑 우선, 코드가 NULL이거나 미매핑이면 좌표상 가까운 보호소를 자동 선택(Q284~286·Q406-2 A). 삭제된 보호소 처리 엣지케이스는 Q356에서 스킵.
 - 발견 신고 좌표에서 `district_code`를 도출하는 방식은 서버 역지오코딩(네이버 `legalcode`)으로 확정(Q406 A). 배정표 행과 `districts` 행은 Flyway 시드로 적재(Q412 A).
 
-#### 06-1. `districts` — 시·군·구 행정구역 마스터 (v10 신설, Q406-1 A)
+#### 07. `districts` — 시·군·구 행정구역 마스터 (v10 신설, Q406-1 A)
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -296,7 +296,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 
 ### 동물 기준정보·반려동물
 
-#### 07. `animal_species` — 동물 종 기준정보
+#### 08. `animal_species` — 동물 종 기준정보
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -309,7 +309,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 종별 마스터. 실무 동물 데이터에서는 직접 종 FK 대신 유효 조합 ID를 사용.
 - `species_code`는 v8의 "※초안 NULL 허용"에서 **NOT NULL UNIQUE + CHECK 3종**으로 확정(M8). `DOG`/`CAT`만 모의 입양 시작 가능, `ETC`는 시작 불가. 세션 시작 시 `simulation_sessions.species_type`에 스냅샷.
 
-#### 08. `animal_breeds` — 종별 품종 기준정보
+#### 09. `animal_breeds` — 종별 품종 기준정보
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -324,7 +324,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 각 품종은 정확히 하나의 종에 속함. 실제 종/품종/색상 매핑 목록은 팀에서 별도로 정의.
 - `personality`는 모의 입양 성격 4종(활동적 `ACTIVE`, 소심함 `TIMID`, 공격적 `AGGRESSIVE`, 사람친화적 `FRIENDLY`)을 품종 단위로 매칭(M1·M7). `shelter_animals`에는 성격 컬럼을 두지 않음. 세션 시작 시 품종 값을 `simulation_sessions.personality`에 스냅샷하고, [가안] 품종 값이 NULL이면 4종 중 랜덤 배정. 값은 초기 데이터로 적재(Q412).
 
-#### 09. `animal_colors` — 털색 기준정보
+#### 10. `animal_colors` — 털색 기준정보
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -335,7 +335,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 **확정 규칙 / 참고사항**
 - 색상 마스터; 기타 값을 실제 기준 데이터로 관리(Q335).
 
-#### 10. `animal_combinations` — 허용 품종·색상 조합
+#### 11. `animal_combinations` — 허용 품종·색상 조합
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -348,7 +348,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - `UNIQUE(breed_seq,color_seq)`로 유효 조합 중복 금지. 종은 animal_breeds를 통해 결정, combination에 별도의 species_seq 없음(Q334).
 - 조합의 실제 행과 기타 처리 범위는 별도 마스터 시드에서 관리. Q336 관련 상세 질문은 스킵.
 
-#### 11. `pets` — 일반회원 등록 반려동물
+#### 12. `pets` — 일반회원 등록 반려동물
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -373,7 +373,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 반려동물 소프트 삭제해도 `missing_reports.pet_seq` 및 기존 ACTIVE 신고와 AI 매칭을 유지(Q348).
 - 마이크로칩 등록 여부는 별도 컬럼으로 두지 않음(Q305·364). 중성화 미상은 NULL로 표현.
 
-#### 12. `pet_images` — 등록 반려동물 이미지
+#### 13. `pet_images` — 등록 반려동물 이미지
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -389,7 +389,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 
 ### 이미지 공통
 
-#### 13. `images` — 공통 이미지 저장소 객체 메타데이터
+#### 14. `images` — 공통 이미지 저장소 객체 메타데이터
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -409,7 +409,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 
 ### 실종·발견 신고
 
-#### 14. `missing_reports` — 실종 신고 정보
+#### 15. `missing_reports` — 실종 신고 정보
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -447,7 +447,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 신고 작성은 USER만 가능(Q421 A). 수정·삭제·상태 변경은 작성자 본인만(Q423 A).
 - ACTIVE·비삭제·작성자 비탈퇴 신고만 AI 비교 및 알림 대상. 반환/발견 신고 종료로 자동 종료하지 않음.
 
-#### 15. `missing_report_images` — 실종 신고 이미지
+#### 16. `missing_report_images` — 실종 신고 이미지
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -460,7 +460,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 **확정 규칙 / 참고사항**
 - 1~3장 필수, 대표는 `display_order=1`. 이미지 중복 및 개수는 BE 검증. `UNIQUE(missing_report_seq,display_order)` 유지.
 
-#### 16. `found_reports` — 발견 신고 정보
+#### 17. `found_reports` — 발견 신고 정보
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -498,7 +498,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 연락처·위치·일시 필수. 연락처 공개는 기본 비공개이며 비공개 시 작성자·담당 보호소 열람(ADMIN 열람은 범위 외). `reporter_name` 별도 저장 없이 users.name 조회(Q332).
 - ACTIVE·비삭제·작성자 비탈퇴 신고만 AI 신규 매칭 대상으로 포함(Q343).
 
-#### 17. `found_report_images` — 발견 신고 이미지
+#### 18. `found_report_images` — 발견 신고 이미지
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -513,7 +513,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 
 ### 구조·보호·반환
 
-#### 18. `rescue_records` — 보호소 구조 기록
+#### 19. `rescue_records` — 보호소 구조 기록
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -540,7 +540,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 완료 구조 기록 1개로 보호동물 여러 마리 등록 가능. 보호동물이 연결된 구조 기록은 삭제 제한(Q298·353).
 - 발견 신고가 삭제되어도 구조 기록·FK·진행 상태 그대로 보존, 구조 진행 가능(Q342). 구조 기록의 shelter_seq와 보호동물의 shelter_seq가 달라도 연결 허용(Q354).
 
-#### 19. `shelter_animals` — 보호동물 및 보호·입양 상태
+#### 20. `shelter_animals` — 보호동물 및 보호·입양 상태
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -578,7 +578,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 실제 반환·입양/보호 종료에서 신청서 자동 REJECTED 등 최신 규칙 적용. 활성 DRAFT/SUBMITTED/APPROVED 신청서가 존재하면 보호동물 소프트 삭제 요청 거부(Q355).
 - 건강검진/접종 정보는 `health_check`, `vaccination_status` 자유 입력. `completed_application_seq`는 같은 동물의 최종 입양 신청서만 참조하며 외부 입양은 NULL.
 
-#### 20. `shelter_animal_images` — 보호동물 이미지
+#### 21. `shelter_animal_images` — 보호동물 이미지
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -591,7 +591,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 **확정 규칙 / 참고사항**
 - 1~3장 필수. 첫 이미지 대표, `(animal_seq,display_order)` UNIQUE. 사진 수정 시 자격 대상에 한해 AI 재매칭.
 
-#### 21. `animal_returns` — 실제 보호동물 반환 완료
+#### 22. `animal_returns` — 실제 보호동물 반환 완료
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -612,7 +612,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 
 ### 입양 신청·서식·심사
 
-#### 22. `adoption_form_questions` — 현재 공통 21개 질문/선택지·조건
+#### 23. `adoption_form_questions` — 현재 공통 21개 질문/선택지·조건
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -631,7 +631,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - `condition_jsonb`의 질문 의존성은 `question_seq`로 참조. 조건부 노출·필수 검증은 FE/BE에서 수행. 숨겨진 응답은 제거; DB CHECK/트리거 추가 없음(Q322·323).
 - 질문 변경 이력과 제출 당시 문항 스냅샷을 저장하지 않으므로 **기존 제출 답변도 현재 질문 문구와 함께 표시**. 질문 의미 변경 시 과거 답변의 의미가 달라 보일 수 있는 위험을 수용한 정책(Q402 추가 결정).
 
-#### 23. `adoption_applications` — 신청서 및 JSONB 답변
+#### 24. `adoption_applications` — 신청서 및 JSONB 답변
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -667,7 +667,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 
 ### 채팅
 
-#### 24. `chat_rooms` — 일반회원·보호소 채팅방
+#### 25. `chat_rooms` — 일반회원·보호소 채팅방
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -682,7 +682,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - USER↔USER 또는 USER↔SHELTER만. 동일 상대 조합에 방 1개; 개인간 ID는 오름차순으로 저장하고 유형별 부분 UNIQUE.
 - 보호소당 담당 계정 1개. 보호소↔보호소 채팅 없음. 참여자가 탈퇴해도 채팅방 유지.
 
-#### 25. `chat_participants` — 채팅방 읽음·나가기 기준
+#### 26. `chat_participants` — 채팅방 읽음·나가기 기준
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -700,7 +700,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 읽음/숨김 포인터는 같은 방에 소속된 메시지만 가리키도록 복합 FK 적용(Q233).
 - 채팅방 나가기 후 재입장은 같은 방을 사용하되 이전 메시지 비노출. 미읽음 수는 조회 시 계산.
 
-#### 26. `chat_messages` — 텍스트·이미지·게시물 공유 메시지
+#### 27. `chat_messages` — 텍스트·이미지·게시물 공유 메시지
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -718,10 +718,11 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 이미지 전용 `chat_message_images` 테이블은 제거(Q401). 직접 FK `image_seq`의 NULL 여부로 이미지 첨부를 표현. TEXT(비공백 본문), IMAGE(이미지 정확히 1장; body는 선택), SHARED_POST(공유 대상 ID) 지원. `shared_target_type`에는 게시물 대상 코드 `MISSING/FOUND/SHELTER_ANIMAL`만 사용(Q387). 유형별 payload·권한·존재 검증은 BE. 개별 메시지 삭제 미지원.
 - 공유 게시물이 삭제되어도 메시지는 유지하고 삭제 안내 표시. 탈퇴 사용자의 과거 대화/이미지는 보존·표시명 대체(Q314).
 - 상대 계정이 탈퇴했으면 신규 메시지는 거부; 별도 채팅방 CLOSED 컬럼 없음(Q341).
+- 쓰기 경로는 **STOMP SEND 하나**(R16 B, API 14장): chat 서비스가 `/app/rooms/{chatRoomSeq}/messages`로 받은 메시지를 검증·저장한 뒤 `/topic/rooms/{chatRoomSeq}`로 브로드캐스트. REST 전송 경로는 없음. 저장 후 `ChatMessageSent` 이벤트로 notification이 보낸 사람을 제외한 참여자 전원에게 **FCM 데이터 메시지**를 보내고, 표시 여부는 앱이 현재 열린 방 기준으로 판단(R9 C). 서버는 구독 상태를 저장하지 않음.
 
 ### 댓글·답글
 
-#### 27. `missing_report_comments` — 실종 신고 댓글·답글
+#### 28. `missing_report_comments` — 실종 신고 댓글·답글
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -742,7 +743,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 루트 댓글 삭제 시 해당 댓글만 is_deleted=TRUE, 기존 자식 답글은 보존하고 삭제 문구 표시(Q340).
 - 회원 탈퇴 시 댓글 내용·답글은 유지하되 탈퇴한 루트 댓글에는 신규 답글 제한(Q316~317).
 
-#### 28. `found_report_comments` — 발견 신고 댓글·답글
+#### 29. `found_report_comments` — 발견 신고 댓글·답글
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -761,7 +762,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 이미지 연결 전용 테이블 없이 `image_seq NULL` 직접 FK 사용(Q400). 댓글 본문·이미지 중 적어도 하나는 있어야 함(BE 검증).
 - 실종 댓글과 동일한 1-depth/복합 FK 정책. 루트 소프트 삭제 시 답글 보존, 탈퇴 댓글에 신규 답글 금지.
 
-#### 29. `shelter_animal_comments` — 보호동물 댓글·답글
+#### 30. `shelter_animal_comments` — 보호동물 댓글·답글
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -782,7 +783,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 
 ### 신고·북마크·알림
 
-#### 30. `reports` — 회원/게시물/댓글 통합 신고
+#### 31. `reports` — 회원/게시물/댓글 통합 신고
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -802,7 +803,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 현재 `status=PENDING`만 사용하며 관리자 신고 심사/제재 구현 제외. `(reporter_user_seq,target_type,target_seq)` 전역 UNIQUE로 같은 대상 재신고 불가(Q307).
 - `user_blocks` 테이블과 자동 차단/수동 차단 기능 일체 제외(Q306).
 
-#### 31. `bookmarks` — 게시물 북마크
+#### 32. `bookmarks` — 게시물 북마크
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -816,7 +817,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 실종/발견/보호동물만 지원. `(user_seq,target_type,target_seq)` UNIQUE. 해제는 물리 DELETE.
 - 원본 삭제·작성자 탈퇴 시 목록 비노출. CLOSED 신고·ADOPTED 보호동물은 북마크 유지.
 
-#### 32. `notifications` — 일반·AI·업무 알림
+#### 33. `notifications` — 일반·AI·업무 알림
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -839,7 +840,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 알림 개별/전체 삭제는 `is_deleted=TRUE`로 변경, 숨김 별도 기능 없음(Q339). `target_type/target_seq`는 둘 다 NULL 허용(Q391); 연결 대상이 있는 경우 BE에서 값의 완결성 및 존재·권한을 검증(Q382). 알림의 `ADOPTION` 대상은 `adoption_applications.application_seq`로 통합 입양 프로세스 화면을 지정(Q387).
 - 탈퇴한 사용자가 발생시킨 기존 알림은 삭제하지 않고 표기만 대체. `message`에 **BE가 생성한 정확히 같은 문자열을 DB에 저장하고 FCM 푸시 body로 재사용**(Q381). DB 저장 확정 후 FCM 발송하며, 실패해도 DB 알림은 보존하고 재시도하지 않음. 채팅 푸시 이력은 저장하지 않음.
 
-#### 33. `device_tokens` — FCM 기기 토큰
+#### 34. `device_tokens` — FCM 기기 토큰
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -862,7 +863,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 >
 > **스키마(Q420 D):** 11개 테이블 모두 `simulation` 스키마에 있고 쓰기 주체는 simulation 서비스뿐입니다. `core` 스키마를 가리키는 `user_seq`·`animal_seq`·`shelter_seq`는 **FK 없는 논리 참조**이며 존재·상태 검증은 simulation 서비스가 `core` 테이블을 읽기 전용 JOIN으로 수행합니다. 11개 테이블 사이의 FK는 그대로입니다.
 
-#### 34. `simulation_sessions` — 세션 본체 및 현재 스탯
+#### 35. `simulation_sessions` — 세션 본체 및 현재 스탯
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -901,7 +902,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 중도 포기는 `ABANDONED`(리포트 생성). 회원 탈퇴 시 진행 중 세션도 `ABANDONED`. 세션 진행 중 동물의 입양·반환·종료는 세션에 영향 없음(스냅샷).
 - `last_action_dttm`은 CARE·WALK·EVENT_ANSWER 행동에서만 갱신(방치 알림 기준, M16). `balance`는 구매·이벤트 비용으로 음수까지 내려갈 수 있음(M5).
 
-#### 35. `simulation_shop_items` — 펫샵 물품 마스터(초기 데이터)
+#### 36. `simulation_shop_items` — 펫샵 물품 마스터(초기 데이터)
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -923,7 +924,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 기구(`FOOD_BOWL`, `WATER_BOWL`, `LITTER_BOX`, `TOY`)는 `is_consumable=FALSE`로 한 번 사면 세션 내 영구. 소모품(`FOOD`, `SNACK`, `LITTER`, `SHAMPOO`, `MEDICINE`)은 사용 시 수량 차감(M9). 물은 무료이며 물그릇만 구매. 메인 화면의 밥그릇·물그릇·화장실·장난감 오브젝트는 해당 기구를 보유해야 활성.
 - 펫샵→인벤토리 이동 시 결제(M5). 물품 행은 Flyway 시드로 적재하고 관리 API 없음(Q412 A). `effects_jsonb` 키는 세션 스탯 컬럼명과 동일. 물품 사진은 시드 시 S3에 올린 객체 키를 `image_key`에 직접 기록하며 API 응답에서 URL로 변환.
 
-#### 36. `simulation_inventory_items` — 세션별 보유 물품
+#### 37. `simulation_inventory_items` — 세션별 보유 물품
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -937,7 +938,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 **확정 규칙 / 참고사항**
 - `UNIQUE(session_seq,item_seq)`. 구매 시 UPSERT로 수량 증가. 기구는 수량 1 고정이며 재구매 요청은 409. 소모품은 사용 시 -1, 0이 되어도 행은 유지.
 
-#### 37. `simulation_transactions` — 지출 내역(리포트 근거)
+#### 38. `simulation_transactions` — 지출 내역(리포트 근거)
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -956,7 +957,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 종전 초안의 `VET` 유형은 없음. 병원 진료비는 CONDITION 이벤트 선택지의 `cost`로 `EVENT` 거래에 기록(M15).
 - 리포트의 카테고리별 합계는 PURCHASE는 물품 `category`, EVENT는 `EVENT`로 집계. 일자별 지출은 `reg_dttm`을 세션 시작 기준 1~7일차로 환산.
 
-#### 38. `simulation_action_logs` — 행동 로그(스탯 변화 근거·방치 판정)
+#### 39. `simulation_action_logs` — 행동 로그(스탯 변화 근거·방치 판정)
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -975,7 +976,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 돌봄 행동별 필요 기구·소모품(BE 검증): `FEED`=FOOD_BOWL 보유+FOOD 1개 · `WATER`=WATER_BOWL 보유(물 무료) · `CLEAN_LITTER`=LITTER_BOX 보유+LITTER 1개 · `BATHE`=SHAMPOO 1개 · `PLAY`=TOY 보유 · `SNACK`=SNACK 1개 · `MEDICINE`=MEDICINE 1개. 산책 중 `GIVE_WATER`는 소모 없음, `GIVE_SNACK`=SNACK 1개.
 - 종전 초안의 `VET_VISIT` 행동과 `diagnosis_seq` 컬럼은 없음(M15). `last_action_dttm` 갱신은 `CARE`·`WALK`·`EVENT_ANSWER`만(SYSTEM·`EVENT_EXPIRE` 제외).
 
-#### 39. `simulation_walks` — 산책 1회
+#### 40. `simulation_walks` — 산책 1회
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -992,7 +993,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 개·고양이 모두 산책 가능하되 고양이는 종 배율로 스탯 손해(M12; 배율은 코드 상수). 산책 효과(활동·스트레스 회복)는 종료 시 길이와 종·성격 배율로 계산.
 - 산책 중 동물 행동 이벤트는 앱이 켜진 상태라 푸시 대신 하트비트 응답으로 전달(M11). [가안] 하트비트 60초 간격, 10분 끊기면 스케줄러가 자동 종료.
 
-#### 40. `simulation_event_scenarios` — 이벤트 시나리오 마스터(초기 데이터)
+#### 41. `simulation_event_scenarios` — 이벤트 시나리오 마스터(초기 데이터)
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -1015,7 +1016,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - **아픔은 별도 진단 마스터 없이 CONDITION 이벤트(M15):** 건강 하락 등 스탯 조건이 충족되면 `HOME`+`CONDITION` 시나리오가 발생하고, "병원에 데려간다"(비용=진료비, 효과, `result_text`=진단서 문구) / "지켜본다" 선택지로 응답. 메인 화면 동물병원 오브젝트는 PENDING CONDITION 이벤트가 있을 때 활성. 같은 방식으로 청결 낮음→피부 트러블, 스트레스 높음→무기력, 포만 낮음→영양 부족을 콘텐츠로 추가 가능. 종전 초안의 `simulation_diagnoses` 테이블은 만들지 않음.
 - 조건 판정 시점은 스탯 지연 계산 때와 스케줄러 주기. 쿨다운 내 재발생 없음. 시나리오 행은 초기 데이터로 적재(Q412).
 
-#### 41. `simulation_event_choices` — 시나리오별 선택지 2개
+#### 42. `simulation_event_choices` — 시나리오별 선택지 2개
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -1031,7 +1032,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 **확정 규칙 / 참고사항**
 - 시나리오당 정확히 2개(1, 2)는 시드·BE 검증. `cost>0`이면 응답 시 `simulation_transactions(EVENT)` 생성과 잔액 차감.
 
-#### 42. `simulation_event_occurrences` — 세션별 발생 이벤트
+#### 43. `simulation_event_occurrences` — 세션별 발생 이벤트
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -1051,7 +1052,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - [가안] 집 이벤트는 하루 1~2회 랜덤, 응답 시한 6시간, 만료 시 `EXPIRED`로 효과 없음(`EVENT_EXPIRE` 로그). 산책 이벤트는 산책당 0~3회. CONDITION 이벤트 만료 규칙은 RANDOM과 동일하며 조건이 계속되면 쿨다운 뒤 재발생.
 - 응답 트랜잭션: 해당 행 `SELECT ... FOR UPDATE` → PENDING·시한 확인 → 선택지 효과 적용 → `cost>0`이면 거래 INSERT + 잔액 차감 → `EVENT_ANSWER` 로그 → `ANSWERED`. 중복 응답은 409.
 
-#### 43. `simulation_reports` — 종료 리포트(세션 1:1)
+#### 44. `simulation_reports` — 종료 리포트(세션 1:1)
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -1072,7 +1073,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 세션 종료(COMPLETED/ABANDONED/FAILED) 트랜잭션에서 1회 생성. 진행 중 중간 리포트는 조회 시 계산만 하고 저장하지 않음. 영구 보존(사용자 탈퇴 후에도 보호소 열람 유지).
 - **열람 범위(M14·M17):** 본인은 자기 리포트 전체. 보호소는 자기 보호동물로 진행된 세션의 리포트와, 입양 신청 상세에서 신청자의 해당 동물 리포트를 열람만 가능(`adoption_applications`와 FK 없이 `user_seq`+`animal_seq`로 파생 조회). ADMIN 전역 열람은 범위 외.
 
-#### 44. `simulation_notifications` — 모의 입양 알림(일반 알림과 분리)
+#### 45. `simulation_notifications` — 모의 입양 알림(일반 알림과 분리)
 
 | 컬럼 | 타입 | 필수 | 키·제약 | 의미 |
 |---|---|:---:|---|---|
@@ -1604,7 +1605,7 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 - `user_blocks`: 차단, 자동 차단, 차단 해제, 채팅 차단 규칙 전체 제외(Q306).
 - `adoption_form_answers`: 정규화된 답변 테이블 삭제, `adoption_applications.answers_jsonb` 사용(Q276). `adoption_form_templates`도 Q402에 따라 현행 모델에서 제거. `adoption_processes`, `adoption_application_histories`, `shelter_animal_status_history`도 현행 모델에서 제거(Q375·376·378).
 - `chat_message_images`, `missing_report_comment_images`, `found_report_comment_images`, `shelter_animal_comment_images`: 0~1 이미지의 직접 FK 통합으로 삭제(Q400~401). `chat_notifications`: DB에 채팅 푸시 이력을 저장하지 않음.
-- 모의 입양은 v9에서 **구현 범위에 포함**(M1~M17, 34~44번 테이블). v8까지 보류 이름이던 `mock_adoption_runs`·`mock_adoption_results`는 `simulation_sessions`·`simulation_reports`로 대체되어 만들지 않음. 설계 과정의 초안이던 `simulation_diagnoses`(진단 마스터)와 `simulation_action_logs.diagnosis_seq`도 M15에 따라 만들지 않음(아픔은 CONDITION 이벤트).
+- 모의 입양은 v9에서 **구현 범위에 포함**(M1~M17, v10 번호 35~45번 테이블). v8까지 보류 이름이던 `mock_adoption_runs`·`mock_adoption_results`는 `simulation_sessions`·`simulation_reports`로 대체되어 만들지 않음. 설계 과정의 초안이던 `simulation_diagnoses`(진단 마스터)와 `simulation_action_logs.diagnosis_seq`도 M15에 따라 만들지 않음(아픔은 CONDITION 이벤트).
 - `refresh_tokens`: Redis TTL 저장으로 대체되어 만들지 않음(Q409 B). `users.profile_image_key`: Q408로 삭제.
 - ADMIN 관련 테이블·컬럼·기능 일체(관리자 계정 발급, 신고 심사, 발견 신고 수동 재배정, 마스터 데이터 관리 API)는 이번 구현 범위 외(Q411). `users.role`의 `ADMIN` 값만 예약.
 - `confirmed_animal_links`: 실종↔발견/보호동물 동일 개체 확인 링크 저장하지 않음. `animal_returns.missing_report_seq`도 없음.
@@ -1886,7 +1887,7 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 | Q0-1 | [확정] A: 새 파일 생성 | v9/v2에 이어 v10/v3 신규. 이전 버전 보존 |
 | Q0-2 | [확정] Kotlin + Spring Boot, Redis 사용. RabbitMQ·OpenSearch·S1~S8은 v10에서 확정(아래 S1~S8) | refresh token Redis 저장의 근거 |
 | Q406 | **[확정] A**: `shelters`·`missing_reports`·`found_reports`에 `district_code VARCHAR(5) NULL`(법정동 코드 앞 5자리) + 서버 역지오코딩(네이버 `legalcode`, port/out 어댑터). 보호소는 시드 때 일괄 도출, 신고는 등록·위치 수정 시 재도출 | 컬럼 3개 추가, `districts` FK. `shelter_district_assignments.district_code`는 `VARCHAR(5)`로 통일 |
-| Q406-1 | [확정] A: 행정구역 마스터 `districts(district_code PK, sido_name, sigungu_name)` 시드 테이블 + `GET /districts` | 45번째 테이블. 네 테이블의 `district_code` FK 대상 |
+| Q406-1 | [확정] A: 행정구역 마스터 `districts(district_code PK, sido_name, sigungu_name)` 시드 테이블 + `GET /districts` | 07번 테이블(이후 번호 +1, 총 45개). 네 테이블의 `district_code` FK 대상 |
 | Q406-2 | [확정] A: 역지오코딩 실패·미등록 코드는 NULL 저장, 발견 신고 배정은 최근접으로 진행, 필터에서 제외, 등록 거부 없음 | 스키마 영향 없음(NULL 허용 전제) |
 | Q407 | [확정] A: 이미지 업로더 기록 | `images.reg_usr_seq INTEGER NULL FK→users`. 시드·공공데이터 NULL. 연결 시 본인만(BE), ADMIN 예외 없음 |
 | Q408 | [확정] A: 프로필 이미지를 images FK로 통일 | `users.profile_image_key` 삭제 → `users.profile_image_seq BIGINT NULL FK→images`. 참조 해제 정책(Q383) 적용 |
@@ -1930,6 +1931,26 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 | S6 | RabbitMQ: 채팅 relay + 서비스 간 도메인 이벤트(알림 생성, `UserDeleted`, AI 매칭 요청, 모의 입양 푸시 위임) | - |
 | S7 | OpenSearch 미도입. `keyword` 검색은 `ILIKE`, pg_trgm GIN 인덱스 [가안]. 임베딩 저장은 pgvector 후보(보류) | 인덱스만 |
 | S8 | simulation `@Scheduled` 10분 주기 작업 1개. 인스턴스 1개 전제, 다중이면 ShedLock. core·notification 스케줄 없음 | - |
+
+### R1~R16 (v10·v3 2차 검토, 2026-11-02 확정)
+
+| 번호 | 결정 | 데이터 모델 영향 |
+|---|---|---|
+| R1 | AI_MATCH 알림 행만 core-api가 `notifications`에 직접 INSERT(쓰기 소유권 예외, Q389·390 유지) | 없음 |
+| R2 | 세션 스냅샷 컬럼 `shelter_seq`·`animal_breed_name`·`animal_color_name`·`animal_image_key` 확정 | 35번 `simulation_sessions` |
+| R3 | 담당이 아닌 보호소도 발견 신고로 구조 접수 가능 | 없음(BE 제약 없음) |
+| R4 | 종료된 구조(DONE·FAILED·CANCELED)는 기존 PATCH에서 `rescue_memo`만 수정, 전용 API 없음 | 없음 |
+| R5 | 공고 종료일 수정 허용(기존 PATCH 필드), 전용 API 없음 | 없음 |
+| R6 | 반환·입양 없이 ENDED 단독 처리 허용, 사유 선택 | 없음 |
+| R7 | 삭제된 댓글은 자리 유지("(삭제된 댓글)"), 삭제된 루트에 새 답글 불가, 기존 답글 유지 | 없음 |
+| R8 | USER·SHELTER 모두 채팅방 먼저 생성 가능 | 없음 |
+| R9 | **C** 채팅 푸시는 보낸 사람 제외 참여자 전원에게 FCM 데이터 메시지, 표시 판단은 앱. 서버 구독 상태·Redis 키 없음 | 없음 |
+| R10 | 담당 발견 신고 목록(API 8.8) `hasRescue` 선택 필터·`activeRescueSeq` 응답. 기본은 전량 | 없음 |
+| R11·R12 | 도메인 재분류: 동물 기준정보 + `districts` → `catalog`, 북마크 → `user`, 보호동물 `animal`. 에러 코드 접두어 `CATALOG_`·`USER_BOOKMARK_` | 없음(패키지·코드 이름) |
+| R13 | 발견 신고 등록 응답 `assignmentMethod`는 응답 전용, 컬럼 없음 | 없음 |
+| R14 | **B** `districts`를 07번으로 넣고 이후 테이블 전체 재번호(08~45) | 번호만 |
+| R15 | 고아 S3 객체 수명주기 1일 | 없음 |
+| R16 | **B** 채팅 전송은 STOMP SEND `/app/rooms/{chatRoomSeq}/messages`, REST 전송 삭제, 오류는 `/user/queue/errors`에 같은 봉투 | 없음(27번 `chat_messages` 규칙에 기재) |
 
 ### M1~M17 (모의 입양)
 
