@@ -33,6 +33,7 @@ import { BottomNavigation } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
+import { MockAdoptionScreen } from '../MockAdoption/MockAdoptionScreen';
 import { AdoptionFilterSheet, type AdoptionFilters, type FilterKey } from './AdoptionFilterSheet';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
@@ -108,8 +109,9 @@ export function HomeScreen({ navigation }: Props) {
   const [filterValues, setFilterValues] = useState(initialFilters);
   const bookmarkedIds = useAdoptionBookmarkStore(state => state.bookmarkedIds);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
-  const [selectedTab, setSelectedTab] =
-    useState<(typeof navigationItems)[number]['key']>('adoption');
+  const [selectedTab, setSelectedTab] = useState<
+    (typeof navigationItems)[number]['key'] | 'mockAdoption'
+  >('adoption');
   const animals = useMemo(() => {
     const filtered = adoptionAnimals.filter(item => {
       const queryMatched = `${item.name} ${item.location} ${item.summary}`
@@ -226,6 +228,31 @@ export function HomeScreen({ navigation }: Props) {
     </Pressable>
   );
 
+  const navigationBar = (
+    <View style={[styles.navigationWrap, { bottom: insets.bottom + 16 }]}>
+      <BottomNavigation
+        centerAction={{
+          accessibilityLabel: '모의입양',
+          icon: <PlusIcon height={24} width={24} />,
+          onPress: () => setSelectedTab('mockAdoption'),
+          selected: selectedTab === 'mockAdoption',
+        }}
+        items={navigationItems}
+        onSelect={setSelectedTab}
+        selectedKey={selectedTab}
+      />
+    </View>
+  );
+
+  if (selectedTab === 'mockAdoption') {
+    return (
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <MockAdoptionScreen />
+        {navigationBar}
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <View style={styles.header}>
@@ -286,18 +313,7 @@ export function HomeScreen({ navigation }: Props) {
         renderItem={renderAnimal}
         showsVerticalScrollIndicator={false}
       />
-      <View style={[styles.navigationWrap, { bottom: insets.bottom + 16 }]}>
-        <BottomNavigation
-          centerAction={{
-            accessibilityLabel: '등록',
-            icon: <PlusIcon height={24} width={24} />,
-            onPress: () => undefined,
-          }}
-          items={navigationItems}
-          onSelect={setSelectedTab}
-          selectedKey={selectedTab}
-        />
-      </View>
+      {navigationBar}
       <AdoptionFilterSheet
         activeFilter={activeFilter}
         filters={filterValues}

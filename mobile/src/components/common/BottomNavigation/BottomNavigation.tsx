@@ -14,6 +14,8 @@ type BottomNavigationProps<Key extends string> = {
     accessibilityLabel: string;
     icon: ReactNode;
     onPress: () => void;
+    label?: string;
+    selected?: boolean;
   };
   items: readonly BottomNavigationItem<Key>[];
   onSelect: (key: Key) => void;
@@ -39,11 +41,28 @@ export function BottomNavigation<Key extends string>({
               <View style={styles.centerSlot}>
                 <Pressable
                   accessibilityLabel={centerAction.accessibilityLabel}
-                  accessibilityRole="button"
+                  accessibilityRole={centerAction.selected === undefined ? 'button' : 'tab'}
+                  accessibilityState={
+                    centerAction.selected === undefined
+                      ? undefined
+                      : { selected: centerAction.selected }
+                  }
                   onPress={centerAction.onPress}
-                  style={({ pressed }) => [styles.centerButton, pressed && styles.pressed]}
+                  style={({ pressed }) => [
+                    centerAction.label ? styles.centerTab : styles.centerButton,
+                    pressed && styles.pressed,
+                  ]}
                 >
-                  {centerAction.icon}
+                  {centerAction.label ? (
+                    <>
+                      <View style={styles.centerTabIcon}>{centerAction.icon}</View>
+                      <Text style={[styles.label, centerAction.selected && styles.selectedLabel]}>
+                        {centerAction.label}
+                      </Text>
+                    </>
+                  ) : (
+                    centerAction.icon
+                  )}
                 </Pressable>
               </View>
             ) : null}
@@ -114,6 +133,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     width: 50,
+  },
+  centerTab: { alignItems: 'center', gap: spacing[2], justifyContent: 'center' },
+  centerTabIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.green400,
+    borderRadius: 18,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
   },
   pressed: {
     opacity: 0.7,
