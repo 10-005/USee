@@ -224,6 +224,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 한 회원에 인증 수단 1개(`user_seq UNIQUE`). 탈퇴 시 인증 행 소프트 삭제, 재가입은 새로운 회원+인증 행으로 생성.
 - `(provider_seq,login_identifier)`는 `WHERE is_deleted=FALSE`에 대해서만 UNIQUE, 과거 계정 이력은 보존.
 - LOCAL 비밀번호는 해시만 저장. 사전 발급 계정이며 비밀번호 재설정은 구현 제외.
+- LOCAL 로그인 실패 제한(Q445): 연속 실패 횟수는 Redis `auth:login-fail:{loginId}`(TTL)로만 관리하고 DB 컬럼·잠금 상태는 두지 않음. [가안] 5회 실패 시 15분 차단, TTL 만료로 자동 해제, 성공 시 카운터 삭제. 영구 잠금 없음(재설정 경로가 없으므로).
 
 #### 04. `shelters` — 보호소 기준정보
 
@@ -406,7 +407,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - `image_key UNIQUE`. 원본 이미지 객체는 S3 등 외부 저장소에 보관하고 DB에는 메타데이터 저장.
 - **업로더 기록(Q407):** 회원이 업로드한 이미지는 `reg_usr_seq`에 업로더를 저장. 게시물 사진·반려동물 사진·프로필·댓글·채팅 첨부 등 **모든 이미지 연결은 `reg_usr_seq`가 요청자 본인인 이미지만 허용**(BE 검증, 아니면 403). 반려동물 사진을 실종 신고에 재사용하는 경우는 같은 사용자이므로 그대로 가능. ADMIN 전역 예외는 없음(ADMIN 범위 외). 모의 입양 상점 물품 사진처럼 시드로 적재한 이미지는 NULL.
 - 여러 도메인 첨부 관계가 하나의 `image_seq`를 참조할 수 있음. 이미지 연결을 해제할 때 **모든 연결 테이블과 직접 FK(`users.profile_image_seq`, `shelters.profile_image_seq/background_image_seq`, 댓글·채팅 `image_seq`)의 참조가 사라진 경우에만** 공통 `images` 행과 S3 원본 객체를 삭제(Q383·Q408). 참조 확인 대상은 모두 `core` 스키마 안에 있음(`simulation_shop_items`는 v10부터 `image_key` 문자열이라 대상 아님). 별도 참조 카운트 컬럼 없음. 저장소 삭제는 DB 커밋 후 best-effort로 시도하고 실패하면 로그만 남기며 고아 객체를 허용(Q427 A). 참조 확인은 트랜잭션·동시성 검증 대상.
-- JPG/JPEG/PNG, 파일당 10MB. 이미지 임베딩 상세 구조는 별도 보류(저장 위치는 pgvector 후보, OpenSearch 미도입). 객체 저장소는 **AWS S3, 업로드는 presigned PUT**(S4 확정): 4.1에서 서버가 `image_key`와 업로드 URL을 발급하고 발급 컨텍스트(키·소유자)를 Redis에 임시 저장, 4.2에서 S3 HEAD로 실제 크기·MIME을 검증한 뒤 이 행을 생성. 4.2가 호출되지 않은 고아 객체는 버킷 수명주기 규칙으로 정리.
+- JPG/JPEG/PNG, 파일당 10MB. 이미지 임베딩 상세 구조는 별도 보류(저장 위치는 pgvector 후보, OpenSearch 미도입). 객체 저장소는 **AWS S3, 업로드는 presigned PUT**(S4 확정): 4.1에서 서버가 `image_key`와 업로드 URL을 발급하고 발급 컨텍스트(키·소유자)를 Redis에 임시 저장, 4.2에서 S3 HEAD로 실제 크기·MIME을 검증한 뒤 이 행을 생성. 4.2가 호출되지 않은 고아 객체는 버킷 수명주기 규칙으로 정리. **읽기(Q443):** `images/` 접두어는 버킷 정책으로 익명 GET을 허용하고 API의 `imageUrl`은 `{public-base-url}/{image_key}` 고정 URL(서명·만료 없음). 익명 쓰기는 열지 않음. `certificates/`(수료증, `adoption_applications.certificate_storage_key`)는 비공개로 두고 상세 조회 시 presigned GET(TTL 10분 [가안])만 발급.
 
 ### 실종·발견 신고
 
@@ -660,7 +661,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 - 동일 `(user_seq,animal_seq)`의 비삭제 상태 DRAFT/SUBMITTED/APPROVED *통틀어* 최대 1건(부분 UNIQUE; Q264·363). DRAFT→SUBMITTED는 같은 행 수정.
 - DRAFT는 빈/미완성 응답 허용; 제출시 **현재 질문 21개**와 조건부 필수 문항을 BE 검증. 제출 후 응답 불변. DRAFT 삭제는 물리 DELETE 및 해당 답변도 함께 제거(Q269).
 - 질문의 버전이나 제출 당시 질문 문구는 저장하지 않으며, 과거 제출 답변도 **현재 질문 문구로 조회**(Q402 A). 반면 신청자 인적 사항은 기존 정책대로 제출 시 `applicant_name/birth_date/phone` 스냅샷을 보존. DRAFT 작성 시에는 실시간 users 프로필 사용(Q325).
-- 수료증은 선택 1장(또는 PDF) JPG/PNG/PDF 최대 10MB, `certificate_storage_key`만 저장(Q277~281).
+- 수료증은 선택 1장(또는 PDF) JPG/PNG/PDF 최대 10MB, `certificate_storage_key`만 저장(Q277~281). 객체는 `certificates/` 접두어의 **비공개** 객체이며 신청자 본인·담당 보호소의 상세 조회 때만 presigned GET URL(TTL 10분 [가안])을 발급(Q443). 사진(`images/`)과 달리 고정 공개 URL이 없음.
 - SUBMITTED 상태만 신청자 직접 취소 가능; CANCELED는 취소 사유 컬럼 및 이력 사유 없음(Q326).
 - `APPROVED`는 서류 승인, `ADOPTED`는 실제 입양 완료. 별도 `adoption_processes` 없이 이 신청서 한 행에서 통합 입양 프로세스를 관리(Q375). 동일 동물의 다른 사용자들도 APPROVED 가능. REJECTED 이유는 **구분 가능한 자연어 텍스트**로 기록하며 별도 상태 이력·거절 종류·단계 컬럼을 생성하지 않음(Q376·377).
 - 보호동물 RETURNED/ADOPTED/ENDED 시 비완료 활성 신청서 DRAFT/SUBMITTED/APPROVED는 자동 REJECTED. 시스템이 상황에 맞는 실제 한국어 `rejection_reason` 문장을 생성하고 `reviewed_dttm=자동 거절 시각`, `reviewed_usr_seq=NULL`로 저장(Q372·376). 기존 APPROVED에서 자동 REJECTED가 되면 이전 승인 처리시각은 별도 보존하지 않음(Q376·377). 회원 탈퇴 시 본인 활성 신청서는 CANCELED, 이미 ADOPTED는 보존(Q318).
@@ -1073,7 +1074,7 @@ users 1:0..1 비삭제 ACTIVE missing_reports; CLOSED는 과거 행 보존·새 
 
 **확정 규칙 / 참고사항**
 - 세션 종료(COMPLETED/ABANDONED/FAILED) 트랜잭션에서 1회 생성. 진행 중 중간 리포트는 조회 시 계산만 하고 저장하지 않음. 영구 보존(사용자 탈퇴 후에도 보호소 열람 유지).
-- **`summary` 생성(Q435):** 종료 시 세션 상세·행동 이력(`simulation_action_logs`)·지출 내역(`simulation_transactions`)을 LLM 어댑터(`port/out`)에 보내 결과 문구를 생성해 저장. [가안] LLM 호출 실패 시 집계값 기반 규칙 문구로 대체하고 리포트 생성은 막지 않음. 세션 상세·이력·지출의 원본은 보호소에 노출하지 않고 이 리포트로만 집약.
+- **`summary` 생성(Q435·Q444, 비동기):** 종료 트랜잭션은 집계 컬럼만 채우고 `summary=NULL`로 INSERT·커밋. 커밋 후 simulation 내부 비동기 리스너가 세션 상세·행동 이력(`simulation_action_logs`)·지출 내역(`simulation_transactions`)을 LLM 어댑터(`port/out`)에 보내 받은 문구로 `summary`만 UPDATE. [가안] 타임아웃 20초·재시도 1회, 그래도 실패하면 집계값 기반 규칙 문구 저장. DB 트랜잭션 안에서 LLM을 호출하지 않으며 `summary`가 NULL인 동안 앱은 "요약 준비 중" 표시. 세션 상세·이력·지출의 원본은 보호소에 노출하지 않고 이 리포트로만 집약.
 - **열람 범위(M14·M17·Q435):** 본인은 자기 리포트 전체와 세션 상세·행동 이력·지출 내역. 보호소는 **종료 리포트만**: 자기 보호동물로 진행된 세션의 리포트와, 입양 신청 상세에서 신청자의 해당 동물 리포트(`adoption_applications`와 FK 없이 `user_seq`+`animal_seq`로 파생 조회). 진행 중 세션은 보호소에 노출하지 않음. ADMIN 전역 열람은 범위 외.
 
 #### 45. `simulation_notifications` — 모의 입양 알림(일반 알림과 분리)
@@ -1569,7 +1570,7 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 | 사건 | 단일 트랜잭션·BE 검증 항목 |
 |---|---|
 | 회원가입·탈퇴 | 카카오는 앱 SDK access token을 서버가 카카오 사용자 조회 API로 검증, 미가입자는 Redis `auth:register:{token}`(TTL 10분) 컨텍스트로 2.5에서 최종 가입(Q413 A·Q414 A); USER 필수 개인정보 CHECK + 활성 닉네임·전화 UNIQUE; 카카오 프로필 사진·이메일 미수집, 가입 시 `profile_image_seq=NULL`(Q408-1); 탈퇴 시 core-api 트랜잭션에서 users/user_accounts 소프트 삭제 + 본인 활성 신청 CANCELED + Redis refresh 키 삭제, 커밋 후 `UserDeleted` 이벤트(RabbitMQ) → notification이 토큰 비활성, simulation이 진행 중 세션 ABANDONED·리포트 생성(Q420); 옛 콘텐츠 일반 API 비노출 |
-| 로그인·토큰 | RS256, core-api만 발급(개인키), 나머지 서비스는 공개키 검증. access 클레임 `userSeq`·`role`·`shelterSeq`·`typ=access`; refresh는 같은 키로 서명한 JWT(`userSeq`·`jti`·`typ=refresh`, Q433)이며 검증기는 `typ != access`를 API 인증에서 거부; access 1시간/refresh 14일 [가안]; refresh는 Redis `auth:refresh:{userSeq}:{jti}` TTL 저장, 갱신 시 기존 키 삭제 후 재발급(rotation), 삭제된 jti 재사용 시 사용자 키 전부 삭제, 로그아웃 시 키 삭제 + 요청의 `fcmToken`이 있으면 해당 기기 토큰 비활성(Q409 B·Q419 A). access 블랙리스트 없음, 대신 모든 쓰기 요청에서 `users.is_deleted` 재확인(Q433) |
+| 로그인·토큰 | RS256, core-api만 발급(개인키), 나머지 서비스는 공개키 검증. access 클레임 `userSeq`·`role`·`shelterSeq`·`typ=access`; refresh는 같은 키로 서명한 JWT(`userSeq`·`jti`·`typ=refresh`, Q433)이며 검증기는 `typ != access`를 API 인증에서 거부; access 1시간/refresh 14일 [가안]; refresh는 Redis `auth:refresh:{userSeq}:{jti}` TTL 저장, 갱신 시 기존 키 삭제 후 재발급(rotation), 삭제된 jti 재사용 시 사용자 키 전부 삭제, 로그아웃 시 키 삭제 + 요청의 `fcmToken`이 있으면 해당 기기 토큰 비활성(Q409 B·Q419 A). access 블랙리스트 없음, 대신 모든 쓰기 요청에서 `users.is_deleted` 재확인(Q433). LOCAL 로그인은 Redis `auth:login-fail:{loginId}` 카운터로 5회 실패 시 15분 차단 [가안], 429 응답, DB 상태 없음(Q445) |
 | 이미지 연결 소유권 | 게시물·반려동물·프로필·댓글·채팅·모의 입양에 `image_seq`를 연결할 때 `images.reg_usr_seq = 요청자`만 허용, 아니면 403(Q407). 시드 이미지(NULL)는 회원 연결 불가 |
 | 실종 등록·재개 | 선택한 pet_seq 본인 소유 검증, 당시 속성 스냅샷 복사, **회원당** 비삭제 ACTIVE 1건 부분 UNIQUE(신규 등록·재개 모두 적용), AI 비교 작업 요청 |
 | 발견 등록 | USER만 작성(Q421); 서버가 좌표를 네이버 역지오코딩해 `district_code`(법정동 앞 5자리) 저장, 실패·미등록 코드면 NULL(Q406 A·Q406-2 A); 코드로 `shelter_district_assignments` 매핑 우선, NULL·미매핑이면 하버사인 최근접 보호소; 수동 재배정은 ADMIN 범위 외라 경로 없음(Q411); 기존 구조 기록 보호소는 유지. 실종 신고도 같은 방식으로 `district_code`만 저장(배정 없음) |
@@ -1599,7 +1600,7 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 | 모의 입양 구매 | 세션 행 잠금 → 물품 활성·종 범위 검증 → 기구 중복 보유 거부 → `simulation_transactions(PURCHASE)` INSERT → `balance` 차감(음수 허용) → 인벤토리 UPSERT |
 | 모의 입양 이벤트 | 발생: 세션 PENDING 없음 확인 후 RANDOM 추첨 또는 CONDITION 판정(쿨다운 확인) → occurrence INSERT → HOME이면 `simulation_notifications(EVENT)` + FCM. 응답: occurrence `FOR UPDATE` → PENDING·시한 확인 → 효과 적용 → cost>0이면 거래 INSERT·잔액 차감 → `EVENT_ANSWER` 로그 → ANSWERED. 만료: 조회·스케줄러 양쪽에서 감지해 EXPIRED + `EVENT_EXPIRE` 로그, 산책 종료 시 PENDING WALK 이벤트도 EXPIRED(Q441) |
 | 모의 입양 산책 | 시작: 세션당 IN_PROGRESS 1건 부분 UNIQUE; 하트비트: `last_heartbeat_dttm` 갱신 + 경과 반영 + WALK 이벤트 추첨; 종료: 길이·종·성격 배율로 효과 적용, `WALK_END` 로그; 10분 무응답 시 스케줄러 자동 종료 |
-| 모의 입양 종료·리포트 | 예정 종료·건강 0·포기·탈퇴 → 상태 변경 + `ended_dttm` + 진행 중 산책 ENDED·PENDING 이벤트 EXPIRED + 거래·로그 집계 및 LLM `summary` 생성(실패 시 규칙 문구, Q435)으로 `simulation_reports` INSERT + `simulation_notifications(SESSION_END)` INSERT를 **한 트랜잭션**에 반영하고 커밋 후 `SimulationPushRequested`만 발행(Q440). 진행 중 중간 리포트는 저장 없이 계산 |
+| 모의 입양 종료·리포트 | 예정 종료·건강 0·포기·탈퇴 → 상태 변경 + `ended_dttm` + 진행 중 산책 ENDED·PENDING 이벤트 EXPIRED + 거래·로그 집계로 `simulation_reports` INSERT(`summary=NULL`) + `simulation_notifications(SESSION_END)` INSERT를 **한 트랜잭션**에 반영하고, 커밋 후 `SimulationPushRequested` 발행과 비동기 LLM `summary` UPDATE(실패 시 규칙 문구, Q444)를 수행(Q440). 진행 중 중간 리포트는 저장 없이 계산 |
 | 모의 입양 알림 | `simulation_notifications`에 저장·커밋 후 RabbitMQ 이벤트로 notification에 넘겨 활성 FCM 토큰으로 발송; 방치 억제 기준은 코드 설정, 스탯 경고 억제는 같은 세션·같은 `STAT_*_WARNING` 유형 24시간 내 1회(Q438); 일반 `notifications` 미사용 |
 | 초기 데이터 | 행정구역 마스터·보호소(`district_code`는 오프라인 계산값을 SQL에 직접 삽입, Q431)·SHELTER 계정·행정구역 배정·종/품종(성격 포함)/색상/조합·입양 질문 21개·상점 물품(`image_key`)·시나리오/선택지는 Flyway 마이그레이션에 포함해 적재(Q412 A). 시드 SQL은 외부 API·S3를 호출하지 않으며, 시드 이미지는 팀이 S3에 먼저 올린 뒤 그 키를 SQL에 적음(`reg_usr_seq` NULL). 세부 적재 절차는 적재 시점에 별도 논의(Q431) |
 | 교차 스키마 접근 | 쓰기는 자기 스키마만(서비스별 DB 계정 권한으로 강제 가능). simulation → `core.users`(리포트 목록의 신청자 표시)·`shelter_animals`·`shelter_animal_images`·`animal_*`·`images` 읽기, core-api → `simulation.simulation_reports`·`simulation_sessions` 읽기. 서비스별 DB 계정 권한은 이 목록을 테이블 단위 GRANT 기준으로 사용. 교차 FK 없음, 존재·상태 검증은 읽는 쪽 BE(Q420 D) |
@@ -1619,7 +1620,7 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 
 ### v10 확정 완료 — 남은 [가안] 목록 (튜닝·구현 수치, 스키마 결정 아님)
 
-> v9의 [미정]·보류 목록(Q406, Q412, Q413~Q419, S1~S8)은 2026-11-02에 모두 확정되어 §14 추적표로 옮겼습니다. 2026-11-03에 Q430~Q442(감사 시각 매핑·시드 적재·AI 워커 MQ·refresh JWT·403/404 정책·보호소 리포트 열람·알림 유형 세분화·오류 코드 재검토 등)를 추가 확정했습니다(§14). 새 안건은 Q443부터 번호를 붙입니다. 아래는 **값만 조정 가능한 [가안]**이며 구조 재질문 대상이 아닙니다.
+> v9의 [미정]·보류 목록(Q406, Q412, Q413~Q419, S1~S8)은 2026-11-02에 모두 확정되어 §14 추적표로 옮겼습니다. 2026-11-03에 Q430~Q445(감사 시각 매핑·시드 적재·AI 워커 MQ·refresh JWT·403/404 정책·보호소 리포트 열람·알림 유형 세분화·오류 코드 재검토·이미지 읽기 URL·리포트 요약 비동기·로그인 실패 제한)를 추가 확정했습니다(§14). 새 안건은 Q446부터 번호를 붙입니다. 아래는 **값만 조정 가능한 [가안]**이며 구조 재질문 대상이 아닙니다.
 
 | 번호 | 항목 | 현재 가안 |
 |---|---|---|
@@ -1958,7 +1959,7 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 | R15 | 고아 S3 객체 수명주기 1일 | 없음 |
 | R16 | **B** 채팅 전송은 STOMP SEND `/app/rooms/{chatRoomSeq}/messages`, REST 전송 삭제, 오류는 `/user/queue/errors`에 같은 봉투 | 없음(27번 `chat_messages` 규칙에 기재) |
 
-### Q430~Q442 (4차, 2026-11-03 확정) 및 문구 통일
+### Q430~Q445 (4차, 2026-11-03 확정) 및 문구 통일
 
 | 번호 | 결정 | 데이터 모델 영향 |
 |---|---|---|
@@ -1977,6 +1978,9 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 | Q441 | [확정] 이벤트 만료는 조회·스케줄러 양쪽에서 감지, 산책 종료 시 PENDING WALK 이벤트 EXPIRED | §5·43번 규칙 |
 | Q442 | [확정] 오류 코드 재검토: 11.4 DONE 아닌 구조 409, 11.8 코드 확정, 10.3 삭제 신고 404·CLOSED 접수 허용, `SIMULATION_ANIMAL_NOT_FOUND` 신설, `CHAT_ROOM_NOT_FOUND`·`CHAT_MESSAGE_NOT_IN_ROOM` 신설, 400↔409 재배정, `CATALOG_INVALID_DISTRICT_CODE` 개명 | §5 구조 규칙 |
 | 문구 2차 | §5 구조 연결 선택 · 반환·입양 완료 시 `end_reason`·`protection_ended_dttm` 설정 명시(24번·§8) · `NotificationRequested` 발행 주체에서 chat 제거(§8) · 교차 스키마 읽기 목록에 `core.users`·`simulation_sessions` 추가(§8) | 없음 |
+| Q443 | [확정] A: 사진(`images/`)은 버킷 공개 읽기 + 고정 URL `{public-base-url}/{image_key}`(만료 없음), 수료증(`certificates/`)은 비공개 + 상세 조회 시 presigned GET(TTL 10분 [가안]). 업로드는 계속 presigned PUT만 | 없음(14번·25번 규칙에 읽기 방식 기재, 저장 키 그대로) |
+| Q444 | [확정] 리포트 `summary`는 비동기 생성: 종료 트랜잭션은 `summary=NULL`로 커밋, 커밋 후 리스너가 LLM 어댑터 호출 → UPDATE. [가안] 타임아웃 20초·재시도 1회, 실패 시 규칙 문구 | 44번 규칙(`summary TEXT NULL` 그대로) |
+| Q445 | [확정] LOCAL 로그인 연속 실패 제한은 Redis 카운터, [가안] 5회·15분, 429 `AUTH_LOGIN_LOCKED`, DB 컬럼 없음 | 03번 규칙 |
 
 ### M1~M17 (모의 입양)
 
@@ -2035,4 +2039,4 @@ ALTER TABLE shelter_members ADD CONSTRAINT uq_shelter_member_user UNIQUE(user_se
 > 현재 DB 기준 문서는 `animal_service_db_spec_v10.md`이고 2026-11-02에 Q406·Q413~Q429·S1~S8을 모두 확정해 반영했습니다(45개 현행 테이블 = `core` 스키마 34개 + `simulation` 스키마 11개). 기존 v9보다 최신 결정을 우선하십시오. [미정] 항목은 없고 §9의 [가안]은 값 조정만 가능합니다. 백엔드는 Kotlin + Spring Boot 서비스 4개(core-api·chat·notification·simulation)에 PostgreSQL 1개·스키마 2개입니다. `core`는 세 서비스가 공유하되 테이블마다 쓰는 서비스는 하나이고 FK는 그대로입니다. `simulation`은 교차 스키마 FK 없이 `user_seq`·`animal_seq`·`shelter_seq`를 논리 참조로 두고 교차 읽기 JOIN만 허용합니다. DDL·시드는 Flyway입니다. 행정구역 코드는 법정동 코드 앞 5자리이며 `districts` 마스터와 `shelters`·`missing_reports`·`found_reports`의 NULL 허용 `district_code`로 관리하고, 서버가 네이버 역지오코딩으로 도출합니다. 알림은 SYSTEM을 포함한 5종이고 AI 매칭 식별은 notifications의 target_type/target_seq를 활용하며, 모의 입양 알림은 `simulation_notifications`로 완전히 분리됩니다. 입양 템플릿·버전·과거 질문 이력은 없으며 question_seq를 답변 JSONB 키로 사용합니다. 구조 정보는 rescue_records에서 JOIN 조회합니다. 회원당 ACTIVE 실종 신고는 최대 1건이고 CLOSED 신고는 읽기 전용입니다. 회원 프로필 이미지는 `users.profile_image_seq`(images FK)이고 `images.reg_usr_seq`로 업로더를 기록하며, 이미지 업로드는 S3 presigned PUT, 원본 삭제는 커밋 후 best-effort입니다. refresh token과 가입 컨텍스트는 Redis TTL 저장이며 DB 테이블이 없습니다. ADMIN은 `users.role`의 예약값일 뿐 이번 범위에서 구현하지 않습니다(구조 접수·보호동물 등록은 SHELTER 전용, 신고 작성은 USER 전용). 모의 입양은 실제 보호동물(DOG/CAT)에서 시작해 실시간 7일, 스탯 7종 지연 계산, 펫샵·인벤토리·거래, 시나리오→선택지 2개 이벤트 엔진(RANDOM/CONDITION, 아픔·병원 포함), 산책, 리포트로 구성되며 튜닝 수치는 코드 설정입니다. 이미지 임베딩 상세, 보호소 이관, 차단, 보호소 삭제 엣지케이스, 신고 내역 조회는 재질문하지 마십시오. 추가 명세 변경은 먼저 질의응답으로 확정하고 사용자가 요청할 때만 새 버전 파일을 생성하십시오.
 
 ---
-**버전:** v10  |  **기준:** Q406~Q412·Q413~Q419·Q420~Q429·Q430~Q442·S1~S8 전부 확정 + 모의 입양 M1~M17 확정(M3·M4 등 튜닝값은 가안)  |  **현행 테이블:** 45개(`core` 34 + `simulation` 11)  |  **작성 목적:** 전체 테이블 명세 + 개념 제약 SQL + 충돌 처리 + 결정 추적 + 설계 인수인계 일체형
+**버전:** v10  |  **기준:** Q406~Q412·Q413~Q419·Q420~Q429·Q430~Q445·S1~S8 전부 확정 + 모의 입양 M1~M17 확정(M3·M4 등 튜닝값은 가안)  |  **현행 테이블:** 45개(`core` 34 + `simulation` 11)  |  **작성 목적:** 전체 테이블 명세 + 개념 제약 SQL + 충돌 처리 + 결정 추적 + 설계 인수인계 일체형
