@@ -39,14 +39,8 @@ kind: Ingress
 metadata:
   name: whoami
   namespace: platform
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: traefik
-  tls:
-    - hosts:
-        - k15d106.p.ssafy.io
-      secretName: k15d106-tls
   rules:
     - host: k15d106.p.ssafy.io
       http:
