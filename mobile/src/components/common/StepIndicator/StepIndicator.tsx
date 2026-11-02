@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { colors, radius, spacing } from '../../../theme';
+import { colors, radius } from '../../../theme';
 
 type StepIndicatorProps = {
   currentStep: number;
@@ -19,7 +19,7 @@ export function StepIndicator({ currentStep, totalSteps }: StepIndicatorProps) {
       style={styles.container}
     >
       {Array.from({ length: safeTotal }, (_, index) => (
-        <View key={index} style={[styles.step, index < safeCurrent && styles.activeStep]} />
+        <View key={index} style={[styles.step, index === safeCurrent - 1 && styles.activeStep]} />
       ))}
     </View>
   );
@@ -27,16 +27,18 @@ export function StepIndicator({ currentStep, totalSteps }: StepIndicatorProps) {
 
 const styles = StyleSheet.create({
   container: {
+    alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing[2],
+    gap: 6,
   },
   step: {
     backgroundColor: colors.gray200,
-    borderRadius: radius.xs,
+    borderRadius: radius.pill,
     height: 8,
-    width: 12,
+    width: 8,
   },
   activeStep: {
     backgroundColor: colors.green200,
+    width: 28,
   },
 });

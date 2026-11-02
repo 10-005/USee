@@ -1,8 +1,20 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import Geolocation from '@react-native-community/geolocation';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import type { ScrollViewInstance } from 'react-native';
+import {
+  Image,
+  Modal,
+  PermissionsAndroid,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import type { ScrollViewInstance, TextInputProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
@@ -13,6 +25,12 @@ import LocationIcon from '../../assets/icons/common/location.svg';
 import PawCheckIcon from '../../assets/icons/common/paw-check.svg';
 import PhoneIcon from '../../assets/icons/common/phone.svg';
 import { AppHeader, Button, StepIndicator } from '../../components/common';
+import {
+  type AdoptionApplicationDraft,
+  getAdoptionApplicationDraft,
+  removeAdoptionApplicationDraft,
+  saveAdoptionApplicationDraft,
+} from '../../services/storage/adoptionDraftStorage';
 import { colors, radius, spacing, typography } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AdoptionApplication'>;
@@ -55,6 +73,7 @@ type FormState = {
   consentPrivacy: boolean;
   consentShelter: boolean;
   consentPublic: boolean;
+  finalConfirmation: boolean;
 };
 
 const initialForm: FormState = {
@@ -96,13 +115,27 @@ const initialForm: FormState = {
   consentPrivacy: false,
   consentShelter: false,
   consentPublic: false,
+  finalConfirmation: false,
 };
 
-const stepLabels = ['신청자 정보 기입', '주거 및 동거 환경', '돌봄 계획', '동의 여부'];
+const stepLabels = ['신청자 정보 기입', '주거 및 동거 환경', '돌봄 계획', '동의 여부', '최종 확인'];
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function formatSavedAt(savedAt: string) {
+  const date = new Date(savedAt);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${year}.${month}.${day} ${hour}:${minute}`;
+}
 
 export function isAdoptionStepValid(form: FormState, step: number) {
   if (step === 1) {
-    return Boolean(form.address && form.visitDate);
+    return Boolean(
+      form.address && form.visitDate && (!form.email || emailPattern.test(form.email.trim())),
+    );
   }
   if (step === 2) {
     const baseValid = Boolean(
@@ -132,20 +165,23 @@ export function isAdoptionStepValid(form: FormState, step: number) {
       Boolean(form.educationInstitution && form.educationCourse && form.educationDate);
     return baseValid && educationValid;
   }
-  return (
-    form.consentHealth &&
-    form.consentResponsibility &&
-    form.consentCost &&
-    form.consentLostPrevention &&
-    form.consentNoCommercialUse &&
-    form.consentInformationCheck &&
-    form.consentBudget &&
-    form.consentAdaptation &&
-    form.consentVisit &&
-    form.consentReturn &&
-    form.consentPrivacy &&
-    form.consentShelter
-  );
+  if (step === 4) {
+    return (
+      form.consentHealth &&
+      form.consentResponsibility &&
+      form.consentCost &&
+      form.consentLostPrevention &&
+      form.consentNoCommercialUse &&
+      form.consentInformationCheck &&
+      form.consentBudget &&
+      form.consentAdaptation &&
+      form.consentVisit &&
+      form.consentReturn &&
+      form.consentPrivacy &&
+      form.consentShelter
+    );
+  }
+  return form.finalConfirmation;
 }
 
 function FieldLabel({ children }: { children: string }) {
@@ -210,11 +246,15 @@ function CalendarField({ value, onChange }: { value: string; onChange: (value: s
 }
 
 function FormInput({
+  autoCapitalize,
+  keyboardType,
   multiline = false,
   placeholder,
   value,
   onChangeText,
 }: {
+  autoCapitalize?: TextInputProps['autoCapitalize'];
+  keyboardType?: TextInputProps['keyboardType'];
   multiline?: boolean;
   placeholder: string;
   value: string;
@@ -222,6 +262,8 @@ function FormInput({
 }) {
   return (
     <TextInput
+      autoCapitalize={autoCapitalize}
+      keyboardType={keyboardType}
       multiline={multiline}
       onChangeText={onChangeText}
       placeholder={placeholder}
@@ -261,6 +303,12 @@ export function AdoptionApplicationScreen({ navigation }: Props) {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState('');
+  const [draftFeedback, setDraftFeedback] = useState('');
+  const [isFindingLocation, setIsFindingLocation] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [draftToResume, setDraftToResume] = useState<AdoptionApplicationDraft<FormState> | null>(
+    null,
+  );
   const scrollRef = useRef<ScrollViewInstance>(null);
   const update = <Key extends keyof FormState>(key: Key, value: FormState[Key]) =>
     setForm(current => ({ ...current, [key]: value }));
@@ -271,56 +319,262 @@ export function AdoptionApplicationScreen({ navigation }: Props) {
       return;
     }
     setError('');
-    if (step < 4) {
+    if (step < 5) {
       setStep(current => current + 1);
     } else {
-      setError('입력 확인이 완료되었습니다. 제출은 API 연동 후 제공됩니다.');
+      setDraftFeedback('제출 API 연동 전이라 신청서가 전송되지는 않았습니다.');
     }
   };
   const canContinue = isAdoptionStepValid(form, step);
+
+  const handleSaveDraft = async () => {
+    try {
+      const savedDraft = await saveAdoptionApplicationDraft(form, step);
+      setError('');
+      setDraftFeedback(`${formatSavedAt(savedDraft.savedAt)} 임시저장되었습니다.`);
+    } catch {
+      setDraftFeedback('');
+      setError('임시저장에 실패했습니다. 다시 시도해 주세요.');
+    }
+  };
+
+  const handlePrevious = () => {
+    if (step === 1) {
+      navigation.goBack();
+      return;
+    }
+    setStep(current => current - 1);
+  };
+
+  const handleResumeDraft = () => {
+    if (!draftToResume) {
+      return;
+    }
+    setForm({ ...initialForm, ...draftToResume.form });
+    setStep(Math.min(5, Math.max(1, draftToResume.step)));
+    setDraftToResume(null);
+    setDraftFeedback('저장된 신청서를 불러왔습니다.');
+  };
+
+  const deleteDraft = async () => {
+    try {
+      await removeAdoptionApplicationDraft();
+      setShowDeleteConfirm(false);
+      setDraftToResume(null);
+      setForm(initialForm);
+      setStep(1);
+      setError('');
+      setDraftFeedback('임시저장된 신청서를 삭제했습니다.');
+    } catch {
+      setShowDeleteConfirm(false);
+      setError('임시저장 삭제에 실패했습니다. 다시 시도해 주세요.');
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+    getAdoptionApplicationDraft<FormState>()
+      .then(draft => {
+        if (active && draft) {
+          setDraftToResume(draft);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setError('임시저장된 신청서를 불러오지 못했습니다.');
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ animated: false, y: 0 });
   }, [step]);
 
+  const findCurrentLocation = async () => {
+    setDraftFeedback('');
+    setError('');
+    try {
+      if (Platform.OS === 'android') {
+        const permission = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: '현재 위치 사용',
+            message: '실제 양육 예정 장소를 찾기 위해 현재 위치 권한이 필요합니다.',
+            buttonNegative: '취소',
+            buttonPositive: '허용',
+          },
+        );
+        if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
+          setError('현재 위치를 찾으려면 위치 권한을 허용해 주세요.');
+          return;
+        }
+      }
+      setIsFindingLocation(true);
+      Geolocation.getCurrentPosition(
+        ({ coords }) => {
+          update(
+            'address',
+            `현재 위치 (위도 ${coords.latitude.toFixed(6)}, 경도 ${coords.longitude.toFixed(6)})`,
+          );
+          setDraftFeedback('현재 위치를 불러왔습니다. 상세 주소가 필요하면 직접 수정해 주세요.');
+          setIsFindingLocation(false);
+        },
+        locationError => {
+          setError(
+            locationError.code === 3
+              ? '위치를 찾는 데 시간이 오래 걸립니다. GPS를 켜고 다시 시도해 주세요.'
+              : '현재 위치를 불러오지 못했습니다. 위치 설정을 확인해 주세요.',
+          );
+          setIsFindingLocation(false);
+        },
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
+      );
+    } catch {
+      setIsFindingLocation(false);
+      setError('현재 위치를 불러오지 못했습니다. 위치 설정을 확인해 주세요.');
+    }
+  };
+
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
       <AppHeader
         onBackPress={step === 1 ? navigation.goBack : () => setStep(current => current - 1)}
+        rightAction={
+          <Pressable
+            accessibilityLabel="입양 신청서 임시저장"
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={handleSaveDraft}
+          >
+            <Text style={styles.headerSaveText}>임시저장</Text>
+          </Pressable>
+        }
         title="입양 신청"
       />
       <View style={styles.progress}>
-        <StepIndicator currentStep={step} totalSteps={4} />
+        <StepIndicator currentStep={Math.min(step, 4)} totalSteps={4} />
         <Text style={styles.progressLabel}>{stepLabels[step - 1]}</Text>
       </View>
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, step === 5 && styles.finalContent]}
         keyboardShouldPersistTaps="handled"
+        scrollEnabled={step !== 5}
         showsVerticalScrollIndicator={false}
       >
-        {step === 1 ? <StepOne form={form} update={update} /> : null}
+        {step === 1 ? (
+          <StepOne
+            form={form}
+            isFindingLocation={isFindingLocation}
+            onFindCurrentLocation={findCurrentLocation}
+            update={update}
+          />
+        ) : null}
         {step === 2 ? <StepTwo form={form} update={update} /> : null}
         {step === 3 ? <StepThree form={form} update={update} /> : null}
         {step === 4 ? <StepFour form={form} update={update} /> : null}
+        {step === 5 ? <StepFive form={form} update={update} /> : null}
         {error ? (
           <Text accessibilityLiveRegion="polite" style={styles.error}>
             {error}
           </Text>
         ) : null}
-        <View style={styles.actions}>
-          <Button variant="secondary" style={styles.action}>
-            임시저장
-          </Button>
-          <Button
-            disabled={!canContinue}
-            onPress={handleNext}
-            style={[styles.action, !canContinue && styles.disabledNext]}
-          >
-            {step === 4 ? '최종확인하기' : '다음'}
-          </Button>
-        </View>
+        {draftFeedback ? (
+          <Text accessibilityLiveRegion="polite" style={styles.draftFeedback}>
+            {draftFeedback}
+          </Text>
+        ) : null}
+        {step < 5 ? (
+          <View style={styles.actions}>
+            <Button onPress={handlePrevious} variant="secondary" style={styles.action}>
+              이전
+            </Button>
+            <Button
+              disabled={!canContinue}
+              onPress={handleNext}
+              style={[styles.action, !canContinue && styles.disabledNext]}
+            >
+              {step === 4 ? '최종확인하기' : '다음'}
+            </Button>
+          </View>
+        ) : (
+          <View style={styles.finalFooter}>
+            <View style={styles.submissionNotice}>
+              <AlertCircleIcon height={14} width={14} />
+              <Text style={styles.finalNoticeText}>
+                신청서가 보호센터로 전달됩니다. 제출만으로 입양이 확정되지 않습니다.
+              </Text>
+            </View>
+            <Button
+              disabled={!canContinue}
+              onPress={handleNext}
+              style={!canContinue && styles.disabledNext}
+            >
+              입양 신청서 제출
+            </Button>
+          </View>
+        )}
       </ScrollView>
+      <Modal
+        animationType="fade"
+        onRequestClose={navigation.goBack}
+        transparent
+        visible={Boolean(draftToResume) && !showDeleteConfirm}
+      >
+        <View style={styles.draftOverlay}>
+          <View style={styles.draftModal}>
+            <Text style={styles.draftTitle}>작성 중인 신청서를 불러올까요?</Text>
+            <Text style={styles.draftDescription}>
+              저장한 단계부터 이어서 작성하거나 기존 내용을 삭제할 수 있습니다.
+            </Text>
+            {draftToResume ? (
+              <Text style={styles.draftSavedAt}>
+                마지막 저장 {formatSavedAt(draftToResume.savedAt)}
+              </Text>
+            ) : null}
+            <View style={styles.draftActions}>
+              <Button
+                onPress={() => setShowDeleteConfirm(true)}
+                style={[styles.draftAction, styles.deleteDraftButton]}
+              >
+                삭제하기
+              </Button>
+              <Button onPress={handleResumeDraft} style={styles.draftAction}>
+                이어쓰기
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setShowDeleteConfirm(false)}
+        transparent
+        visible={showDeleteConfirm}
+      >
+        <View style={styles.draftOverlay}>
+          <View style={styles.draftModal}>
+            <Text style={styles.draftTitle}>임시저장한 신청서를 삭제할까요?</Text>
+            <Text style={styles.draftDescription}>
+              삭제 후에는 작성한 내용을 복구할 수 없습니다.
+            </Text>
+            <View style={[styles.draftActions, styles.deleteConfirmActions]}>
+              <Button
+                onPress={() => setShowDeleteConfirm(false)}
+                style={[styles.draftAction, styles.cancelDeleteButton]}
+              >
+                취소
+              </Button>
+              <Button onPress={deleteDraft} style={[styles.draftAction, styles.deleteDraftButton]}>
+                삭제하기
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -330,7 +584,12 @@ type StepProps = {
   update: <Key extends keyof FormState>(key: Key, value: FormState[Key]) => void;
 };
 
-function StepOne({ form, update }: StepProps) {
+function StepOne({
+  form,
+  isFindingLocation,
+  onFindCurrentLocation,
+  update,
+}: StepProps & { isFindingLocation: boolean; onFindCurrentLocation: () => void }) {
   return (
     <>
       <View style={styles.animalSummary}>
@@ -376,20 +635,63 @@ function StepOne({ form, update }: StepProps) {
         placeholder="도로명, 건물명, 지번으로 검색"
         value={form.address}
       />
-      <Button variant="secondary" style={styles.locationButton}>
+      <Button
+        disabled={isFindingLocation}
+        onPress={onFindCurrentLocation}
+        variant="secondary"
+        style={styles.locationButton}
+      >
         <View style={styles.locationButtonContent}>
           <LocationIcon />
-          <Text style={styles.locationButtonText}>현재 위치로 찾기</Text>
+          <Text style={styles.locationButtonText}>
+            {isFindingLocation ? '현재 위치 찾는 중...' : '현재 위치로 찾기'}
+          </Text>
         </View>
       </Button>
       <FieldLabel>이메일</FieldLabel>
       <FormInput
+        autoCapitalize="none"
+        keyboardType="email-address"
         onChangeText={value => update('email', value)}
         placeholder="example@email.com"
         value={form.email}
       />
+      {form.email && !emailPattern.test(form.email.trim()) ? (
+        <Text style={styles.fieldError}>이메일 형식에 맞게 입력해 주세요.</Text>
+      ) : null}
       <FieldLabel>방문 상담 희망일*</FieldLabel>
       <CalendarField onChange={value => update('visitDate', value)} value={form.visitDate} />
+    </>
+  );
+}
+
+function formatToday() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}.${month}.${day}`;
+}
+
+function StepFive({ form, update }: StepProps) {
+  return (
+    <>
+      <Text style={styles.finalHeading}>최종 확인</Text>
+      <ConsentRow
+        label="작성한 내용이 사실임을 확인하며, 보호센터 상담·심사 후 입양이 결정됨을 이해합니다."
+        onChange={value => update('finalConfirmation', value)}
+        value={form.finalConfirmation}
+      />
+      <FieldLabel>신청자 성명</FieldLabel>
+      <View style={styles.readOnlyField}>
+        <Text style={styles.readOnlyText}>우사기</Text>
+      </View>
+      <FieldLabel>작성일(자동)</FieldLabel>
+      <View style={styles.readOnlyField}>
+        <Text style={styles.readOnlyDate}>{formatToday()}</Text>
+        <CalendarIcon height={20} width={20} />
+      </View>
+      <View style={styles.finalDivider} />
     </>
   );
 }
@@ -635,9 +937,21 @@ function StepFour({ form, update }: StepProps) {
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
+  headerSaveText: {
+    ...typography.bodySemiBold16,
+    color: colors.green400,
+    fontSize: 14,
+    lineHeight: 18,
+  },
   progress: { alignItems: 'center', gap: 6, paddingBottom: 18 },
-  progressLabel: { ...typography.bodySemiBold16, color: colors.green400 },
+  progressLabel: {
+    ...typography.bodySemiBold16,
+    color: colors.green400,
+    fontSize: 14,
+    lineHeight: 18,
+  },
   content: { paddingBottom: 24, paddingHorizontal: 26 },
+  finalContent: { flexGrow: 1 },
   heading: { ...typography.titleBold18, color: colors.black, marginBottom: 18, marginTop: 12 },
   label: { ...typography.bodySemiBold16, color: colors.black, marginBottom: 12, marginTop: 10 },
   input: {
@@ -716,6 +1030,12 @@ const styles = StyleSheet.create({
   },
   calendarText: { ...typography.bodyRegular16, color: colors.gray700 },
   placeholder: { color: colors.gray400 },
+  fieldError: {
+    ...typography.captionSemiBold12,
+    color: colors.danger,
+    fontFamily: 'Pretendard-Regular',
+    marginTop: 6,
+  },
   locationButton: {
     backgroundColor: colors.white,
     borderColor: colors.green400,
@@ -748,8 +1068,71 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   submissionNoticeText: { ...typography.captionSemiBold12, color: colors.gray400 },
+  finalNoticeText: {
+    ...typography.captionSemiBold12,
+    color: colors.gray300,
+    flex: 1,
+    fontFamily: 'Pretendard-Regular',
+  },
   error: { ...typography.bodyRegular14, color: colors.danger, marginTop: 16, textAlign: 'center' },
+  draftFeedback: {
+    ...typography.bodyRegular14,
+    color: colors.green400,
+    marginTop: 16,
+    textAlign: 'center',
+  },
   actions: { flexDirection: 'row', gap: spacing[4], marginTop: 28 },
   action: { flex: 1 },
   disabledNext: { backgroundColor: colors.gray200, opacity: 1 },
+  finalHeading: {
+    ...typography.titleBold18,
+    color: colors.black,
+    fontSize: 20,
+    lineHeight: 26,
+    marginBottom: 16,
+  },
+  readOnlyField: {
+    alignItems: 'center',
+    borderColor: colors.gray200,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    height: 48,
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+  },
+  readOnlyText: { ...typography.bodyRegular16, color: colors.gray800 },
+  readOnlyDate: { ...typography.bodyRegular16, color: colors.gray500 },
+  finalDivider: { backgroundColor: colors.gray300, height: 1, marginTop: 24 },
+  finalFooter: { gap: 16, marginTop: 'auto', paddingBottom: 12, paddingTop: 32 },
+  draftOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 26,
+  },
+  draftModal: {
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+  },
+  draftTitle: { ...typography.titleBold18, color: colors.gray800, fontSize: 20, lineHeight: 26 },
+  draftDescription: {
+    ...typography.bodyRegular14,
+    color: colors.gray500,
+    marginTop: 10,
+  },
+  draftSavedAt: {
+    ...typography.captionSemiBold12,
+    color: colors.gray400,
+    marginBottom: 20,
+    marginTop: 8,
+  },
+  draftActions: { flexDirection: 'row', gap: 14 },
+  deleteConfirmActions: { marginTop: 22 },
+  draftAction: { flex: 1 },
+  cancelDeleteButton: { backgroundColor: colors.gray200 },
+  deleteDraftButton: { backgroundColor: '#FF6C5B' },
 });
