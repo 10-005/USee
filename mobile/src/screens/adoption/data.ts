@@ -4,6 +4,7 @@ export type AdoptionAnimal = {
   id: string;
   image: ImageSourcePropType;
   name: string;
+  neutered: boolean;
   species: string;
   location: string;
   date: string;
@@ -17,6 +18,7 @@ export const adoptionAnimals: AdoptionAnimal[] = [
     id: 'animal-1',
     image: require('../../assets/images/adoption/animal-cat.png'),
     name: '한국고양이',
+    neutered: true,
     species: '고양이',
     location: '구미시 인동동 123-123 알리바바바',
     date: '2026-10-19',
@@ -28,6 +30,7 @@ export const adoptionAnimals: AdoptionAnimal[] = [
     id: 'animal-2',
     image: require('../../assets/images/adoption/animal-dog-leaves.png'),
     name: '강강아쥐',
+    neutered: false,
     species: '개',
     location: '구미시 인동동 123-123 알리바바바',
     date: '2026-10-19',
@@ -39,6 +42,7 @@ export const adoptionAnimals: AdoptionAnimal[] = [
     id: 'animal-3',
     image: require('../../assets/images/adoption/animal-dog-white.png'),
     name: '개냥이',
+    neutered: true,
     species: '개',
     location: '구미시 인동동 123-123 알리바바바',
     date: '2026-10-19',
@@ -50,6 +54,7 @@ export const adoptionAnimals: AdoptionAnimal[] = [
     id: 'animal-4',
     image: require('../../assets/images/adoption/animal-cat-black.png'),
     name: '개냥이',
+    neutered: false,
     species: '고양이',
     location: '구미시 인동동 123-123 알리바바바',
     date: '2026-10-19',

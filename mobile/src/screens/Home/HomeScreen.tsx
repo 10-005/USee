@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -19,6 +19,7 @@ import DateIcon from '../../assets/icons/common/date.svg';
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
 import NotificationIcon from '../../assets/icons/common/notification.svg';
+import SearchInputIcon from '../../assets/icons/common/search.svg';
 import AdoptionActiveIcon from '../../assets/icons/navigation/adoption-active.svg';
 import AdoptionIcon from '../../assets/icons/navigation/adoption.svg';
 import ChatActiveIcon from '../../assets/icons/navigation/chat-active.svg';
@@ -32,9 +33,32 @@ import { BottomNavigation } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
+import { AdoptionFilterSheet, type AdoptionFilters, type FilterKey } from './AdoptionFilterSheet';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
-const filters = ['기간', '지역', '축종', '상태', '성별', '중성화여부', '최신순'];
+const filterItems: Array<{ key: FilterKey; label: string }> = [
+  { key: 'period', label: '기간' },
+  { key: 'region', label: '지역' },
+  { key: 'species', label: '축종' },
+  { key: 'status', label: '상태' },
+  { key: 'gender', label: '성별' },
+  { key: 'neutered', label: '중성화여부' },
+  { key: 'sort', label: '최신순' },
+];
+const today = new Date();
+const todayLabel = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(
+  2,
+  '0',
+)}.${String(today.getDate()).padStart(2, '0')}`;
+const initialFilters: AdoptionFilters = {
+  gender: '전체',
+  neutered: '전체',
+  period: `전체|${todayLabel}`,
+  region: '전체',
+  sort: '최신순',
+  species: '전체',
+  status: '전체',
+};
 const navigationItems = [
   {
     key: 'adoption',
@@ -79,17 +103,67 @@ export function HomeScreen({ navigation }: Props) {
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = (screenWidth - 52) / 2;
   const [query, setQuery] = useState('');
+  const listRef = useRef<FlatList<AdoptionAnimal>>(null);
+  const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
+  const [filterValues, setFilterValues] = useState(initialFilters);
   const bookmarkedIds = useAdoptionBookmarkStore(state => state.bookmarkedIds);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
   const [selectedTab, setSelectedTab] =
     useState<(typeof navigationItems)[number]['key']>('adoption');
-  const animals = useMemo(
-    () =>
-      adoptionAnimals.filter(item =>
-        `${item.name} ${item.location} ${item.summary}`.toLowerCase().includes(query.toLowerCase()),
-      ),
-    [query],
-  );
+  const animals = useMemo(() => {
+    const filtered = adoptionAnimals.filter(item => {
+      const queryMatched = `${item.name} ${item.location} ${item.summary}`
+        .toLowerCase()
+        .includes(query.toLowerCase());
+      const region = filterValues.region.split(' > ')[0];
+      const [periodStart = '전체', periodEnd = ''] = filterValues.period.split('|');
+      const startDate = periodStart.replaceAll('.', '-');
+      const endDate = periodEnd.replaceAll('.', '-');
+      const periodMatched =
+        (periodStart === '전체' || item.date >= startDate) && (!endDate || item.date <= endDate);
+      return (
+        queryMatched &&
+        periodMatched &&
+        (region === '전체' || item.location.startsWith(region.replace(/(특별시|광역시)$/, '시'))) &&
+        (filterValues.species === '전체' ||
+          item.species === filterValues.species.split(' > ')[0]) &&
+        (filterValues.status === '전체' || item.status === filterValues.status) &&
+        (filterValues.gender === '전체' || item.summary.includes(filterValues.gender)) &&
+        (filterValues.neutered === '전체' ||
+          item.neutered === (filterValues.neutered === '중성화 O'))
+      );
+    });
+    return [...filtered].sort((first, second) =>
+      filterValues.sort === '최신순'
+        ? second.date.localeCompare(first.date)
+        : first.date.localeCompare(second.date),
+    );
+  }, [filterValues, query]);
+  const listKey = `${query}-${Object.values(filterValues).join('-')}`;
+
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ animated: false, offset: 0 });
+  }, [filterValues, query]);
+
+  const updateFilter = (key: FilterKey, value: string) =>
+    setFilterValues(current => ({ ...current, [key]: value }));
+
+  const isFilterApplied = (key: FilterKey) => filterValues[key] !== initialFilters[key];
+
+  const getFilterLabel = (key: FilterKey, defaultLabel: string) => {
+    const value = filterValues[key];
+    if (key === 'period') {
+      if (!isFilterApplied(key)) {
+        return defaultLabel;
+      }
+      const [start, end] = value.split('|');
+      return start === '전체' ? `~${end.slice(5)}` : `${start.slice(5)}~${end.slice(5)}`;
+    }
+    if (key === 'region' || key === 'species') {
+      return value === '전체' ? defaultLabel : value.split(' > ')[1] ?? value;
+    }
+    return value === '전체' ? defaultLabel : value;
+  };
 
   const renderAnimal = ({ item }: { item: AdoptionAnimal }) => (
     <Pressable
@@ -165,7 +239,7 @@ export function HomeScreen({ navigation }: Props) {
         </Pressable>
       </View>
       <View style={styles.searchBox}>
-        <Text style={styles.searchIcon}>⌕</Text>
+        <SearchInputIcon />
         <TextInput
           onChangeText={setQuery}
           placeholder="특징으로 검색해보세요"
@@ -178,10 +252,25 @@ export function HomeScreen({ navigation }: Props) {
         contentContainerStyle={styles.filters}
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.filterScroll}
       >
-        {filters.map(filter => (
-          <Pressable key={filter} style={styles.filterChip}>
-            <Text style={styles.filterText}>{filter}</Text>
+        {filterItems.map(filter => (
+          <Pressable
+            accessibilityLabel={`${filter.label} 필터`}
+            accessibilityRole="button"
+            key={filter.key}
+            onPress={() => setActiveFilter(current => (current === filter.key ? null : filter.key))}
+            style={[
+              styles.filterChip,
+              activeFilter === filter.key && styles.filterChipOpen,
+              isFilterApplied(filter.key) && styles.filterChipApplied,
+            ]}
+          >
+            <Text
+              style={[styles.filterText, isFilterApplied(filter.key) && styles.filterTextApplied]}
+            >
+              {getFilterLabel(filter.key, filter.label)}
+            </Text>
             <FilterArrowIcon />
           </Pressable>
         ))}
@@ -190,8 +279,10 @@ export function HomeScreen({ navigation }: Props) {
         columnWrapperStyle={styles.column}
         contentContainerStyle={[styles.listContent, { paddingBottom: 104 + insets.bottom }]}
         data={animals}
+        key={listKey}
         keyExtractor={item => item.id}
         numColumns={2}
+        ref={listRef}
         renderItem={renderAnimal}
         showsVerticalScrollIndicator={false}
       />
@@ -207,6 +298,12 @@ export function HomeScreen({ navigation }: Props) {
           selectedKey={selectedTab}
         />
       </View>
+      <AdoptionFilterSheet
+        activeFilter={activeFilter}
+        filters={filterValues}
+        onChange={updateFilter}
+        onClose={() => setActiveFilter(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -226,22 +323,32 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     paddingHorizontal: 14,
   },
-  searchIcon: { color: colors.green100, fontSize: 28, marginRight: 4 },
-  searchInput: { ...typography.bodyRegular16, color: colors.gray700, flex: 1, paddingVertical: 0 },
+  searchInput: {
+    ...typography.bodyRegular16,
+    color: colors.gray700,
+    flex: 1,
+    marginLeft: 4,
+    paddingVertical: 0,
+  },
+  filterScroll: { flexGrow: 0, height: 50 },
   filters: { gap: 6, paddingHorizontal: 20, paddingVertical: 12 },
   filterChip: {
     alignItems: 'center',
     borderColor: colors.gray200,
     borderRadius: radius.pill,
     borderWidth: 1,
-    height: 28,
+    height: 26,
     flexDirection: 'row',
     gap: 2,
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingLeft: 10,
+    paddingRight: 5,
   },
+  filterChipOpen: { backgroundColor: '#EBEAE5', borderColor: colors.gray500 },
+  filterChipApplied: { backgroundColor: '#ECFDF3', borderColor: colors.green400 },
   filterText: { ...typography.bodyRegular14, color: colors.gray500 },
-  listContent: { paddingHorizontal: 20 },
+  filterTextApplied: { color: colors.green400 },
+  listContent: { flexGrow: 0, justifyContent: 'flex-start', paddingHorizontal: 20 },
   column: { gap: 12 },
   card: { marginBottom: 18 },
   cardImage: { borderRadius: radius.sm },
