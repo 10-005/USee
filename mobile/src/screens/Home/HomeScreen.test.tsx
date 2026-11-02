@@ -1,11 +1,18 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import ReactTestRenderer from 'react-test-renderer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { startMockAdoption } from '../../services/storage/mockAdoptionStorage';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import { HomeScreen } from './HomeScreen';
 import { Button } from '../../components/common';
 
 const mockNavigate = jest.fn();
+
+beforeEach(async () => {
+  mockNavigate.mockClear();
+  await AsyncStorage.clear();
+});
 
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
@@ -70,7 +77,7 @@ test('mock adoption selects one pet across categories and preserves adoption fil
   });
   expect(options().every(node => !node.props.accessibilityState.checked)).toBe(true);
   await ReactTestRenderer.act(() => startButton().props.onPress());
-  expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionActivity', { petId: 'cat-2' });
+  expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionBudget', { petId: 'cat-2' });
   await ReactTestRenderer.act(() => {
     renderer.root.findAllByProps({ accessibilityLabel: '입양' })[0].props.onPress();
   });
@@ -79,3 +86,20 @@ test('mock adoption selects one pet across categories and preserves adoption fil
   ).toBe('진도');
   await ReactTestRenderer.act(() => renderer.unmount());
 }, 20000);
+
+test('plus button resumes an active adoption without asking for the budget again', async () => {
+  await startMockAdoption('dog-3', 35000);
+  const props = {
+    navigation: { navigate: mockNavigate },
+    route: { key: 'home', name: 'Home' },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'Home'>;
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<HomeScreen {...props} />);
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findAllByProps({ accessibilityLabel: '모의입양' })[0].props.onPress();
+  });
+  expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionActivity', { petId: 'dog-3' });
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
