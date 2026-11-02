@@ -168,19 +168,17 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
     }
   };
   return (
-    <DemoPage
-      title={animal ? '보호동물 수정' : '보호동물 등록'}
-      narrow
-      back={back}
-    >
+    <DemoPage title={animal ? '보호동물 수정' : '보호동물 등록'} narrow back={back}>
       <form className="work-form animal-form" noValidate onSubmit={submit}>
         {rescue && (
           <FormSection title="연결된 구조 정보">
-            <InfoRows rows={[
-              ['구조번호', rescue.id],
-              ['구조 장소', rescue.location],
-              ['구조 일시', rescue.date.replace('T', ' ')],
-            ]} />
+            <InfoRows
+              rows={[
+                ['구조번호', rescue.id],
+                ['구조 장소', rescue.location],
+                ['구조 일시', rescue.date.replace('T', ' ')],
+              ]}
+            />
           </FormSection>
         )}
         <FormSection
@@ -471,9 +469,7 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
             <Button variant="secondary" onClick={() => setCancel(false)}>
               계속 작성
             </Button>
-            <Button onClick={() => navigate(back)}>
-              작성 취소
-            </Button>
+            <Button onClick={() => navigate(back)}>작성 취소</Button>
           </>
         }
       />

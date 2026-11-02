@@ -421,7 +421,9 @@
   display: grid;
   grid-template-rows: 0fr;
   visibility: hidden;
-  transition: grid-template-rows 240ms ease, visibility 240ms;
+  transition:
+    grid-template-rows 240ms ease,
+    visibility 240ms;
 }
 .application-question__content[data-open='true'] {
   grid-template-rows: 1fr;
@@ -874,7 +876,9 @@
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
-  transition: background-color 150ms, border-color 150ms;
+  transition:
+    background-color 150ms,
+    border-color 150ms;
 }
 .profile-logout:hover {
   background: #e4f3e8;

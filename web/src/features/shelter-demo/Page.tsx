@@ -60,11 +60,11 @@ export function RecordBadge({ status, children }: { status: string; children?: R
         ? 'orange'
         : ['보호 종료', '신고 종료'].includes(status)
           ? 'gray'
-    : ['실패', '심사 대기'].includes(status)
-      ? 'red'
-      : status === '취소' || !status
-        ? 'gray'
-        : 'blue';
+          : ['실패', '심사 대기'].includes(status)
+            ? 'red'
+            : status === '취소' || !status
+              ? 'gray'
+              : 'blue';
   return <StatusBadge className={`record-badge--${tone}`}>{children ?? status}</StatusBadge>;
 }
 export function InfoRows({ rows }: { rows: [string, ReactNode][] }) {

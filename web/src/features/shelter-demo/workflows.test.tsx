@@ -42,10 +42,16 @@ describe('예시 업무 흐름', () => {
     const dialog = screen.getByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: '확인' }));
     expect(within(dialog).getByText('최종 승인 사유를 입력해 주세요.')).toBeVisible();
-    fireEvent.change(within(dialog).getByLabelText(/최종 승인 사유/), { target: { value: '방문 상담 완료' } });
+    fireEvent.change(within(dialog).getByLabelText(/최종 승인 사유/), {
+      target: { value: '방문 상담 완료' },
+    });
     fireEvent.click(within(dialog).getByRole('button', { name: '확인' }));
-    expect(useShelterDemo.getState().animals.find((a) => a.id === application.animalId)).toMatchObject({
-      status: 'adopted', adoptable: false, closingReason: '방문 상담 완료',
+    expect(
+      useShelterDemo.getState().animals.find((a) => a.id === application.animalId),
+    ).toMatchObject({
+      status: 'adopted',
+      adoptable: false,
+      closingReason: '방문 상담 완료',
     });
     fireEvent.click(screen.getByRole('link', { name: '보호동물 정보 보기' }));
     expect(screen.getByRole('heading', { name: /입양 완료/ })).toBeVisible();
@@ -88,12 +94,18 @@ describe('예시 업무 흐름', () => {
     expect(screen.getAllByRole('link', { name: '상세보기' })[0]).toHaveAttribute('href', detailUrl);
   });
   it('보호동물 상세에서 이전을 누르면 보던 목록 필터와 정렬을 복원한다', () => {
-    open('/animals?status=protected&period=30&species=dog&sex=female&adoptable=true&neutered=yes&sort=oldest');
+    open(
+      '/animals?status=protected&period=30&species=dog&sex=female&adoptable=true&neutered=yes&sort=oldest',
+    );
     fireEvent.click(screen.getByRole('img', { name: '보호동물 예시 사진' }));
     expect(screen.getByRole('heading', { name: '보호동물 상세' })).toBeVisible();
     fireEvent.click(screen.getByRole('link', { name: '이전' }));
     expect(screen.getByRole('status')).toHaveTextContent('총 1마리');
-    expect(within(screen.getByRole('group', { name: '상태 필터' })).getByRole('button', { name: /보호 중/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      within(screen.getByRole('group', { name: '상태 필터' })).getByRole('button', {
+        name: /보호 중/,
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('combobox', { name: '정렬' })).toHaveValue('oldest');
   });
   it('동물 상세에서 입양 신청을 열면 해당 동물의 건수와 신청만 표시한다', () => {
@@ -138,7 +150,9 @@ describe('예시 업무 흐름', () => {
     fireEvent.click(screen.getByRole('button', { name: '접수하기' }));
     expect(screen.getByText('구조 사유를 선택해 주세요.')).toBeVisible();
     expect(screen.getByText('구조 장소를 입력해 주세요.')).toBeVisible();
-    expect(screen.getByLabelText('구조일 *')).toHaveAccessibleDescription('구조 날짜와 시간을 선택해 주세요.');
+    expect(screen.getByLabelText('구조일 *')).toHaveAccessibleDescription(
+      '구조 날짜와 시간을 선택해 주세요.',
+    );
     fireEvent.click(screen.getByLabelText('구조일 *'));
     fireEvent.change(screen.getByLabelText('연도'), { target: { value: '2026' } });
     fireEvent.change(screen.getByLabelText('월'), { target: { value: '11' } });

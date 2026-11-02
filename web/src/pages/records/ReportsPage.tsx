@@ -31,11 +31,15 @@ export function ReportsPage() {
   const firstDay = since.toISOString().slice(0, 10);
   const reportState = { reportSearch: params.toString() };
   const reports = initialReports.map((report) => ({
-      ...report,
-      rescue: rescues.find((r) => r.reportId === report.id || r.source === `신고 #${report.id}`),
-    }));
+    ...report,
+    rescue: rescues.find((r) => r.reportId === report.id || r.source === `신고 #${report.id}`),
+  }));
   const reportKind = (report: (typeof reports)[number]) =>
-    !report.rescue ? 'new' : ['진행 중', '완료'].includes(report.rescue.status) ? 'active' : 'closed';
+    !report.rescue
+      ? 'new'
+      : ['진행 중', '완료'].includes(report.rescue.status)
+        ? 'active'
+        : 'closed';
   const rows = reports
     .filter(
       (r) =>
@@ -65,67 +69,105 @@ export function ReportsPage() {
     <DemoPage title="제보 목록" hideTitle>
       <div className="record-status-filters report-tabs" role="group" aria-label="접수 상태">
         {reportTabs.map(([value, label]) => (
-          <button type="button" key={value} aria-pressed={kind === value} onClick={() => change('kind', value)}>
-            {label} <RecordBadge status={value === 'active' ? '진행 중' : value === 'closed' ? '실패' : value === 'new' ? '완료' : ''}>{reports.filter((report) => !value || reportKind(report) === value).length}</RecordBadge>
+          <button
+            type="button"
+            key={value}
+            aria-pressed={kind === value}
+            onClick={() => change('kind', value)}
+          >
+            {label}{' '}
+            <RecordBadge
+              status={
+                value === 'active'
+                  ? '진행 중'
+                  : value === 'closed'
+                    ? '실패'
+                    : value === 'new'
+                      ? '완료'
+                      : ''
+              }
+            >
+              {reports.filter((report) => !value || reportKind(report) === value).length}
+            </RecordBadge>
           </button>
         ))}
-        <span className="record-status-underline" aria-hidden="true" style={{ transform: `translateX(${tabIndex * 100}%)` }} />
+        <span
+          className="record-status-underline"
+          aria-hidden="true"
+          style={{ transform: `translateX(${tabIndex * 100}%)` }}
+        />
       </div>
       <div className="record-toolbar">
-      <div className="record-filters">
-        <FilterSelect
-          variant="filter"
-          label="신고 상태"
-          value={params.get('status') ?? ''}
-          onChange={(e) => change('status', e.target.value)}
+        <div className="record-filters">
+          <FilterSelect
+            variant="filter"
+            label="신고 상태"
+            value={params.get('status') ?? ''}
+            onChange={(e) => change('status', e.target.value)}
+          >
+            <option>신고 진행 중</option>
+            <option>신고 종료</option>
+          </FilterSelect>
+          <FilterSelect
+            variant="filter"
+            label="발견 기간"
+            value={params.get('period') ?? ''}
+            onChange={(e) => change('period', e.target.value)}
+          >
+            {periods.map((n) => (
+              <option key={n} value={n}>
+                최근 {n}일
+              </option>
+            ))}
+          </FilterSelect>
+          <FilterSelect
+            variant="filter"
+            label="지역"
+            value={params.get('region') ?? ''}
+            onChange={(e) => change('region', e.target.value)}
+          >
+            {regions.map((region) => (
+              <option key={region} value={region}>
+                {region}
+              </option>
+            ))}
+          </FilterSelect>
+          <FilterSelect
+            variant="filter"
+            label="축종"
+            value={params.get('species') ?? ''}
+            onChange={(e) => change('species', e.target.value)}
+          >
+            <option value="dog">개</option>
+            <option value="cat">고양이</option>
+          </FilterSelect>
+        </div>
+        <Button
+          className="filter-reset"
+          variant="secondary"
+          onClick={() =>
+            setParams((old) => {
+              const next = new URLSearchParams(old);
+              ['status', 'period', 'region', 'species', 'page'].forEach((key) => next.delete(key));
+              return next;
+            })
+          }
         >
-          <option>신고 진행 중</option>
-          <option>신고 종료</option>
-        </FilterSelect>
-        <FilterSelect
-          variant="filter"
-          label="발견 기간"
-          value={params.get('period') ?? ''}
-          onChange={(e) => change('period', e.target.value)}
-        >
-          {periods.map((n) => (
-            <option key={n} value={n}>
-              최근 {n}일
-            </option>
-          ))}
-        </FilterSelect>
-        <FilterSelect
-          variant="filter"
-          label="지역"
-          value={params.get('region') ?? ''}
-          onChange={(e) => change('region', e.target.value)}
-        >
-          {regions.map((region) => (
-            <option key={region} value={region}>
-              {region}
-            </option>
-          ))}
-        </FilterSelect>
-        <FilterSelect
-          variant="filter"
-          label="축종"
-          value={params.get('species') ?? ''}
-          onChange={(e) => change('species', e.target.value)}
-        >
-          <option value="dog">개</option>
-          <option value="cat">고양이</option>
-        </FilterSelect>
-      </div>
-      <Button className="filter-reset" variant="secondary" onClick={() => setParams((old) => {
-        const next = new URLSearchParams(old);
-        ['status', 'period', 'region', 'species', 'page'].forEach((key) => next.delete(key));
-        return next;
-      })}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M3 4v6h6 M3.7 10a8.5 8.5 0 1 1 .7 6" />
-        </svg>
-        필터 초기화
-      </Button>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 4v6h6 M3.7 10a8.5 8.5 0 1 1 .7 6" />
+          </svg>
+          필터 초기화
+        </Button>
       </div>
       <div className="record-toolbar">
         <p role="status">
@@ -145,8 +187,12 @@ export function ReportsPage() {
         {rows.slice((page - 1) * 8, page * 8).map((r) => (
           <article className="report-card" key={r.id}>
             {r.rescue && (
-              <Link className="report-card__detail" state={reportState}
-                to={`/rescues/${r.rescue.id}`} aria-label={`${r.name} ${r.id} 구조 상세보기`} />
+              <Link
+                className="report-card__detail"
+                state={reportState}
+                to={`/rescues/${r.rescue.id}`}
+                aria-label={`${r.name} ${r.id} 구조 상세보기`}
+              />
             )}
             <div className="report-card__photo">
               <img src={r.image} alt={r.name} />
@@ -163,11 +209,17 @@ export function ReportsPage() {
               <p>{r.traits}</p>
               <p>신고자 | {r.reporter}</p>
               {!r.rescue || ['실패', '취소'].includes(r.rescue.status) ? (
-                <Link className={`page-link report-card__action ${r.rescue ? 'report-card__action--retry' : ''}`} state={reportState} to={`/rescues/new?report=${r.id}`}>
+                <Link
+                  className={`page-link report-card__action ${r.rescue ? 'report-card__action--retry' : ''}`}
+                  state={reportState}
+                  to={`/rescues/new?report=${r.id}`}
+                >
                   {r.rescue ? '재구조 접수' : '구조 접수'}
                 </Link>
               ) : (
-                <span className={`report-card__action report-card__action--${r.rescue.status === '완료' ? 'complete' : 'active'}`}>
+                <span
+                  className={`report-card__action report-card__action--${r.rescue.status === '완료' ? 'complete' : 'active'}`}
+                >
                   구조 {r.rescue.status}
                 </span>
               )}

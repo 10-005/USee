@@ -65,7 +65,11 @@ describe('보호동물 목록', () => {
         <AnimalsPage />
       </MemoryRouter>,
     );
-    fireEvent.click(within(screen.getByRole('group', { name: '상태 필터' })).getByRole('button', { name: /입양 완료/ }));
+    fireEvent.click(
+      within(screen.getByRole('group', { name: '상태 필터' })).getByRole('button', {
+        name: /입양 완료/,
+      }),
+    );
     expect(screen.getByRole('status')).toHaveTextContent('총 4마리');
     expect(screen.getAllByRole('img', { name: '보호동물 예시 사진' })).toHaveLength(4);
     fireEvent.click(screen.getByRole('button', { name: /채팅 열기/ }));

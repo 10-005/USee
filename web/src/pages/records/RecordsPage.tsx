@@ -159,12 +159,28 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
             </FilterSelect>
           </div>
           <div className="page-actions rescue-actions">
-            <Button variant="secondary" className="filter-reset" onClick={() => setParams((old) => {
-              const next = new URLSearchParams(old);
-              ['period', 'species', 'source', 'page'].forEach((key) => next.delete(key));
-              return next;
-            })}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <Button
+              variant="secondary"
+              className="filter-reset"
+              onClick={() =>
+                setParams((old) => {
+                  const next = new URLSearchParams(old);
+                  ['period', 'species', 'source', 'page'].forEach((key) => next.delete(key));
+                  return next;
+                })
+              }
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <path d="M3 4v6h6 M3.7 10a8.5 8.5 0 1 1 .7 6" />
               </svg>
               필터 초기화
@@ -204,8 +220,7 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
       )}
       <div className="record-toolbar">
         <p role="status">
-          {animalId && <span>{animalId} · </span>}
-          총 <strong>{rows.length}</strong>건
+          {animalId && <span>{animalId} · </span>}총 <strong>{rows.length}</strong>건
         </p>
         <FilterSelect
           variant="sort"

@@ -72,9 +72,16 @@ export function AdoptionDetailPage() {
     setReason('');
   };
   return (
-    <DemoPage title="입양신청 상세" narrow back={listUrl} titleAction={
-      <Link className="page-link" to={`/animals/${record.animalId}`}>보호동물 정보 보기</Link>
-    }>
+    <DemoPage
+      title="입양신청 상세"
+      narrow
+      back={listUrl}
+      titleAction={
+        <Link className="page-link" to={`/animals/${record.animalId}`}>
+          보호동물 정보 보기
+        </Link>
+      }
+    >
       <section className="detail-box application-overview">
         <div className="application-animal">
           <img src={record.image} alt={record.name} />
@@ -85,8 +92,12 @@ export function AdoptionDetailPage() {
               중성화 여부{' '}
               {animal?.neutered === 'yes' ? 'O' : animal?.neutered === 'no' ? 'X' : '미상'}
             </p>
-            <p><span>등록번호</span> {animal?.registration || '미등록'}</p>
-            <p><span>마이크로칩번호</span> {animal?.chip || '미등록'}</p>
+            <p>
+              <span>등록번호</span> {animal?.registration || '미등록'}
+            </p>
+            <p>
+              <span>마이크로칩번호</span> {animal?.chip || '미등록'}
+            </p>
           </div>
         </div>
         <InfoRows
@@ -104,16 +115,28 @@ export function AdoptionDetailPage() {
               className="application-question__toggle"
               aria-expanded={openSections.includes(i)}
               aria-controls={`application-section-${i}`}
-              onClick={() => setOpenSections((sections) =>
-                sections.includes(i) ? sections.filter((section) => section !== i) : [...sections, i],
-              )}
+              onClick={() =>
+                setOpenSections((sections) =>
+                  sections.includes(i)
+                    ? sections.filter((section) => section !== i)
+                    : [...sections, i],
+                )
+              }
             >
-              <span className="application-questions__number">{String(i + 1).padStart(2, '0')}</span>
+              <span className="application-questions__number">
+                {String(i + 1).padStart(2, '0')}
+              </span>
               <span>{question.title}</span>
             </button>
-            <div id={`application-section-${i}`} className="application-question__content"
-              data-open={openSections.includes(i)} inert={!openSections.includes(i)}>
-              <div><InfoRows rows={question.rows} /></div>
+            <div
+              id={`application-section-${i}`}
+              className="application-question__content"
+              data-open={openSections.includes(i)}
+              inert={!openSections.includes(i)}
+            >
+              <div>
+                <InfoRows rows={question.rows} />
+              </div>
             </div>
           </div>
         ))}
@@ -170,7 +193,11 @@ export function AdoptionDetailPage() {
             <Button
               onClick={() => {
                 if ((action === '거절' || action === '최종 승인') && !reason.trim()) {
-                  setError(action === '거절' ? '거절 사유를 입력해 주세요.' : '최종 승인 사유를 입력해 주세요.');
+                  setError(
+                    action === '거절'
+                      ? '거절 사유를 입력해 주세요.'
+                      : '최종 승인 사유를 입력해 주세요.',
+                  );
                   return;
                 }
                 if (action) review(record.id, action, reason.trim());

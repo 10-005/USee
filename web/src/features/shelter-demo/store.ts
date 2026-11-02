@@ -125,11 +125,22 @@ export const useShelterDemo = create<DemoState>((set) => ({
       if (!application) return s;
       return {
         adoptions: s.adoptions.map((a) => (a.id === id ? { ...a, status, reason } : a)),
-        animals: status === '최종 승인'
-          ? s.animals.map((animal) => animal.id === application.animalId
-            ? { ...animal, status: 'adopted', adoptable: false, closingReason: reason, closingReasonType: undefined, guardianName: undefined, guardianPhone: undefined }
-            : animal)
-          : s.animals,
+        animals:
+          status === '최종 승인'
+            ? s.animals.map((animal) =>
+                animal.id === application.animalId
+                  ? {
+                      ...animal,
+                      status: 'adopted',
+                      adoptable: false,
+                      closingReason: reason,
+                      closingReasonType: undefined,
+                      guardianName: undefined,
+                      guardianPhone: undefined,
+                    }
+                  : animal,
+              )
+            : s.animals,
       };
     }),
   saveRescue: (rescue) =>

@@ -19,7 +19,10 @@ export function AnimalsPage() {
   const animals = useShelterDemo((s) => s.animals);
   const filters = readAnimalFilters(params);
   const statusTabs = [['', '전체'], ...Object.entries(animalStatuses)] as const;
-  const activeTab = Math.max(0, statusTabs.findIndex(([value]) => value === filters.status));
+  const activeTab = Math.max(
+    0,
+    statusTabs.findIndex(([value]) => value === filters.status),
+  );
   const visible = selectAnimals(animals, params, sampleReferenceDate);
   const pageCount = Math.ceil(visible.length / PAGE_SIZE);
   const page = Math.max(1, Math.min(pageCount, Math.floor(Number(params.get('page'))) || 1));
@@ -41,39 +44,47 @@ export function AnimalsPage() {
           header={
             <div className="record-status-filters" role="group" aria-label="상태 필터">
               {statusTabs.map(([value, label]) => (
-                <button type="button" key={value} aria-pressed={filters.status === value}
-                  onClick={() => updateFilter('status', value)}>
-                  {label} <RecordBadge status={label === '전체' ? '' : label}>{animals.filter((animal) => !value || animal.status === value).length}</RecordBadge>
+                <button
+                  type="button"
+                  key={value}
+                  aria-pressed={filters.status === value}
+                  onClick={() => updateFilter('status', value)}
+                >
+                  {label}{' '}
+                  <RecordBadge status={label === '전체' ? '' : label}>
+                    {animals.filter((animal) => !value || animal.status === value).length}
+                  </RecordBadge>
                 </button>
               ))}
-              <span className="record-status-underline" aria-hidden="true"
-                style={{ transform: `translateX(${activeTab * 100}%)` }} />
+              <span
+                className="record-status-underline"
+                aria-hidden="true"
+                style={{ transform: `translateX(${activeTab * 100}%)` }}
+              />
             </div>
           }
           total={visible.length}
           unit="마리"
-          filters={animalFilters.filter((filter) => filter.key !== 'status').map((filter) => (
-            <FilterSelect
-              key={filter.key}
-              variant="filter"
-              label={filter.label}
-              value={filters[filter.key]}
-              onChange={(event) => updateFilter(filter.key, event.target.value)}
-            >
-              {filter.options.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </FilterSelect>
-          ))}
+          filters={animalFilters
+            .filter((filter) => filter.key !== 'status')
+            .map((filter) => (
+              <FilterSelect
+                key={filter.key}
+                variant="filter"
+                label={filter.label}
+                value={filters[filter.key]}
+                onChange={(event) => updateFilter(filter.key, event.target.value)}
+              >
+                {filter.options.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </FilterSelect>
+            ))}
           actions={
             <>
-              <Button
-                variant="secondary"
-                className="filter-reset"
-                onClick={() => setParams({})}
-              >
+              <Button variant="secondary" className="filter-reset" onClick={() => setParams({})}>
                 <svg
                   width="16"
                   height="16"
@@ -128,7 +139,9 @@ export function AnimalsPage() {
             <AnimalCard
               key={animal.id}
               {...animal}
-              onClick={() => navigate({ pathname: `/animals/${animal.id}`, search: params.toString() })}
+              onClick={() =>
+                navigate({ pathname: `/animals/${animal.id}`, search: params.toString() })
+              }
             />
           ))}
         </ListPanel>

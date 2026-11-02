@@ -105,7 +105,17 @@ export function ProfilePage() {
       {!editing && (
         <div className="page-actions">
           <Link className="profile-logout" to="/login">
-            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              aria-hidden="true"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M10 17v2H5V5h5v2M14 8l4 4-4 4M8 12h10" />
             </svg>
             로그아웃하기

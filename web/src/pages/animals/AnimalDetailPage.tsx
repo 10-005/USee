@@ -60,10 +60,28 @@ export function AnimalDetailPage() {
         </div>
         {animal.status !== 'protected' && (
           <div className="animal-summary__outcome">
-            <h3>{animal.status === 'closed' ? '보호 종료 정보' : animal.status === 'returned' ? '반환 정보' : '입양 정보'}</h3>
-            <InfoRows rows={animal.status === 'returned'
-              ? [['보호자 이름', animal.guardianName], ['보호자 연락처', animal.guardianPhone]]
-              : [[animal.status === 'closed' ? '보호 종료 사유' : '최종 승인 사유', animal.closingReason || '미등록']]} />
+            <h3>
+              {animal.status === 'closed'
+                ? '보호 종료 정보'
+                : animal.status === 'returned'
+                  ? '반환 정보'
+                  : '입양 정보'}
+            </h3>
+            <InfoRows
+              rows={
+                animal.status === 'returned'
+                  ? [
+                      ['보호자 이름', animal.guardianName],
+                      ['보호자 연락처', animal.guardianPhone],
+                    ]
+                  : [
+                      [
+                        animal.status === 'closed' ? '보호 종료 사유' : '최종 승인 사유',
+                        animal.closingReason || '미등록',
+                      ],
+                    ]
+              }
+            />
           </div>
         )}
       </section>
