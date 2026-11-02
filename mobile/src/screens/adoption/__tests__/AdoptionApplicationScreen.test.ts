@@ -51,6 +51,26 @@ describe('adoption application validation', () => {
     expect(isAdoptionStepValid(household, 2)).toBe(true);
   });
 
+  it('accepts the current animal and integration preparation as one answer', () => {
+    const household = {
+      housing: '아파트',
+      petAllowed: '가능',
+      cohabitant: '없음',
+      primaryCaretaker: '본인',
+      livingSpace: '실내',
+      aloneTime: '2시간 미만',
+      currentPets: '있음',
+      currentPetDetails: '',
+      pastExperience: '없음',
+      emergencyPlan: '있음',
+      alternativeCare: '가족에게 맡깁니다.',
+    } as Parameters<typeof isAdoptionStepValid>[0];
+
+    expect(isAdoptionStepValid(household, 2)).toBe(false);
+    household.currentPetDetails = '고양이 1마리, 별도 공간에서 단계적으로 합사할 예정입니다.';
+    expect(isAdoptionStepValid(household, 2)).toBe(true);
+  });
+
   it('requires education details when education is completed', () => {
     const carePlan = {
       motivation: '입양 동기',

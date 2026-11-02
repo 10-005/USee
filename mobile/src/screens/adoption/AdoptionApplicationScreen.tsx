@@ -1,7 +1,8 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import type { ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
@@ -22,7 +23,6 @@ type FormState = {
   aloneTime: string;
   currentPets: string;
   currentPetDetails: string;
-  integrationPlan: string;
   pastExperience: string;
   pastAnimal: string;
   pastReason: string;
@@ -64,7 +64,6 @@ const initialForm: FormState = {
   aloneTime: '',
   currentPets: '',
   currentPetDetails: '',
-  integrationPlan: '',
   pastExperience: '',
   pastAnimal: '',
   pastReason: '',
@@ -113,8 +112,7 @@ export function isAdoptionStepValid(form: FormState, step: number) {
         form.alternativeCare,
     );
     const cohabitantValid = form.cohabitant !== '있음' || Boolean(form.cohabitantConsent);
-    const currentPetsValid =
-      form.currentPets !== '있음' || Boolean(form.currentPetDetails && form.integrationPlan);
+    const currentPetsValid = form.currentPets !== '있음' || Boolean(form.currentPetDetails);
     const pastExperienceValid =
       form.pastExperience !== '있음' || Boolean(form.pastAnimal && form.pastReason);
     return baseValid && cohabitantValid && currentPetsValid && pastExperienceValid;
@@ -257,6 +255,7 @@ export function AdoptionApplicationScreen({ navigation }: Props) {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState('');
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const update = <Key extends keyof FormState>(key: Key, value: FormState[Key]) =>
     setForm(current => ({ ...current, [key]: value }));
 
@@ -274,6 +273,10 @@ export function AdoptionApplicationScreen({ navigation }: Props) {
   };
   const canContinue = isAdoptionStepValid(form, step);
 
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ animated: false, y: 0 });
+  }, [step]);
+
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
       <AppHeader
@@ -285,6 +288,7 @@ export function AdoptionApplicationScreen({ navigation }: Props) {
         <Text style={styles.progressLabel}>{stepLabels[step - 1]}</Text>
       </View>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -422,18 +426,12 @@ function StepTwo({ form, update }: StepProps) {
             ) : null}
             {key === 'currentPets' && form.currentPets === '있음' ? (
               <View style={styles.conditionalField}>
-                <FieldLabel>동물 종류와 마릿수*</FieldLabel>
-                <FormInput
-                  onChangeText={value => update('currentPetDetails', value)}
-                  placeholder="함께 사는 동물의 종류와 마릿수"
-                  value={form.currentPetDetails}
-                />
-                <FieldLabel>합사 준비*</FieldLabel>
+                <FieldLabel>동물 종류와 마릿수 및 합사 준비*</FieldLabel>
                 <FormInput
                   multiline
-                  onChangeText={value => update('integrationPlan', value)}
-                  placeholder="분리 공간과 단계별 합사 계획을 작성해 주세요"
-                  value={form.integrationPlan}
+                  onChangeText={value => update('currentPetDetails', value)}
+                  placeholder="동물의 종류와 마릿수, 분리 공간과 단계별 합사 계획을 작성해 주세요"
+                  value={form.currentPetDetails}
                 />
               </View>
             ) : null}
@@ -560,7 +558,7 @@ function StepFour({ form, update }: StepProps) {
   ];
   const privacyRows: Array<[keyof FormState, string]> = [
     ['consentPrivacy', '[필수] 입양 신청 처리를 위한 개인정보 수집·이용에 동의합니다.'],
-    ['consentShelter', '[조건부 필수] 보호센터 제공에 동의합니다.'],
+    ['consentShelter', '[필수] 보호센터 제공에 동의합니다.'],
     ['consentPublic', '[선택] 입양 후기의 서비스 공개에 동의합니다.'],
   ];
   return (
@@ -574,7 +572,7 @@ function StepFour({ form, update }: StepProps) {
         <Text style={styles.body}>행동 특성　　　경계심이 살짝 있지만 순한 편</Text>
       </View>
       <ConsentRow
-        label="제공된 건강·행동 정보를 확인했으며, 미확인 사항은 상담 시 추가 안내받겠습니다."
+        label="[필수] 제공된 건강·행동 정보를 확인했으며, 미확인 사항은 상담 시 추가 안내받겠습니다."
         onChange={value => update('consentHealth', value)}
         value={form.consentHealth}
       />
