@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../../components/common';
 import { colors, radius, typography } from '../../theme';
@@ -64,6 +64,12 @@ export function MockAdoptionScreen() {
                 ]}
               >
                 <View style={[styles.photo, selected && styles.selectedPhoto]}>
+                  <Image
+                    source={pet.image}
+                    resizeMode="contain"
+                    style={styles.petImage}
+                    accessible={false}
+                  />
                   <View style={[styles.mark, selected && styles.selectedMark]}>
                     {selected ? <Text style={styles.check}>✓</Text> : null}
                   </View>
@@ -134,6 +140,7 @@ const styles = StyleSheet.create({
   },
   selectedCard: { borderColor: colors.green400 },
   photo: { aspectRatio: 1.35, backgroundColor: colors.gray10 },
+  petImage: { width: '100%', height: '100%' },
   selectedPhoto: { backgroundColor: '#ECFDF3' },
   mark: {
     position: 'absolute',
