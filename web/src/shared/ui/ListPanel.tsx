@@ -3,16 +3,40 @@ import './shelter-ui.css';
 
 export function FilterSelect({
   label,
+  variant,
   children,
   ...props
-}: SelectHTMLAttributes<HTMLSelectElement> & { label: string }) {
-  return (
-    <select {...props} aria-label={label} className="shelter-filter">
+}: SelectHTMLAttributes<HTMLSelectElement> & { label: string; variant?: 'filter' | 'sort' }) {
+  const select = (
+    <select
+      {...props}
+      aria-label={label}
+      className={[
+        'shelter-filter',
+        variant && 'shelter-filter--menu',
+        variant === 'sort' && 'shelter-filter--sort',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {variant === 'filter' && <option value="">전체</option>}
       {children}
     </select>
   );
+  if (variant !== 'filter') return select;
+  return (
+    <div className="shelter-filter-field">
+      {select}
+      {!props.value && (
+        <span className="shelter-filter-field-label" aria-hidden="true">
+          {label}
+        </span>
+      )}
+    </div>
+  );
 }
 export function ListPanel({
+  header,
   filters,
   actions,
   total,
@@ -21,16 +45,18 @@ export function ListPanel({
   children,
   emptyMessage = '검색 결과가 없습니다.',
 }: {
+  header?: ReactNode;
   filters?: ReactNode;
   actions?: ReactNode;
   total: number;
   unit?: string;
   sort?: ReactNode;
   children: ReactNode;
-  emptyMessage?: string;
+  emptyMessage?: ReactNode;
 }) {
   return (
     <section className="shelter-list" aria-label="조회 결과">
+      {header}
       <div className="shelter-list__toolbar">
         <div className="shelter-list__filters">{filters}</div>
         <div className="shelter-list__actions">{actions}</div>

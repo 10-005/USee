@@ -4,6 +4,7 @@ import './shelter-ui.css';
 
 export function SelectField({
   label,
+  className,
   error,
   id,
   children,
@@ -21,7 +22,7 @@ export function SelectField({
       <select
         {...props}
         id={fieldId}
-        className="ui-input shelter-select"
+        className={['ui-input shelter-select', className].filter(Boolean).join(' ')}
         aria-invalid={error ? true : props['aria-invalid']}
         aria-describedby={
           [describedBy, error ? `${fieldId}-error` : null].filter(Boolean).join(' ') || undefined

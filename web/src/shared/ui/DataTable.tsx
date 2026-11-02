@@ -10,12 +10,14 @@ export type TableColumn<T> = {
 };
 
 export function DataTable<T>({
+  className = '',
   caption,
   columns,
   rows,
   rowKey,
   emptyMessage = '조회 결과가 없습니다.',
 }: {
+  className?: string;
   caption: string;
   columns: readonly TableColumn<T>[];
   rows: readonly T[];
@@ -23,7 +25,7 @@ export function DataTable<T>({
   emptyMessage?: string;
 }) {
   return (
-    <div className="ui-table-scroll" role="region" aria-label={caption} tabIndex={0}>
+    <div className={`ui-table-scroll ${className}`} role="region" aria-label={caption} tabIndex={0}>
       <table className="ui-table">
         <caption className="ui-visually-hidden">{caption}</caption>
         <colgroup>

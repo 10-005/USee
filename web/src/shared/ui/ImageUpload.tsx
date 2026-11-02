@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import plus from '@/shared/assets/figma/upload-plus.svg';
 import './shelter-ui.css';
 
@@ -14,6 +14,9 @@ function FilePreview({ file }: { file: File }) {
 
 export function ImageUpload({
   files,
+  children,
+  existingCount = 0,
+  requiredError,
   onChange,
   label = '동물 사진',
   hideLabel = false,
@@ -21,6 +24,9 @@ export function ImageUpload({
   maxBytes = 10 * 1024 * 1024,
 }: {
   files: File[];
+  children?: ReactNode;
+  existingCount?: number;
+  requiredError?: string;
   onChange: (files: File[]) => void;
   label?: string;
   hideLabel?: boolean;
@@ -29,18 +35,18 @@ export function ImageUpload({
 }) {
   const [error, setError] = useState('');
   const inputId = useId();
+  const photoCount = existingCount + files.length;
   return (
     <div className="image-upload">
       <label className={hideLabel ? 'shelter-sr-only' : 'ui-field__label'} htmlFor={inputId}>
         {label}
       </label>
-      <p id={`${inputId}-hint`}>
-        최대 {maxFiles}장 · JPG / JPEG / PNG · 파일당 최대 {Math.floor(maxBytes / 1024 / 1024)}MB
-      </p>
       <div className="image-upload__items">
+        {children}
         {files.map((file, index) => (
           <div className="image-upload__preview" key={`${file.name}-${file.lastModified}-${index}`}>
             <FilePreview file={file} />
+            {existingCount === 0 && index === 0 && <span className="animal-form__cover">대표</span>}
             <button
               type="button"
               aria-label={`${file.name} 삭제`}
@@ -61,13 +67,14 @@ export function ImageUpload({
             type="file"
             multiple
             accept="image/jpeg,image/png"
-            disabled={files.length >= maxFiles}
+            disabled={photoCount >= maxFiles}
+            aria-invalid={Boolean(error || requiredError) || undefined}
             aria-describedby={`${inputId}-hint ${inputId}-error`}
             onChange={(event) => {
               const selected = Array.from(event.target.files ?? []);
               event.target.value = '';
               if (!selected.length) return;
-              if (files.length + selected.length > maxFiles) {
+              if (photoCount + selected.length > maxFiles) {
                 setError(`최대 ${maxFiles}장까지 선택할 수 있습니다.`);
                 return;
               }
@@ -86,12 +93,15 @@ export function ImageUpload({
           />
         </label>
       </div>
+      <p id={`${inputId}-hint`}>
+        최대 {maxFiles}장 · JPG / JPEG / PNG · 파일당 최대 {Math.floor(maxBytes / 1024 / 1024)}MB
+      </p>
       <span
         id={`${inputId}-error`}
         role="alert"
         className="ui-field__message ui-field__message--error"
       >
-        {error}
+        {error || requiredError}
       </span>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react';
-import mascot from '@/shared/assets/figma/chat-mascot.png';
+import mascot from '@/shared/assets/chat-peek.png';
 import chevron from '@/shared/assets/figma/sidebar-chevron.svg';
 import './shelter-ui.css';
 
@@ -59,7 +59,7 @@ export function ChatSidebar({
         )}
         <img className={open ? 'chat-sidebar__chevron--open' : ''} src={chevron} alt="" />
       </button>
-      <div id={panelId} hidden={!open} className="chat-sidebar__panel">
+      <div id={panelId} inert={!open} aria-hidden={!open} className="chat-sidebar__panel">
         <div className="chat-sidebar__filters" role="group" aria-label="채팅 필터">
           <button type="button" aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>
             전체
