@@ -98,6 +98,14 @@ export function PetStatsDialog({ visible, petName, stats = {}, onClose }: Props)
                 typeof raw === 'number' && Number.isFinite(raw)
                   ? Math.max(0, Math.min(100, raw))
                   : null;
+              const valueColor =
+                value === null
+                  ? undefined
+                  : value <= 10
+                  ? colors.danger
+                  : value <= 20
+                  ? '#EAB308'
+                  : colors.green400;
               return (
                 <View key={item.key} style={styles.stat}>
                   <View style={styles.statHeading}>
@@ -105,7 +113,7 @@ export function PetStatsDialog({ visible, petName, stats = {}, onClose }: Props)
                       <Text style={styles.statLabel}>{item.label}</Text>
                       <Text style={styles.english}>{item.english}</Text>
                     </View>
-                    <Text style={styles.value}>
+                    <Text style={[styles.value, { color: valueColor }]}>
                       {value === null ? '—' : value}
                       <Text style={styles.maximum}> / 100</Text>
                     </Text>
@@ -124,12 +132,7 @@ export function PetStatsDialog({ visible, petName, stats = {}, onClose }: Props)
                           styles.fill,
                           {
                             width: `${value}%`,
-                            backgroundColor:
-                              value <= 10
-                                ? colors.danger
-                                : value <= 20
-                                ? '#EAB308'
-                                : colors.green400,
+                            backgroundColor: valueColor,
                           },
                         ]}
                       />
@@ -170,8 +173,8 @@ const styles = StyleSheet.create({
   backgroundImage: { position: 'absolute' },
   glassTint: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(250,253,249,0.78)',
-    backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.4), rgba(233,244,232,0.12))',
+    backgroundColor: 'rgba(250,253,249,0.62)',
+    backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.28), rgba(233,244,232,0.08))',
   },
   header: {
     flexDirection: 'row',
