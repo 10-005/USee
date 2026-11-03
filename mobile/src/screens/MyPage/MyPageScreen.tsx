@@ -10,11 +10,13 @@ import PencilIcon from '../../assets/icons/mypage/pencil.svg';
 import PetRegisterIcon from '../../assets/icons/mypage/pet-register.svg';
 import SavedPostsIcon from '../../assets/icons/mypage/saved-posts.svg';
 import SettingsIcon from '../../assets/icons/mypage/settings.svg';
+import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
 
 type Props = {
   onOpenAdoptionApplications: () => void;
   onOpenPets: () => void;
+  onOpenProfileEdit: () => void;
 };
 
 const unavailable = (name: string) =>
@@ -26,7 +28,8 @@ const menuItems = [
   { label: '공지사항', icon: NoticeIcon },
 ] as const;
 
-export function MyPageScreen({ onOpenAdoptionApplications, onOpenPets }: Props) {
+export function MyPageScreen({ onOpenAdoptionApplications, onOpenPets, onOpenProfileEdit }: Props) {
+  const profile = useProfileStore(state => state.profile);
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -45,16 +48,16 @@ export function MyPageScreen({ onOpenAdoptionApplications, onOpenPets }: Props) 
       <View style={styles.profileArea}>
         <Image
           accessibilityLabel="프로필 이미지"
-          source={require('../../assets/images/mypage/profile-default.png')}
+          source={profile.image}
           style={styles.profileImage}
         />
         <Pressable
           accessibilityLabel="내 정보 수정"
           accessibilityRole="button"
-          onPress={() => unavailable('내 정보 수정')}
+          onPress={onOpenProfileEdit}
           style={({ pressed }) => [styles.nicknameButton, pressed && styles.pressed]}
         >
-          <Text style={styles.nickname}>치이카와</Text>
+          <Text style={styles.nickname}>{profile.nickname}</Text>
           <PencilIcon />
         </Pressable>
       </View>

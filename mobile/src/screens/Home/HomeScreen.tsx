@@ -275,6 +275,7 @@ export function HomeScreen({ navigation }: Props) {
         <MyPageScreen
           onOpenAdoptionApplications={() => navigation.navigate('AdoptionApplicationList')}
           onOpenPets={() => navigation.navigate('PetList')}
+          onOpenProfileEdit={() => navigation.navigate('ProfileEdit')}
         />
       ) : (
         <>
