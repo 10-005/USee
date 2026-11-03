@@ -15,5 +15,6 @@ export type RootStackParamList = {
   MockAdoptionActivity: { petId: string };
   PetList: undefined;
   PetDetail: { petId: string };
+  MockAdoptionBudget: { petId: string };
   ShelterDetail: { shelterId: string };
 };
