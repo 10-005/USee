@@ -287,6 +287,12 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                   style={styles.walkImage}
                 />
               </Pressable>
+              <Image
+                accessibilityLabel="동물병원"
+                source={require('../../assets/images/mock-adoption/img_veterinary_hospital.png')}
+                resizeMode="contain"
+                style={styles.hospitalImage}
+              />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="모의입양 그만두기"
@@ -417,6 +423,8 @@ const styles = StyleSheet.create({
   topActions: { alignItems: 'flex-start', gap: 4 },
   walk: { width: 60, height: 60, alignItems: 'center', justifyContent: 'center' },
   walkImage: { width: '100%', height: '100%' },
+  // The action container's 4dp gap brings the total spacing to 20dp.
+  hospitalImage: { width: 60, height: 60, marginTop: 16 },
   action: {
     width: 180,
     marginTop: 8,
