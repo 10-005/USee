@@ -11,6 +11,8 @@ class RoomPetViewManager : SimpleViewManager<RoomPetView>() {
   fun setPetId(view: RoomPetView, value: String?) = view.setPetId(value.orEmpty())
   @ReactProp(name = "active")
   fun setActive(view: RoomPetView, value: Boolean) = view.setActive(value)
+  @ReactProp(name = "careMotion")
+  fun setCareMotion(view: RoomPetView, value: String?) = view.setCareMotion(value.orEmpty())
   @ReactProp(name = "returningFromWalk")
   fun setReturningFromWalk(view: RoomPetView, value: Boolean) = view.setReturningFromWalk(value)
   override fun onAfterUpdateTransaction(view: RoomPetView) {

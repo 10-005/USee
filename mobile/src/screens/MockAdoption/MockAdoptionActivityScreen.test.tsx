@@ -38,7 +38,7 @@ test('system back waits for the model surface to disappear and ignores repeated 
     navigation: { goBack },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
-  let renderer: ReactTestRenderer.ReactTestRenderer;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
   });
@@ -71,7 +71,7 @@ test('activity screen has one action connected to the existing AR walk', async (
     navigation: { navigate, goBack },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'cat-2' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
-  let renderer: ReactTestRenderer.ReactTestRenderer;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
   });
@@ -130,7 +130,7 @@ test('quitting clears the session and replaces the main screen with fresh select
     navigation: { replace },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
-  let renderer: ReactTestRenderer.ReactTestRenderer;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
   });
@@ -157,7 +157,7 @@ test.each([
     navigation: {},
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
-  let renderer: ReactTestRenderer.ReactTestRenderer;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
   });
@@ -173,3 +173,48 @@ test.each([
   expect(renderer!.root.findByType('RoomPet' as never).props.petId).toBe(petId);
   await ReactTestRenderer.act(() => renderer.unmount());
 });
+
+test.each(['food', 'water'] as const)(
+  'serves %s and refuses the fifth consecutive request',
+  async kind => {
+    jest.useFakeTimers();
+    const props = {
+      navigation: {},
+      route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+    } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />, {
+        createNodeMock: () => ({
+          measureInWindow: (callback: (...args: number[]) => void) => callback(20, 500, 80, 80),
+        }),
+      });
+    });
+    await ReactTestRenderer.act(() =>
+      renderer.root
+        .findAll(node => typeof node.props.onLayout === 'function')[0]
+        .props.onLayout({ nativeEvent: { layout: { width: 390, height: 844 } } }),
+    );
+    const bowl = () =>
+      renderer.root.findAllByProps({
+        accessibilityLabel: kind === 'food' ? '사료 그릇' : '물그릇',
+      })[0];
+    const pet = () => renderer.root.findByType('RoomPet' as never);
+    expect(bowl().props.accessibilityValue.text).toBe('빈 그릇');
+    for (let count = 0; count < 4; count++) {
+      await ReactTestRenderer.act(() => bowl().props.onPress());
+      expect(bowl().props.accessibilityValue.text).toBe('가득 찬 그릇');
+      await ReactTestRenderer.act(() => pet().props.onConsumed());
+      await ReactTestRenderer.act(() => pet().props.onCareComplete());
+    }
+    await ReactTestRenderer.act(() => bowl().props.onPress());
+    expect(pet().props.care).toBeNull();
+    expect(
+      renderer.root.findAllByProps({
+        children: kind === 'food' ? '지금은 배불러요' : '지금은 목마르지 않아요',
+      }).length,
+    ).toBeGreaterThan(0);
+    await ReactTestRenderer.act(() => renderer.unmount());
+    jest.useRealTimers();
+  },
+);

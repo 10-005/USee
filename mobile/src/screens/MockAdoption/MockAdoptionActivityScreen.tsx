@@ -1,7 +1,16 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type ElementRef, useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Alert, BackHandler, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Animated,
+  BackHandler,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { Button } from '../../components/common';
@@ -23,19 +32,35 @@ const mockPetStats: PetStats = {
   activity: 45,
 };
 
+const BOWL_VISUAL_OFFSET = 70;
+const PREVIOUS_ACTION_HEIGHT = 72;
+
 type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
 
 export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
   const [statsVisible, setStatsVisible] = useState(false);
   const walkPending = useRef(false);
+  const [care, setCare] = useState<{
+    kind: 'food' | 'water';
+    offset: { x: number; y: number };
+  } | null>(null);
+  const careBusy = useRef(false);
+  const [fullBowl, setFullBowl] = useState({ food: false, water: false });
+  const streak = useRef({ kind: '', count: 0 });
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const fillScale = useRef(new Animated.Value(1)).current;
+  const bowlViews = useRef<Partial<Record<'food' | 'water', ElementRef<typeof View> | null>>>({});
+  const screenView = useRef<ElementRef<typeof View>>(null);
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
   const [returnSequence, setReturnSequence] = useState(0);
   const [roomVisible, setRoomVisible] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const leavingRef = useRef(false);
   const pendingNavigation = useRef<(() => void) | null>(null);
   const hideThenNavigate = useCallback((action: () => void) => {
-    if (leavingRef.current) {
+    if (leavingRef.current || careBusy.current) {
       return;
     }
     leavingRef.current = true;
@@ -66,6 +91,9 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       });
       return () => {
         back.remove();
+        careBusy.current = false;
+        setCare(null);
+        setFullBowl({ food: false, water: false });
         setRoomVisible(false);
         setStatsVisible(false);
       };
@@ -108,8 +136,44 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       setBusy(false);
     }
   };
+  const provide = (kind: 'food' | 'water') => {
+    if (careBusy.current || leaving || busy || !pet) {
+      return;
+    }
+    streak.current = { kind, count: streak.current.kind === kind ? streak.current.count + 1 : 1 };
+    setFullBowl(value => ({ ...value, [kind]: true }));
+    fillScale.setValue(0.8);
+    Animated.spring(fillScale, { toValue: 1, useNativeDriver: true }).start();
+    if (streak.current.count >= 5) {
+      setToast(kind === 'food' ? '지금은 배불러요' : '지금은 목마르지 않아요');
+      clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(''), 2500);
+      return;
+    }
+    careBusy.current = true;
+    bowlViews.current[kind]?.measureInWindow((x, y, width, height) => {
+      screenView.current?.measureInWindow((screenX, screenY) => {
+        setCare({
+          kind,
+          offset: {
+            // At the front diagonal eating pose the muzzle is left and above
+            // the feet. Align the muzzle, rather than the feet, to the bowl.
+            x: x - screenX + width / 2 + petWidth * 0.06 - (petFrame.left + petWidth / 2),
+            y:
+              y -
+              screenY -
+              BOWL_VISUAL_OFFSET +
+              height * 0.55 +
+              petHeight * 0.06 -
+              (petFrame.top + petHeight * (1 - 177.28 / 900)),
+          },
+        });
+      });
+    });
+  };
   return (
     <View
+      ref={screenView}
       style={styles.container}
       onLayout={({ nativeEvent: { layout } }) => {
         setRoomSize({ width: layout.width, height: layout.height });
@@ -139,22 +203,63 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           style={[styles.pet, petFrame]}
           returnSequence={returnSequence}
           entryOffset={{ x: roomSize.width * 0.55, y: roomSize.height * 0.3 }}
-          onPress={() => setStatsVisible(true)}
+          care={care}
+          onConsumed={() => {
+            if (care) {
+              setFullBowl(value => ({ ...value, [care.kind]: false }));
+            }
+          }}
+          onCareComplete={() => {
+            careBusy.current = false;
+            setCare(null);
+          }}
+          onPress={() => {
+            if (!careBusy.current) {
+              setStatsVisible(true);
+            }
+          }}
           leaving={leaving}
           onHidden={onPetHidden}
         />
       ) : null}
       <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
         <View style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="뒤로가기"
-            disabled={leaving}
-            onPress={() => hideThenNavigate(() => navigation.goBack())}
-            style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-          >
-            <BackIcon width={24} height={24} />
-          </Pressable>
+          <View style={styles.topActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="뒤로가기"
+              disabled={leaving}
+              onPress={() => hideThenNavigate(() => navigation.goBack())}
+              style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+            >
+              <BackIcon width={24} height={24} />
+            </Pressable>
+            <View style={styles.action}>
+              <View style={styles.walk}>
+                <Button
+                  disabled={busy || leaving}
+                  onPress={() => {
+                    hideThenNavigate(() => {
+                      walkPending.current = true;
+                      navigation.navigate('ArWalk');
+                    });
+                  }}
+                >
+                  AR 산책하기
+                </Button>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="모의입양 그만두기"
+                accessibilityState={{ disabled: busy || leaving }}
+                disabled={busy || leaving}
+                onPress={quit}
+                style={({ pressed }) => [styles.quit, pressed && styles.pressed]}
+              >
+                <Text style={styles.quitLabel}>모의입양 그만두기</Text>
+              </Pressable>
+            </View>
+          </View>
           <Pressable accessibilityRole="button" accessibilityLabel="알림" style={styles.iconButton}>
             <Image
               source={require('../../assets/images/mock-adoption/img_alarm.png')}
@@ -165,46 +270,55 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         </View>
         <View style={styles.room} pointerEvents="box-none">
           <View style={styles.bowls}>
-            <Image
-              accessibilityLabel="사료 그릇"
-              source={require('../../assets/images/mock-adoption/img_full_feetstuff_bowl.png')}
-              resizeMode="contain"
-              style={styles.bowl}
-            />
-            <Image
-              accessibilityLabel="물그릇"
-              source={require('../../assets/images/mock-adoption/img_full_water_bowl.png')}
-              resizeMode="contain"
-              style={styles.bowl}
-            />
-          </View>
-        </View>
-        <View style={styles.action}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="모의입양 그만두기"
-            accessibilityState={{ disabled: busy || leaving }}
-            disabled={busy || leaving}
-            onPress={quit}
-            style={({ pressed }) => [styles.quit, pressed && styles.pressed]}
-          >
-            <Text style={styles.quitLabel}>모의입양 그만두기</Text>
-          </Pressable>
-          <View style={styles.walk}>
-            <Button
-              disabled={busy || leaving}
-              onPress={() => {
-                hideThenNavigate(() => {
-                  walkPending.current = true;
-                  navigation.navigate('ArWalk');
-                });
-              }}
-            >
-              AR 산책하기
-            </Button>
+            {(['food', 'water'] as const).map(kind => (
+              <Pressable
+                key={kind}
+                accessibilityRole="button"
+                accessibilityLabel={kind === 'food' ? '사료 그릇' : '물그릇'}
+                accessibilityValue={{ text: fullBowl[kind] ? '가득 찬 그릇' : '빈 그릇' }}
+                disabled={!!care || leaving || busy}
+                onPress={() => provide(kind)}
+                style={styles.bowl}
+              >
+                <View
+                  collapsable={false}
+                  ref={view => {
+                    bowlViews.current[kind] = view;
+                  }}
+                  style={styles.bowlContent}
+                >
+                  <Animated.Image
+                    source={
+                      kind === 'food'
+                        ? fullBowl[kind]
+                          ? require('../../assets/images/mock-adoption/img_full_feetstuff_bowl.png')
+                          : require('../../assets/images/mock-adoption/img_empty_feetstuff_bowl.png')
+                        : fullBowl[kind]
+                        ? require('../../assets/images/mock-adoption/img_full_water_bowl.png')
+                        : require('../../assets/images/mock-adoption/img_empty_water_bowl.png')
+                    }
+                    resizeMode="contain"
+                    style={{
+                      ...styles.bowlImage,
+                      transform: [{ scale: fullBowl[kind] ? fillScale : 1 }],
+                    }}
+                  />
+                </View>
+              </Pressable>
+            ))}
           </View>
         </View>
       </SafeAreaView>
+      {care ? (
+        <View style={StyleSheet.absoluteFill} onStartShouldSetResponder={() => true} />
+      ) : null}
+      {toast ? (
+        <View pointerEvents="none" style={styles.toast}>
+          <Text accessibilityLiveRegion="polite" style={styles.toastText}>
+            {toast}
+          </Text>
+        </View>
+      ) : null}
       {pet ? (
         <PetStatsDialog
           visible={statsVisible}
@@ -235,23 +349,35 @@ const styles = StyleSheet.create({
   bowls: {
     position: 'absolute',
     left: 16,
-    bottom: 24,
+    bottom: 24 + PREVIOUS_ACTION_HEIGHT,
+    transform: [{ translateY: BOWL_VISUAL_OFFSET }],
     flexDirection: 'row',
     width: '44%',
     maxWidth: 220,
     gap: 4,
   },
   bowl: { flex: 1, aspectRatio: 1 },
+  bowlContent: { flex: 1 },
+  bowlImage: { width: '100%', height: '100%' },
   quit: { justifyContent: 'center', minHeight: 48, paddingHorizontal: 4 },
   quitLabel: { ...typography.bodyRegular14, color: colors.gray700 },
-  walk: { flex: 1 },
+  topActions: { alignItems: 'flex-start', gap: 4 },
+  walk: { alignSelf: 'stretch' },
   action: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 16,
+    width: 180,
+    marginTop: 8,
+    alignItems: 'flex-start',
+    gap: 4,
   },
+  toast: {
+    position: 'absolute',
+    bottom: 110,
+    alignSelf: 'center',
+    backgroundColor: '#333333',
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  toastText: { color: colors.white, ...typography.bodyRegular14 },
   pressed: { opacity: 0.7 },
 });

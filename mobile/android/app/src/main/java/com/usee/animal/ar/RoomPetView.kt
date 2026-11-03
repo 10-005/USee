@@ -17,6 +17,8 @@ import io.github.sceneview.math.Rotation
 class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactContext) {
   private var scene: SceneView? = null
   private var active = false
+  private var careMotion = ""
+  fun setCareMotion(value: String) { careMotion = value }
   private var petId = ""
   private var returningFromWalk = false
   private var visibilityRevision = 0
@@ -137,7 +139,7 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
         }
         true
       }
-      val behavior = RoomPetBehavior(node.durations, returningFromWalk = returningFromWalk)
+      var behavior = RoomPetBehavior(node.durations, returningFromWalk = returningFromWalk)
       node.play(behavior.animation)
       node.isVisible = true
       var lastFrame = 0L
@@ -146,13 +148,31 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
       UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
         ReadyEvent(UIManagerHelper.getSurfaceId(this), id),
       )
+      var previousCare = ""
+      var careRevision = 1000000
       view.onFrame = { now ->
         // No physics here: use wall time so a delayed frame cannot leave the
         // behavior timer behind a clip that has already reached its final pose.
         val dt = if (lastFrame == 0L) 0f else ((now - lastFrame) / 1_000_000_000f).coerceAtLeast(0f)
         lastFrame = now
-        node.play(behavior.update(dt))
+        if (careMotion.isNotEmpty()) {
+          if (previousCare != careMotion) {
+            careRevision++
+            node.play(DogAnimation(when (careMotion) {
+              "eat" -> "Eat"
+              "drink" -> "Drink"
+              else -> "Walk"
+            }, true, careRevision))
+          }
+        } else {
+          if (previousCare.isNotEmpty()) behavior = RoomPetBehavior(node.durations)
+          node.play(behavior.update(dt))
+        }
+        previousCare = careMotion
         val targetYaw = when {
+          careMotion == "return" -> 25f
+          careMotion == "eat" || careMotion == "drink" -> -25f
+          careMotion == "approach" -> -55f
           behavior.walking -> -135f
           behavior.resting -> -25f
           else -> 0f
