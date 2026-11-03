@@ -1,0 +1,11 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="plus">
+<g id="Icon">
+<use xlink:href="#stroke0_0_45" stroke="#95948D"/>
+<use xlink:href="#stroke0_0_45" stroke="black" stroke-opacity="0.2"/>
+</g>
+</g>
+<defs>
+<path id="stroke0_0_45" d="M9 3.75V9M9 9V14.25M9 9H3.75M9 9H14.25" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</defs>
+</svg>
