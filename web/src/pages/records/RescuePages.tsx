@@ -44,7 +44,7 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
   );
   const save = useShelterDemo((s) => s.saveRescue);
   const [status, setStatus] = useState<RescueStatus>(record.status);
-  const [saved, setSaved] = useState(false);
+  const [confirmStatus, setConfirmStatus] = useState(false);
   return (
     <DemoPage
       title={
@@ -63,7 +63,12 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
       }
     >
       <p className="rescue-detail-date">
-        접수일자 <time dateTime={record.date}>{record.date.replace('T', ' ')}</time>
+        접수 일시{' '}
+        {record.receivedAt ? (
+          <time dateTime={record.receivedAt}>{record.receivedAt.replace('T', ' ')}</time>
+        ) : (
+          '미등록'
+        )}
       </p>
       <div className="detail-grid">
         <div>
@@ -76,7 +81,7 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
               rows={[
                 ['구조 사유', record.reason],
                 ['구조 장소', record.location],
-                ['구조 날짜', record.date.replace('T', ' ')],
+                ['구조 일시', record.date.replace('T', ' ')],
                 ['구조 메모', record.memo],
               ]}
             />
@@ -127,29 +132,37 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
             value={status}
             onChange={(value) => {
               setStatus(value as RescueStatus);
-              setSaved(false);
             }}
             options={rescueStates.map((value) => ({ value, label: value }))}
           />
           <div className="page-actions">
-            <Button
-              variant="approval"
-              fullWidth
-              onClick={() => {
-                save({ ...record, status });
-                setSaved(true);
-              }}
-            >
+            <Button variant="approval" fullWidth onClick={() => setConfirmStatus(true)}>
               상태 저장
             </Button>
           </div>
-          {saved && (
-            <p role="status" className="form-feedback">
-              예시 상태를 저장했습니다.
-            </p>
-          )}
         </section>
       </div>
+      <Modal
+        open={confirmStatus}
+        title="구조 상태를 저장하시겠어요?"
+        description={`구조 상태를 ‘${status}’ 상태로 저장합니다.`}
+        onClose={() => setConfirmStatus(false)}
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmStatus(false)}>
+              취소
+            </Button>
+            <Button
+              onClick={() => {
+                save({ ...record, status });
+                setConfirmStatus(false);
+              }}
+            >
+              저장
+            </Button>
+          </>
+        }
+      />
     </DemoPage>
   );
 }
@@ -182,6 +195,7 @@ function RescueForm({
   const [reason, setReason] = useState(record?.reason ?? '');
   const [location, setLocation] = useState(record?.location ?? report?.location ?? '');
   const [date, setDate] = useState(record?.date ?? '');
+  const [status, setStatus] = useState<RescueStatus>(record?.status ?? '진행 중');
   const [submitted, setSubmitted] = useState(false);
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -202,12 +216,15 @@ function RescueForm({
       name: record?.name ?? report?.name ?? '미확인 동물',
       image: record?.image ?? report?.image ?? cat,
       source: record?.source ?? (report ? `신고 #${report.id}` : '직접 접수'),
-      reportId: report?.id,
+      reportId: record?.reportId ?? report?.id,
       reason: value('reason'),
       location: `${value('location')} ${value('detail')}`.trim(),
       date: value('date'),
+      receivedAt: record
+        ? record.receivedAt
+        : new Date().toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16),
       memo: value('memo'),
-      status: record?.status ?? '진행 중',
+      status,
     };
     save(next);
     navigate(`/rescues/${next.id}`, { state });
@@ -217,13 +234,19 @@ function RescueForm({
       <form className="work-form rescue-form" noValidate onSubmit={submit}>
         <FormSection title="접수 내용">
           <InfoRows
-            rows={[['접수 경로', record?.source ?? (report ? '제보에서 접수' : '직접 접수')]]}
+            rows={[
+              [
+                '접수 경로',
+                record?.source.replace(/^신고 #/, '발견 신고 #') ??
+                  (report ? '발견 신고에서 접수' : '직접 접수'),
+              ],
+            ]}
           />
           {report && (
             <div className="rescue-report">
               <img src={report.image} alt="" />
               <div>
-                <small>연결된 제보 · {report.id}</small>
+                <small>연결된 발견 신고 · {report.id}</small>
                 <strong>{report.name}</strong>
                 <span>{report.location}</span>
               </div>
@@ -237,7 +260,7 @@ function RescueForm({
                 </Link>
               )}
               <Link className="record-link" to={reportListUrl ?? '/reports'}>
-                {report ? '다른 제보 선택' : '제보에서 접수하기'}
+                {report ? '다른 발견 신고 선택' : '발견 신고에서 접수하기'}
               </Link>
             </div>
           )}
@@ -268,13 +291,13 @@ function RescueForm({
           />
           <TextField label="상세 장소" name="detail" placeholder="건물명 또는 주변 지형" />
           <CalendarField
-            label="구조일"
+            label="구조 일시"
             name="date"
             withTime
             initialValue={record?.date ?? ''}
             onConfirm={setDate}
-            placeholder="구조 날짜와 시간을 선택해 주세요"
-            error={submitted && !date ? '구조 날짜와 시간을 선택해 주세요.' : undefined}
+            placeholder="구조 일시를 선택해 주세요"
+            error={submitted && !date ? '구조 일시를 선택해 주세요.' : undefined}
           />
           <TextAreaField
             label="구조 관련 메모"
@@ -285,23 +308,23 @@ function RescueForm({
           />
         </FormSection>
         <FormSection title="진행 상태">
-          <ul className="rescue-status-summary" aria-label="구조 상태">
-            {rescueStates.map((state) => (
-              <li
-                key={state}
-                aria-current={state === (record?.status ?? '진행 중') ? 'true' : undefined}
-              >
-                {state}
-              </li>
-            ))}
-          </ul>
-          <p className="rescue-status-note">
-            {record
-              ? `현재 상태는 ‘${record.status}’입니다. 상태 변경은 구조 상세에서 할 수 있어요.`
-              : report
-                ? '접수하면 이 제보에 ‘진행 중’인 구조일지가 연결돼요.'
-                : '접수하면 ‘진행 중’인 구조일지가 생성돼요.'}
-          </p>
+          {record ? (
+            <ChoiceGroup
+              label="구조 상태"
+              hideLabel
+              value={status}
+              onChange={(value) => setStatus(value as RescueStatus)}
+              options={rescueStates.map((value) => ({ value, label: value }))}
+            />
+          ) : (
+            <ul className="rescue-status-summary" aria-label="구조 상태">
+              {rescueStates.map((state) => (
+                <li key={state} aria-current={state === '진행 중' ? 'true' : undefined}>
+                  {state}
+                </li>
+              ))}
+            </ul>
+          )}
         </FormSection>
         <div className="page-actions">
           <Button variant="secondary" onClick={() => setCancel(true)}>

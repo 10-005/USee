@@ -15,6 +15,7 @@ export function DataTable<T>({
   columns,
   rows,
   rowKey,
+  onRowClick,
   emptyMessage = '조회 결과가 없습니다.',
 }: {
   className?: string;
@@ -22,6 +23,7 @@ export function DataTable<T>({
   columns: readonly TableColumn<T>[];
   rows: readonly T[];
   rowKey: (row: T) => Key;
+  onRowClick?: (row: T) => void;
   emptyMessage?: string;
 }) {
   return (
@@ -45,7 +47,22 @@ export function DataTable<T>({
         <tbody>
           {rows.length ? (
             rows.map((row) => (
-              <tr key={rowKey(row)}>
+              <tr
+                key={rowKey(row)}
+                className={onRowClick ? 'ui-table__clickable-row' : undefined}
+                onClick={
+                  onRowClick
+                    ? (event) => {
+                        if (
+                          !(event.target as HTMLElement).closest(
+                            'a, button, input, select, textarea',
+                          )
+                        )
+                          onRowClick(row);
+                      }
+                    : undefined
+                }
+              >
                 {columns.map((column) => (
                   <td key={column.id}>{column.render(row)}</td>
                 ))}

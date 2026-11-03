@@ -1078,17 +1078,48 @@ span.report-card__action {
 .records-table.ui-table-scroll {
   padding-inline: 0;
 }
+.records-table .ui-table__clickable-row {
+  cursor: pointer;
+  transition: background-color 180ms ease-out;
+}
+@media (hover: hover) {
+  .records-table .ui-table__clickable-row:hover {
+    background-color: rgb(40 50 65 / 4%);
+  }
+}
+.records-table .ui-table__clickable-row:focus-within {
+  background-color: rgb(40 50 65 / 4%);
+}
+.record-row-link {
+  color: inherit;
+  text-decoration: none;
+}
+.record-row-link:focus-visible {
+  outline: 2px solid #17b85c;
+  outline-offset: 3px;
+}
+.rescue-list-date {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  font-variant-numeric: tabular-nums;
+}
+.rescue-list-memo {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.records-table:not(.adoption-table) .ui-table__animal strong {
+  white-space: nowrap;
+}
+.records-table:not(.adoption-table) .ui-table__animal {
+  gap: 8px;
+}
+.records-table:not(.adoption-table) .ui-table__animal img {
+  width: 40px;
+  height: 40px;
+  flex: none;
+}
 .adoption-table .ui-table {
   min-width: 680px;
-}
-.records-table tr > :last-child:not([colspan]) {
-  position: sticky;
-  right: 0;
-  background: inherit;
-  background-color: white;
-  text-align: center;
-}
-.records-table .record-link {
-  padding-inline: 8px;
-  white-space: nowrap;
 }

@@ -15,6 +15,7 @@ function open(path: string) {
   );
 }
 beforeEach(() => {
+  sessionStorage.setItem('usee-demo-login', 'true');
   useShelterDemo.setState(useShelterDemo.getInitialState(), true);
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
     configurable: true,
@@ -35,6 +36,38 @@ afterEach(() => {
   Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
 });
 describe('예시 업무 흐름', () => {
+  it('구조 상세는 접수 일시와 구조 일시를 각각 표시하고 수정 후에도 접수 일시를 유지한다', () => {
+    const rescue = useShelterDemo.getState().rescues[0]!;
+    open(`/rescues/${rescue.id}`);
+    expect(screen.getByText('접수 일시', { exact: false })).toHaveTextContent(
+      rescue.receivedAt!.replace('T', ' '),
+    );
+    expect(screen.getByText(rescue.date.replace('T', ' '))).toBeVisible();
+    fireEvent.click(screen.getByRole('link', { name: '수정' }));
+    fireEvent.click(screen.getByRole('button', { name: '저장하기' }));
+    expect(
+      useShelterDemo.getState().rescues.find((item) => item.id === rescue.id)?.receivedAt,
+    ).toBe(rescue.receivedAt);
+  });
+  it('보호동물 상세에 내부 식별자 대신 예시 공고번호를 표시한다', () => {
+    open('/animals/sample-01');
+    expect(screen.getByText('공고번호 경북-구미-2026-00001')).toBeVisible();
+  });
+  it('구조 수정 화면에서 진행 상태를 바꾸고 저장할 수 있다', () => {
+    const rescue = useShelterDemo.getState().rescues.find((item) => item.status === '진행 중')!;
+    open(`/rescues/${rescue.id}/edit`);
+    const group = screen.getByRole('group', { name: '구조 상태' });
+    expect(within(group).getByRole('radio', { name: '진행 중' })).toBeChecked();
+    fireEvent.click(within(group).getByRole('radio', { name: '완료' }));
+    expect(useShelterDemo.getState().rescues.find((item) => item.id === rescue.id)?.status).toBe(
+      '진행 중',
+    );
+    fireEvent.click(screen.getByRole('button', { name: '저장하기' }));
+    expect(useShelterDemo.getState().rescues.find((item) => item.id === rescue.id)?.status).toBe(
+      '완료',
+    );
+    expect(screen.getByRole('link', { name: '보호동물 등록' })).toBeVisible();
+  });
   it('최종 승인 사유를 입력하면 연결된 동물도 입양 완료로 변경된다', () => {
     const application = useShelterDemo.getState().adoptions.find((a) => a.status === '서류 승인')!;
     open(`/adoptions/${application.id}`);
@@ -83,15 +116,15 @@ describe('예시 업무 흐름', () => {
   });
   it('구조 상세에서 이전을 누르면 필터와 정렬이 적용된 2페이지로 돌아간다', () => {
     open('/rescues?source=direct&period=90&sort=oldest&page=2');
-    const link = screen.getAllByRole('link', { name: '상세보기' })[0]!;
+    const link = screen.getAllByRole('link', { name: /^R-/ })[0]!;
     const detailUrl = link.getAttribute('href');
-    fireEvent.click(link);
+    fireEvent.click(link.closest('tr')!);
     fireEvent.click(screen.getByRole('link', { name: '이전' }));
     expect(screen.getByRole('combobox', { name: '접수 경로' })).toHaveValue('direct');
     expect(screen.getByRole('combobox', { name: '기간' })).toHaveValue('90');
     expect(screen.getByRole('combobox', { name: '정렬' })).toHaveValue('oldest');
     expect(screen.getByRole('button', { name: '2페이지' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getAllByRole('link', { name: '상세보기' })[0]).toHaveAttribute('href', detailUrl);
+    expect(screen.getAllByRole('link', { name: /^R-/ })[0]).toHaveAttribute('href', detailUrl);
   });
   it('보호동물 상세에서 이전을 누르면 보던 목록 필터와 정렬을 복원한다', () => {
     open(
@@ -112,13 +145,15 @@ describe('예시 업무 흐름', () => {
     open('/animals/sample-01');
     fireEvent.click(screen.getByRole('link', { name: '입양 신청 자세히 보기' }));
     expect(screen.getByRole('button', { name: '전체 1' })).toBeInTheDocument();
-    const table = screen.getByRole('table', { name: '입양신청 목록' });
-    expect(within(table).getByText('sample-01')).toBeVisible();
-    expect(within(table).getAllByRole('link', { name: '상세보기' })).toHaveLength(1);
-    fireEvent.click(within(table).getByRole('link', { name: '상세보기' }));
+    const table = screen.getByRole('table', { name: '입양 신청 목록' });
+    expect(within(table).getByText('공고번호 경북-구미-2026-00001')).toBeVisible();
+    expect(within(table).getAllByRole('link', { name: /^A-/ })).toHaveLength(1);
+    fireEvent.click(within(table).getByRole('link', { name: /^A-/ }).closest('tr')!);
     fireEvent.click(screen.getByRole('link', { name: '이전' }));
     expect(screen.getByRole('button', { name: '전체 1' })).toBeInTheDocument();
-    expect(within(screen.getByRole('table')).getByText('sample-01')).toBeVisible();
+    expect(
+      within(screen.getByRole('table')).getByText('공고번호 경북-구미-2026-00001'),
+    ).toBeVisible();
   });
   it('입양 상태 필터를 바꾸면 페이지를 초기화하고 실제 결과 수를 표시한다', () => {
     open('/adoptions?page=3');
@@ -126,7 +161,7 @@ describe('예시 업무 흐름', () => {
     fireEvent.click(screen.getByRole('button', { name: '심사 대기 6' }));
     expect(screen.getByRole('status')).toHaveTextContent('총 6건');
     expect(screen.getByRole('button', { name: '1페이지' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getAllByRole('link', { name: '상세보기' })).toHaveLength(6);
+    expect(screen.getAllByRole('link', { name: /^A-/ })).toHaveLength(6);
   });
   it('거절 사유가 비어 있으면 저장하지 않고 사유 입력 후 상태를 변경한다', () => {
     open('/adoptions/A-1029-01');
@@ -150,10 +185,10 @@ describe('예시 업무 흐름', () => {
     fireEvent.click(screen.getByRole('button', { name: '접수하기' }));
     expect(screen.getByText('구조 사유를 선택해 주세요.')).toBeVisible();
     expect(screen.getByText('구조 장소를 입력해 주세요.')).toBeVisible();
-    expect(screen.getByLabelText('구조일 *')).toHaveAccessibleDescription(
-      '구조 날짜와 시간을 선택해 주세요.',
+    expect(screen.getByLabelText('구조 일시 *')).toHaveAccessibleDescription(
+      '구조 일시를 선택해 주세요.',
     );
-    fireEvent.click(screen.getByLabelText('구조일 *'));
+    fireEvent.click(screen.getByLabelText('구조 일시 *'));
     fireEvent.change(screen.getByLabelText('연도'), { target: { value: '2026' } });
     fireEvent.change(screen.getByLabelText('월'), { target: { value: '11' } });
     fireEvent.click(screen.getByRole('button', { name: '2026-11-02' }));
@@ -168,6 +203,8 @@ describe('예시 업무 흐름', () => {
     expect(screen.getByRole('heading', { name: /R-demo-/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: '완료' }));
     fireEvent.click(screen.getByRole('button', { name: '상태 저장' }));
+    expect(useShelterDemo.getState().rescues[0]?.status).toBe('진행 중');
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '저장' }));
     expect(useShelterDemo.getState().rescues[0]).toMatchObject({
       status: '완료',
       location: '구미 공원',

@@ -1,4 +1,4 @@
-import { useSearchParams, Link } from 'react-router';
+import { useSearchParams, Link, useNavigate } from 'react-router';
 import { DataTable, Pagination, type TableColumn } from '@/shared/ui/DataTable';
 import { FilterSelect } from '@/shared/ui/ListPanel';
 import { Button } from '@/shared/ui/Button';
@@ -11,7 +11,9 @@ const rescuePeriods = [7, 30, 90];
 export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
   const adoptions = useShelterDemo((s) => s.adoptions);
   const rescues = useShelterDemo((s) => s.rescues);
+  const animals = useShelterDemo((s) => s.animals);
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const rescue = kind === 'rescues';
   const states = rescue ? rescueStates : adoptionStates;
   const statusOptions: string[] = ['', ...states];
@@ -52,58 +54,79 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
     {
       id: 'status',
       header: '상태',
-      width: rescue ? '96px' : '13%',
+      width: rescue ? '72px' : '13%',
       render: (r) => <RecordBadge status={r.status} />,
     },
     {
       id: 'id',
       header: rescue ? '등록번호' : '신청번호',
-      width: rescue ? '144px' : '17%',
-      render: (r) => r.id,
+      width: rescue ? '115px' : '20%',
+      render: (r) => (
+        <Link
+          className="record-row-link"
+          to={{ pathname: `/${kind}/${r.id}`, search: params.toString() }}
+        >
+          {r.id}
+        </Link>
+      ),
     },
     {
       id: 'animal',
       header: '동물 정보',
-      width: rescue ? '280px' : '29%',
+      width: rescue ? '210px' : '29%',
       render: (r) => (
         <div className="ui-table__animal">
           <img src={r.image} alt="예시 동물" />
           <div>
             <strong>{r.name}</strong>
-            <small>{'animalId' in r ? r.animalId : '0살 | 암컷 | 갈색 | 3kg'}</small>
+            <small>
+              {'animalId' in r
+                ? `공고번호 ${animals.find((animal) => animal.id === r.animalId)?.noticeNumber || '미등록'}`
+                : '0살 | 암컷 | 갈색 | 3kg'}
+            </small>
           </div>
         </div>
       ),
     },
     {
       id: 'date',
-      header: rescue ? '구조일자' : '신청일자',
-      width: rescue ? '140px' : '16%',
-      render: (r) => r.date.slice(0, 10),
+      header: rescue ? '구조 일시' : '신청일자',
+      width: rescue ? '160px' : '16%',
+      render: (r) =>
+        rescue ? (
+          <time className="rescue-list-date" dateTime={r.date}>
+            {r.date.replace('T', ' ')}
+          </time>
+        ) : (
+          r.date.slice(0, 10)
+        ),
     },
     {
       id: 'owner',
       header: rescue ? '접수 경로' : '신청자',
-      width: rescue ? undefined : '12%',
-      render: (r) => ('applicant' in r ? r.applicant : r.source),
+      width: rescue ? '140px' : '12%',
+      render: (r) => ('applicant' in r ? r.applicant : r.source.replace(/^신고 #/, '발견 신고 #')),
     },
-    ...(rescue ? [{ id: 'memo', header: '비고', width: '100px', render: () => '-' }] : []),
-    {
-      id: 'detail',
-      header: '상세',
-      width: rescue ? '130px' : '13%',
-      render: (r) => (
-        <Link
-          className="record-link"
-          to={{ pathname: `/${kind}/${r.id}`, search: params.toString() }}
-        >
-          상세보기
-        </Link>
-      ),
-    },
+    ...(rescue
+      ? [
+          {
+            id: 'memo',
+            header: '구조 메모',
+            width: '210px',
+            render: (r: Row) => {
+              const memo = 'memo' in r ? r.memo.trim() : '';
+              return (
+                <span className="rescue-list-memo" title={memo || undefined}>
+                  {memo || '-'}
+                </span>
+              );
+            },
+          },
+        ]
+      : []),
   ];
   return (
-    <DemoPage title={rescue ? '구조일지' : '입양신청 목록'} hideTitle>
+    <DemoPage title={rescue ? '구조일지' : '입양 신청 목록'} hideTitle>
       <div className="record-status-filters" role="group" aria-label="상태 필터">
         {statusOptions.map((value) => {
           const count = source.filter((r) => !value || r.status === value).length;
@@ -155,7 +178,7 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
               onChange={(e) => change('source', e.target.value)}
             >
               <option value="direct">직접 접수</option>
-              <option value="report">제보 접수</option>
+              <option value="report">발견 신고 접수</option>
             </FilterSelect>
           </div>
           <div className="page-actions rescue-actions">
@@ -198,7 +221,7 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
               >
                 <path d="M4 4h16v12H9l-5 4z" />
               </svg>
-              제보 구조 접수
+              발견 신고로 구조 접수
             </Link>
             <Link className="page-link rescue-actions__new" to="/rescues/new">
               <svg
@@ -220,7 +243,13 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
       )}
       <div className="record-toolbar">
         <p role="status">
-          {animalId && <span>{animalId} · </span>}총 <strong>{rows.length}</strong>건
+          {animalId && (
+            <span>
+              공고번호 {animals.find((animal) => animal.id === animalId)?.noticeNumber || '미등록'}{' '}
+              ·{' '}
+            </span>
+          )}
+          총 <strong>{rows.length}</strong>건
         </p>
         <FilterSelect
           variant="sort"
@@ -228,16 +257,17 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
           value={params.get('sort') === 'oldest' ? 'oldest' : 'latest'}
           onChange={(e) => change('sort', e.target.value)}
         >
-          <option value="latest">등록일 최신순</option>
-          <option value="oldest">등록일 오래된순</option>
+          <option value="latest">{rescue ? '구조 일시 최신순' : '신청일 최신순'}</option>
+          <option value="oldest">{rescue ? '구조 일시 오래된 순' : '신청일 오래된 순'}</option>
         </FilterSelect>
       </div>
       <DataTable
         className={rescue ? 'records-table' : 'records-table adoption-table'}
-        caption={rescue ? '구조일지 목록' : '입양신청 목록'}
+        caption={rescue ? '구조일지 목록' : '입양 신청 목록'}
         columns={columns}
         rows={sorted.slice((page - 1) * 8, page * 8)}
         rowKey={(r) => r.id}
+        onRowClick={(r) => navigate({ pathname: `/${kind}/${r.id}`, search: params.toString() })}
       />
       <Pagination
         page={page}
