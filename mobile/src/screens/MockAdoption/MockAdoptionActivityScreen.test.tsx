@@ -5,6 +5,7 @@ import {
 } from '../../services/storage/mockAdoptionStorage';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import ReactTestRenderer from 'react-test-renderer';
+import { BackHandler } from 'react-native';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { Button } from '../../components/common';
 import { MockAdoptionActivityScreen } from './MockAdoptionActivityScreen';
@@ -23,6 +24,45 @@ jest.mock(
   'react-native-safe-area-context',
   () => require('react-native-safe-area-context/jest/mock').default,
 );
+
+test('system back waits for the model surface to disappear and ignores repeated requests', async () => {
+  let systemBack: () => boolean | null | undefined = () => false;
+  const subscribe = jest
+    .spyOn(BackHandler, 'addEventListener')
+    .mockImplementation((_event, callback) => {
+      systemBack = () => callback({ type: 'hardwareBackPress', timeStamp: 0 });
+      return { remove: jest.fn() };
+    });
+  const goBack = jest.fn();
+  const props = {
+    navigation: { goBack },
+    route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() =>
+    renderer.root
+      .findAll(node => typeof node.props.onLayout === 'function')[0]
+      .props.onLayout({
+        nativeEvent: { layout: { width: 390, height: 844 } },
+      }),
+  );
+  await ReactTestRenderer.act(() => {
+    expect(systemBack()).toBe(true);
+    expect(systemBack()).toBe(true);
+  });
+  expect(goBack).not.toHaveBeenCalled();
+  const onHidden = renderer!.root.findByType('RoomPet' as never).props.onHidden;
+  await ReactTestRenderer.act(() => {
+    onHidden();
+    onHidden();
+  });
+  expect(goBack).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(() => renderer.unmount());
+  subscribe.mockRestore();
+});
 
 test('activity screen has one action connected to the existing AR walk', async () => {
   const navigate = jest.fn();
@@ -56,6 +96,9 @@ test('activity screen has one action connected to the existing AR walk', async (
     blurRoom = mockFocusRoom();
   });
   await ReactTestRenderer.act(() => button.props.onPress());
+  expect(navigate).not.toHaveBeenCalled();
+  expect(roomPet().props.leaving).toBe(true);
+  await ReactTestRenderer.act(() => roomPet().props.onHidden());
   expect(navigate).toHaveBeenCalledWith('ArWalk');
   await ReactTestRenderer.act(() => blurRoom());
   expect(renderer!.root.findAllByType('RoomPet' as never)).toHaveLength(0);
@@ -73,6 +116,8 @@ test('activity screen has one action connected to the existing AR walk', async (
   await ReactTestRenderer.act(() => {
     renderer.root.findAllByProps({ accessibilityLabel: '뒤로가기' })[0].props.onPress();
   });
+  expect(goBack).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => roomPet().props.onHidden());
   expect(goBack).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(() => renderer.unmount());
 });

@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, BackHandler, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { Button } from '../../components/common';
@@ -31,20 +31,52 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const walkPending = useRef(false);
   const [returnSequence, setReturnSequence] = useState(0);
   const [roomVisible, setRoomVisible] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const leavingRef = useRef(false);
+  const pendingNavigation = useRef<(() => void) | null>(null);
+  const hideThenNavigate = useCallback((action: () => void) => {
+    if (leavingRef.current) {
+      return;
+    }
+    leavingRef.current = true;
+    pendingNavigation.current = action;
+    setStatsVisible(false);
+    setLeaving(true);
+  }, []);
+  const onPetHidden = useCallback(() => {
+    const action = pendingNavigation.current;
+    pendingNavigation.current = null;
+    if (action) {
+      setRoomVisible(false);
+      action();
+    }
+  }, []);
   useFocusEffect(
     useCallback(() => {
+      leavingRef.current = false;
+      setLeaving(false);
       if (walkPending.current) {
         walkPending.current = false;
         setReturnSequence(value => value + 1);
       }
       setRoomVisible(true);
+      const back = BackHandler.addEventListener('hardwareBackPress', () => {
+        hideThenNavigate(() => navigation.goBack());
+        return true;
+      });
       return () => {
+        back.remove();
         setRoomVisible(false);
         setStatsVisible(false);
       };
-    }, []),
+    }, [hideThenNavigate, navigation]),
   );
   const [roomSize, setRoomSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    if (leaving && (!roomVisible || !pet || roomSize.width <= 0)) {
+      onPetHidden();
+    }
+  }, [leaving, roomVisible, pet, roomSize.width, onPetHidden]);
   // Same cover transform as the background: anchor the model to the painted bed.
   const backgroundScale = Math.max(roomSize.width / 937, roomSize.height / 1678);
   // Expand the transparent viewport above the pet without moving its feet.
@@ -68,7 +100,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     setBusy(true);
     try {
       await endMockAdoption();
-      navigation.replace('MockAdoptionSelection');
+      hideThenNavigate(() => navigation.replace('MockAdoptionSelection'));
     } catch {
       Alert.alert('모의입양', '진행 상태를 초기화하지 못했어요. 다시 시도해주세요.');
     } finally {
@@ -108,6 +140,8 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           returnSequence={returnSequence}
           entryOffset={{ x: roomSize.width * 0.55, y: roomSize.height * 0.3 }}
           onPress={() => setStatsVisible(true)}
+          leaving={leaving}
+          onHidden={onPetHidden}
         />
       ) : null}
       <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
@@ -115,7 +149,8 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="뒤로가기"
-            onPress={() => navigation.goBack()}
+            disabled={leaving}
+            onPress={() => hideThenNavigate(() => navigation.goBack())}
             style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
           >
             <BackIcon width={24} height={24} />
@@ -148,8 +183,8 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="모의입양 그만두기"
-            accessibilityState={{ disabled: busy }}
-            disabled={busy}
+            accessibilityState={{ disabled: busy || leaving }}
+            disabled={busy || leaving}
             onPress={quit}
             style={({ pressed }) => [styles.quit, pressed && styles.pressed]}
           >
@@ -157,10 +192,12 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           </Pressable>
           <View style={styles.walk}>
             <Button
-              disabled={busy}
+              disabled={busy || leaving}
               onPress={() => {
-                walkPending.current = true;
-                navigation.navigate('ArWalk');
+                hideThenNavigate(() => {
+                  walkPending.current = true;
+                  navigation.navigate('ArWalk');
+                });
               }}
             >
               AR 산책하기

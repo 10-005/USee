@@ -15,6 +15,7 @@ type Props = ViewProps & {
   returningFromWalk: boolean;
   onReady: () => void;
   onPetPress?: () => void;
+  onHidden?: () => void;
 };
 const NativeRoomPet =
   Platform.OS === 'android'
@@ -27,10 +28,14 @@ export function RoomPet({
   returnSequence = 0,
   entryOffset = { x: 0, y: 0 },
   onPress,
+  leaving = false,
+  onHidden,
 }: Pick<Props, 'petId' | 'style'> & {
   returnSequence?: number;
   entryOffset?: { x: number; y: number };
   onPress?: () => void;
+  leaving?: boolean;
+  onHidden?: () => void;
 }) {
   const focused = useIsFocused();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
@@ -40,6 +45,11 @@ export function RoomPet({
   const offset = useRef(
     new Animated.ValueXY(returningFromWalk ? entryOffset : { x: 0, y: 0 }),
   ).current;
+  useEffect(() => {
+    if (leaving && (!NativeRoomPet || !focused || !foreground)) {
+      onHidden?.();
+    }
+  }, [leaving, focused, foreground, onHidden]);
   useEffect(() => {
     offset.setValue(returningFromWalk ? { x: entryX, y: entryY } : { x: 0, y: 0 });
     return () => offset.stopAnimation();
@@ -71,10 +81,11 @@ export function RoomPet({
   return (
     <NativeRoomPet
       petId={petId}
-      active
+      active={!leaving}
       returningFromWalk={returningFromWalk}
       onReady={onReady}
       onPetPress={onPress}
+      onHidden={onHidden}
       accessibilityRole="button"
       accessibilityLabel="반려동물 상태 보기"
       style={[style, { transform: offset.getTranslateTransform() }]}

@@ -19,6 +19,7 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
   private var active = false
   private var petId = ""
   private var returningFromWalk = false
+  private var visibilityRevision = 0
 
   init {
     isClickable = true
@@ -43,8 +44,29 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
   }
 
   fun setActive(value: Boolean) {
+    val request = ++visibilityRevision
     active = value
-    if (!value) stop()
+    if (value) {
+      visibility = VISIBLE
+    } else {
+      visibility = INVISIBLE
+      scene?.visibility = INVISIBLE
+      if (!isAttachedToWindow) {
+        stop()
+        emitHidden()
+        return
+      }
+      // Commit an invisible SurfaceView before potentially expensive GPU teardown.
+      // Navigation resumes only after teardown, never while its old surface is visible.
+      postOnAnimation {
+        postOnAnimation {
+          if (!active && visibilityRevision == request) {
+            stop()
+            emitHidden()
+          }
+        }
+      }
+    }
   }
 
   // React props are delivered one by one. Create the scene only after all of them
@@ -62,6 +84,8 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
   }
 
   fun dispose() {
+    visibilityRevision++
+    visibility = INVISIBLE
     active = false
     stop()
   }
@@ -142,9 +166,21 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
   private fun stop() {
     val view = scene ?: return
     scene = null
+    view.visibility = INVISIBLE
     view.onFrame = null
     removeView(view)
     view.destroy()
+  }
+
+  private fun emitHidden() {
+    UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
+      HiddenEvent(UIManagerHelper.getSurfaceId(this), id),
+    )
+  }
+
+  private class HiddenEvent(surfaceId: Int, viewId: Int) : Event<HiddenEvent>(surfaceId, viewId) {
+    override fun getEventName() = "topHidden"
+    override fun getEventData() = Arguments.createMap()
   }
 
   private class ReadyEvent(surfaceId: Int, viewId: Int) : Event<ReadyEvent>(surfaceId, viewId) {

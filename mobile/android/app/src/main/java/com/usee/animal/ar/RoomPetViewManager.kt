@@ -21,6 +21,7 @@ class RoomPetViewManager : SimpleViewManager<RoomPetView>() {
     mutableMapOf(
       "topReady" to mutableMapOf("registrationName" to "onReady"),
       "topPetPress" to mutableMapOf("registrationName" to "onPetPress"),
+      "topHidden" to mutableMapOf("registrationName" to "onHidden"),
     )
   override fun onDropViewInstance(view: RoomPetView) {
     view.dispose()
