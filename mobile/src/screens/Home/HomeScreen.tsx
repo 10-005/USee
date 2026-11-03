@@ -274,6 +274,7 @@ export function HomeScreen({ navigation }: Props) {
       {selectedTab === 'mypage' ? (
         <MyPageScreen
           onOpenAdoptionApplications={() => navigation.navigate('AdoptionApplicationList')}
+          onOpenPets={() => navigation.navigate('PetList')}
         />
       ) : (
         <>

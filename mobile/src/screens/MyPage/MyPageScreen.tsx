@@ -14,6 +14,7 @@ import { colors, radius, typography } from '../../theme';
 
 type Props = {
   onOpenAdoptionApplications: () => void;
+  onOpenPets: () => void;
 };
 
 const unavailable = (name: string) =>
@@ -25,7 +26,7 @@ const menuItems = [
   { label: '공지사항', icon: NoticeIcon },
 ] as const;
 
-export function MyPageScreen({ onOpenAdoptionApplications }: Props) {
+export function MyPageScreen({ onOpenAdoptionApplications, onOpenPets }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -61,8 +62,9 @@ export function MyPageScreen({ onOpenAdoptionApplications }: Props) {
       <View style={styles.sheet}>
         <View style={styles.shortcuts}>
           <Pressable
+            accessibilityLabel="반려동물 등록"
             accessibilityRole="button"
-            onPress={() => unavailable('반려동물 등록')}
+            onPress={onOpenPets}
             style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}
           >
             <PetRegisterIcon />
