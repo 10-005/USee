@@ -2,14 +2,17 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button } from '../../components/common';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppHeader, Button } from '../../components/common';
 import { colors, radius, typography } from '../../theme';
 import { mockAdoptionPets, type PetCategory } from './data';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 
-type MockAdoptionNavigation = NativeStackNavigationProp<RootStackParamList, 'Home'>;
+type MockAdoptionNavigation = NativeStackNavigationProp<
+  RootStackParamList,
+  'MockAdoptionSelection'
+>;
 
 export function MockAdoptionScreen() {
   const navigation = useNavigation<MockAdoptionNavigation>();
@@ -19,7 +22,8 @@ export function MockAdoptionScreen() {
   const selectedPet = mockAdoptionPets.find(pet => pet.id === selectedId);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView edges={['top']} style={styles.container}>
+      <AppHeader title="모의 입양" onBackPress={() => navigation.goBack()} />
       <View style={styles.heading}>
         <Text style={styles.eyebrow}>모의 입양</Text>
         <Text style={styles.title}>모의 입양할 동물을 선택해주세요!</Text>
@@ -79,7 +83,7 @@ export function MockAdoptionScreen() {
             );
           })}
       </ScrollView>
-      <View style={[styles.footer, { paddingBottom: 100 + insets.bottom }]}>
+      <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
         <Text accessibilityLiveRegion="polite" style={styles.selectionLabel}>
           {selectedPet
             ? `${selectedPet.name} · 함께할 준비가 되었어요!`
@@ -96,7 +100,7 @@ export function MockAdoptionScreen() {
           다음
         </Button>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

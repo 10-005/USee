@@ -30,12 +30,11 @@ import MyPageIcon from '../../assets/icons/navigation/mypage.svg';
 import PlusIcon from '../../assets/icons/navigation/plus.svg';
 import SearchActiveIcon from '../../assets/icons/navigation/search-active.svg';
 import SearchIcon from '../../assets/icons/navigation/search.svg';
-import { BottomNavigation } from '../../components/common';
+import { BottomNavigation, Button } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
-import { MockAdoptionScreen } from '../MockAdoption/MockAdoptionScreen';
 import { MyPageScreen } from '../MyPage/MyPageScreen';
 import { AdoptionFilterSheet, type AdoptionFilters, type FilterKey } from './AdoptionFilterSheet';
 
@@ -240,9 +239,10 @@ export function HomeScreen({ navigation }: Props) {
           onPress: async () => {
             try {
               const session = await getActiveMockAdoption();
-              setSelectedTab('mockAdoption');
               if (session) {
                 navigation.navigate('MockAdoptionActivity', { petId: session.petId });
+              } else {
+                setSelectedTab('mockAdoption');
               }
             } catch {
               Alert.alert(
@@ -263,7 +263,9 @@ export function HomeScreen({ navigation }: Props) {
   if (selectedTab === 'mockAdoption') {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <MockAdoptionScreen />
+        <View style={styles.mockAdoptionEntry}>
+          <Button onPress={() => navigation.navigate('MockAdoptionSelection')}>동물 선택</Button>
+        </View>
         {navigationBar}
       </SafeAreaView>
     );
@@ -360,6 +362,7 @@ export function HomeScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  mockAdoptionEntry: { flex: 1, justifyContent: 'center', paddingHorizontal: 20 },
   safeArea: { backgroundColor: colors.white, flex: 1 },
   header: { alignItems: 'center', flexDirection: 'row', height: 56, justifyContent: 'center' },
   logo: { height: 34, width: 88 },
