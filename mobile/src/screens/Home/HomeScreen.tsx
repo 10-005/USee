@@ -276,6 +276,7 @@ export function HomeScreen({ navigation }: Props) {
           onOpenAdoptionApplications={() => navigation.navigate('AdoptionApplicationList')}
           onOpenPets={() => navigation.navigate('PetList')}
           onOpenProfileEdit={() => navigation.navigate('ProfileEdit')}
+          onOpenSettings={() => navigation.navigate('Settings')}
         />
       ) : (
         <>

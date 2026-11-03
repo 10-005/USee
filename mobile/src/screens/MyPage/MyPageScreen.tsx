@@ -17,6 +17,7 @@ type Props = {
   onOpenAdoptionApplications: () => void;
   onOpenPets: () => void;
   onOpenProfileEdit: () => void;
+  onOpenSettings: () => void;
 };
 
 const unavailable = (name: string) =>
@@ -28,7 +29,12 @@ const menuItems = [
   { label: '공지사항', icon: NoticeIcon },
 ] as const;
 
-export function MyPageScreen({ onOpenAdoptionApplications, onOpenPets, onOpenProfileEdit }: Props) {
+export function MyPageScreen({
+  onOpenAdoptionApplications,
+  onOpenPets,
+  onOpenProfileEdit,
+  onOpenSettings,
+}: Props) {
   const profile = useProfileStore(state => state.profile);
   return (
     <View style={styles.container}>
@@ -38,7 +44,7 @@ export function MyPageScreen({ onOpenAdoptionApplications, onOpenPets, onOpenPro
           accessibilityLabel="환경설정"
           accessibilityRole="button"
           hitSlop={10}
-          onPress={() => unavailable('환경설정')}
+          onPress={onOpenSettings}
           style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]}
         >
           <SettingsIcon />
