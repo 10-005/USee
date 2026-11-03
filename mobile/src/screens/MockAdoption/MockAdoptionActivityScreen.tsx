@@ -1,14 +1,34 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { Button } from '../../components/common';
 import BackIcon from '../../assets/icons/common/left-arrow.svg';
-import { colors } from '../../theme';
+import { colors, typography } from '../../theme';
+import { endMockAdoption } from '../../services/storage/mockAdoptionStorage';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
 
 export function MockAdoptionActivityScreen({ navigation }: Props) {
+  const ending = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const quit = async () => {
+    if (ending.current) {
+      return;
+    }
+    ending.current = true;
+    setBusy(true);
+    try {
+      await endMockAdoption();
+      navigation.replace('MockAdoptionSelection');
+    } catch {
+      Alert.alert('모의입양', '진행 상태를 초기화하지 못했어요. 다시 시도해주세요.');
+    } finally {
+      ending.current = false;
+      setBusy(false);
+    }
+  };
   return (
     <View style={styles.container}>
       <Image
@@ -51,7 +71,21 @@ export function MockAdoptionActivityScreen({ navigation }: Props) {
           </View>
         </View>
         <View style={styles.action}>
-          <Button onPress={() => navigation.navigate('ArWalk')}>AR 산책하기</Button>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="모의입양 그만두기"
+            accessibilityState={{ disabled: busy }}
+            disabled={busy}
+            onPress={quit}
+            style={({ pressed }) => [styles.quit, pressed && styles.pressed]}
+          >
+            <Text style={styles.quitLabel}>모의입양 그만두기</Text>
+          </Pressable>
+          <View style={styles.walk}>
+            <Button disabled={busy} onPress={() => navigation.navigate('ArWalk')}>
+              AR 산책하기
+            </Button>
+          </View>
         </View>
       </SafeAreaView>
     </View>
@@ -81,6 +115,16 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   bowl: { flex: 1, aspectRatio: 1 },
-  action: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
+  quit: { justifyContent: 'center', minHeight: 48, paddingHorizontal: 4 },
+  quitLabel: { ...typography.bodyRegular14, color: colors.gray700 },
+  walk: { flex: 1 },
+  action: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
   pressed: { opacity: 0.7 },
 });
