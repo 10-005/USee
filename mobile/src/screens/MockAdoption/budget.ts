@@ -3,7 +3,7 @@ export const MAX_WEEKLY_BUDGET = 100_000_000;
 
 export function getBudgetError(value: string): string | undefined {
   if (!value) {
-    return '일주일 예상 양육비를 입력해주세요.';
+    return '초기 준비 비용을 포함한 첫 주 예산을 입력해주세요.';
   }
   if (!/^[0-9]+$/.test(value)) {
     return '숫자만 입력해주세요.';

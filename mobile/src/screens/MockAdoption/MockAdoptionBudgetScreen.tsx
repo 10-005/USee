@@ -3,7 +3,6 @@ import { useRef, useState } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -18,9 +17,9 @@ import { startMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { colors, radius, typography } from '../../theme';
 import { getBudgetError } from './budget';
 import { mockAdoptionPets } from './data';
+import { costGroupLabels, getInitialCostTotal, initialCostItems } from './initialCosts';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionBudget'>;
-const SOURCE_URL = 'https://www.mafra.go.kr/bbs/home/792/594753/download.do';
 const budgetIncrements = [
   { label: '+1만', amount: 10_000 },
   { label: '+5만', amount: 50_000 },
@@ -36,7 +35,6 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
   const [saveError, setSaveError] = useState<string>();
   const submitting = useRef(false);
   const error = getBudgetError(value);
-  const isCat = pet?.category === 'cat';
 
   const start = async () => {
     setTouched(true);
@@ -66,8 +64,10 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
       >
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <Text style={styles.step}>예산 설정</Text>
-          <Text style={styles.title}>일주일 예상 양육비를{'\n'}입력해주세요!</Text>
-          <Text style={styles.subtitle}>함께하는 일주일, 반려동물을 위한 예산을 세워보세요.</Text>
+          <Text style={styles.title}>초기 비용을 포함한{'\n'}예상 예산을 입력해주세요!</Text>
+          <Text style={styles.subtitle}>
+            처음 맞이하는 준비부터 함께하는 일주일까지 예산을 세워보세요.
+          </Text>
           {pet ? (
             <View style={styles.pet}>
               <Image source={pet.image} style={styles.petImage} resizeMode="contain" />
@@ -78,10 +78,10 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
               선택한 동물을 찾을 수 없어요. 이전 화면에서 다시 선택해주세요.
             </Text>
           )}
-          <Text style={styles.inputLabel}>일주일 예상 양육비</Text>
+          <Text style={styles.inputLabel}>첫 주 예산 (초기 준비 비용 포함)</Text>
           <View style={styles.amountField}>
             <TextInput
-              accessibilityLabel="일주일 예상 양육비"
+              accessibilityLabel="첫 주 예산 (초기 준비 비용 포함)"
               placeholder="0"
               style={styles.amountInput}
               keyboardType="number-pad"
@@ -134,29 +134,40 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
             ))}
           </View>
           <Text style={styles.helper}>최소 10,000원부터 입력할 수 있어요.</Text>
-          <View style={styles.guide}>
-            <Text style={styles.guideTitle}>일주일 예산, 이 정도부터 계획해보세요</Text>
-            <Text style={styles.amount}>{isCat ? '25,000원' : '35,000원'}</Text>
-            <Text style={styles.description}>
-              {isCat ? '반려묘 월평균 양육비 92,000원' : '반려견 월평균 양육비 135,000원'}을 주
-              단위로 환산하고 여유를 더한 권장 시작 예산이에요.
-            </Text>
-            <Text style={styles.description}>
-              사료·간식, 위생용품, 병원비 등을 고려해주세요. 조사 평균을 참고한 금액으로, 실제 최소
-              양육비는 동물의 크기와 건강 상태에 따라 달라져요. 초기 용품과 갑작스러운 치료비는
-              별도로 준비해주세요.
-            </Text>
-            <Pressable
-              accessibilityRole="link"
-              onPress={() => {
-                Linking.openURL(SOURCE_URL).catch(() =>
-                  setSaveError('출처를 열지 못했어요. 잠시 후 다시 시도해주세요.'),
-                );
-              }}
-            >
-              <Text style={styles.source}>출처: 농림축산식품부 2025년 반려동물 양육현황조사 ↗</Text>
-            </Pressable>
-          </View>
+          {pet ? (
+            <View style={styles.guide}>
+              <Text style={styles.guideTitle}>{costGroupLabels[pet.costGroup]} 초기 준비 비용</Text>
+              <Text style={styles.amount}>
+                약 {getInitialCostTotal(pet.costGroup).toLocaleString('ko-KR')}원
+              </Text>
+              <Text style={styles.description}>
+                처음 반려동물을 맞이할 때 준비하는 항목별 예상 금액이에요.
+              </Text>
+              {initialCostItems.map(item => (
+                <View key={item.label} style={styles.costRow}>
+                  <Text style={styles.description}>{item.label}</Text>
+                  <Text style={styles.description}>
+                    {item.amounts[pet.costGroup].toLocaleString('ko-KR')}원
+                  </Text>
+                </View>
+              ))}
+              <View style={[styles.costRow, styles.totalRow]}>
+                <Text style={styles.guideTitle}>합계</Text>
+                <Text style={styles.guideTitle}>
+                  {getInitialCostTotal(pet.costGroup).toLocaleString('ko-KR')}원
+                </Text>
+              </View>
+              <Text style={styles.description}>
+                서비스에서 설정한 참고용 추정치로, 매주 반복되는 지출이나 최소 필수 금액은 아니에요.
+                건강 상태와 이미 갖춘 용품, 진료 여부에 따라 실제 비용은 달라져요.
+              </Text>
+              {pet.id === 'dog-3' ? (
+                <Text style={styles.description}>
+                  푸들은 토이·미니어처 기준의 소형견 예산을 적용했어요.
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
           <Text style={styles.helper}>시작하면 선택한 동물과 예산이 7일간 저장돼요.</Text>
         </ScrollView>
         <View style={styles.footer}>
@@ -227,12 +238,8 @@ const styles = StyleSheet.create({
   guideTitle: { ...typography.bodySemiBold16, color: colors.gray700 },
   amount: { ...typography.titleBold18, fontSize: 26, lineHeight: 34, color: colors.green400 },
   description: { ...typography.bodyRegular14, lineHeight: 22, color: colors.gray600 },
-  source: {
-    ...typography.captionSemiBold12,
-    lineHeight: 18,
-    color: colors.green400,
-    textDecorationLine: 'underline',
-  },
+  costRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  totalRow: { borderTopWidth: 1, borderTopColor: colors.gray200, paddingTop: 12 },
   footer: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, gap: 8 },
   error: { ...typography.bodyRegular14, color: colors.danger },
 });
