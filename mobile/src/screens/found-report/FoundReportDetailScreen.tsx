@@ -22,6 +22,7 @@ import DotsIcon from '../../assets/icons/common/dots-vertical.svg';
 import { AppHeader, Button } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { colors, radius, typography } from '../../theme';
+import { FoundReportCommentList } from './FoundReportCommentList';
 import { getFoundReport } from './data';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FoundReportDetail'>;
@@ -136,12 +137,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
           <Text style={styles.description}>{report.description}</Text>
         </View>
-        <View style={styles.commentSection}>
-          <Text style={styles.commentTitle}>0개의 댓글</Text>
-          <View style={styles.commentInput}>
-            <Text style={styles.commentPlaceholder}>댓글 작성...</Text>
-          </View>
-        </View>
+        <FoundReportCommentList />
       </ScrollView>
       <View style={styles.buttonWrap}>
         <Button
@@ -216,17 +212,6 @@ const styles = StyleSheet.create({
   },
   descriptionLabel: { ...typography.bodyRegular16, color: colors.gray500 },
   description: { ...typography.bodyRegular16, color: colors.black, marginTop: 10 },
-  commentSection: { paddingHorizontal: 22, paddingVertical: 20 },
-  commentTitle: { ...typography.bodyRegular14, color: colors.black },
-  commentInput: {
-    backgroundColor: '#F1F1F1',
-    borderRadius: radius.md,
-    height: 48,
-    justifyContent: 'center',
-    marginTop: 10,
-    paddingHorizontal: 16,
-  },
-  commentPlaceholder: { ...typography.bodyRegular16, color: colors.gray500 },
   buttonWrap: {
     bottom: 0,
     left: 0,
