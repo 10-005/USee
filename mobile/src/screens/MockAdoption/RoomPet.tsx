@@ -36,7 +36,7 @@ export function RoomPet({
   onCareComplete,
 }: Pick<Props, 'petId' | 'style'> & {
   returnSequence?: number;
-  care?: { kind: 'food' | 'water'; offset: { x: number; y: number } } | null;
+  care?: { kind: 'food' | 'water' | 'treat'; offset: { x: number; y: number } } | null;
   onConsumed?: () => void;
   onCareComplete?: () => void;
   entryOffset?: { x: number; y: number };
@@ -56,9 +56,22 @@ export function RoomPet({
     new Animated.ValueXY(returningFromWalk ? entryOffset : { x: 0, y: 0 }),
   ).current;
   useEffect(() => {
-    if (!care || !focused || !foreground) {return;}
+    if (!care || !focused || !foreground) {
+      return;
+    }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    if (care.kind === 'treat') {
+      setCareMotion('treat');
+      timer = setTimeout(() => {
+        setCareMotion('');
+        callbacks.current.onCareComplete?.();
+      }, 2000);
+      return () => {
+        clearTimeout(timer);
+        setCareMotion('');
+      };
+    }
     setCareMotion('approach');
     Animated.timing(offset, {
       toValue: care.offset,
@@ -66,7 +79,9 @@ export function RoomPet({
       easing: Easing.linear,
       useNativeDriver: true,
     }).start(({ finished }) => {
-      if (!finished || cancelled) {return;}
+      if (!finished || cancelled) {
+        return;
+      }
       setCareMotion(care.kind === 'food' ? 'eat' : 'drink');
       timer = setTimeout(() => {
         callbacks.current.onConsumed?.();
@@ -77,7 +92,9 @@ export function RoomPet({
           easing: Easing.linear,
           useNativeDriver: true,
         }).start(({ finished: returned }) => {
-          if (!returned || cancelled) {return;}
+          if (!returned || cancelled) {
+            return;
+          }
           setCareMotion('');
           callbacks.current.onCareComplete?.();
         });

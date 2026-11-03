@@ -160,6 +160,7 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
             careRevision++
             node.play(DogAnimation(when (careMotion) {
               "eat" -> "Eat"
+              "treat" -> "Eat"
               "drink" -> "Drink"
               else -> "Walk"
             }, true, careRevision))
@@ -170,6 +171,7 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
         }
         previousCare = careMotion
         val targetYaw = when {
+          careMotion == "treat" -> 0f
           careMotion == "return" -> 25f
           careMotion == "eat" || careMotion == "drink" -> -25f
           careMotion == "approach" -> -55f
