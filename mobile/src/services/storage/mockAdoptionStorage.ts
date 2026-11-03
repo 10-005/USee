@@ -52,3 +52,7 @@ export async function startMockAdoption(petId: string, weeklyBudget: number) {
   await setStoredValue(STORAGE_KEYS.MOCK_ADOPTION_SESSION, session);
   return session;
 }
+
+export async function endMockAdoption() {
+  await removeStoredValue(STORAGE_KEYS.MOCK_ADOPTION_SESSION);
+}

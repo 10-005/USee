@@ -14,6 +14,7 @@ import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
 
 type Props = {
+  onOpenMockAdoption: () => void;
   onOpenAdoptionApplications: () => void;
   onOpenPets: () => void;
   onOpenProfileEdit: () => void;
@@ -28,7 +29,12 @@ const menuItems = [
   { label: '공지사항', icon: NoticeIcon },
 ] as const;
 
-export function MyPageScreen({ onOpenAdoptionApplications, onOpenPets, onOpenProfileEdit }: Props) {
+export function MyPageScreen({
+  onOpenAdoptionApplications,
+  onOpenMockAdoption,
+  onOpenPets,
+  onOpenProfileEdit,
+}: Props) {
   const profile = useProfileStore(state => state.profile);
   return (
     <View style={styles.container}>
@@ -75,7 +81,8 @@ export function MyPageScreen({ onOpenAdoptionApplications, onOpenPets, onOpenPro
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            onPress={() => unavailable('모의입양')}
+            accessibilityLabel="모의입양"
+            onPress={onOpenMockAdoption}
             style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}
           >
             <MockResultIcon />

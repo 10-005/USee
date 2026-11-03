@@ -12,6 +12,7 @@ describe('MyPageScreen', () => {
     act(() => {
       screen = renderer.create(
         <MyPageScreen
+          onOpenMockAdoption={jest.fn()}
           onOpenAdoptionApplications={onOpenAdoptionApplications}
           onOpenPets={jest.fn()}
           onOpenProfileEdit={jest.fn()}
@@ -32,6 +33,7 @@ describe('MyPageScreen', () => {
     act(() => {
       screen = renderer.create(
         <MyPageScreen
+          onOpenMockAdoption={jest.fn()}
           onOpenAdoptionApplications={jest.fn()}
           onOpenPets={onOpenPets}
           onOpenProfileEdit={jest.fn()}
@@ -53,6 +55,7 @@ describe('MyPageScreen', () => {
           onOpenAdoptionApplications={jest.fn()}
           onOpenPets={jest.fn()}
           onOpenProfileEdit={onOpenProfileEdit}
+          onOpenMockAdoption={jest.fn()}
         />,
       );
     });
