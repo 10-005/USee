@@ -2,19 +2,19 @@ import type { ImageSourcePropType } from 'react-native';
 import { create } from 'zustand';
 
 export type Pet = {
-  age: number;
+  age: number | null;
   breed: string;
   color: string;
   description: string;
-  gender: '암컷' | '수컷';
+  gender: '암컷' | '수컷' | '모름';
   id: string;
   image: ImageSourcePropType;
   images: ImageSourcePropType[];
   microchipNumber: string;
   name: string;
-  neutered: boolean;
+  neutered: boolean | null;
   species: string;
-  weight: number;
+  weight: number | null;
 };
 
 const initialPets: Pet[] = [
@@ -58,10 +58,19 @@ const initialPets: Pet[] = [
   },
 ];
 
-type PetState = { deletePet: (petId: string) => void; pets: Pet[]; resetPets: () => void };
+type PetState = {
+  addPet: (pet: Pet) => void;
+  deletePet: (petId: string) => void;
+  pets: Pet[];
+  resetPets: () => void;
+  updatePet: (pet: Pet) => void;
+};
 
 export const usePetStore = create<PetState>(set => ({
+  addPet: pet => set(state => ({ pets: [...state.pets, pet] })),
   deletePet: petId => set(state => ({ pets: state.pets.filter(pet => pet.id !== petId) })),
   pets: initialPets,
   resetPets: () => set({ pets: initialPets }),
+  updatePet: pet =>
+    set(state => ({ pets: state.pets.map(item => (item.id === pet.id ? pet : item)) })),
 }));
