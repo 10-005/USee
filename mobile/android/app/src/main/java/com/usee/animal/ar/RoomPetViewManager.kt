@@ -13,6 +13,10 @@ class RoomPetViewManager : SimpleViewManager<RoomPetView>() {
   fun setActive(view: RoomPetView, value: Boolean) = view.setActive(value)
   @ReactProp(name = "returningFromWalk")
   fun setReturningFromWalk(view: RoomPetView, value: Boolean) = view.setReturningFromWalk(value)
+  override fun onAfterUpdateTransaction(view: RoomPetView) {
+    super.onAfterUpdateTransaction(view)
+    view.onPropsUpdated()
+  }
   override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> =
     mutableMapOf("topReady" to mutableMapOf("registrationName" to "onReady"))
   override fun onDropViewInstance(view: RoomPetView) {

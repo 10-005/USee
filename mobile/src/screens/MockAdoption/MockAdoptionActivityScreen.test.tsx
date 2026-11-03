@@ -46,8 +46,14 @@ test('activity screen has one action connected to the existing AR walk', async (
   });
   const roomPet = () => renderer.root.findByType('RoomPet' as never);
   expect(roomPet().props.returnSequence).toBe(0);
+  let blurRoom: () => void;
+  await ReactTestRenderer.act(() => {
+    blurRoom = mockFocusRoom();
+  });
   await ReactTestRenderer.act(() => button.props.onPress());
   expect(navigate).toHaveBeenCalledWith('ArWalk');
+  await ReactTestRenderer.act(() => blurRoom());
+  expect(renderer!.root.findAllByType('RoomPet' as never)).toHaveLength(0);
   await ReactTestRenderer.act(() => {
     mockFocusRoom();
   });

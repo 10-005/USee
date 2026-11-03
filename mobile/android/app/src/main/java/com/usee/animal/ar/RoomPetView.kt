@@ -19,20 +19,26 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
   private var returningFromWalk = false
 
   fun setReturningFromWalk(value: Boolean) {
+    if (returningFromWalk == value) return
     returningFromWalk = value
+    // A late prop update must not leave an already-loaded model in SitIdle.
+    if (value) stop()
   }
 
   fun setPetId(value: String) {
     if (petId == value) return
     petId = value
     stop()
-    start()
   }
 
   fun setActive(value: Boolean) {
     active = value
-    if (value) start() else stop()
+    if (!value) stop()
   }
+
+  // React props are delivered one by one. Create the scene only after all of them
+  // (including the return flag) belong to the same React render.
+  fun onPropsUpdated() = start()
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
@@ -68,12 +74,17 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
     view.setZOrderOnTop(true)
     view.holder.setFormat(PixelFormat.TRANSLUCENT)
     view.setOnTouchListener { _, _ -> true }
-    view.cameraNode.position = Position(0f, 0.35f, 2.4f)
+    // Match the expanded 900px viewport to the original 554px framing. The
+    // wider lens adds headroom while preserving model size and the bed anchor.
+    val extraWorldHeight = (900f / 554f - 1f) * (2.4f * 24f / 28f)
+    view.cameraNode.focalLength = 28.0 * 554.0 / 900.0
+    view.cameraNode.position = Position(0f, 0.35f + extraWorldHeight / 2f, 2.4f)
     addView(view, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     // Temporary shared Shiba model for all IDs; keep petId for future breed assets.
     view.modelLoader.loadModelInstanceAsync("models/dog.glb") { instance ->
       if (instance == null || scene !== view) return@loadModelInstanceAsync
       val node = DogModelNode(instance)
+      node.scale = node.scale * 2.5f
       node.isShadowCaster = false
       node.position = Position(0f, -node.scale.y * (node.center.y - node.halfExtent.y), 0f)
       view.addChildNode(node)
@@ -112,4 +123,5 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
     override fun getEventName() = "topReady"
     override fun getEventData() = Arguments.createMap()
   }
+
 }

@@ -31,13 +31,16 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const [roomSize, setRoomSize] = useState({ width: 0, height: 0 });
   // Same cover transform as the background: anchor the model to the painted bed.
   const backgroundScale = Math.max(roomSize.width / 937, roomSize.height / 1678);
-  const petWidth = 562 * backgroundScale;
-  const petHeight = 554 * backgroundScale;
+  // Expand the transparent viewport above the pet without moving its feet.
+  const petWidth = 900 * backgroundScale;
+  const petHeight = 900 * backgroundScale;
   const petFrame = {
     width: petWidth,
     height: petHeight,
     left: (roomSize.width - 937 * backgroundScale) / 2 + 535 * backgroundScale - petWidth / 2,
-    top: (roomSize.height - 1678 * backgroundScale) / 2 + 1140 * backgroundScale - petHeight * 0.68,
+    top:
+      (roomSize.height - 1678 * backgroundScale) / 2 +
+      (1140 - 554 * 0.68 - (900 - 554)) * backgroundScale,
   };
   const ending = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -81,11 +84,12 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           style={styles.toilet}
         />
       ) : null}
-      {pet && roomSize.width > 0 ? (
+      {roomVisible && pet && roomSize.width > 0 ? (
         <RoomPet
+          key={`${pet.id}-${returnSequence}`}
           petId={pet.id}
           style={[styles.pet, petFrame]}
-          returnSequence={roomVisible ? returnSequence : 0}
+          returnSequence={returnSequence}
           entryOffset={{ x: roomSize.width * 0.55, y: roomSize.height * 0.3 }}
         />
       ) : null}
