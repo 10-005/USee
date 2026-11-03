@@ -11,8 +11,9 @@ jest.mock(
 
 test('activity screen has one action connected to the existing AR walk', async () => {
   const navigate = jest.fn();
+  const goBack = jest.fn();
   const props = {
-    navigation: { navigate },
+    navigation: { navigate, goBack },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'cat-2' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
   let renderer: ReactTestRenderer.ReactTestRenderer;
@@ -24,5 +25,9 @@ test('activity screen has one action connected to the existing AR walk', async (
   expect(button.props.children).toBe('AR 산책하기');
   await ReactTestRenderer.act(() => button.props.onPress());
   expect(navigate).toHaveBeenCalledWith('ArWalk');
+  await ReactTestRenderer.act(() => {
+    renderer.root.findAllByProps({ accessibilityLabel: '뒤로가기' })[0].props.onPress();
+  });
+  expect(goBack).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(() => renderer.unmount());
 });
