@@ -10,5 +10,5 @@ class ArFloorPackage : ReactPackage {
     emptyList()
 
   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =
-    listOf(ArFloorViewManager())
+    listOf(ArFloorViewManager(), RoomPetViewManager())
 }

@@ -1,6 +1,7 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+import { MockAdoptionScreen } from '../../screens/MockAdoption/MockAdoptionScreen';
 import { HomeScreen } from '../../screens/Home/HomeScreen';
 import { MockAdoptionActivityScreen } from '../../screens/MockAdoption/MockAdoptionActivityScreen';
 import { MockAdoptionBudgetScreen } from '../../screens/MockAdoption/MockAdoptionBudgetScreen';
@@ -28,6 +29,7 @@ export function RootNavigator() {
       <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="MockAdoptionActivity" component={MockAdoptionActivityScreen} />
+        <Stack.Screen name="MockAdoptionSelection" component={MockAdoptionScreen} />
         <Stack.Screen name="PetList" component={PetListScreen} />
         <Stack.Screen name="PetDetail" component={PetDetailScreen} />
         <Stack.Screen name="PetRegistration" component={PetRegistrationScreen} />

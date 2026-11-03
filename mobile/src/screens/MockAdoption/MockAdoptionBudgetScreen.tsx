@@ -48,7 +48,14 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
     setSaveError(undefined);
     try {
       const session = await startMockAdoption(pet.id, Number(value));
-      navigation.replace('MockAdoptionActivity', { petId: session.petId });
+      navigation.reset({
+        index: 1,
+        routes: [
+          // Home 내부의 동물 선택 탭 상태도 새 Home 인스턴스로 초기화한다.
+          { name: 'Home', key: `${route.key}-home` },
+          { name: 'MockAdoptionActivity', params: { petId: session.petId } },
+        ],
+      });
     } catch {
       setSaveError('예산을 저장하지 못했어요. 다시 시도해주세요.');
     } finally {

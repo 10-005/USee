@@ -24,9 +24,9 @@ test.each(['10000', '100000000', '035000'])('accepts valid budget %s', value => 
 
 test('accepts digits only and persists only when starting, with retry on save failure', async () => {
   await AsyncStorage.clear();
-  const replace = jest.fn();
+  const reset = jest.fn();
   const props = {
-    navigation: { replace, goBack: jest.fn() },
+    navigation: { reset, goBack: jest.fn() },
     route: { key: 'budget', name: 'MockAdoptionBudget', params: { petId: 'dog-1' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionBudget'>;
   let renderer: ReactTestRenderer.ReactTestRenderer;
@@ -63,7 +63,7 @@ test('accepts digits only and persists only when starting, with retry on save fa
   await ReactTestRenderer.act(async () => {
     await button().props.onPress();
   });
-  expect(replace).not.toHaveBeenCalled();
+  expect(reset).not.toHaveBeenCalled();
   expect(button().props.loading).toBe(false);
   expect(
     renderer!.root.findAllByProps({ accessibilityLiveRegion: 'polite' }).length,
@@ -71,7 +71,13 @@ test('accepts digits only and persists only when starting, with retry on save fa
   await ReactTestRenderer.act(async () => {
     await button().props.onPress();
   });
-  expect(replace).toHaveBeenCalledWith('MockAdoptionActivity', { petId: 'dog-1' });
+  expect(reset).toHaveBeenCalledWith({
+    index: 1,
+    routes: [
+      { name: 'Home', key: 'budget-home' },
+      { name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+    ],
+  });
   await expect(getActiveMockAdoption()).resolves.toMatchObject({
     petId: 'dog-1',
     weeklyBudget: 35000,
