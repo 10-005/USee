@@ -12,7 +12,6 @@ export function ProfilePage() {
   const profile = useShelterDemo((s) => s.profile);
   const save = useShelterDemo((s) => s.saveProfile);
   const [editing, setEditing] = useState(false);
-  const [saved, setSaved] = useState(false);
   const fields: [keyof ShelterProfile, string][] = [
     ['name', '보호소 이름'],
     ['address', '주소'],
@@ -29,14 +28,12 @@ export function ProfilePage() {
     if (!next.name || !next.address || !next.phone) return;
     save(next);
     setEditing(false);
-    setSaved(true);
   };
   return (
     <DemoPage title="마이페이지" narrow>
-      <p className="form-feedback">등록된 보호센터 정보를 확인하고 수정할 수 있습니다.</p>
       <section className="detail-box">
-        <h2>보호센터 프로필</h2>
-        <img className="profile-banner" src={banner} alt="보호센터 예시 전경" />
+        <h2>보호소 프로필</h2>
+        <img className="profile-banner" src={banner} alt="보호소 예시 전경" />
         <div className="profile-identity">
           <img src={avatar} alt="" />
           <strong>{profile.name}</strong>
@@ -59,7 +56,7 @@ export function ProfilePage() {
                 />
               ))}
               <TextAreaField
-                label="보호센터 소개"
+                label="보호소 소개"
                 name="introduction"
                 defaultValue={profile.introduction}
                 maxLength={2000}
@@ -83,7 +80,6 @@ export function ProfilePage() {
                 size="small"
                 onClick={() => {
                   setEditing(true);
-                  setSaved(false);
                 }}
               >
                 정보 수정
@@ -92,19 +88,19 @@ export function ProfilePage() {
             <InfoRows rows={fields.map(([name, label]) => [label, profile[name]])} />
           </section>
           <section className="detail-box">
-            <h2>보호센터 소개</h2>
+            <h2>보호소 소개</h2>
             <p>{profile.introduction || '등록된 소개가 없습니다.'}</p>
           </section>
         </>
       )}
-      {saved && (
-        <p role="status" className="form-feedback">
-          예시 보호센터 정보를 저장했습니다.
-        </p>
-      )}
       {!editing && (
         <div className="page-actions">
-          <Link className="profile-logout" to="/login">
+          <Link
+            className="profile-logout"
+            to="/login"
+            replace
+            onClick={() => sessionStorage.removeItem('usee-demo-login')}
+          >
             <svg
               aria-hidden="true"
               width="18"

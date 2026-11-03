@@ -7,6 +7,7 @@ import { App } from '@/app/App';
 import { AppProviders } from '@/app/providers/AppProviders';
 
 beforeEach(() => {
+  sessionStorage.setItem('usee-demo-login', 'true');
   useDemoChat.setState(useDemoChat.getInitialState(), true);
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
     configurable: true,
