@@ -276,6 +276,7 @@ export function HomeScreen({ navigation }: Props) {
         <MyPageScreen
           onOpenMockAdoption={openMockAdoption}
           onOpenAdoptionApplications={() => navigation.navigate('AdoptionApplicationList')}
+          onOpenPets={() => navigation.navigate('PetList')}
         />
       ) : (
         <>

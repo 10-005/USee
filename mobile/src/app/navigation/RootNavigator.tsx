@@ -12,6 +12,9 @@ import { AdoptionApplicationListScreen } from '../../screens/adoption/AdoptionAp
 import { AdoptionApplicationReviewScreen } from '../../screens/adoption/AdoptionApplicationReviewScreen';
 import { AdoptionDetailScreen } from '../../screens/adoption/AdoptionDetailScreen';
 import { ShelterDetailScreen } from '../../screens/shelter/ShelterDetailScreen';
+import { PetListScreen } from '../../screens/MyPage/PetListScreen';
+import { PetDetailScreen } from '../../screens/MyPage/PetDetailScreen';
+import { PetRegistrationScreen } from '../../screens/MyPage/PetRegistrationScreen';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -23,6 +26,9 @@ export function RootNavigator() {
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="MockAdoptionActivity" component={MockAdoptionActivityScreen} />
         <Stack.Screen name="MockAdoptionSelection" component={MockAdoptionScreen} />
+        <Stack.Screen name="PetList" component={PetListScreen} />
+        <Stack.Screen name="PetDetail" component={PetDetailScreen} />
+        <Stack.Screen name="PetRegistration" component={PetRegistrationScreen} />
         <Stack.Screen name="MockAdoptionBudget" component={MockAdoptionBudgetScreen} />
         <Stack.Screen
           name="ArWalk"

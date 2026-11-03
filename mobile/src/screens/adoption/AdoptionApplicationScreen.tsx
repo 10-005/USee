@@ -5,6 +5,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { saveSubmittedAdoptionApplication } from '../../services/storage/adoptionApplicationStorage';
 import {
   Image,
+  Keyboard,
   Modal,
   PermissionsAndroid,
   Platform,
@@ -470,7 +471,9 @@ export function AdoptionApplicationScreen({ navigation, route }: Props) {
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={[styles.content, step === 5 && styles.finalContent]}
+        keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
+        onTouchStart={Keyboard.dismiss}
         scrollEnabled={step !== 5}
         showsVerticalScrollIndicator={false}
       >
