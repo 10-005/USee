@@ -7,10 +7,12 @@ import { Button } from '../../components/common';
 import BackIcon from '../../assets/icons/common/left-arrow.svg';
 import { colors, typography } from '../../theme';
 import { endMockAdoption } from '../../services/storage/mockAdoptionStorage';
+import { mockAdoptionPets } from './data';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
 
-export function MockAdoptionActivityScreen({ navigation }: Props) {
+export function MockAdoptionActivityScreen({ navigation, route }: Props) {
+  const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
   const ending = useRef(false);
   const [busy, setBusy] = useState(false);
   const quit = async () => {
@@ -36,6 +38,18 @@ export function MockAdoptionActivityScreen({ navigation }: Props) {
         resizeMode="cover"
         style={styles.background}
       />
+      {pet ? (
+        <Image
+          accessibilityLabel={pet.category === 'dog' ? '빈 배변 패드' : '빈 고양이 화장실'}
+          source={
+            pet.category === 'dog'
+              ? require('../../assets/images/mock-adoption/img_dog_empty_toilet.png')
+              : require('../../assets/images/mock-adoption/img_cat_empty_toilet.png')
+          }
+          resizeMode="contain"
+          style={styles.toilet}
+        />
+      ) : null}
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <Pressable
@@ -95,6 +109,7 @@ export function MockAdoptionActivityScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   background: { position: 'absolute', width: '100%', height: '100%' },
+  toilet: { position: 'absolute', right: '3%', top: '47%', width: '36%', height: '13%' },
   safeArea: { flex: 1 },
   header: {
     flexDirection: 'row',

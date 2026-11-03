@@ -63,3 +63,20 @@ test('quitting clears the session and replaces the main screen with fresh select
   await ReactTestRenderer.act(() => renderer.unmount());
   await AsyncStorage.clear();
 });
+
+test.each([
+  ['dog-1', '빈 배변 패드', '빈 고양이 화장실'],
+  ['cat-2', '빈 고양이 화장실', '빈 배변 패드'],
+])('shows the empty toilet for %s', async (petId, expected, absent) => {
+  const props = {
+    navigation: {},
+    route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  expect(renderer!.root.findAllByProps({ accessibilityLabel: expected }).length).toBeGreaterThan(0);
+  expect(renderer!.root.findAllByProps({ accessibilityLabel: absent })).toHaveLength(0);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
