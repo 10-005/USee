@@ -1,3 +1,4 @@
+import { STORAGE_KEYS } from '../../constants/storageKeys';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getActiveMockAdoption,
@@ -218,3 +219,47 @@ test.each(['food', 'water'] as const)(
     jest.useRealTimers();
   },
 );
+
+test.each([
+  ['dog-1', '가득 찬 배변 패드', '빈 배변 패드'],
+  ['cat-2', '가득 찬 고양이 화장실', '빈 고양이 화장실'],
+])('cleans and persists the toilet for %s', async (petId, fullLabel, emptyLabel) => {
+  await AsyncStorage.clear();
+  const session = await startMockAdoption(petId, 35000);
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.MOCK_ADOPTION_TOILET,
+    JSON.stringify({
+      petId,
+      startedAt: session.startedAt,
+      cleanedAt: session.startedAt - 2000,
+      events: [session.startedAt - 1000, session.startedAt + 3600000],
+    }),
+  );
+  const props = {
+    navigation: {},
+    route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findAllByProps({ accessibilityLabel: fullLabel })[0].props.onPress();
+  });
+  expect(renderer.root.findAllByProps({ accessibilityLabel: emptyLabel }).length).toBeGreaterThan(
+    0,
+  );
+  expect(renderer.root.findAllByProps({ children: '깨끗해져서 좋아요!' }).length).toBeGreaterThan(
+    0,
+  );
+  await ReactTestRenderer.act(() => renderer.unmount());
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  expect(renderer.root.findAllByProps({ accessibilityLabel: fullLabel })).toHaveLength(0);
+  expect(renderer.root.findAllByProps({ accessibilityLabel: emptyLabel }).length).toBeGreaterThan(
+    0,
+  );
+  await ReactTestRenderer.act(() => renderer.unmount());
+  await AsyncStorage.clear();
+});

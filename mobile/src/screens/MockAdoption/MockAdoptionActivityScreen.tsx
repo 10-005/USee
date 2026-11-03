@@ -19,6 +19,7 @@ import { colors, typography } from '../../theme';
 import { endMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { mockAdoptionPets } from './data';
 import { RoomPet } from './RoomPet';
+import { useToilet } from './useToilet';
 import { PetStatsDialog, type PetStats } from './PetStatsDialog';
 
 // Temporary preview values until the server provides the selected pet's stats.
@@ -39,6 +40,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
 
 export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
+  const toilet = useToilet(route.params.petId, pet?.category ?? 'dog');
   const [statsVisible, setStatsVisible] = useState(false);
   const walkPending = useRef(false);
   const [care, setCare] = useState<{
@@ -136,6 +138,11 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       setBusy(false);
     }
   };
+  const showToast = (message: string) => {
+    setToast(message);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 2500);
+  };
   const provide = (kind: 'food' | 'water') => {
     if (careBusy.current || leaving || busy || !pet) {
       return;
@@ -145,9 +152,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     fillScale.setValue(0.8);
     Animated.spring(fillScale, { toValue: 1, useNativeDriver: true }).start();
     if (streak.current.count >= 5) {
-      setToast(kind === 'food' ? '지금은 배불러요' : '지금은 목마르지 않아요');
-      clearTimeout(toastTimer.current);
-      toastTimer.current = setTimeout(() => setToast(''), 2500);
+      showToast(kind === 'food' ? '지금은 배불러요' : '지금은 목마르지 않아요');
       return;
     }
     careBusy.current = true;
@@ -184,18 +189,6 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         resizeMode="cover"
         style={styles.background}
       />
-      {pet ? (
-        <Image
-          accessibilityLabel={pet.category === 'dog' ? '빈 배변 패드' : '빈 고양이 화장실'}
-          source={
-            pet.category === 'dog'
-              ? require('../../assets/images/mock-adoption/img_dog_empty_toilet.png')
-              : require('../../assets/images/mock-adoption/img_cat_empty_toilet.png')
-          }
-          resizeMode="contain"
-          style={styles.toilet}
-        />
-      ) : null}
       {roomVisible && pet && roomSize.width > 0 ? (
         <RoomPet
           key={`${pet.id}-${returnSequence}`}
@@ -221,6 +214,48 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           leaving={leaving}
           onHidden={onPetHidden}
         />
+      ) : null}
+      {pet ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            pet.category === 'dog'
+              ? toilet.full
+                ? '가득 찬 배변 패드'
+                : '빈 배변 패드'
+              : toilet.full
+              ? '가득 찬 고양이 화장실'
+              : '빈 고양이 화장실'
+          }
+          disabled={!toilet.full || !!care || leaving || busy}
+          onPress={async () => {
+            if (careBusy.current) {
+              return;
+            }
+            try {
+              if (await toilet.clean()) {
+                showToast('깨끗해져서 좋아요!');
+              }
+            } catch {
+              showToast('청소 상태를 저장하지 못했어요. 다시 시도해주세요.');
+            }
+          }}
+          style={styles.toilet}
+        >
+          <Image
+            source={
+              pet.category === 'dog'
+                ? toilet.full
+                  ? require('../../assets/images/mock-adoption/img_dog_full_toilet.png')
+                  : require('../../assets/images/mock-adoption/img_dog_empty_toilet.png')
+                : toilet.full
+                ? require('../../assets/images/mock-adoption/img_cat_full_toilet.png')
+                : require('../../assets/images/mock-adoption/img_cat_empty_toilet.png')
+            }
+            resizeMode="contain"
+            style={styles.toiletImage}
+          />
+        </Pressable>
       ) : null}
       <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
         <View style={styles.header}>
@@ -313,7 +348,20 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         <View style={StyleSheet.absoluteFill} onStartShouldSetResponder={() => true} />
       ) : null}
       {toast ? (
-        <View pointerEvents="none" style={styles.toast}>
+        <View
+          pointerEvents="none"
+          style={[
+            styles.toast,
+            {
+              top: Math.max(16, petFrame.top + petHeight * 0.38 - 48),
+              left: Math.max(
+                16,
+                Math.min(roomSize.width - 256, petFrame.left + petWidth / 2 - 120),
+              ),
+              width: Math.min(240, Math.max(0, roomSize.width - 32)),
+            },
+          ]}
+        >
           <Text accessibilityLiveRegion="polite" style={styles.toastText}>
             {toast}
           </Text>
@@ -336,6 +384,7 @@ const styles = StyleSheet.create({
   background: { position: 'absolute', width: '100%', height: '100%' },
   pet: { position: 'absolute' },
   toilet: { position: 'absolute', right: '3%', top: '47%', width: '36%', height: '13%' },
+  toiletImage: { width: '100%', height: '100%' },
   safeArea: { flex: 1 },
   header: {
     flexDirection: 'row',
@@ -371,9 +420,8 @@ const styles = StyleSheet.create({
   },
   toast: {
     position: 'absolute',
-    bottom: 110,
-    alignSelf: 'center',
-    backgroundColor: '#333333',
+    alignItems: 'center',
+    backgroundColor: 'rgba(51, 51, 51, 0.5)',
     borderRadius: 20,
     paddingHorizontal: 20,
     paddingVertical: 12,
