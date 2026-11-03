@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../app/navigation/types';
+import DownArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import { AppHeader, Button, TextInput } from '../../components/common';
 import { startMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { colors, radius, typography } from '../../theme';
@@ -65,9 +66,12 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
       >
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <Text style={styles.step}>예산 설정</Text>
-          <Text style={styles.title}>초기 비용을 포함한{'\n'}예상 예산을 입력해주세요!</Text>
+          <View style={styles.titleGroup}>
+            <Text style={[styles.title, styles.titleAccent]}>첫 주 예산을</Text>
+            <Text style={styles.title}>입력해주세요!</Text>
+          </View>
           <Text style={styles.subtitle}>
-            처음 맞이하는 준비부터 함께하는 일주일까지 예산을 세워보세요.
+            초기 준비 비용을 포함해, 함께하는 일주일의 예산을 세워보세요.
           </Text>
           {pet ? (
             <View style={styles.pet}>
@@ -150,7 +154,9 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
                     {costGroupLabels[pet.costGroup]} 기준 · 참고용 추정치
                   </Text>
                 </View>
-                <Text style={styles.toggleLabel}>{guideExpanded ? '접기 ∧' : '보기 ∨'}</Text>
+                <View style={[styles.toggleIcon, guideExpanded && styles.toggleIconExpanded]}>
+                  <DownArrowIcon width={20} height={20} />
+                </View>
               </Pressable>
               {guideExpanded ? (
                 <View style={styles.guideDetails}>
@@ -211,8 +217,16 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   content: { padding: 20, gap: 12 },
   step: { ...typography.bodySemiBold16, color: colors.green400 },
-  title: { ...typography.titleBold18, fontSize: 24, lineHeight: 34, color: colors.black },
-  subtitle: { ...typography.bodyRegular14, color: colors.gray500 },
+  titleGroup: { gap: 2, paddingVertical: 4 },
+  title: {
+    ...typography.titleBold18,
+    fontSize: 22,
+    lineHeight: 34,
+    color: colors.black,
+    flexShrink: 1,
+  },
+  titleAccent: { color: colors.green400 },
+  subtitle: { ...typography.bodyRegular14, lineHeight: 22, color: colors.gray500 },
   pet: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -265,7 +279,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   guideHeading: { flex: 1, gap: 4 },
-  toggleLabel: { ...typography.bodyRegular14, color: colors.gray500 },
+  toggleIcon: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  toggleIconExpanded: { transform: [{ rotate: '180deg' }] },
   guideDetails: { padding: 16, paddingTop: 0, gap: 12 },
   guideTitle: { ...typography.bodySemiBold16, color: colors.gray700 },
   amount: { ...typography.titleBold18, color: colors.gray700 },
