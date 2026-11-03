@@ -36,9 +36,12 @@ export function PetDetailScreen({ navigation, route }: Props) {
     () =>
       pet
         ? [
-            ['성별', `${pet.gender} (중성화${pet.neutered ? 'O' : 'X'})`],
-            ['나이', `${pet.age}살`],
-            ['몸무게', `${pet.weight}kg`],
+            [
+              '성별',
+              `${pet.gender} (중성화${pet.neutered === null ? ' 모름' : pet.neutered ? 'O' : 'X'})`,
+            ],
+            ['나이', pet.age === null ? '모름' : `${pet.age}살`],
+            ['몸무게', pet.weight === null ? '모름' : `${pet.weight}kg`],
             ['색상', pet.color],
             ['특징', pet.description],
             ['RFID 번호', pet.microchipNumber],
@@ -87,15 +90,19 @@ export function PetDetailScreen({ navigation, route }: Props) {
           showsHorizontalScrollIndicator={false}
           style={{ width: imageWidth }}
         />
-        <View accessibilityLabel={`${imageIndex + 1}번째 사진`} style={styles.indicator}>
-          {pet.images.map((_, index) => (
-            <View
-              key={`${pet.id}-indicator-${index}`}
-              style={[styles.indicatorDot, index === imageIndex && styles.indicatorDotActive]}
-            />
-          ))}
-        </View>
-        <Text style={styles.petName}>{pet.name}</Text>
+        {pet.images.length > 1 ? (
+          <View accessibilityLabel={`${imageIndex + 1}번째 사진`} style={styles.indicator}>
+            {pet.images.map((_, index) => (
+              <View
+                key={`${pet.id}-indicator-${index}`}
+                style={[styles.indicatorDot, index === imageIndex && styles.indicatorDotActive]}
+              />
+            ))}
+          </View>
+        ) : null}
+        <Text style={[styles.petName, pet.images.length === 1 && styles.petNameSingleImage]}>
+          {pet.name}
+        </Text>
         <Text style={styles.petKind}>
           {pet.species} | {pet.breed}
         </Text>
@@ -125,7 +132,10 @@ export function PetDetailScreen({ navigation, route }: Props) {
           <Pressable
             accessibilityLabel="반려동물 수정"
             accessibilityRole="button"
-            onPress={() => Alert.alert('수정하기', '수정 폼은 S15P31D106-76 작업 후 연결됩니다.')}
+            onPress={() => {
+              setMenuVisible(false);
+              navigation.navigate('PetRegistration', { petId: pet.id });
+            }}
             style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
           >
             <PetEditIcon />
@@ -228,6 +238,7 @@ const styles = StyleSheet.create({
   indicatorDot: { backgroundColor: colors.gray200, borderRadius: 4, height: 8, width: 8 },
   indicatorDotActive: { backgroundColor: colors.green200, width: 29 },
   petName: { color: '#242424', fontFamily: 'Pretendard-Bold', fontSize: 20, lineHeight: 22 },
+  petNameSingleImage: { marginTop: 34 },
   petKind: {
     ...typography.captionSemiBold12,
     color: colors.gray500,

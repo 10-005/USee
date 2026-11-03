@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
@@ -43,9 +43,7 @@ export function PetListScreen({ navigation }: Props) {
         <Pressable
           accessibilityLabel="반려동물 추가 등록"
           accessibilityRole="button"
-          onPress={() =>
-            Alert.alert('반려동물 추가 등록', '등록 화면은 S15P31D106-76 작업에서 연결됩니다.')
-          }
+          onPress={() => navigation.navigate('PetRegistration')}
           style={({ pressed }) => [styles.addCard, pressed && styles.pressed]}
         >
           <Text style={styles.plus}>+</Text>
@@ -68,7 +66,7 @@ function PetListItem({ onPress, pet }: { onPress: () => void; pet: Pet }) {
       <View style={styles.petSummary}>
         <Text style={styles.petName}>{pet.name}</Text>
         <Text style={styles.petMeta}>
-          {pet.breed} | {pet.age}살 | {pet.gender}
+          {pet.breed} | {pet.age === null ? '나이 모름' : `${pet.age}살`} | {pet.gender}
         </Text>
       </View>
       <PetChevronRightIcon />
