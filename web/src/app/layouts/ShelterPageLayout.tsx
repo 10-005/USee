@@ -4,18 +4,19 @@ import { useShelterDemo } from '@/features/shelter-demo/store';
 import { ShelterLayout } from '@/shared/ui/ShelterLayout';
 import { ShelterHeader } from '@/shared/ui/ShelterHeader';
 import { ChatSidebar } from '@/shared/ui/ChatSidebar';
-import { Modal } from '@/shared/ui/Modal';
-import { Button } from '@/shared/ui/Button';
 import shelterAvatar from '@/shared/assets/figma/shelter-avatar.png';
-import { sampleConversations } from '@/shared/model/sample-conversations';
+import { useDemoChat } from '@/shared/model/demo-chat';
 import './shelter-page.css';
 
 export function ShelterPageLayout({ children }: { children: ReactNode }) {
   const profile = useShelterDemo((s) => s.profile);
   const navigate = useNavigate();
-  const [chatOpen, setChatOpen] = useState(false);
-  const [selectedChat, setSelectedChat] = useState<string>();
-  const [notice, setNotice] = useState('');
+  const chatOpen = useDemoChat((s) => s.sidebarOpen);
+  const setChatOpen = useDemoChat((s) => s.setSidebarOpen);
+  const selectedChat = useDemoChat((s) => s.selectedId);
+  const showChatList = useDemoChat((s) => s.showList);
+  const conversations = useDemoChat((s) => s.conversations);
+  const openConversation = useDemoChat((s) => s.open);
   const [showBackToTop, setShowBackToTop] = useState(false);
   useEffect(() => {
     const updateVisibility = () => setShowBackToTop(window.scrollY > 80);
@@ -51,9 +52,9 @@ export function ShelterPageLayout({ children }: { children: ReactNode }) {
               navigation={
                 <>
                   <NavLink to="/animals">보호동물</NavLink>
-                  <NavLink to="/adoptions">입양신청 목록</NavLink>
+                  <NavLink to="/adoptions">입양 신청 목록</NavLink>
                   <NavLink to="/rescues">구조일지</NavLink>
-                  <NavLink to="/reports">제보 목록</NavLink>
+                  <NavLink to="/reports">발견 신고 목록</NavLink>
                 </>
               }
               profile={
@@ -69,12 +70,10 @@ export function ShelterPageLayout({ children }: { children: ReactNode }) {
           <ChatSidebar
             open={chatOpen}
             onOpenChange={setChatOpen}
-            conversations={sampleConversations}
+            conversations={conversations}
             selectedId={selectedChat}
-            onSelect={(id) => {
-              setSelectedChat(id);
-              setNotice('예시 대화입니다. 메시지 송수신 기능은 준비 중입니다.');
-            }}
+            onSelect={openConversation}
+            onBack={showChatList}
           />
         }
       >
@@ -110,13 +109,6 @@ export function ShelterPageLayout({ children }: { children: ReactNode }) {
             </button>
           </div>
         )}
-        <Modal
-          open={!!notice}
-          title="안내"
-          description={notice}
-          onClose={() => setNotice('')}
-          actions={<Button onClick={() => setNotice('')}>닫기</Button>}
-        />
       </ShelterLayout>
     </div>
   );

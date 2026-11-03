@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router';
 import { AppLayout } from '@/app/layouts/AppLayout';
 import { HomePage } from '@/pages/home/HomePage';
 import { NotFoundPage } from '@/pages/not-found/NotFoundPage';
@@ -27,44 +27,55 @@ const ShelterPreviewPage = import.meta.env.DEV
   : null;
 
 export function App() {
+  useLocation();
   return (
     <Routes>
-      <Route index element={<HomePage />} />
-      <Route path="/animals" element={<AnimalsPage />} />
-      <Route path="/animals/new" element={<AnimalFormPage />} />
-      <Route path="/animals/:id" element={<AnimalDetailPage />} />
-      <Route path="/animals/:id/edit" element={<AnimalFormPage />} />
-      <Route path="/adoptions" element={<RecordsPage kind="adoptions" />} />
-      <Route path="/adoptions/:id" element={<AdoptionDetailPage />} />
-      <Route path="/rescues" element={<RecordsPage kind="rescues" />} />
-      <Route path="/rescues/new" element={<RescueFormPage />} />
-      <Route path="/rescues/:id" element={<RescueDetailPage />} />
-      <Route path="/rescues/:id/edit" element={<RescueFormPage />} />
-      <Route path="/reports" element={<ReportsPage />} />
-      <Route path="/profile" element={<ProfilePage />} />
       <Route path="/login" element={<LoginPage />} />
-      {UiPreviewPage && (
-        <Route
-          path="/dev/ui"
-          element={
-            <Suspense fallback={<p>불러오는 중...</p>}>
-              <UiPreviewPage />
-            </Suspense>
-          }
-        />
-      )}
-      {ShelterPreviewPage && (
-        <Route
-          path="/dev/shelter"
-          element={
-            <Suspense fallback={<p>불러오는 중...</p>}>
-              <ShelterPreviewPage />
-            </Suspense>
-          }
-        />
-      )}
-      <Route element={<AppLayout />}>
-        <Route path="*" element={<NotFoundPage />} />
+      <Route
+        element={
+          sessionStorage.getItem('usee-demo-login') === 'true' ? (
+            <Outlet />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
+      >
+        <Route index element={<HomePage />} />
+        <Route path="/animals" element={<AnimalsPage />} />
+        <Route path="/animals/new" element={<AnimalFormPage />} />
+        <Route path="/animals/:id" element={<AnimalDetailPage />} />
+        <Route path="/animals/:id/edit" element={<AnimalFormPage />} />
+        <Route path="/adoptions" element={<RecordsPage kind="adoptions" />} />
+        <Route path="/adoptions/:id" element={<AdoptionDetailPage />} />
+        <Route path="/rescues" element={<RecordsPage kind="rescues" />} />
+        <Route path="/rescues/new" element={<RescueFormPage />} />
+        <Route path="/rescues/:id" element={<RescueDetailPage />} />
+        <Route path="/rescues/:id/edit" element={<RescueFormPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        {UiPreviewPage && (
+          <Route
+            path="/dev/ui"
+            element={
+              <Suspense fallback={<p>불러오는 중...</p>}>
+                <UiPreviewPage />
+              </Suspense>
+            }
+          />
+        )}
+        {ShelterPreviewPage && (
+          <Route
+            path="/dev/shelter"
+            element={
+              <Suspense fallback={<p>불러오는 중...</p>}>
+                <ShelterPreviewPage />
+              </Suspense>
+            }
+          />
+        )}
+        <Route element={<AppLayout />}>
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
       </Route>
     </Routes>
   );

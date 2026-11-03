@@ -66,7 +66,7 @@ export function ReportsPage() {
       return next;
     });
   return (
-    <DemoPage title="제보 목록" hideTitle>
+    <DemoPage title="발견 신고 목록" hideTitle>
       <div className="record-status-filters report-tabs" role="group" aria-label="접수 상태">
         {reportTabs.map(([value, label]) => (
           <button
@@ -227,7 +227,7 @@ export function ReportsPage() {
           </article>
         ))}
       </div>
-      {!rows.length && <p className="detail-box">조건에 맞는 제보가 없습니다.</p>}
+      {!rows.length && <p className="detail-box">조건에 맞는 발견 신고가 없습니다.</p>}
       <Pagination
         page={page}
         pageCount={pageCount}

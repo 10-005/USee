@@ -40,7 +40,7 @@ export function HomePage() {
         .slice(0, 3)
         .map((r) => ({
           title: r.location,
-          description: `구조 날짜 ${r.date.slice(0, 10)} · ${r.source}`,
+          description: `구조 일시 ${r.date.replace('T', ' ')} · ${r.source.replace(/^신고 #/, '발견 신고 #')}`,
           badge: <RecordBadge status={r.status} />,
           href: `/rescues/${r.id}`,
         })),
@@ -69,7 +69,7 @@ export function HomePage() {
             <Link
               className="home-stat--adoption"
               to="/adoptions"
-              aria-label={`입양신청 ${adoptions.length}건 목록 보기`}
+              aria-label={`입양 신청 ${adoptions.length}건 목록 보기`}
             >
               <StatCard label="입양 신청" value={`${adoptions.length}건`} />
             </Link>

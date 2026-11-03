@@ -26,6 +26,7 @@ export type Rescue = {
   name: string;
   image: string;
   date: string;
+  receivedAt?: string;
   status: RescueStatus;
   source: string;
   reason: string;
@@ -33,6 +34,7 @@ export type Rescue = {
   memo: string;
 };
 export type DemoAnimal = ShelterAnimal & {
+  noticeNumber?: string;
   rescueId?: string;
   images?: string[];
   chip?: string;
@@ -55,8 +57,9 @@ export type ShelterProfile = {
   hours: string;
   introduction: string;
 };
-const demoAnimals: DemoAnimal[] = sampleAnimals.map((animal) => ({
+const demoAnimals: DemoAnimal[] = sampleAnimals.map((animal, index) => ({
   ...animal,
+  noticeNumber: `경북-구미-2026-${String(index + 1).padStart(5, '0')}`,
   birth: animal.summary.split(' | ')[0],
   color: '흰색',
   weight: animal.summary.split(' | ')[3]?.replace('kg', ''),
@@ -79,6 +82,7 @@ export const initialRescues: Rescue[] = Array.from({ length: 24 }, (_, i) => ({
   name: i % 2 ? '[개] 푸들' : '[고양이] 코리안숏헤어',
   image: i % 2 ? poodle : cat,
   date: `2026-10-${String(29 - i).padStart(2, '0')}T17:47`,
+  receivedAt: `2026-10-${String(29 - i).padStart(2, '0')}T09:30`,
   status: rescueStates[i % 4] ?? '진행 중',
   source: i % 2 ? '직접 접수' : `신고 #F-${123 + i}`,
   reportId: i % 2 === 0 || i === 1 ? `F-${123 + i}` : undefined,

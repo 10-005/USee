@@ -16,7 +16,6 @@ export function AdoptionDetailPage() {
   const [action, setAction] = useState<AdoptionStatus>();
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
   const [openSections, setOpenSections] = useState<number[]>([0]);
   if (!record) return <MissingRecord back={listUrl} />;
   const questions: { title: string; rows: [string, string][] }[] = [
@@ -73,7 +72,7 @@ export function AdoptionDetailPage() {
   };
   return (
     <DemoPage
-      title="입양신청 상세"
+      title="입양 신청 상세"
       narrow
       back={listUrl}
       titleAction={
@@ -158,14 +157,9 @@ export function AdoptionDetailPage() {
               ? '입양 신청서가 접수되었습니다. 제출된 내용을 검토하고 서류 승인 또는 거절 여부를 결정해 주세요.'
               : record.status === '서류 승인'
                 ? '면접 및 후속 절차를 진행한 뒤 최종 입양 여부를 결정해 주세요.'
-                : record.reason || '예시 심사 처리가 완료되었습니다.'}
+                : record.reason || '심사 처리가 완료되었습니다.'}
           </p>
         </div>
-        {saved && (
-          <p role="status" className="form-feedback">
-            예시 심사 결과를 반영했습니다. 실제 신청에는 영향을 주지 않습니다.
-          </p>
-        )}
         {['심사 대기', '서류 승인'].includes(record.status) && (
           <div className="page-actions">
             <Button variant="secondary" onClick={() => openReview('거절')}>
@@ -183,7 +177,6 @@ export function AdoptionDetailPage() {
       <Modal
         open={!!action}
         title={`${action ?? ''} 확인`}
-        description="예시 데이터의 심사 상태만 변경합니다."
         onClose={() => setAction(undefined)}
         actions={
           <>
@@ -202,7 +195,6 @@ export function AdoptionDetailPage() {
                 }
                 if (action) review(record.id, action, reason.trim());
                 setAction(undefined);
-                setSaved(true);
               }}
             >
               확인

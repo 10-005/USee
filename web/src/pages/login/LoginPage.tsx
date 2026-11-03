@@ -17,8 +17,9 @@ export function LoginPage() {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (id === 'demo' && password === 'demo') {
+      sessionStorage.setItem('usee-demo-login', 'true');
       setPassword('');
-      navigate('/');
+      navigate('/', { replace: true });
     } else setError('예시 계정 demo / demo로 입력해 주세요. 실제 계정 인증은 연결 전입니다.');
   };
 

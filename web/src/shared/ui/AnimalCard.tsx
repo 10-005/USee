@@ -46,7 +46,7 @@ export function AnimalCard({
           <span
             className={`animal-card__adoptable ${adoptable ? '' : 'animal-card__adoptable--no'}`}
           >
-            {adoptable ? '입양가능' : '입양불가'}
+            {adoptable ? '입양 가능' : '입양 불가'}
           </span>
         </span>
         <span className="animal-card__detail">

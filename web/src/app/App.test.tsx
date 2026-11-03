@@ -16,7 +16,22 @@ function renderApp(path: string) {
 }
 
 describe('앱 탐색', () => {
-  beforeEach(() => useUiStore.setState({ navigationOpen: false }));
+  beforeEach(() => {
+    sessionStorage.setItem('usee-demo-login', 'true');
+    useUiStore.setState({ navigationOpen: false });
+  });
+
+  it('로그인 전에는 로그인 화면으로 이동하고 로그아웃하면 다시 로그인해야 한다', () => {
+    sessionStorage.removeItem('usee-demo-login');
+    renderApp('/animals');
+    expect(screen.getByRole('heading', { name: '보호소 로그인' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '로그인' }));
+    expect(screen.getByRole('heading', { name: '보호소 홈' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: '마이페이지' }));
+    fireEvent.click(screen.getByRole('link', { name: '로그아웃하기' }));
+    expect(sessionStorage.getItem('usee-demo-login')).toBeNull();
+    expect(screen.getByRole('heading', { name: '보호소 로그인' })).toBeInTheDocument();
+  });
 
   it('opens the animal list from the dashboard count', () => {
     renderApp('/');
