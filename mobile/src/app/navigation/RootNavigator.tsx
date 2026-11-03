@@ -11,6 +11,7 @@ import { AdoptionApplicationReviewScreen } from '../../screens/adoption/Adoption
 import { AdoptionDetailScreen } from '../../screens/adoption/AdoptionDetailScreen';
 import { ShelterDetailScreen } from '../../screens/shelter/ShelterDetailScreen';
 import { PetListScreen } from '../../screens/MyPage/PetListScreen';
+import { PetDetailScreen } from '../../screens/MyPage/PetDetailScreen';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -22,6 +23,7 @@ export function RootNavigator() {
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="MockAdoptionActivity" component={MockAdoptionActivityScreen} />
         <Stack.Screen name="PetList" component={PetListScreen} />
+        <Stack.Screen name="PetDetail" component={PetDetailScreen} />
         <Stack.Screen
           name="ArWalk"
           component={ArWalkScreen}

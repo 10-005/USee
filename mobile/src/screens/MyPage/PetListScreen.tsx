@@ -35,7 +35,7 @@ export function PetListScreen({ navigation }: Props) {
           {pets.map(pet => (
             <PetListItem
               key={pet.id}
-              onPress={() => Alert.alert('반려동물 상세', '상세 화면을 준비하고 있습니다.')}
+              onPress={() => navigation.navigate('PetDetail', { petId: pet.id })}
               pet={pet}
             />
           ))}
