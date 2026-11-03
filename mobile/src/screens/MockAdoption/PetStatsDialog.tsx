@@ -9,16 +9,17 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useState } from 'react';
-import { typography } from '../../theme';
+import { colors, typography } from '../../theme';
+import CloseIcon from '../../assets/icons/common/cancel.svg';
 
 export const petStatItems = [
-  { key: 'hunger', label: '배고픔', english: 'Hunger', color: '#DBAA6B' },
-  { key: 'hydration', label: '목마름', english: 'Hydration', color: '#78B8D6' },
-  { key: 'clean', label: '청결', english: 'Clean', color: '#8BBFB0' },
-  { key: 'friendship', label: '친밀도', english: 'Friendship', color: '#D5A0AD' },
-  { key: 'stress', label: '스트레스', english: 'Stress', color: '#B0A1CB' },
-  { key: 'health', label: '건강', english: 'Health', color: '#83AF89' },
-  { key: 'activity', label: '활동', english: 'Activity', color: '#C8B36A' },
+  { key: 'hunger', label: '배고픔', english: 'Hunger' },
+  { key: 'hydration', label: '목마름', english: 'Hydration' },
+  { key: 'clean', label: '청결', english: 'Clean' },
+  { key: 'friendship', label: '친밀도', english: 'Friendship' },
+  { key: 'stress', label: '스트레스', english: 'Stress' },
+  { key: 'health', label: '건강', english: 'Health' },
+  { key: 'activity', label: '활동', english: 'Activity' },
 ] as const;
 
 export type PetStats = Record<(typeof petStatItems)[number]['key'], number | null>;
@@ -76,7 +77,6 @@ export function PetStatsDialog({ visible, petName, stats = {}, onClose }: Props)
           </View>
           <View style={styles.header}>
             <View style={styles.heading}>
-              <Text style={styles.eyebrow}>STAT</Text>
               <Text accessibilityRole="header" style={styles.title}>
                 {petName}의 상태
               </Text>
@@ -87,7 +87,7 @@ export function PetStatsDialog({ visible, petName, stats = {}, onClose }: Props)
               onPress={onClose}
               style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
             >
-              <Text style={styles.closeLabel}>닫기</Text>
+              <CloseIcon width={18} height={18} />
             </Pressable>
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.stats}>
@@ -119,7 +119,18 @@ export function PetStatsDialog({ visible, petName, stats = {}, onClose }: Props)
                   >
                     {value !== null ? (
                       <View
-                        style={[styles.fill, { width: `${value}%`, backgroundColor: item.color }]}
+                        style={[
+                          styles.fill,
+                          {
+                            width: `${value}%`,
+                            backgroundColor:
+                              value <= 10
+                                ? colors.danger
+                                : value <= 20
+                                ? '#EAB308'
+                                : colors.green400,
+                          },
+                        ]}
                       />
                     ) : null}
                   </View>
@@ -169,8 +180,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     gap: 8,
   },
-  heading: { flex: 1, gap: 6 },
-  eyebrow: { ...typography.captionSemiBold12, color: '#60816D', letterSpacing: 2 },
+  heading: { flex: 1 },
   title: { ...typography.titleBold18, color: '#293D30' },
   closeButton: {
     minWidth: 48,
@@ -182,7 +192,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.8)',
   },
-  closeLabel: { ...typography.bodyRegular14, color: '#526657' },
   stats: { paddingHorizontal: 24, paddingBottom: 24, gap: 18 },
   stat: { gap: 8 },
   statHeading: {

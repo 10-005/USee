@@ -10,7 +10,18 @@ import { colors, typography } from '../../theme';
 import { endMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { mockAdoptionPets } from './data';
 import { RoomPet } from './RoomPet';
-import { PetStatsDialog } from './PetStatsDialog';
+import { PetStatsDialog, type PetStats } from './PetStatsDialog';
+
+// Temporary preview values until the server provides the selected pet's stats.
+const mockPetStats: PetStats = {
+  hunger: 75,
+  hydration: 18,
+  clean: 65,
+  friendship: 82,
+  stress: 8,
+  health: 92,
+  activity: 45,
+};
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
 
@@ -161,6 +172,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         <PetStatsDialog
           visible={statsVisible}
           petName={pet.name}
+          stats={mockPetStats}
           onClose={() => setStatsVisible(false)}
         />
       ) : null}
