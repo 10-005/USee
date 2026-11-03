@@ -93,7 +93,8 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
     // Temporary shared Shiba model for all IDs; keep petId for future breed assets.
     view.modelLoader.loadModelInstanceAsync("models/dog.glb") { instance ->
       if (instance == null || scene !== view) return@loadModelInstanceAsync
-      val node = DogModelNode(instance)
+      val node = DogModelNode(instance, manualPlayback = true)
+      node.isVisible = false
       node.scale = node.scale * 2.5f
       node.isShadowCaster = false
       node.position = Position(0f, -node.scale.y * (node.center.y - node.halfExtent.y), 0f)
@@ -114,6 +115,7 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
       }
       val behavior = RoomPetBehavior(node.durations, returningFromWalk = returningFromWalk)
       node.play(behavior.animation)
+      node.isVisible = true
       var lastFrame = 0L
       var yaw = if (returningFromWalk) -135f else 0f
       node.rotation = Rotation(y = yaw)
@@ -121,7 +123,9 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
         ReadyEvent(UIManagerHelper.getSurfaceId(this), id),
       )
       view.onFrame = { now ->
-        val dt = if (lastFrame == 0L) 0f else ((now - lastFrame) / 1_000_000_000f).coerceIn(0f, 0.1f)
+        // No physics here: use wall time so a delayed frame cannot leave the
+        // behavior timer behind a clip that has already reached its final pose.
+        val dt = if (lastFrame == 0L) 0f else ((now - lastFrame) / 1_000_000_000f).coerceAtLeast(0f)
         lastFrame = now
         node.play(behavior.update(dt))
         val targetYaw = when {
