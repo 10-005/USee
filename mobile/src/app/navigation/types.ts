@@ -12,6 +12,7 @@ export type RootStackParamList = {
   AdoptionApplicationReview: { animalId: string };
   AdoptionDetail: { animalId: string };
   Home: undefined;
+  FoundReportDetail: { reportId: string };
   MockAdoptionActivity: { petId: string };
   NoticeDetail: { noticeId: string };
   NoticeList: undefined;
