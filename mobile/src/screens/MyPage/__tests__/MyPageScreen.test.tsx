@@ -15,6 +15,7 @@ describe('MyPageScreen', () => {
           onOpenMockAdoption={jest.fn()}
           onOpenAdoptionApplications={onOpenAdoptionApplications}
           onOpenPets={jest.fn()}
+          onOpenProfileEdit={jest.fn()}
         />,
       );
     });
@@ -35,11 +36,31 @@ describe('MyPageScreen', () => {
           onOpenMockAdoption={jest.fn()}
           onOpenAdoptionApplications={jest.fn()}
           onOpenPets={onOpenPets}
+          onOpenProfileEdit={jest.fn()}
         />,
       );
     });
 
     act(() => screen.root.findByProps({ accessibilityLabel: '반려동물 등록' }).props.onPress());
     expect(onOpenPets).toHaveBeenCalledTimes(1);
+  });
+
+  it('프로필을 누르면 내 정보 수정 화면으로 이동한다', () => {
+    const onOpenProfileEdit = jest.fn();
+    let screen!: renderer.ReactTestRenderer;
+
+    act(() => {
+      screen = renderer.create(
+        <MyPageScreen
+          onOpenAdoptionApplications={jest.fn()}
+          onOpenPets={jest.fn()}
+          onOpenProfileEdit={onOpenProfileEdit}
+          onOpenMockAdoption={jest.fn()}
+        />,
+      );
+    });
+
+    act(() => screen.root.findByProps({ accessibilityLabel: '내 정보 수정' }).props.onPress());
+    expect(onOpenProfileEdit).toHaveBeenCalledTimes(1);
   });
 });

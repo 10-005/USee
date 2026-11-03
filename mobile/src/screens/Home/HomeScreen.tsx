@@ -277,6 +277,7 @@ export function HomeScreen({ navigation }: Props) {
           onOpenMockAdoption={openMockAdoption}
           onOpenAdoptionApplications={() => navigation.navigate('AdoptionApplicationList')}
           onOpenPets={() => navigation.navigate('PetList')}
+          onOpenProfileEdit={() => navigation.navigate('ProfileEdit')}
         />
       ) : (
         <>
