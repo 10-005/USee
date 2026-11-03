@@ -9,6 +9,8 @@ import type { RootStackParamList } from '../../app/navigation/types';
 import { Button } from '../../components/common';
 import { MockAdoptionActivityScreen } from './MockAdoptionActivityScreen';
 
+jest.mock('./RoomPet', () => ({ RoomPet: 'RoomPet' }));
+
 jest.mock(
   'react-native-safe-area-context',
   () => require('react-native-safe-area-context/jest/mock').default,
@@ -78,5 +80,13 @@ test.each([
   });
   expect(renderer!.root.findAllByProps({ accessibilityLabel: expected }).length).toBeGreaterThan(0);
   expect(renderer!.root.findAllByProps({ accessibilityLabel: absent })).toHaveLength(0);
+  await ReactTestRenderer.act(() => {
+    renderer.root
+      .findAll(node => typeof node.props.onLayout === 'function')[0]
+      .props.onLayout({
+        nativeEvent: { layout: { width: 390, height: 844 } },
+      });
+  });
+  expect(renderer!.root.findByType('RoomPet' as never).props.petId).toBe(petId);
   await ReactTestRenderer.act(() => renderer.unmount());
 });

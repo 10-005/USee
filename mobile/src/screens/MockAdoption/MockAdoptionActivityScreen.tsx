@@ -8,11 +8,23 @@ import BackIcon from '../../assets/icons/common/left-arrow.svg';
 import { colors, typography } from '../../theme';
 import { endMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { mockAdoptionPets } from './data';
+import { RoomPet } from './RoomPet';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
 
 export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
+  const [roomSize, setRoomSize] = useState({ width: 0, height: 0 });
+  // Same cover transform as the background: anchor the model to the painted bed.
+  const backgroundScale = Math.max(roomSize.width / 937, roomSize.height / 1678);
+  const petWidth = 562 * backgroundScale;
+  const petHeight = 554 * backgroundScale;
+  const petFrame = {
+    width: petWidth,
+    height: petHeight,
+    left: (roomSize.width - 937 * backgroundScale) / 2 + 535 * backgroundScale - petWidth / 2,
+    top: (roomSize.height - 1678 * backgroundScale) / 2 + 1140 * backgroundScale - petHeight * 0.68,
+  };
   const ending = useRef(false);
   const [busy, setBusy] = useState(false);
   const quit = async () => {
@@ -32,7 +44,12 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     }
   };
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onLayout={({ nativeEvent: { layout } }) => {
+        setRoomSize({ width: layout.width, height: layout.height });
+      }}
+    >
       <Image
         source={require('../../assets/images/mock-adoption/img_home_background.png')}
         resizeMode="cover"
@@ -50,6 +67,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           style={styles.toilet}
         />
       ) : null}
+      {pet && roomSize.width > 0 ? <RoomPet petId={pet.id} style={[styles.pet, petFrame]} /> : null}
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <Pressable
@@ -109,6 +127,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   background: { position: 'absolute', width: '100%', height: '100%' },
+  pet: { position: 'absolute' },
   toilet: { position: 'absolute', right: '3%', top: '47%', width: '36%', height: '13%' },
   safeArea: { flex: 1 },
   header: {
