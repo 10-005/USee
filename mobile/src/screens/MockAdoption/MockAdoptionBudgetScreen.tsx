@@ -31,6 +31,7 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
   const [value, setValue] = useState('');
   const [touched, setTouched] = useState(false);
+  const [guideExpanded, setGuideExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string>();
   const submitting = useRef(false);
@@ -136,35 +137,56 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
           <Text style={styles.helper}>최소 10,000원부터 입력할 수 있어요.</Text>
           {pet ? (
             <View style={styles.guide}>
-              <Text style={styles.guideTitle}>{costGroupLabels[pet.costGroup]} 초기 준비 비용</Text>
-              <Text style={styles.amount}>
-                약 {getInitialCostTotal(pet.costGroup).toLocaleString('ko-KR')}원
-              </Text>
-              <Text style={styles.description}>
-                처음 반려동물을 맞이할 때 준비하는 항목별 예상 금액이에요.
-              </Text>
-              {initialCostItems.map(item => (
-                <View key={item.label} style={styles.costRow}>
-                  <Text style={styles.description}>{item.label}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="초기 준비 비용 참고하기"
+                accessibilityState={{ expanded: guideExpanded }}
+                onPress={() => setGuideExpanded(current => !current)}
+                style={({ pressed }) => [styles.guideToggle, pressed && styles.pressed]}
+              >
+                <View style={styles.guideHeading}>
+                  <Text style={styles.guideTitle}>초기 준비 비용 참고하기</Text>
                   <Text style={styles.description}>
-                    {item.amounts[pet.costGroup].toLocaleString('ko-KR')}원
+                    {costGroupLabels[pet.costGroup]} 기준 · 참고용 추정치
                   </Text>
                 </View>
-              ))}
-              <View style={[styles.costRow, styles.totalRow]}>
-                <Text style={styles.guideTitle}>합계</Text>
-                <Text style={styles.guideTitle}>
-                  {getInitialCostTotal(pet.costGroup).toLocaleString('ko-KR')}원
-                </Text>
-              </View>
-              <Text style={styles.description}>
-                서비스에서 설정한 참고용 추정치로, 매주 반복되는 지출이나 최소 필수 금액은 아니에요.
-                건강 상태와 이미 갖춘 용품, 진료 여부에 따라 실제 비용은 달라져요.
-              </Text>
-              {pet.id === 'dog-3' ? (
-                <Text style={styles.description}>
-                  푸들은 토이·미니어처 기준의 소형견 예산을 적용했어요.
-                </Text>
+                <Text style={styles.toggleLabel}>{guideExpanded ? '접기 ∧' : '보기 ∨'}</Text>
+              </Pressable>
+              {guideExpanded ? (
+                <View style={styles.guideDetails}>
+                  <Text style={styles.guideTitle}>
+                    {costGroupLabels[pet.costGroup]} 초기 준비 비용
+                  </Text>
+                  <Text style={styles.amount}>
+                    약 {getInitialCostTotal(pet.costGroup).toLocaleString('ko-KR')}원
+                  </Text>
+                  <Text style={styles.description}>
+                    처음 반려동물을 맞이할 때 준비하는 항목별 예상 금액이에요.
+                  </Text>
+                  {initialCostItems.map(item => (
+                    <View key={item.label} style={styles.costRow}>
+                      <Text style={styles.description}>{item.label}</Text>
+                      <Text style={styles.description}>
+                        {item.amounts[pet.costGroup].toLocaleString('ko-KR')}원
+                      </Text>
+                    </View>
+                  ))}
+                  <View style={[styles.costRow, styles.totalRow]}>
+                    <Text style={styles.guideTitle}>합계</Text>
+                    <Text style={styles.guideTitle}>
+                      {getInitialCostTotal(pet.costGroup).toLocaleString('ko-KR')}원
+                    </Text>
+                  </View>
+                  <Text style={styles.description}>
+                    서비스에서 설정한 참고용 추정치로, 매주 반복되는 지출이나 최소 필수 금액은
+                    아니에요. 건강 상태와 이미 갖춘 용품, 진료 여부에 따라 실제 비용은 달라져요.
+                  </Text>
+                  {pet.id === 'dog-3' ? (
+                    <Text style={styles.description}>
+                      푸들은 토이·미니어처 기준의 소형견 예산을 적용했어요.
+                    </Text>
+                  ) : null}
+                </View>
               ) : null}
             </View>
           ) : null}
@@ -230,13 +252,23 @@ const styles = StyleSheet.create({
   helper: { ...typography.bodyRegular14, color: colors.gray500 },
   guide: {
     borderRadius: radius.lg,
-    backgroundColor: '#ECFDF3',
-    padding: 18,
-    gap: 12,
+    backgroundColor: colors.gray10,
+    borderWidth: 1,
+    borderColor: colors.gray200,
     marginVertical: 8,
   },
+  guideToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    gap: 12,
+  },
+  guideHeading: { flex: 1, gap: 4 },
+  toggleLabel: { ...typography.bodyRegular14, color: colors.gray500 },
+  guideDetails: { padding: 16, paddingTop: 0, gap: 12 },
   guideTitle: { ...typography.bodySemiBold16, color: colors.gray700 },
-  amount: { ...typography.titleBold18, fontSize: 26, lineHeight: 34, color: colors.green400 },
+  amount: { ...typography.titleBold18, color: colors.gray700 },
   description: { ...typography.bodyRegular14, lineHeight: 22, color: colors.gray600 },
   costRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   totalRow: { borderTopWidth: 1, borderTopColor: colors.gray200, paddingTop: 12 },
