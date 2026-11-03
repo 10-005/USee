@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../app/navigation/types';
-import { Button } from '../../components/common';
 import BackIcon from '../../assets/icons/common/left-arrow.svg';
 import { colors, typography } from '../../theme';
 import { endMockAdoption } from '../../services/storage/mockAdoptionStorage';
@@ -270,19 +269,24 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
               <BackIcon width={24} height={24} />
             </Pressable>
             <View style={styles.action}>
-              <View style={styles.walk}>
-                <Button
-                  disabled={busy || leaving}
-                  onPress={() => {
-                    hideThenNavigate(() => {
-                      walkPending.current = true;
-                      navigation.navigate('ArWalk');
-                    });
-                  }}
-                >
-                  AR 산책하기
-                </Button>
-              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="AR 산책하기"
+                style={({ pressed }) => [styles.walk, pressed && styles.pressed]}
+                disabled={busy || leaving}
+                onPress={() => {
+                  hideThenNavigate(() => {
+                    walkPending.current = true;
+                    navigation.navigate('ArWalk');
+                  });
+                }}
+              >
+                <Image
+                  source={require('../../assets/images/mock-adoption/img_dog_walking.png')}
+                  resizeMode="contain"
+                  style={styles.walkImage}
+                />
+              </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="모의입양 그만두기"
@@ -411,7 +415,8 @@ const styles = StyleSheet.create({
   quit: { justifyContent: 'center', minHeight: 48, paddingHorizontal: 4 },
   quitLabel: { ...typography.bodyRegular14, color: colors.gray700 },
   topActions: { alignItems: 'flex-start', gap: 4 },
-  walk: { alignSelf: 'stretch' },
+  walk: { width: 60, height: 60, alignItems: 'center', justifyContent: 'center' },
+  walkImage: { width: '100%', height: '100%' },
   action: {
     width: 180,
     marginTop: 8,
