@@ -158,7 +158,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           offset: {
             // At the front diagonal eating pose the muzzle is left and above
             // the feet. Align the muzzle, rather than the feet, to the bowl.
-            x: x - screenX + width / 2 + petWidth * 0.06 - (petFrame.left + petWidth / 2),
+            x: x - screenX + width / 2 + petWidth * 0.06 + 22 - (petFrame.left + petWidth / 2),
             y:
               y -
               screenY -
