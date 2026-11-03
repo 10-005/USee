@@ -8,6 +8,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { Button } from '../../components/common';
 import { MockAdoptionActivityScreen } from './MockAdoptionActivityScreen';
+import { PetStatsDialog } from './PetStatsDialog';
 
 jest.mock('./RoomPet', () => ({ RoomPet: 'RoomPet' }));
 let mockFocusRoom: () => () => void;
@@ -46,6 +47,10 @@ test('activity screen has one action connected to the existing AR walk', async (
   });
   const roomPet = () => renderer.root.findByType('RoomPet' as never);
   expect(roomPet().props.returnSequence).toBe(0);
+  await ReactTestRenderer.act(() => roomPet().props.onPress());
+  expect(renderer!.root.findByType(PetStatsDialog).props.visible).toBe(true);
+  await ReactTestRenderer.act(() => renderer.root.findByType(PetStatsDialog).props.onClose());
+  expect(renderer!.root.findByType(PetStatsDialog).props.visible).toBe(false);
   let blurRoom: () => void;
   await ReactTestRenderer.act(() => {
     blurRoom = mockFocusRoom();

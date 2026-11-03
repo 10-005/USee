@@ -18,7 +18,10 @@ class RoomPetViewManager : SimpleViewManager<RoomPetView>() {
     view.onPropsUpdated()
   }
   override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> =
-    mutableMapOf("topReady" to mutableMapOf("registrationName" to "onReady"))
+    mutableMapOf(
+      "topReady" to mutableMapOf("registrationName" to "onReady"),
+      "topPetPress" to mutableMapOf("registrationName" to "onPetPress"),
+    )
   override fun onDropViewInstance(view: RoomPetView) {
     view.dispose()
     super.onDropViewInstance(view)

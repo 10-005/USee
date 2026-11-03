@@ -14,6 +14,7 @@ type Props = ViewProps & {
   active: boolean;
   returningFromWalk: boolean;
   onReady: () => void;
+  onPetPress?: () => void;
 };
 const NativeRoomPet =
   Platform.OS === 'android'
@@ -25,9 +26,11 @@ export function RoomPet({
   style,
   returnSequence = 0,
   entryOffset = { x: 0, y: 0 },
+  onPress,
 }: Pick<Props, 'petId' | 'style'> & {
   returnSequence?: number;
   entryOffset?: { x: number; y: number };
+  onPress?: () => void;
 }) {
   const focused = useIsFocused();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
@@ -71,8 +74,10 @@ export function RoomPet({
       active
       returningFromWalk={returningFromWalk}
       onReady={onReady}
+      onPetPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="반려동물 상태 보기"
       style={[style, { transform: offset.getTranslateTransform() }]}
-      pointerEvents="none"
     />
   );
 }

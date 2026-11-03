@@ -10,11 +10,13 @@ import { colors, typography } from '../../theme';
 import { endMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { mockAdoptionPets } from './data';
 import { RoomPet } from './RoomPet';
+import { PetStatsDialog } from './PetStatsDialog';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
 
 export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
+  const [statsVisible, setStatsVisible] = useState(false);
   const walkPending = useRef(false);
   const [returnSequence, setReturnSequence] = useState(0);
   const [roomVisible, setRoomVisible] = useState(false);
@@ -25,7 +27,10 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         setReturnSequence(value => value + 1);
       }
       setRoomVisible(true);
-      return () => setRoomVisible(false);
+      return () => {
+        setRoomVisible(false);
+        setStatsVisible(false);
+      };
     }, []),
   );
   const [roomSize, setRoomSize] = useState({ width: 0, height: 0 });
@@ -91,9 +96,10 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           style={[styles.pet, petFrame]}
           returnSequence={returnSequence}
           entryOffset={{ x: roomSize.width * 0.55, y: roomSize.height * 0.3 }}
+          onPress={() => setStatsVisible(true)}
         />
       ) : null}
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
         <View style={styles.header}>
           <Pressable
             accessibilityRole="button"
@@ -111,7 +117,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
             />
           </Pressable>
         </View>
-        <View style={styles.room}>
+        <View style={styles.room} pointerEvents="box-none">
           <View style={styles.bowls}>
             <Image
               accessibilityLabel="사료 그릇"
@@ -151,6 +157,13 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           </View>
         </View>
       </SafeAreaView>
+      {pet ? (
+        <PetStatsDialog
+          visible={statsVisible}
+          petName={pet.name}
+          onClose={() => setStatsVisible(false)}
+        />
+      ) : null}
     </View>
   );
 }

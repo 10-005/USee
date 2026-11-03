@@ -1,6 +1,8 @@
 package com.usee.animal.ar
 
 import android.graphics.PixelFormat
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import com.facebook.react.bridge.ReactContext
@@ -17,6 +19,15 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
   private var active = false
   private var petId = ""
   private var returningFromWalk = false
+
+  init {
+    isClickable = true
+    setOnClickListener {
+      UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
+        PetPressEvent(UIManagerHelper.getSurfaceId(this), id),
+      )
+    }
+  }
 
   fun setReturningFromWalk(value: Boolean) {
     if (returningFromWalk == value) return
@@ -73,7 +84,6 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
     // Transparent SurfaceView must composite over the React Native background image.
     view.setZOrderOnTop(true)
     view.holder.setFormat(PixelFormat.TRANSLUCENT)
-    view.setOnTouchListener { _, _ -> true }
     // Match the expanded 900px viewport to the original 554px framing. The
     // wider lens adds headroom while preserving model size and the bed anchor.
     val extraWorldHeight = (900f / 554f - 1f) * (2.4f * 24f / 28f)
@@ -88,6 +98,20 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
       node.isShadowCaster = false
       node.position = Position(0f, -node.scale.y * (node.center.y - node.halfExtent.y), 0f)
       view.addChildNode(node)
+      var downX = 0f
+      var downY = 0f
+      val slop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+      view.onTouchEvent = { event, hit ->
+        when (event.actionMasked) {
+          MotionEvent.ACTION_DOWN -> { downX = event.x; downY = event.y }
+          MotionEvent.ACTION_UP -> {
+            val dx = event.x - downX
+            val dy = event.y - downY
+            if (dx * dx + dy * dy <= slop * slop && hit?.node === node) performClick()
+          }
+        }
+        true
+      }
       val behavior = RoomPetBehavior(node.durations, returningFromWalk = returningFromWalk)
       node.play(behavior.animation)
       var lastFrame = 0L
@@ -124,4 +148,8 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
     override fun getEventData() = Arguments.createMap()
   }
 
+  private class PetPressEvent(surfaceId: Int, viewId: Int) : Event<PetPressEvent>(surfaceId, viewId) {
+    override fun getEventName() = "topPetPress"
+    override fun getEventData() = Arguments.createMap()
+  }
 }
