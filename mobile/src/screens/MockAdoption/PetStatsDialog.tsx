@@ -85,9 +85,10 @@ export function PetStatsDialog({ visible, petName, stats = {}, onClose }: Props)
               accessibilityRole="button"
               accessibilityLabel="상태 다이얼로그 닫기"
               onPress={onClose}
+              hitSlop={10}
               style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
             >
-              <CloseIcon width={18} height={18} />
+              <CloseIcon width={12} height={12} />
             </Pressable>
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.stats}>
@@ -177,17 +178,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 24,
+    paddingRight: 56,
     paddingBottom: 20,
     gap: 8,
   },
   heading: { flex: 1 },
   title: { ...typography.titleBold18, color: '#293D30' },
   closeButton: {
-    minWidth: 48,
-    minHeight: 44,
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 14,
+    borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.54)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.8)',
