@@ -215,9 +215,9 @@ export function ShelterPreviewPage() {
                 value={adoptable}
                 onChange={(event) => setAdoptable(event.target.value)}
               >
-                <option value="">입양가능여부 전체</option>
-                <option value="true">입양가능</option>
-                <option value="false">입양불가</option>
+                <option value="">입양 가능 여부 전체</option>
+                <option value="true">입양 가능</option>
+                <option value="false">입양 불가</option>
               </FilterSelect>
             </>
           }

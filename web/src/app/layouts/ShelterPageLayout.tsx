@@ -52,9 +52,9 @@ export function ShelterPageLayout({ children }: { children: ReactNode }) {
               navigation={
                 <>
                   <NavLink to="/animals">보호동물</NavLink>
-                  <NavLink to="/adoptions">입양신청 목록</NavLink>
+                  <NavLink to="/adoptions">입양 신청 목록</NavLink>
                   <NavLink to="/rescues">구조일지</NavLink>
-                  <NavLink to="/reports">제보 목록</NavLink>
+                  <NavLink to="/reports">발견 신고 목록</NavLink>
                 </>
               }
               profile={

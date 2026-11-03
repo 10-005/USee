@@ -74,7 +74,7 @@ export function TableModalPreview() {
       </div>
       <p>총 {empty ? 0 : applications.length}건 · 미리보기용 데이터</p>
       <DataTable
-        caption="입양신청 목록"
+        caption="입양 신청 목록"
         columns={columns}
         rows={empty ? [] : applications.slice((page - 1) * 8, page * 8)}
         rowKey={(row) => row.id}

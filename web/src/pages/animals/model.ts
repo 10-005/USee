@@ -48,15 +48,15 @@ export const animalFilters = [
   },
   {
     key: 'adoptable',
-    label: '입양가능여부',
+    label: '입양 가능 여부',
     options: [
-      ['true', '입양가능'],
-      ['false', '입양불가'],
+      ['true', '입양 가능'],
+      ['false', '입양 불가'],
     ],
   },
   {
     key: 'neutered',
-    label: '중성화여부',
+    label: '중성화 여부',
     options: [
       ['yes', '완료'],
       ['no', '미완료'],

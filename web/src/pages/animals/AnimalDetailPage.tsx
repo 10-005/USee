@@ -56,7 +56,7 @@ export function AnimalDetailPage() {
           <h2>
             <RecordBadge status={animalStatuses[animal.status]} /> {animal.name}
           </h2>
-          <p>공고번호 {animal.id}</p>
+          <p>공고번호 {animal.noticeNumber || '미등록'}</p>
         </div>
         {animal.status !== 'protected' && (
           <div className="animal-summary__outcome">
@@ -111,7 +111,7 @@ export function AnimalDetailPage() {
             <InfoRows
               rows={[
                 ['발생장소', animal.location],
-                ['접수일시', animal.registeredAt],
+                ['등록일', animal.registeredAt],
                 ['공고기간', animal.period],
                 ...(animal.status === 'returned' && animal.closingReason
                   ? [['기타사항', animal.closingReason] as [string, string]]

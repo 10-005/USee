@@ -55,7 +55,7 @@ export function UiPreviewPage() {
         />
         <ActivityCard
           title="월드컵공원 인근"
-          description="구조 날짜 2026.10.28 · 발견 신고를 통한 접수"
+          description="구조 일시 2026.10.28 · 발견 신고를 통한 접수"
           timeLabel="1시간 전"
         />
       </section>
