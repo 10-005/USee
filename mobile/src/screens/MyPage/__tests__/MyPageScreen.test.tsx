@@ -11,7 +11,10 @@ describe('MyPageScreen', () => {
 
     act(() => {
       screen = renderer.create(
-        <MyPageScreen onOpenAdoptionApplications={onOpenAdoptionApplications} />,
+        <MyPageScreen
+          onOpenMockAdoption={jest.fn()}
+          onOpenAdoptionApplications={onOpenAdoptionApplications}
+        />,
       );
     });
 

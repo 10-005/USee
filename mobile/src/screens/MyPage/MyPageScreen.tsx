@@ -13,6 +13,7 @@ import SettingsIcon from '../../assets/icons/mypage/settings.svg';
 import { colors, radius, typography } from '../../theme';
 
 type Props = {
+  onOpenMockAdoption: () => void;
   onOpenAdoptionApplications: () => void;
 };
 
@@ -25,7 +26,7 @@ const menuItems = [
   { label: '공지사항', icon: NoticeIcon },
 ] as const;
 
-export function MyPageScreen({ onOpenAdoptionApplications }: Props) {
+export function MyPageScreen({ onOpenAdoptionApplications, onOpenMockAdoption }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -70,7 +71,8 @@ export function MyPageScreen({ onOpenAdoptionApplications }: Props) {
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            onPress={() => unavailable('모의입양')}
+            accessibilityLabel="모의입양"
+            onPress={onOpenMockAdoption}
             style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}
           >
             <MockResultIcon />

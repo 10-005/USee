@@ -230,28 +230,27 @@ export function HomeScreen({ navigation }: Props) {
     </Pressable>
   );
 
+  const openMockAdoption = async () => {
+    try {
+      const session = await getActiveMockAdoption();
+      if (session) {
+        navigation.navigate('MockAdoptionActivity', { petId: session.petId });
+      } else {
+        setSelectedTab('mockAdoption');
+      }
+    } catch {
+      Alert.alert('모의 입양', '진행 중인 모의입양을 불러오지 못했어요. 다시 시도해주세요.');
+    }
+  };
+
   const navigationBar = (
     <View style={[styles.navigationWrap, { bottom: insets.bottom + 16 }]}>
       <BottomNavigation
         centerAction={{
-          accessibilityLabel: '모의입양',
+          accessibilityLabel: '등록',
           icon: <PlusIcon height={24} width={24} />,
-          onPress: async () => {
-            try {
-              const session = await getActiveMockAdoption();
-              if (session) {
-                navigation.navigate('MockAdoptionActivity', { petId: session.petId });
-              } else {
-                setSelectedTab('mockAdoption');
-              }
-            } catch {
-              Alert.alert(
-                '모의 입양',
-                '진행 중인 모의입양을 불러오지 못했어요. 다시 시도해주세요.',
-              );
-            }
-          },
-          selected: selectedTab === 'mockAdoption',
+          onPress: () => Alert.alert('등록', '해당 화면은 다음 작업에서 연결될 예정입니다.'),
+          selected: false,
         }}
         items={navigationItems}
         onSelect={setSelectedTab}
@@ -275,6 +274,7 @@ export function HomeScreen({ navigation }: Props) {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       {selectedTab === 'mypage' ? (
         <MyPageScreen
+          onOpenMockAdoption={openMockAdoption}
           onOpenAdoptionApplications={() => navigation.navigate('AdoptionApplicationList')}
         />
       ) : (

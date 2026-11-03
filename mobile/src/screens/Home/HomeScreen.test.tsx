@@ -43,11 +43,11 @@ test('mock adoption selects one pet across categories and preserves adoption fil
       .props.onChangeText('진도');
   });
   await ReactTestRenderer.act(() => {
-    renderer.root.findAllByProps({ accessibilityLabel: '모의입양' })[0].props.onPress();
+    renderer.root.findAllByProps({ accessibilityLabel: '마이페이지' })[0].props.onPress();
   });
-  expect(
-    renderer!.root.findAllByProps({ accessibilityLabel: '모의입양' })[0].props.accessibilityState,
-  ).toEqual({ selected: true });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findAllByProps({ accessibilityLabel: '모의입양' })[0].props.onPress();
+  });
   expect(renderer!.root.findAllByProps({ accessibilityLabel: '기간 필터' })).toHaveLength(0);
   expect(renderer!.root.findAllByProps({ accessibilityRole: 'radio' })).toHaveLength(0);
   expect(mockNavigate).not.toHaveBeenCalled();
@@ -62,7 +62,7 @@ test('mock adoption selects one pet across categories and preserves adoption fil
   await ReactTestRenderer.act(() => renderer.unmount());
 }, 20000);
 
-test('plus button resumes an active adoption without asking for the budget again', async () => {
+test('my page resumes an active adoption without asking for the budget again', async () => {
   await startMockAdoption('dog-3', 35000);
   const props = {
     navigation: { navigate: mockNavigate },
@@ -71,6 +71,9 @@ test('plus button resumes an active adoption without asking for the budget again
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<HomeScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.root.findAllByProps({ accessibilityLabel: '마이페이지' })[0].props.onPress();
   });
   await ReactTestRenderer.act(async () => {
     await renderer.root.findAllByProps({ accessibilityLabel: '모의입양' })[0].props.onPress();
