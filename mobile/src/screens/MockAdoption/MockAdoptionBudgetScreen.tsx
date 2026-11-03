@@ -66,12 +66,9 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
       >
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
           <Text style={styles.step}>예산 설정</Text>
-          <View style={styles.titleGroup}>
-            <Text style={[styles.title, styles.titleAccent]}>첫 주 예산을</Text>
-            <Text style={styles.title}>입력해주세요!</Text>
-          </View>
+          <Text style={styles.title}>초기 비용을 포함한{'\n'}예상 예산을 입력해주세요!</Text>
           <Text style={styles.subtitle}>
-            초기 준비 비용을 포함해, 함께하는 일주일의 예산을 세워보세요.
+            처음 맞이하는 준비부터 함께하는 일주일까지 예산을 세워보세요.
           </Text>
           {pet ? (
             <View style={styles.pet}>
@@ -160,26 +157,28 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
               </Pressable>
               {guideExpanded ? (
                 <View style={styles.guideDetails}>
-                  <Text style={styles.guideTitle}>
-                    {costGroupLabels[pet.costGroup]} 초기 준비 비용
-                  </Text>
-                  <Text style={styles.amount}>
-                    약 {getInitialCostTotal(pet.costGroup).toLocaleString('ko-KR')}원
-                  </Text>
+                  <View style={styles.costSummary}>
+                    <Text style={styles.detailTitle}>
+                      {costGroupLabels[pet.costGroup]} 초기 준비 비용
+                    </Text>
+                    <Text style={styles.amount}>
+                      약 {getInitialCostTotal(pet.costGroup).toLocaleString('ko-KR')}원
+                    </Text>
+                  </View>
                   <Text style={styles.description}>
                     처음 반려동물을 맞이할 때 준비하는 항목별 예상 금액이에요.
                   </Text>
                   {initialCostItems.map(item => (
                     <View key={item.label} style={styles.costRow}>
-                      <Text style={styles.description}>{item.label}</Text>
-                      <Text style={styles.description}>
+                      <Text style={[styles.description, styles.costLabel]}>{item.label}</Text>
+                      <Text style={[styles.description, styles.costValue]}>
                         {item.amounts[pet.costGroup].toLocaleString('ko-KR')}원
                       </Text>
                     </View>
                   ))}
                   <View style={[styles.costRow, styles.totalRow]}>
                     <Text style={styles.guideTitle}>합계</Text>
-                    <Text style={styles.guideTitle}>
+                    <Text style={styles.totalAmount}>
                       {getInitialCostTotal(pet.costGroup).toLocaleString('ko-KR')}원
                     </Text>
                   </View>
@@ -217,15 +216,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   content: { padding: 20, gap: 12 },
   step: { ...typography.bodySemiBold16, color: colors.green400 },
-  titleGroup: { gap: 2, paddingVertical: 4 },
   title: {
     ...typography.titleBold18,
-    fontSize: 22,
+    fontSize: 24,
     lineHeight: 34,
     color: colors.black,
-    flexShrink: 1,
   },
-  titleAccent: { color: colors.green400 },
   subtitle: { ...typography.bodyRegular14, lineHeight: 22, color: colors.gray500 },
   pet: {
     flexDirection: 'row',
@@ -287,11 +283,31 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   toggleIconExpanded: { transform: [{ rotate: '180deg' }] },
-  guideDetails: { padding: 16, paddingTop: 0, gap: 12 },
-  guideTitle: { ...typography.bodySemiBold16, color: colors.gray700 },
-  amount: { ...typography.titleBold18, color: colors.gray700 },
+  guideDetails: {
+    padding: 16,
+    gap: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.gray200,
+  },
+  guideTitle: { ...typography.bodySemiBold16, lineHeight: 24, color: colors.gray700 },
+  costSummary: { gap: 6 },
+  detailTitle: { ...typography.bodyRegular14, lineHeight: 22, color: colors.gray500 },
+  amount: { ...typography.titleBold18, lineHeight: 28, color: colors.green400 },
   description: { ...typography.bodyRegular14, lineHeight: 22, color: colors.gray600 },
-  costRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  costRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  costLabel: { flex: 1 },
+  costValue: { flexShrink: 0, textAlign: 'right' },
+  totalAmount: {
+    ...typography.bodySemiBold16,
+    lineHeight: 24,
+    color: colors.green400,
+    textAlign: 'right',
+  },
   totalRow: { borderTopWidth: 1, borderTopColor: colors.gray200, paddingTop: 12 },
   footer: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, gap: 8 },
   error: { ...typography.bodyRegular14, color: colors.danger },
