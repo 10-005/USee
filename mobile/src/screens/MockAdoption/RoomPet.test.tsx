@@ -85,3 +85,36 @@ test('releases the native renderer on blur and background, restores it when visi
   AppState.currentState = originalState;
   listener.mockRestore();
 });
+
+test('eats a treat in place for two seconds without walking', async () => {
+  const listener = jest.spyOn(AppState, 'addEventListener').mockReturnValue({ remove: jest.fn() });
+  jest.useFakeTimers();
+  const previous = AppState.currentState;
+  AppState.currentState = 'active';
+  mockFocused = true;
+  const timing = jest.spyOn(Animated, 'timing');
+  const onCareComplete = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <RoomPet
+        petId="dog-1"
+        care={{ kind: 'treat', offset: { x: 0, y: 0 } }}
+        onCareComplete={onCareComplete}
+      />,
+    );
+  });
+  const native = () => renderer.root.findByType('RoomPetView' as never);
+  expect(native().props.careMotion).toBe('treat');
+  expect(timing).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1999));
+  expect(onCareComplete).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1));
+  expect(onCareComplete).toHaveBeenCalledTimes(1);
+  expect(native().props.careMotion).toBe('');
+  await ReactTestRenderer.act(() => renderer.unmount());
+  timing.mockRestore();
+  listener.mockRestore();
+  AppState.currentState = previous;
+  jest.useRealTimers();
+});
