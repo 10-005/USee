@@ -19,6 +19,7 @@ import { endMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { mockAdoptionPets } from './data';
 import { RoomPet } from './RoomPet';
 import { useToilet } from './useToilet';
+import { TreatLauncher } from './TreatLauncher';
 import { PetStatsDialog, type PetStats } from './PetStatsDialog';
 
 // Temporary preview values until the server provides the selected pet's stats.
@@ -43,10 +44,11 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const [statsVisible, setStatsVisible] = useState(false);
   const walkPending = useRef(false);
   const [care, setCare] = useState<{
-    kind: 'food' | 'water';
+    kind: 'food' | 'water' | 'treat';
     offset: { x: number; y: number };
   } | null>(null);
   const careBusy = useRef(false);
+  const [treatActive, setTreatActive] = useState(false);
   const [fullBowl, setFullBowl] = useState({ food: false, water: false });
   const streak = useRef({ kind: '', count: 0 });
   const [toast, setToast] = useState('');
@@ -93,6 +95,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       return () => {
         back.remove();
         careBusy.current = false;
+        setTreatActive(false);
         setCare(null);
         setFullBowl({ food: false, water: false });
         setRoomVisible(false);
@@ -197,7 +200,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           entryOffset={{ x: roomSize.width * 0.55, y: roomSize.height * 0.3 }}
           care={care}
           onConsumed={() => {
-            if (care) {
+            if (care && care.kind !== 'treat') {
               setFullBowl(value => ({ ...value, [care.kind]: false }));
             }
           }}
@@ -354,8 +357,26 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           </View>
         </View>
       </SafeAreaView>
-      {care ? (
+      {care || treatActive ? (
         <View style={StyleSheet.absoluteFill} onStartShouldSetResponder={() => true} />
+      ) : null}
+      {roomVisible && pet && !leaving ? (
+        <TreatLauncher
+          category={pet.category}
+          width={roomSize.width}
+          height={roomSize.height}
+          target={{ x: petFrame.left + petWidth / 2, y: petFrame.top + petHeight * 0.62 }}
+          disabled={!!care || busy || statsVisible || roomSize.width <= 0}
+          onBusyChange={active => {
+            careBusy.current = active;
+            setTreatActive(active);
+          }}
+          onLanded={() => {
+            setTreatActive(false);
+            setCare({ kind: 'treat', offset: { x: 0, y: 0 } });
+            showToast('♥');
+          }}
+        />
       ) : null}
       {toast ? (
         <View
@@ -372,7 +393,10 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
             },
           ]}
         >
-          <Text accessibilityLiveRegion="polite" style={styles.toastText}>
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[styles.toastText, toast === '♥' && styles.heartToast]}
+          >
             {toast}
           </Text>
         </View>
@@ -440,5 +464,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   toastText: { color: colors.white, ...typography.bodyRegular14 },
+  heartToast: { color: '#FF6B8A', fontSize: 32, lineHeight: 40 },
   pressed: { opacity: 0.7 },
 });
