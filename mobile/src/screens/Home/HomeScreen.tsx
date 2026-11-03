@@ -36,6 +36,7 @@ import { getActiveMockAdoption } from '../../services/storage/mockAdoptionStorag
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
 import { MyPageScreen } from '../MyPage/MyPageScreen';
+import { FoundReportListContent } from '../found-report/FoundReportListContent';
 import { AdoptionFilterSheet, type AdoptionFilters, type FilterKey } from './AdoptionFilterSheet';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
@@ -281,6 +282,8 @@ export function HomeScreen({ navigation }: Props) {
           onOpenNotices={() => navigation.navigate('NoticeList')}
           onOpenSettings={() => navigation.navigate('Settings')}
         />
+      ) : selectedTab === 'search' ? (
+        <FoundReportListContent bottomInset={insets.bottom} navigation={navigation} />
       ) : (
         <>
           <View style={styles.header}>
@@ -311,7 +314,7 @@ export function HomeScreen({ navigation }: Props) {
             contentContainerStyle={styles.filters}
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.filterScroll}
+            style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
           >
             {filterItems.map(filter => (
               <Pressable
@@ -353,7 +356,7 @@ export function HomeScreen({ navigation }: Props) {
         </>
       )}
       {navigationBar}
-      {selectedTab !== 'mypage' ? (
+      {selectedTab === 'adoption' ? (
         <AdoptionFilterSheet
           activeFilter={activeFilter}
           filters={filterValues}
@@ -389,6 +392,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   filterScroll: { flexGrow: 0, height: 50 },
+  filterScrollAboveSheet: { position: 'relative', zIndex: 21 },
   filters: { gap: 6, paddingHorizontal: 20, paddingVertical: 12 },
   filterChip: {
     alignItems: 'center',
@@ -433,8 +437,14 @@ const styles = StyleSheet.create({
   endedBadge: { backgroundColor: colors.gray400 },
   statusText: { ...typography.captionSemiBold12, color: colors.white },
   cardTitle: { ...typography.titleBold18, color: colors.black, marginTop: 8 },
-  cardMeta: { ...typography.bodyRegular14, color: colors.gray700, marginTop: 3 },
-  cardMetaRow: { alignItems: 'center', flexDirection: 'row', gap: 4 },
+  cardMeta: {
+    ...typography.bodyRegular14,
+    color: colors.gray700,
+    flex: 1,
+    marginTop: 3,
+    minWidth: 0,
+  },
+  cardMetaRow: { alignItems: 'center', flexDirection: 'row', gap: 4, width: '100%' },
   cardSummary: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
   cardDescription: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
   navigationWrap: { left: 25, position: 'absolute', right: 25 },

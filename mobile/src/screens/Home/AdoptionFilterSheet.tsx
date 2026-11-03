@@ -16,6 +16,7 @@ type Props = {
   filters: AdoptionFilters;
   onChange: (key: FilterKey, value: string) => void;
   onClose: () => void;
+  statusOptions?: string[];
 };
 
 const titles: Record<FilterKey, string> = {
@@ -71,16 +72,18 @@ function OptionRow({
 
 function SimpleFilter({
   filterKey,
+  options,
   value,
   onChange,
 }: {
   filterKey: FilterKey;
+  options?: string[];
   value: string;
   onChange: (value: string) => void;
 }) {
   return (
     <View style={styles.simpleOptions}>
-      {simpleOptions[filterKey]?.map(option => (
+      {(options ?? simpleOptions[filterKey])?.map(option => (
         <OptionRow
           key={option}
           label={option}
@@ -375,7 +378,13 @@ function CalendarFilter({
   );
 }
 
-export function AdoptionFilterSheet({ activeFilter, filters, onChange, onClose }: Props) {
+export function AdoptionFilterSheet({
+  activeFilter,
+  filters,
+  onChange,
+  onClose,
+  statusOptions,
+}: Props) {
   const insets = useSafeAreaInsets();
   useEffect(() => {
     if (!activeFilter) {
@@ -392,46 +401,69 @@ export function AdoptionFilterSheet({ activeFilter, filters, onChange, onClose }
     return null;
   }
   return (
-    <View
-      accessibilityViewIsModal
-      style={[
-        styles.sheet,
-        { paddingBottom: 28 + insets.bottom },
-        activeFilter === 'period' && [styles.calendarSheet, { height: 600 + insets.bottom }],
-        (activeFilter === 'region' || activeFilter === 'species') && [
-          styles.twoColumnSheet,
-          { height: 333 + insets.bottom },
-        ],
-      ]}
-    >
-      <Text style={styles.title}>{titles[activeFilter]}</Text>
-      <View style={styles.divider} />
-      {activeFilter === 'period' ? (
-        <CalendarFilter
-          onApply={value => onChange('period', value)}
-          onClose={onClose}
-          value={filters.period}
-        />
-      ) : null}
-      {activeFilter === 'region' || activeFilter === 'species' ? (
-        <TwoColumnFilter
-          kind={activeFilter}
-          onChange={value => onChange(activeFilter, value)}
-          value={filters[activeFilter]}
-        />
-      ) : null}
-      {simpleOptions[activeFilter] ? (
-        <SimpleFilter
-          filterKey={activeFilter}
-          onChange={value => onChange(activeFilter, value)}
-          value={filters[activeFilter]}
-        />
-      ) : null}
+    <View accessibilityViewIsModal style={styles.overlay}>
+      <Pressable
+        accessibilityLabel="필터 닫기"
+        accessibilityRole="button"
+        onPress={onClose}
+        style={styles.backdrop}
+      />
+      <View
+        style={[
+          styles.sheet,
+          { paddingBottom: 28 + insets.bottom },
+          activeFilter === 'period' && [styles.calendarSheet, { height: 600 + insets.bottom }],
+          (activeFilter === 'region' || activeFilter === 'species') && [
+            styles.twoColumnSheet,
+            { height: 333 + insets.bottom },
+          ],
+        ]}
+      >
+        <Text style={styles.title}>{titles[activeFilter]}</Text>
+        <View style={styles.divider} />
+        {activeFilter === 'period' ? (
+          <CalendarFilter
+            onApply={value => onChange('period', value)}
+            onClose={onClose}
+            value={filters.period}
+          />
+        ) : null}
+        {activeFilter === 'region' || activeFilter === 'species' ? (
+          <TwoColumnFilter
+            kind={activeFilter}
+            onChange={value => onChange(activeFilter, value)}
+            value={filters[activeFilter]}
+          />
+        ) : null}
+        {simpleOptions[activeFilter] ? (
+          <SimpleFilter
+            filterKey={activeFilter}
+            options={activeFilter === 'status' ? statusOptions : undefined}
+            onChange={value => onChange(activeFilter, value)}
+            value={filters[activeFilter]}
+          />
+        ) : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  overlay: {
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 20,
+  },
+  backdrop: {
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
   sheet: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 10,
@@ -445,7 +477,6 @@ const styles = StyleSheet.create({
     left: 0,
     position: 'absolute',
     right: 0,
-    zIndex: 20,
   },
   calendarSheet: {},
   twoColumnSheet: {},
