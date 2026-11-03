@@ -27,4 +27,17 @@ class RoomPetBehaviorTest {
     assertEquals("LieIdle", state.update(1f).clip)
     assertTrue(state.animation.loop)
   }
+
+  @Test fun walkReturnSitsBeforeStartingTheRestTimer() {
+    val state = RoomPetBehavior(durations + ("SitStart" to 1.25f), returningFromWalk = true) { 20f }
+    assertEquals("Walk", state.animation.clip)
+    assertTrue(state.walking)
+    assertEquals("Walk", state.update(2.9f).clip)
+    assertEquals("SitStart", state.update(0.2f).clip)
+    assertFalse(state.walking)
+    assertFalse(state.resting)
+    assertEquals("SitIdle", state.update(1.25f).clip)
+    assertEquals("SitIdle", state.update(9f).clip)
+    assertEquals("SitEnd", state.update(1f).clip)
+  }
 }

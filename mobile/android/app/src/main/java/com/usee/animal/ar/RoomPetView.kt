@@ -4,6 +4,9 @@ import android.graphics.PixelFormat
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import com.facebook.react.bridge.ReactContext
+import com.facebook.react.bridge.Arguments
+import com.facebook.react.uimanager.UIManagerHelper
+import com.facebook.react.uimanager.events.Event
 import io.github.sceneview.SceneView
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
@@ -13,6 +16,11 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
   private var scene: SceneView? = null
   private var active = false
   private var petId = ""
+  private var returningFromWalk = false
+
+  fun setReturningFromWalk(value: Boolean) {
+    returningFromWalk = value
+  }
 
   fun setPetId(value: String) {
     if (petId == value) return
@@ -69,15 +77,23 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
       node.isShadowCaster = false
       node.position = Position(0f, -node.scale.y * (node.center.y - node.halfExtent.y), 0f)
       view.addChildNode(node)
-      val behavior = RoomPetBehavior(node.durations)
+      val behavior = RoomPetBehavior(node.durations, returningFromWalk = returningFromWalk)
       node.play(behavior.animation)
       var lastFrame = 0L
-      var yaw = 0f
+      var yaw = if (returningFromWalk) -135f else 0f
+      node.rotation = Rotation(y = yaw)
+      UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
+        ReadyEvent(UIManagerHelper.getSurfaceId(this), id),
+      )
       view.onFrame = { now ->
         val dt = if (lastFrame == 0L) 0f else ((now - lastFrame) / 1_000_000_000f).coerceIn(0f, 0.1f)
         lastFrame = now
         node.play(behavior.update(dt))
-        val targetYaw = if (behavior.resting) -25f else 0f
+        val targetYaw = when {
+          behavior.walking -> -135f
+          behavior.resting -> -25f
+          else -> 0f
+        }
         yaw += (targetYaw - yaw) * (dt * 3f).coerceAtMost(1f)
         node.rotation = Rotation(y = yaw)
       }
@@ -90,5 +106,10 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
     view.onFrame = null
     removeView(view)
     view.destroy()
+  }
+
+  private class ReadyEvent(surfaceId: Int, viewId: Int) : Event<ReadyEvent>(surfaceId, viewId) {
+    override fun getEventName() = "topReady"
+    override fun getEventData() = Arguments.createMap()
   }
 }

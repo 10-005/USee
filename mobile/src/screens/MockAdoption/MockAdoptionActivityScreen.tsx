@@ -1,5 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../app/navigation/types';
@@ -14,6 +15,19 @@ type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
 
 export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
+  const walkPending = useRef(false);
+  const [returnSequence, setReturnSequence] = useState(0);
+  const [roomVisible, setRoomVisible] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (walkPending.current) {
+        walkPending.current = false;
+        setReturnSequence(value => value + 1);
+      }
+      setRoomVisible(true);
+      return () => setRoomVisible(false);
+    }, []),
+  );
   const [roomSize, setRoomSize] = useState({ width: 0, height: 0 });
   // Same cover transform as the background: anchor the model to the painted bed.
   const backgroundScale = Math.max(roomSize.width / 937, roomSize.height / 1678);
@@ -67,7 +81,14 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           style={styles.toilet}
         />
       ) : null}
-      {pet && roomSize.width > 0 ? <RoomPet petId={pet.id} style={[styles.pet, petFrame]} /> : null}
+      {pet && roomSize.width > 0 ? (
+        <RoomPet
+          petId={pet.id}
+          style={[styles.pet, petFrame]}
+          returnSequence={roomVisible ? returnSequence : 0}
+          entryOffset={{ x: roomSize.width * 0.55, y: roomSize.height * 0.3 }}
+        />
+      ) : null}
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <Pressable
@@ -114,7 +135,13 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
             <Text style={styles.quitLabel}>모의입양 그만두기</Text>
           </Pressable>
           <View style={styles.walk}>
-            <Button disabled={busy} onPress={() => navigation.navigate('ArWalk')}>
+            <Button
+              disabled={busy}
+              onPress={() => {
+                walkPending.current = true;
+                navigation.navigate('ArWalk');
+              }}
+            >
               AR 산책하기
             </Button>
           </View>

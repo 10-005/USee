@@ -1,5 +1,5 @@
 import ReactTestRenderer from 'react-test-renderer';
-import { AppState, type AppStateStatus } from 'react-native';
+import { Animated, AppState, type AppStateStatus } from 'react-native';
 import { RoomPet } from './RoomPet';
 
 let mockFocused = true;
@@ -9,8 +9,46 @@ jest.mock('react-native', () => {
   return {
     AppState: actual.AppState,
     Platform: { OS: 'android' },
+    Animated: actual.Animated,
+    Easing: actual.Easing,
     requireNativeComponent: () => 'RoomPetView',
   };
+});
+
+test('waits for model readiness and consumes each AR return once', async () => {
+  const originalState = AppState.currentState;
+  AppState.currentState = 'active';
+  mockFocused = true;
+  const timing = jest.spyOn(Animated, 'timing').mockReturnValue({
+    start: callback => callback?.({ finished: true }),
+    stop: jest.fn(),
+    reset: jest.fn(),
+  });
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <RoomPet petId="dog-1" returnSequence={1} entryOffset={{ x: 200, y: 240 }} />,
+    );
+  });
+  expect(timing).not.toHaveBeenCalled();
+  const native = () => renderer.root.findByType('RoomPetView' as never);
+  expect(native().props.returningFromWalk).toBe(true);
+  await ReactTestRenderer.act(() => native().props.onReady());
+  expect(timing).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({
+      duration: 3000,
+      toValue: { x: 0, y: 0 },
+      useNativeDriver: true,
+    }),
+  );
+  await ReactTestRenderer.act(() => renderer.update(<RoomPet petId="dog-1" returnSequence={1} />));
+  expect(native().props.returningFromWalk).toBe(false);
+  await ReactTestRenderer.act(() => renderer.update(<RoomPet petId="dog-1" returnSequence={2} />));
+  expect(native().props.returningFromWalk).toBe(true);
+  await ReactTestRenderer.act(() => renderer.unmount());
+  timing.mockRestore();
+  AppState.currentState = originalState;
 });
 
 test('releases the native renderer on blur and background, restores it when visible', async () => {

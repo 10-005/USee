@@ -10,6 +10,13 @@ import { Button } from '../../components/common';
 import { MockAdoptionActivityScreen } from './MockAdoptionActivityScreen';
 
 jest.mock('./RoomPet', () => ({ RoomPet: 'RoomPet' }));
+let mockFocusRoom: () => () => void;
+jest.mock('@react-navigation/native', () => ({
+  useFocusEffect: (effect: () => () => void) => {
+    mockFocusRoom = effect;
+    require('react').useEffect(effect, [effect]);
+  },
+}));
 
 jest.mock(
   'react-native-safe-area-context',
@@ -30,8 +37,28 @@ test('activity screen has one action connected to the existing AR walk', async (
   expect(renderer!.root.findAllByType(Button)).toHaveLength(1);
   const button = renderer!.root.findByType(Button);
   expect(button.props.children).toBe('AR 산책하기');
+  await ReactTestRenderer.act(() => {
+    renderer.root
+      .findAll(node => typeof node.props.onLayout === 'function')[0]
+      .props.onLayout({
+        nativeEvent: { layout: { width: 390, height: 844 } },
+      });
+  });
+  const roomPet = () => renderer.root.findByType('RoomPet' as never);
+  expect(roomPet().props.returnSequence).toBe(0);
   await ReactTestRenderer.act(() => button.props.onPress());
   expect(navigate).toHaveBeenCalledWith('ArWalk');
+  await ReactTestRenderer.act(() => {
+    mockFocusRoom();
+  });
+  expect(roomPet().props.returnSequence).toBe(1);
+  // Refocusing without another AR visit must not request a second entrance.
+  await ReactTestRenderer.act(() => {
+    mockFocusRoom();
+  });
+  expect(roomPet().props.returnSequence).toBe(1);
+  expect(roomPet().props.entryOffset.x).toBeGreaterThan(0);
+  expect(roomPet().props.entryOffset.y).toBeGreaterThan(0);
   await ReactTestRenderer.act(() => {
     renderer.root.findAllByProps({ accessibilityLabel: '뒤로가기' })[0].props.onPress();
   });
