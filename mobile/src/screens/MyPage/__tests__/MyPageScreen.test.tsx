@@ -14,8 +14,10 @@ describe('MyPageScreen', () => {
         <MyPageScreen
           onOpenMockAdoption={jest.fn()}
           onOpenAdoptionApplications={onOpenAdoptionApplications}
+          onOpenNotices={jest.fn()}
           onOpenPets={jest.fn()}
           onOpenProfileEdit={jest.fn()}
+          onOpenSettings={jest.fn()}
         />,
       );
     });
@@ -33,10 +35,12 @@ describe('MyPageScreen', () => {
     act(() => {
       screen = renderer.create(
         <MyPageScreen
-          onOpenMockAdoption={jest.fn()}
           onOpenAdoptionApplications={jest.fn()}
+          onOpenMockAdoption={jest.fn()}
+          onOpenNotices={jest.fn()}
           onOpenPets={onOpenPets}
           onOpenProfileEdit={jest.fn()}
+          onOpenSettings={jest.fn()}
         />,
       );
     });
@@ -53,14 +57,58 @@ describe('MyPageScreen', () => {
       screen = renderer.create(
         <MyPageScreen
           onOpenAdoptionApplications={jest.fn()}
+          onOpenMockAdoption={jest.fn()}
+          onOpenNotices={jest.fn()}
           onOpenPets={jest.fn()}
           onOpenProfileEdit={onOpenProfileEdit}
-          onOpenMockAdoption={jest.fn()}
+          onOpenSettings={jest.fn()}
         />,
       );
     });
 
     act(() => screen.root.findByProps({ accessibilityLabel: '내 정보 수정' }).props.onPress());
     expect(onOpenProfileEdit).toHaveBeenCalledTimes(1);
+  });
+
+  it('환경설정을 누르면 환경설정 화면으로 이동한다', () => {
+    const onOpenSettings = jest.fn();
+    let screen!: renderer.ReactTestRenderer;
+
+    act(() => {
+      screen = renderer.create(
+        <MyPageScreen
+          onOpenAdoptionApplications={jest.fn()}
+          onOpenMockAdoption={jest.fn()}
+          onOpenNotices={jest.fn()}
+          onOpenPets={jest.fn()}
+          onOpenProfileEdit={jest.fn()}
+          onOpenSettings={onOpenSettings}
+        />,
+      );
+    });
+
+    act(() => screen.root.findByProps({ accessibilityLabel: '환경설정' }).props.onPress());
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('공지사항을 누르면 공지사항 목록으로 이동한다', () => {
+    const onOpenNotices = jest.fn();
+    let screen!: renderer.ReactTestRenderer;
+
+    act(() => {
+      screen = renderer.create(
+        <MyPageScreen
+          onOpenAdoptionApplications={jest.fn()}
+          onOpenMockAdoption={jest.fn()}
+          onOpenNotices={onOpenNotices}
+          onOpenPets={jest.fn()}
+          onOpenProfileEdit={jest.fn()}
+          onOpenSettings={jest.fn()}
+        />,
+      );
+    });
+
+    act(() => screen.root.findByProps({ accessibilityLabel: '공지사항' }).props.onPress());
+    expect(onOpenNotices).toHaveBeenCalledTimes(1);
   });
 });
