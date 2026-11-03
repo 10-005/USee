@@ -20,7 +20,6 @@ import DateIcon from '../../assets/icons/common/date.svg';
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
 import NotificationIcon from '../../assets/icons/common/notification.svg';
-import RightArrowIcon from '../../assets/icons/common/right-arrow.svg';
 import SearchInputIcon from '../../assets/icons/common/search.svg';
 import AdoptionActiveIcon from '../../assets/icons/navigation/adoption-active.svg';
 import AdoptionIcon from '../../assets/icons/navigation/adoption.svg';
@@ -37,6 +36,7 @@ import { getActiveMockAdoption } from '../../services/storage/mockAdoptionStorag
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
 import { MockAdoptionScreen } from '../MockAdoption/MockAdoptionScreen';
+import { MyPageScreen } from '../MyPage/MyPageScreen';
 import { AdoptionFilterSheet, type AdoptionFilters, type FilterKey } from './AdoptionFilterSheet';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
@@ -272,17 +272,9 @@ export function HomeScreen({ navigation }: Props) {
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       {selectedTab === 'mypage' ? (
-        <View style={styles.myPageContent}>
-          <Text style={styles.myPageTitle}>마이페이지</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => navigation.navigate('AdoptionApplicationList')}
-            style={({ pressed }) => [styles.myPageMenu, pressed && styles.pressed]}
-          >
-            <Text style={styles.myPageMenuText}>입양 신청 내역</Text>
-            <RightArrowIcon height={20} width={20} />
-          </Pressable>
-        </View>
+        <MyPageScreen
+          onOpenAdoptionApplications={() => navigation.navigate('AdoptionApplicationList')}
+        />
       ) : (
         <>
           <View style={styles.header}>
@@ -369,17 +361,6 @@ export function HomeScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
-  myPageContent: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
-  myPageTitle: { ...typography.titleBold18, color: colors.black, marginBottom: 28 },
-  myPageMenu: {
-    alignItems: 'center',
-    borderBottomColor: colors.gray200,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    height: 58,
-    justifyContent: 'space-between',
-  },
-  myPageMenuText: { ...typography.bodySemiBold16, color: colors.gray700 },
   header: { alignItems: 'center', flexDirection: 'row', height: 56, justifyContent: 'center' },
   logo: { height: 34, width: 88 },
   headerIcon: { position: 'absolute', right: 20 },
