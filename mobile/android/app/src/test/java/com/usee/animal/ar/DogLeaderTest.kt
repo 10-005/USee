@@ -5,6 +5,18 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun poopPoseStopsDogEvenWhenUserKeepsWalking() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.beginPoop()
+    var dog = initial
+    for (i in 1..25) dog = leader.update(0.02f, 0f, -i * 0.01f, 0f, -1f, floor)
+    assertEquals(initial.x, dog.x, 0.001f)
+    assertEquals(initial.z, dog.z, 0.001f)
+    assertEquals("Poop", dog.clip)
+    assertFalse(dog.moving)
+  }
+
   @Test fun userActuallyCrossingBlockedGroundReopensNormalWalk() {
     val leader = DogLeader()
     val region = UserWalkRegion()

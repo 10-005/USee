@@ -11,6 +11,14 @@ class DogLeader(
   private val requiresPlacement: Boolean = false,
   private val animations: DogAnimationController = DogAnimationController(),
 ) {
+  private var poopSeconds = 0f
+
+  fun beginPoop() {
+    if (!placed) return
+    poopSeconds = 3f
+    animations.request("poop")
+  }
+
   private var placed = false
   val isPlaced: Boolean get() = placed
   private var placementRequested = false
@@ -118,6 +126,17 @@ class DogLeader(
     // The renderer may run faster than the camera. Repeated samples are not a
     // tracking pause and must not erase acceleration or the walking animation.
     if (deltaSeconds == 0f && hasCamera) return frame(placed, speed)
+    if (poopSeconds > 0f) {
+      poopSeconds -= deltaSeconds.coerceIn(0f, 0.05f)
+      previousCameraX = cameraX
+      previousCameraZ = cameraZ
+      velocityX = 0f
+      velocityZ = 0f
+      speed = 0f
+      moving = false
+      animations.update(deltaSeconds.coerceIn(0f, 0.05f), 0f, 0f, 0f, 0f, 0f, 0f)
+      return frame(true, 0f)
+    }
     val length = hypot(lookX, lookZ)
     if (length > 0.15f) {
       headingX = lookX / length

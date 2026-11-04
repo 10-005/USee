@@ -25,6 +25,7 @@ export type FloorTracking = {
 };
 
 type ArFloorNativeProps = ViewProps & {
+  petName?: string;
   active?: boolean;
   showTraversalDebug?: boolean;
   placementRequest?: number;

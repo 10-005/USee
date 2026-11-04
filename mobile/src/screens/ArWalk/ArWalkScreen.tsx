@@ -4,6 +4,9 @@ import { Pressable, Switch, Text, View, type NativeSyntheticEvent } from 'react-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCameraPermission } from 'react-native-vision-camera';
 
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../app/navigation/types';
+
 import { styles } from './ArWalkScreen.styles';
 import {
   ArFloorView,
@@ -54,7 +57,9 @@ const STATUS_COPY: Record<FloorTrackingStatus | 'leading', { label: string; hint
   },
 };
 
-export function ArWalkScreen() {
+export function ArWalkScreen({
+  route,
+}: Partial<NativeStackScreenProps<RootStackParamList, 'ArWalk'>>) {
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { hasPermission, requestPermission, canRequestPermission } = useCameraPermission();
@@ -87,6 +92,7 @@ export function ArWalkScreen() {
       {hasPermission ? (
         <ArFloorView
           active={isFocused}
+          petName={route?.params?.petName ?? '강아지'}
           placementRequest={placementRequest}
           showTraversalDebug={showTraversalDebug}
           collapsable={false}

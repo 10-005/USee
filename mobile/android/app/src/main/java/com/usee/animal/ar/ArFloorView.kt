@@ -28,6 +28,14 @@ class ArFloorView(
   private val reactContext: ReactContext,
 ) : FrameLayout(reactContext) {
   private var sceneView: ARSceneView? = null
+  private var cleanup: WalkCleanupView? = null
+  private var petName = "강아지"
+
+  fun setPetName(value: String) {
+    petName = value.ifBlank { "강아지" }
+    cleanup?.petName = petName
+  }
+
   private var traversalDebug: TraversalDebugView? = null
   private var showTraversalDebug = true
   private var dogNode: DogModelNode? = null
@@ -71,6 +79,7 @@ class ArFloorView(
 
   override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
     if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+      if (cleanup?.hitBag(event.x, event.y) == true) return false
       leashGesture = active && dogNode?.isVisible == true && leash?.hitTest(
         event.x, event.y, viewMatrix, projectionMatrix, width, height, 24f * resources.displayMetrics.density,
       ) == true
@@ -175,6 +184,10 @@ class ArFloorView(
     traversalDebug = debug
     addView(view)
     addView(debug)
+    cleanup = WalkCleanupView(context).also {
+      it.petName = petName
+      addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+    }
     view.modelLoader.loadModelInstanceAsync("models/dog.glb") { instance ->
       if (instance == null || disposed || sceneView !== view) {
         return@loadModelInstanceAsync
@@ -225,6 +238,8 @@ class ArFloorView(
   }
 
   private fun stop() {
+    cleanup?.let { removeView(it) }
+    cleanup = null
     dogNode?.onPoseUpdated = null
     leash?.close()
     leash = null
@@ -310,6 +325,25 @@ class ArFloorView(
     if (showTraversalDebug) {
       traversalDebug?.update(frame, floorAnalyzer?.latest, scratch.planes, scratch.walls, shown.dog, scratch.stops.summary(), scratch.userGround, scratch.depth)
     }
+    if (camera.trackingState == com.google.ar.core.TrackingState.TRACKING && shown.dog.visible) {
+      val dog = shown.dog
+      val rightX = screenRight[0]
+      val rightZ = screenRight[2]
+      val now = SystemClock.elapsedRealtimeNanos()
+      val obstacle = listOf(0.4f, 0.7f, 1f).any { distance ->
+        val x = dog.x + rightX * distance
+        val z = dog.z + rightZ * distance
+        android.opengl.Matrix.multiplyMV(cameraPoint, 0, viewMatrix, 0, floatArrayOf(x, dog.y, z, 1f), 0)
+        android.opengl.Matrix.multiplyMV(clipPoint, 0, projectionMatrix, 0, cameraPoint, 0)
+        val onRight = clipPoint[3] > 0f && clipPoint[0] > 0f && clipPoint[0] <= clipPoint[3] &&
+          kotlin.math.abs(clipPoint[1]) <= clipPoint[3]
+        onRight && (scratch.depth.latest?.evidence(x, dog.y, z, now) == FloorEvidence.OBSTACLE ||
+          floorAnalyzer?.latest?.let { it.isFresh(now) && it.evidenceAt(x, dog.y, z, now) == FloorEvidence.OBSTACLE } == true)
+      }
+      cleanup?.update(dog, camera.pose.tx(), camera.pose.tz(), viewMatrix, projectionMatrix, obstacle) {
+        leader.beginPoop()
+      }
+    } else cleanup?.pause()
     emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen, shown.dog.userMoving)
   }
 

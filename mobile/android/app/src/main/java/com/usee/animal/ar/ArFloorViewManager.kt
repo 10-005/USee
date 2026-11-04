@@ -15,6 +15,11 @@ class ArFloorViewManager : SimpleViewManager<ArFloorView>() {
     super.onDropViewInstance(view)
   }
 
+  @ReactProp(name = "petName")
+  fun setPetName(view: ArFloorView, name: String?) {
+    view.setPetName(name.orEmpty())
+  }
+
   @ReactProp(name = "active", defaultBoolean = true)
   fun setActive(view: ArFloorView, active: Boolean) {
     view.setActive(active)

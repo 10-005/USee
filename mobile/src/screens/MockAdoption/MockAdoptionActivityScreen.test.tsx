@@ -98,7 +98,7 @@ test('activity screen has one action connected to the existing AR walk', async (
   expect(navigate).not.toHaveBeenCalled();
   expect(roomPet().props.leaving).toBe(true);
   await ReactTestRenderer.act(() => roomPet().props.onHidden());
-  expect(navigate).toHaveBeenCalledWith('ArWalk');
+  expect(navigate).toHaveBeenCalledWith('ArWalk', { petName: expect.any(String) });
   await ReactTestRenderer.act(() => blurRoom());
   expect(renderer!.root.findAllByType('RoomPet' as never)).toHaveLength(0);
   await ReactTestRenderer.act(() => {
