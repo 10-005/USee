@@ -1,0 +1,22 @@
+# 모바일 CI: develop-mobile 에 MR 이 머지되면 Mattermost 채널에 알림
+# 필요한 CI 변수: MM_WEBHOOK_MOBILE (Masked and hidden)
+
+notify-mobile-merge:
+  stage: .post                # GitLab 기본 마지막 단계 → 루트 stages 수정 불필요
+  image: alpine:3.22
+  variables:
+    GIT_STRATEGY: none        # 저장소 체크아웃 불필요
+  rules:
+    # 머지 커밋에만 들어 있는 "See merge request" 문구로 직접 push 와 구분
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop-mobile" && $CI_COMMIT_MESSAGE =~ /See merge request/
+  allow_failure: true         # 알림이 실패해도 파이프라인은 성공으로 둠
+  script:
+    - apk add --no-cache curl jq
+    - |
+      MR_IID=$(printf '%s\n' "$CI_COMMIT_MESSAGE" | sed -n 's/^See merge request .*[^0-9]\([0-9][0-9]*\)$/\1/p')
+      MR_TITLE=$(printf '%s\n' "$CI_COMMIT_MESSAGE" | sed -n '3p')
+      SRC=$(printf '%s\n' "$CI_COMMIT_TITLE" | sed -n "s/^Merge branch '\(.*\)' into .*/\1/p")
+      TEXT=$(printf '#### :white_check_mark: develop-mobile 머지 완료\n**[MR %s %s](%s/-/merge_requests/%s)**\n`%s` → `develop-mobile` · 머지: %s · 커밋 `%s`' \
+        "$MR_IID" "$MR_TITLE" "$CI_PROJECT_URL" "$MR_IID" "$SRC" "$GITLAB_USER_NAME" "$CI_COMMIT_SHORT_SHA")
+      jq -n --arg text "$TEXT" '{text: $text}' \
+        | curl -sS --fail-with-body -X POST -H 'Content-Type: application/json' --data @- "$MM_WEBHOOK_MOBILE"
