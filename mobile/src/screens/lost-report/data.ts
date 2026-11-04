@@ -9,6 +9,7 @@ export type LostReport = {
   gender: '수컷' | '암컷' | '모름';
   id: string;
   images: ImageSourcePropType[];
+  isMine: boolean;
   location: string;
   name: string;
   neutered: boolean;
@@ -32,6 +33,7 @@ export const lostReports: LostReport[] = [
     gender: '암컷',
     id: 'lost-1',
     images: [dogBed, dogGolden, dogField],
+    isMine: true,
     location: '구미시 인동동 123-123 알리바바바',
     name: '강강아쥐',
     neutered: true,
@@ -47,6 +49,7 @@ export const lostReports: LostReport[] = [
     gender: '수컷',
     id: 'lost-2',
     images: [dogGolden, dogBed],
+    isMine: false,
     location: '구미시 진평동 산책로 인근',
     name: '봄이',
     neutered: false,
@@ -63,6 +66,7 @@ export const lostReports: LostReport[] = [
     gender: '수컷',
     id: 'lost-3',
     images: [dogField],
+    isMine: false,
     location: '구미시 고아읍 들판 인근',
     name: '보리',
     neutered: false,
@@ -79,6 +83,7 @@ export const lostReports: LostReport[] = [
     gender: '암컷',
     id: 'lost-4',
     images: [dogPoodle, dogGolden],
+    isMine: false,
     location: '구미시 인동동 주택가',
     name: '콩이',
     neutered: true,

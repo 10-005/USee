@@ -19,6 +19,7 @@ import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
 import SearchIcon from '../../assets/icons/common/search.svg';
 import { colors, radius, typography } from '../../theme';
+import { useReportStatusStore } from '../../stores/reportStatusStore';
 import {
   AdoptionFilterSheet,
   type AdoptionFilters,
@@ -99,14 +100,33 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
   const [filters, setFilters] = useState(initialFilters);
+  const statusById = useReportStatusStore(state => state.statusById);
   const reports = useMemo(
-    () =>
-      filterReports(
-        (activeTab === 'found' ? foundReports : lostReports) as Report[],
+    () => {
+      const source = (activeTab === 'found' ? foundReports : lostReports).map(report => {
+        const storedStatus = statusById[report.id];
+        if (!storedStatus) {
+          return report;
+        }
+        return {
+          ...report,
+          status:
+            activeTab === 'found'
+              ? storedStatus === 'active'
+                ? '진행 중'
+                : '완료'
+              : storedStatus === 'active'
+                ? '실종'
+                : '종료',
+        } as Report;
+      });
+      return filterReports(
+        source,
         query,
         filters,
-      ),
-    [activeTab, filters, query],
+      );
+    },
+    [activeTab, filters, query, statusById],
   );
 
   useEffect(() => {
