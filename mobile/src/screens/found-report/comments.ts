@@ -6,6 +6,7 @@ export type FoundReportReply = {
   imageUri?: string;
   isMine?: boolean;
   nickname: string;
+  authorId?: string;
 };
 
 export type FoundReportComment = FoundReportReply & {
@@ -26,6 +27,7 @@ export const foundReportComments: FoundReportComment[] = [
     createdAt: '26.10.18 23:31',
     id: 'comment-2',
     nickname: '강아지사랑',
+    authorId: 'dog-lover',
     replies: [],
   },
   {
@@ -34,18 +36,21 @@ export const foundReportComments: FoundReportComment[] = [
     createdAt: '26.10.18 23:35',
     id: 'comment-3',
     nickname: '산책친구',
+    authorId: 'walking-friend',
     replies: [
       {
         content: '도와주셔서 정말 감사합니다.',
         createdAt: '26.10.18 23:40',
         id: 'reply-3-1',
         nickname: '시샤',
+        authorId: 'sisha',
       },
       {
         content: '확인되는 내용이 있으면 바로 알려드릴게요.',
         createdAt: '26.10.18 23:42',
         id: 'reply-3-2',
         nickname: '산책친구',
+        authorId: 'walking-friend',
       },
     ],
   },
@@ -62,6 +67,7 @@ export const foundReportComments: FoundReportComment[] = [
     createdAt: '26.10.18 23:55',
     id: 'comment-5',
     nickname: '구미주민',
+    authorId: 'gumi-resident',
     replies: [],
   },
 ];

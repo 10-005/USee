@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
@@ -9,6 +9,7 @@ import RightArrowIcon from '../../assets/icons/common/right-arrow.svg';
 import { AppHeader, Button } from '../../components/common';
 import { getAdoptionApplicationRecord } from '../../services/storage/adoptionApplicationStorage';
 import { getAdoptionApplicationDraft } from '../../services/storage/adoptionDraftStorage';
+import { useChatStore } from '../../stores/chatStore';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals } from './data';
@@ -46,6 +47,17 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
   const isClosed = animal.status === '종료';
   const bookmarked = useAdoptionBookmarkStore(state => state.bookmarkedIds.includes(animal.id));
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
+  const shelterName = '익산유기동물보호소';
+  const openChat = async () => {
+    try {
+      const params = await useChatStore.getState().openPostRoom('adoption', animal.id, shelterName, 'iksan-shelter');
+      if (navigation.isFocused()) {
+        navigation.navigate('ChatRoom', params);
+      }
+    } catch {
+      Alert.alert('채팅', '채팅방을 열 수 없어요. 다시 시도해 주세요.');
+    }
+  };
   const openApplication = async () => {
     const [record, draft] = await Promise.all([
       getAdoptionApplicationRecord(),
@@ -78,7 +90,7 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
             source={require('../../assets/images/adoption/shelter-profile.jpg')}
             style={styles.profileImage}
           />
-          <Text style={styles.shelterName}>익산유기동물보호소</Text>
+          <Text style={styles.shelterName}>{shelterName}</Text>
           <Text style={styles.profileMeta}>26.10.26</Text>
         </View>
         <Image
@@ -145,7 +157,7 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
             rows={[
               ['관할기관', '전북특별자치도 익산시'],
               ['상태', '보호중'],
-              ['보호센터', '익산유기동물보호소'],
+              ['보호센터', shelterName],
               ['연락처', '063-855-1214'],
               ['보호장소', '전북특별자치도 익산시 삼기면 황금로 342-17'],
             ]}
@@ -154,7 +166,7 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
       </ScrollView>
       {!isClosed ? (
         <View style={[styles.actions, { bottom: insets.bottom + 12 }]}>
-          <Button style={styles.action}>채팅 보내기</Button>
+          <Button onPress={openChat} style={styles.action}>채팅 보내기</Button>
           <Button onPress={openApplication} style={[styles.action, styles.applyButton]}>
             입양 신청하기
           </Button>

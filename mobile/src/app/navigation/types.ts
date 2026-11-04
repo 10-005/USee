@@ -1,3 +1,4 @@
+import type { ChatPreview } from '../../stores/chatStore';
 import type { AdoptionApplicationStatus } from '../../services/storage/adoptionApplicationStorage';
 
 export type RootStackParamList = {
@@ -19,7 +20,7 @@ export type RootStackParamList = {
   LostReportForm: { reportId?: string } | undefined;
   LostReportLocationPicker: { target?: 'adoption' | 'found-report' | 'lost-report' } | undefined;
   LostReportPetSelection: undefined;
-  ChatRoom: { roomId: string };
+  ChatRoom: { roomId: string; preview?: ChatPreview };
   MockAdoptionActivity: { petId: string };
   NoticeDetail: { noticeId: string };
   NoticeList: undefined;

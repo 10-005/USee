@@ -88,3 +88,5 @@ jest.mock('@react-native-community/geolocation', () => ({
     watchPosition: jest.fn(),
   },
 }));
+
+jest.mock('@mj-studio/react-native-naver-map', () => ({ NaverMapView: 'NaverMapView', NaverMapMarkerOverlay: 'NaverMapMarkerOverlay' }));

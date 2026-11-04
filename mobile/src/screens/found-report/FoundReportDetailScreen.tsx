@@ -33,6 +33,7 @@ import {
   ContentReportModal,
   type ContentReportTarget,
 } from '../../components/report/ContentReportModal';
+import { useChatStore } from '../../stores/chatStore';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { useContentReportStore } from '../../stores/contentReportStore';
 import { useFoundReportDraftStore } from '../../stores/foundReportDraftStore';
@@ -106,6 +107,18 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     : isCompleted
     ? '완료'
     : '제보';
+
+  const reporterName = report.isMine ? '내 닉네임' : '시샤';
+  const openChat = async (name: string, authorId: string) => {
+    try {
+      const params = await useChatStore.getState().openPostRoom(isLostReport ? 'lost' : 'found', report.id, name, authorId);
+      if (navigation.isFocused()) {
+        navigation.navigate('ChatRoom', params);
+      }
+    } catch {
+      Alert.alert('채팅', '채팅방을 열 수 없어요. 다시 시도해 주세요.');
+    }
+  };
 
   const onMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     setPage(Math.round(event.nativeEvent.contentOffset.x / width));
@@ -186,7 +199,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             style={styles.profileImage}
           />
           <Text style={[styles.reporterName, report.isMine && styles.myReporterName]}>
-            {report.isMine ? '내 닉네임' : '시샤'}
+            {reporterName}
           </Text>
           <Text style={styles.reportMeta}>1시간 전</Text>
         </View>
@@ -253,12 +266,16 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
           <Text style={styles.description}>{report.description}</Text>
         </View>
-        <FoundReportCommentList onEditFocus={revealCommentInput} reportId={report.id} />
+        <FoundReportCommentList
+          onChat={openChat}
+          onEditFocus={revealCommentInput}
+          reportId={report.id}
+        />
       </ScrollView>
       {!keyboardVisible && !isCompleted ? (
         <View style={[styles.buttonWrap, { bottom: Math.max(insets.bottom, 12) }]}>
           <Button
-            onPress={() => Alert.alert('채팅', '채팅 화면은 추후 연결될 예정입니다.')}
+            onPress={() => openChat(reporterName, report.isMine ? 'self' : 'sisha')}
             style={styles.chatButton}
           >
             채팅 보내기

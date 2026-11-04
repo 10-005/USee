@@ -23,8 +23,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { RootStackParamList } from '../../app/navigation/types';
 import CalendarIcon from '../../assets/icons/common/calendar.svg';
 import LeftArrowIcon from '../../assets/icons/common/left-arrow.svg';
-import CameraIcon from '../../assets/icons/mypage/photo-camera.svg';
-import LibraryIcon from '../../assets/icons/mypage/photo-library.svg';
+import CameraIcon from '../../assets/icons/common/photo-camera.svg';
+import LibraryIcon from '../../assets/icons/common/photo-library.svg';
 import {
   ALLOWED_IMAGE_TYPES,
   MAX_IMAGE_SIZE_BYTES,
