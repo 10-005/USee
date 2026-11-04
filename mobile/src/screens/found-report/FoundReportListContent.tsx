@@ -25,6 +25,7 @@ import {
   type FilterKey,
 } from '../Home/AdoptionFilterSheet';
 import { foundReports, type FoundReport } from './data';
+import { lostReports, type LostReport } from '../lost-report/data';
 
 type Props = {
   bottomInset: number;
@@ -57,7 +58,18 @@ const initialFilters: AdoptionFilters = {
 };
 
 export const filterFoundReports = (query: string, filters: AdoptionFilters) => {
-  const filtered = foundReports.filter(report => {
+  return filterReports(foundReports, query, filters);
+};
+
+type Report = FoundReport | LostReport;
+type ReportTab = 'found' | 'lost';
+
+export const filterReports = <T extends Report>(
+  source: T[],
+  query: string,
+  filters: AdoptionFilters,
+) => {
+  const filtered = source.filter(report => {
     const searchable = `${report.name} ${report.location} ${report.description} ${report.color}`;
     const [start = '전체', end = ''] = filters.period.split('|');
     const startDate = start.replaceAll('.', '-');
@@ -82,15 +94,31 @@ export const filterFoundReports = (query: string, filters: AdoptionFilters) => {
 export function FoundReportListContent({ bottomInset, navigation }: Props) {
   const { width } = useWindowDimensions();
   const cardWidth = (width - 52) / 2;
-  const listRef = useRef<FlatList<FoundReport>>(null);
+  const listRef = useRef<FlatList<Report>>(null);
+  const [activeTab, setActiveTab] = useState<ReportTab>('found');
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
   const [filters, setFilters] = useState(initialFilters);
-  const reports = useMemo(() => filterFoundReports(query, filters), [filters, query]);
+  const reports = useMemo(
+    () =>
+      filterReports(
+        (activeTab === 'found' ? foundReports : lostReports) as Report[],
+        query,
+        filters,
+      ),
+    [activeTab, filters, query],
+  );
 
   useEffect(() => {
     listRef.current?.scrollToOffset({ animated: false, offset: 0 });
-  }, [filters, query]);
+  }, [activeTab, filters, query]);
+
+  const selectTab = (tab: ReportTab) => {
+    setActiveTab(tab);
+    setActiveFilter(null);
+    setFilters(initialFilters);
+    setQuery('');
+  };
 
   const applied = (key: FilterKey) => filters[key] !== initialFilters[key];
   const labelFor = (key: FilterKey, fallback: string) => {
@@ -108,11 +136,15 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
     return value === '전체' ? fallback : value;
   };
 
-  const renderReport = ({ item }: { item: FoundReport }) => (
+  const renderReport = ({ item }: { item: Report }) => (
     <Pressable
-      accessibilityLabel={`${item.name} 발견 제보 상세`}
+      accessibilityLabel={`${item.name} ${activeTab === 'found' ? '발견 제보' : '실종 신고'} 상세`}
       accessibilityRole="button"
-      onPress={() => navigation.navigate('FoundReportDetail', { reportId: item.id })}
+      onPress={() =>
+        activeTab === 'found'
+          ? navigation.navigate('FoundReportDetail', { reportId: item.id })
+          : navigation.navigate('LostReportDetail', { reportId: item.id })
+      }
       style={({ pressed }) => [
         styles.card,
         { height: cardWidth + 118, width: cardWidth },
@@ -124,10 +156,14 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
         style={[
           styles.badge,
           { top: cardWidth - 24 },
-          item.status === '완료' && styles.completedBadge,
+          (item.status === '완료' || item.status === '종료') && styles.completedBadge,
+          activeTab === 'lost' && item.status === '실종' && styles.lostBadge,
+          activeTab === 'lost' && item.status === '종료' && styles.closedBadge,
         ]}
       >
-        <Text style={styles.badgeText}>제보</Text>
+        <Text style={styles.badgeText}>
+          {activeTab === 'found' ? '제보' : item.status}
+        </Text>
       </View>
       <Text numberOfLines={1} style={styles.cardTitle}>
         {item.name}
@@ -157,19 +193,21 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
       <View style={styles.tabs}>
         <Pressable
           accessibilityRole="tab"
-          accessibilityState={{ selected: true }}
+          accessibilityState={{ selected: activeTab === 'found' }}
+          onPress={() => selectTab('found')}
           style={styles.tab}
         >
-          <Text style={styles.activeTabText}>제보</Text>
-          <View style={styles.activeIndicator} />
+          <Text style={activeTab === 'found' ? styles.activeTabText : styles.tabText}>제보</Text>
+          <View style={activeTab === 'found' ? styles.activeIndicator : styles.inactiveIndicator} />
         </Pressable>
         <Pressable
           accessibilityRole="tab"
-          onPress={() => Alert.alert('실종', '실종 신고 목록은 다음 작업에서 연결될 예정입니다.')}
+          accessibilityState={{ selected: activeTab === 'lost' }}
+          onPress={() => selectTab('lost')}
           style={styles.tab}
         >
-          <Text style={styles.tabText}>실종</Text>
-          <View style={styles.inactiveIndicator} />
+          <Text style={activeTab === 'lost' ? styles.activeTabText : styles.tabText}>실종</Text>
+          <View style={activeTab === 'lost' ? styles.activeIndicator : styles.inactiveIndicator} />
         </Pressable>
       </View>
       <View style={styles.searchRow}>
@@ -183,14 +221,14 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
             value={query}
           />
         </View>
-        <Pressable
+        {activeTab === 'found' ? <Pressable
           accessibilityLabel="지도로 보기"
           accessibilityRole="button"
           onPress={() => Alert.alert('지도', '지도 탐색은 S15P31D106-102에서 연결될 예정입니다.')}
           style={({ pressed }) => [styles.mapButton, pressed && styles.pressed]}
         >
           <MapIcon height={24} width={24} />
-        </Pressable>
+        </Pressable> : null}
       </View>
       <ScrollView
         contentContainerStyle={styles.filters}
@@ -241,7 +279,9 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
         filters={filters}
         onChange={(key, value) => setFilters(current => ({ ...current, [key]: value }))}
         onClose={() => setActiveFilter(null)}
-        statusOptions={['전체', '진행 중', '완료']}
+        statusOptions={
+          activeTab === 'found' ? ['전체', '진행 중', '완료'] : ['전체', '실종', '종료']
+        }
       />
     </View>
   );
@@ -318,6 +358,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   completedBadge: { opacity: 0.85 },
+  lostBadge: { backgroundColor: '#FA705B' },
+  closedBadge: { backgroundColor: colors.gray400, opacity: 1 },
   badgeText: { ...typography.captionSemiBold12, color: colors.white },
   cardTitle: { ...typography.titleBold18, color: colors.black, marginTop: 8 },
   metaRow: { alignItems: 'center', flexDirection: 'row', gap: 4, width: '100%' },
