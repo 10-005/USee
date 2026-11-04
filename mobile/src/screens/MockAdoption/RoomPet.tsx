@@ -13,6 +13,8 @@ type Props = ViewProps & {
   petId: string;
   active: boolean;
   careMotion?: string;
+  bathing?: boolean;
+  sceneOpacity?: number;
   returningFromWalk: boolean;
   onReady: () => void;
   onPetPress?: () => void;
@@ -34,8 +36,12 @@ export function RoomPet({
   care,
   onConsumed,
   onCareComplete,
+  bathing = false,
+  sceneOpacity = 1,
 }: Pick<Props, 'petId' | 'style'> & {
   returnSequence?: number;
+  bathing?: boolean;
+  sceneOpacity?: number | Animated.Value;
   care?: { kind: 'food' | 'water' | 'treat'; offset: { x: number; y: number } } | null;
   onConsumed?: () => void;
   onCareComplete?: () => void;
@@ -150,6 +156,8 @@ export function RoomPet({
       petId={petId}
       active={!leaving}
       careMotion={careMotion}
+      bathing={bathing}
+      sceneOpacity={sceneOpacity}
       returningFromWalk={returningFromWalk}
       onReady={onReady}
       onPetPress={onPress}

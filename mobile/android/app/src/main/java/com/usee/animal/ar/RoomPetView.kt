@@ -12,11 +12,22 @@ import com.facebook.react.uimanager.events.Event
 import io.github.sceneview.SceneView
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
+import io.github.sceneview.math.Scale
+import io.github.sceneview.math.colorOf
+import io.github.sceneview.node.SphereNode
+import kotlin.math.sin
 
 /** Non-AR scene: one model, fixed camera, no touch controls or camera session. */
 class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactContext) {
   private var scene: SceneView? = null
   private var active = false
+  private var bathing = false
+  private var sceneOpacity = 1f
+  fun setSceneOpacity(value: Float) {
+    sceneOpacity = value.coerceIn(0f, 1f)
+    scene?.alpha = sceneOpacity
+  }
+  fun setBathing(value: Boolean) { bathing = value }
   private var careMotion = ""
   fun setCareMotion(value: String) { careMotion = value }
   private var petId = ""
@@ -107,6 +118,7 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
       }
     }
     scene = view
+    view.alpha = sceneOpacity
     // Transparent SurfaceView must composite over the React Native background image.
     view.setZOrderOnTop(true)
     view.holder.setFormat(PixelFormat.TRANSLUCENT)
@@ -150,12 +162,51 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
       )
       var previousCare = ""
       var careRevision = 1000000
+      val bubbles = mutableListOf<SphereNode>()
+      var bathElapsed = 0f
+      var wasBathing = false
       view.onFrame = { now ->
         // No physics here: use wall time so a delayed frame cannot leave the
         // behavior timer behind a clip that has already reached its final pose.
         val dt = if (lastFrame == 0L) 0f else ((now - lastFrame) / 1_000_000_000f).coerceAtLeast(0f)
         lastFrame = now
-        if (careMotion.isNotEmpty()) {
+        if (bathing && !wasBathing) {
+          bathElapsed = 0f
+          careRevision++
+          node.play(DogAnimation("SitIdle", true, careRevision))
+          if (bubbles.isEmpty()) {
+            val material = view.materialLoader.createColorInstance(
+              colorOf(r = 0.95f, g = 0.99f, b = 1f, a = 0.88f),
+              metallic = 0f, roughness = 0.4f, reflectance = 0.5f,
+            )
+            repeat(24) { index ->
+              bubbles.add(SphereNode(
+                engine = view.engine, radius = 0.055f + (index % 4) * 0.018f,
+                materialInstance = material,
+              ).apply { isShadowCaster = false; isVisible = false; view.addChildNode(this) })
+            }
+          }
+        }
+        if (bathing) bathElapsed += dt
+        val bodyHeight = node.halfExtent.y * node.scale.y * 2f
+        bubbles.forEachIndexed { index, bubble ->
+          val age = bathElapsed - (index % 8) * 0.08f
+          bubble.isVisible = bathing && age >= 0f && bathElapsed < 3f
+          if (bubble.isVisible) {
+            val cycle = (age % 1.1f) / 1.1f
+            val fadeOut = ((3f - bathElapsed) / 0.45f).coerceIn(0f, 1f)
+            val size = (sin(cycle * Math.PI).toFloat() * fadeOut).coerceAtLeast(0.01f)
+            bubble.scale = Scale(size)
+            bubble.position = Position(
+              (index % 6 - 2.5f) * bodyHeight * 0.08f + sin(age * 3f + index) * 0.025f,
+              bodyHeight * (0.2f + (index / 6) * 0.065f + cycle * 0.3f),
+              bodyHeight * (0.18f + (index % 3) * 0.055f),
+            )
+          }
+        }
+        if (bathing) {
+          // Keep the sitting clip throughout the bath; pause idle behavior.
+        } else if (careMotion.isNotEmpty()) {
           if (previousCare != careMotion) {
             careRevision++
             node.play(DogAnimation(when (careMotion) {
@@ -166,11 +217,13 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
             }, true, careRevision))
           }
         } else {
-          if (previousCare.isNotEmpty()) behavior = RoomPetBehavior(node.durations)
+          if (previousCare.isNotEmpty() || wasBathing) behavior = RoomPetBehavior(node.durations)
           node.play(behavior.update(dt))
         }
         previousCare = careMotion
+        wasBathing = bathing
         val targetYaw = when {
+          bathing -> 0f
           careMotion == "treat" -> 0f
           careMotion == "return" -> 25f
           careMotion == "eat" || careMotion == "drink" -> -25f
