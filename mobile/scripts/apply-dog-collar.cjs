@@ -1,8 +1,8 @@
 // Preserve the edited mesh/animations and add a leash socket on the animated neck.
 const fs = require('fs');
 const path = require('path');
-const source = process.argv[2] || path.resolve(__dirname, '../../artifacts/dog-blue-collar/dog-blue-collar.glb');
 const destination = path.resolve(__dirname, '../android/app/src/main/assets/models/dog.glb');
+const source = process.argv[2] || destination;
 const bytes = fs.readFileSync(source);
 const jsonLength = bytes.readUInt32LE(12);
 const model = JSON.parse(bytes.subarray(20, 20 + jsonLength));
@@ -37,9 +37,16 @@ left[0] -= 0.015;
 right[0] += 0.015;
 for (const [name, point] of [['LeashAttachment', dorsal], ['LeashAttachmentLeft', left], ['LeashAttachmentRight', right]]) {
   const local = [0, 1, 2].map(row => inverseBind[row] * point[0] + inverseBind[4 + row] * point[1] + inverseBind[8 + row] * point[2] + inverseBind[12 + row]);
-  const socket = model.nodes.length;
-  model.nodes.push({ name, translation: local });
-  model.nodes[neck].children = [...(model.nodes[neck].children || []), socket];
+  let socket = model.nodes.findIndex(node => node.name === name);
+  if (socket < 0) {
+    socket = model.nodes.length;
+    model.nodes.push({ name, translation: local });
+  } else {
+    model.nodes[socket].translation = local;
+  }
+  if (!(model.nodes[neck].children || []).includes(socket)) {
+    model.nodes[neck].children = [...(model.nodes[neck].children || []), socket];
+  }
 }
 let json = Buffer.from(JSON.stringify(model));
 json = Buffer.concat([json, Buffer.alloc((4 - json.length % 4) % 4, 32)]);
@@ -49,5 +56,8 @@ header.writeUInt32LE(28 + json.length + binary.length, 8);
 header.writeUInt32LE(json.length, 12); header.write('JSON', 16);
 const binaryHeader = Buffer.alloc(8);
 binaryHeader.writeUInt32LE(binary.length); binaryHeader.writeUInt32LE(0x004e4942, 4);
-fs.writeFileSync(destination, Buffer.concat([header, json, binaryHeader, binary]));
+const output = Buffer.concat([header, json, binaryHeader, binary]);
+if (!fs.existsSync(destination) || !fs.readFileSync(destination).equals(output)) {
+  fs.writeFileSync(destination, output);
+}
 console.log(JSON.stringify({ animations: model.animations.length, sockets: 3, socketBindPosition: dorsal }));
