@@ -1,4 +1,4 @@
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { SvgProps } from 'react-native-svg';
 
 import ApplicationListIcon from '../../assets/icons/mypage/application-list.svg';
@@ -15,28 +15,24 @@ import { colors, radius, typography } from '../../theme';
 
 type Props = {
   onOpenMockAdoption: () => void;
+  onOpenMyPosts: () => void;
   onOpenAdoptionApplications: () => void;
   onOpenPets: () => void;
   onOpenProfileEdit: () => void;
   onOpenNotices: () => void;
   onOpenSettings: () => void;
+  onOpenSavedPosts: () => void;
 };
-
-const unavailable = (name: string) =>
-  Alert.alert(name, '해당 화면은 다음 작업에서 연결될 예정입니다.');
-
-const menuItems = [
-  { label: '내가 작성한 게시글', icon: MyPostsIcon },
-  { label: '저장한 게시글', icon: SavedPostsIcon },
-] as const;
 
 export function MyPageScreen({
   onOpenAdoptionApplications,
   onOpenMockAdoption,
+  onOpenMyPosts,
   onOpenPets,
   onOpenProfileEdit,
   onOpenNotices,
   onOpenSettings,
+  onOpenSavedPosts,
 }: Props) {
   const profile = useProfileStore(state => state.profile);
   return (
@@ -99,14 +95,12 @@ export function MyPageScreen({
             label="입양 신청"
             onPress={onOpenAdoptionApplications}
           />
-          {menuItems.map(item => (
-            <MenuRow
-              icon={item.icon}
-              key={item.label}
-              label={item.label}
-              onPress={() => unavailable(item.label)}
-            />
-          ))}
+          <MenuRow
+            icon={MyPostsIcon}
+            label="내가 작성한 게시글"
+            onPress={onOpenMyPosts}
+          />
+          <MenuRow icon={SavedPostsIcon} label="저장한 게시글" onPress={onOpenSavedPosts} />
           <MenuRow icon={NoticeIcon} label="공지사항" onPress={onOpenNotices} />
         </View>
       </View>

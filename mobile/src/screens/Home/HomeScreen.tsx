@@ -16,6 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
+import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import DateIcon from '../../assets/icons/common/date.svg';
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
@@ -187,21 +188,21 @@ export function HomeScreen({ navigation }: Props) {
         source={item.image}
         style={[styles.cardImage, { height: cardWidth, width: cardWidth }]}
       />
-      {bookmarkedIds.includes(item.id) ? (
-        <Pressable
-          accessibilityLabel={`${item.name} 북마크 해제`}
-          accessibilityRole="button"
-          accessibilityState={{ selected: true }}
-          hitSlop={8}
-          onPress={event => {
-            event.stopPropagation();
-            toggleBookmark(item.id);
-          }}
-          style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
-        >
-          <BookmarkActiveIcon />
-        </Pressable>
-      ) : null}
+      <Pressable
+        accessibilityLabel={`${item.name} 북마크 ${
+          bookmarkedIds.includes(item.id) ? '해제' : '등록'
+        }`}
+        accessibilityRole="button"
+        accessibilityState={{ selected: bookmarkedIds.includes(item.id) }}
+        hitSlop={8}
+        onPress={event => {
+          event.stopPropagation();
+          toggleBookmark(item.id);
+        }}
+        style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
+      >
+        {bookmarkedIds.includes(item.id) ? <BookmarkActiveIcon /> : <BookmarkIcon />}
+      </Pressable>
       <View
         style={[
           styles.statusBadge,
@@ -285,11 +286,13 @@ export function HomeScreen({ navigation }: Props) {
       {selectedTab === 'mypage' ? (
         <MyPageScreen
           onOpenMockAdoption={openMockAdoption}
+          onOpenMyPosts={() => navigation.navigate('MyPosts')}
           onOpenAdoptionApplications={() => navigation.navigate('AdoptionApplicationList')}
           onOpenPets={() => navigation.navigate('PetList')}
           onOpenProfileEdit={() => navigation.navigate('ProfileEdit')}
           onOpenNotices={() => navigation.navigate('NoticeList')}
           onOpenSettings={() => navigation.navigate('Settings')}
+          onOpenSavedPosts={() => navigation.navigate('SavedPosts')}
         />
       ) : selectedTab === 'search' ? (
         <FoundReportListContent bottomInset={insets.bottom} navigation={navigation} />
