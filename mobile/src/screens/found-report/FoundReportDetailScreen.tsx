@@ -26,8 +26,12 @@ import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { colors, radius, typography } from '../../theme';
 import { FoundReportCommentList } from './FoundReportCommentList';
 import { getFoundReport } from './data';
+import { getLostReport } from '../lost-report/data';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'FoundReportDetail'>;
+type Props = NativeStackScreenProps<
+  RootStackParamList,
+  'FoundReportDetail' | 'LostReportDetail'
+>;
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -43,7 +47,10 @@ export function getContactDisplayValue(contact?: string) {
 }
 
 export function FoundReportDetailScreen({ navigation, route }: Props) {
-  const report = getFoundReport(route.params.reportId);
+  const isLostReport = route.name === 'LostReportDetail';
+  const report = isLostReport
+    ? getLostReport(route.params.reportId)
+    : getFoundReport(route.params.reportId);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -138,8 +145,16 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           ) : null}
         </View>
         <View style={styles.titleRow}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>제보</Text>
+          <View
+            style={[
+              styles.badge,
+              isLostReport && styles.lostBadge,
+              isLostReport && report.status === '종료' && styles.closedBadge,
+            ]}
+          >
+            <Text style={styles.badgeText}>
+              {isLostReport ? report.status : '제보'}
+            </Text>
           </View>
           <Text style={styles.title}>{report.name}</Text>
           <Pressable
@@ -162,8 +177,8 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           <InfoRow label="털색" value={report.color} />
         </View>
         <View style={styles.section}>
-          <InfoRow label="발견일" value={report.date} />
-          <InfoRow label="발견장소" value={report.location} />
+          <InfoRow label={isLostReport ? '실종일' : '발견일'} value={report.date} />
+          <InfoRow label={isLostReport ? '실종장소' : '발견장소'} value={report.location} />
           <InfoRow label="연락처" value={getContactDisplayValue(report.contact)} />
         </View>
         <View style={styles.descriptionSection}>
@@ -172,7 +187,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
         </View>
         <FoundReportCommentList onEditFocus={revealCommentInput} />
       </ScrollView>
-      {!keyboardVisible ? (
+      {!keyboardVisible && !(isLostReport && report.status === '종료') ? (
         <View style={[styles.buttonWrap, { bottom: Math.max(insets.bottom, 12) }]}>
           <Button
             onPress={() => Alert.alert('채팅', '채팅 화면은 추후 연결될 예정입니다.')}
@@ -226,6 +241,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
+  lostBadge: { backgroundColor: '#FA705B' },
+  closedBadge: { backgroundColor: colors.gray400 },
   badgeText: { ...typography.bodyRegular14, color: colors.white },
   title: { ...typography.titleSemiBold18, color: colors.black, flex: 1 },
   section: {

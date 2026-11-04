@@ -30,6 +30,7 @@ export function RootNavigator() {
       <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="FoundReportDetail" component={FoundReportDetailScreen} />
+        <Stack.Screen name="LostReportDetail" component={FoundReportDetailScreen} />
         <Stack.Screen name="MockAdoptionActivity" component={MockAdoptionActivityScreen} />
         <Stack.Screen name="MockAdoptionSelection" component={MockAdoptionScreen} />
         <Stack.Screen name="PetList" component={PetListScreen} />
