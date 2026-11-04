@@ -20,6 +20,11 @@ class ArFloorViewManager : SimpleViewManager<ArFloorView>() {
     view.setActive(active)
   }
 
+  @ReactProp(name = "showTraversalDebug", defaultBoolean = true)
+  fun setShowTraversalDebug(view: ArFloorView, visible: Boolean) {
+    view.setShowTraversalDebug(visible)
+  }
+
   @ReactProp(name = "placementRequest", defaultInt = 0)
   fun setPlacementRequest(view: ArFloorView, request: Int) {
     view.requestPlacement(request)

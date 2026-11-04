@@ -37,6 +37,22 @@ export const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  areaToggle: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(17, 17, 17, 0.7)',
+    borderRadius: 22,
+    flexDirection: 'row',
+    minHeight: 44,
+    paddingHorizontal: 12,
+    position: 'absolute',
+    right: 20,
+  },
+  areaToggleLabel: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+    marginRight: 8,
+  },
   statusHint: {
     color: '#F4F4F4',
     fontSize: 13,

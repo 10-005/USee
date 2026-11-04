@@ -26,6 +26,7 @@ export type FloorTracking = {
 
 type ArFloorNativeProps = ViewProps & {
   active?: boolean;
+  showTraversalDebug?: boolean;
   placementRequest?: number;
   actionRequest?: string;
   onTracking?: (event: NativeSyntheticEvent<FloorTracking>) => void;

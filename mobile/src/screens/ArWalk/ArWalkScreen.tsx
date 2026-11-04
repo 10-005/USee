@@ -1,6 +1,6 @@
 import { useIsFocused } from '@react-navigation/native';
 import { useEffect, useState } from 'react';
-import { Pressable, Text, View, type NativeSyntheticEvent } from 'react-native';
+import { Pressable, Switch, Text, View, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCameraPermission } from 'react-native-vision-camera';
 
@@ -61,6 +61,7 @@ export function ArWalkScreen() {
   const [status, setStatus] = useState<FloorTrackingStatus | 'leading'>('searching');
   const [placementRequest, setPlacementRequest] = useState(0);
   const [canReposition, setCanReposition] = useState(true);
+  const [showTraversalDebug, setShowTraversalDebug] = useState(true);
 
   useEffect(() => {
     if (!hasPermission && canRequestPermission) {
@@ -87,6 +88,7 @@ export function ArWalkScreen() {
         <ArFloorView
           active={isFocused}
           placementRequest={placementRequest}
+          showTraversalDebug={showTraversalDebug}
           collapsable={false}
           style={styles.camera}
           onTracking={onTracking}
@@ -102,6 +104,18 @@ export function ArWalkScreen() {
           <Text style={styles.statusHint}>{copy.hint}</Text>
         </View>
       </View>
+      {hasPermission && (
+        <View style={[styles.areaToggle, { top: insets.top + 8 }]}>
+          <Text style={styles.areaToggleLabel}>영역 표시</Text>
+          <Switch
+            accessibilityLabel="이동 가능 영역 표시"
+            value={showTraversalDebug}
+            onValueChange={setShowTraversalDebug}
+            trackColor={{ false: '#666666', true: '#36875C' }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+      )}
       {hasPermission && canReposition && (
         <Pressable
           accessibilityRole="button"

@@ -29,6 +29,7 @@ class ArFloorView(
 ) : FrameLayout(reactContext) {
   private var sceneView: ARSceneView? = null
   private var traversalDebug: TraversalDebugView? = null
+  private var showTraversalDebug = true
   private var dogNode: DogModelNode? = null
   private var shadowNode: CylinderNode? = null
   private var leash: DogLeash? = null
@@ -61,6 +62,11 @@ class ArFloorView(
   fun requestPlacement(request: Int) {
     if (request > lastPlacementRequest) leader.requestPlacement()
     lastPlacementRequest = request
+  }
+
+  fun setShowTraversalDebug(visible: Boolean) {
+    showTraversalDebug = visible
+    traversalDebug?.visibility = if (visible) VISIBLE else GONE
   }
 
   override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
@@ -164,6 +170,7 @@ class ArFloorView(
     sceneView = view
     val debug = TraversalDebugView(context).apply {
       layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+      visibility = if (showTraversalDebug) VISIBLE else GONE
     }
     traversalDebug = debug
     addView(view)
@@ -300,7 +307,9 @@ class ArFloorView(
       }
     }
     sceneView?.planeRenderer?.isVisible = false
-    traversalDebug?.update(frame, floorAnalyzer?.latest, scratch.planes, scratch.walls, shown.dog, scratch.stops.summary(), scratch.userGround, scratch.depth)
+    if (showTraversalDebug) {
+      traversalDebug?.update(frame, floorAnalyzer?.latest, scratch.planes, scratch.walls, shown.dog, scratch.stops.summary(), scratch.userGround, scratch.depth)
+    }
     emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen, shown.dog.userMoving)
   }
 
