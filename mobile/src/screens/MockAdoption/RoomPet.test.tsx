@@ -85,3 +85,89 @@ test('releases the native renderer on blur and background, restores it when visi
   AppState.currentState = originalState;
   listener.mockRestore();
 });
+
+test('eats a treat in place for two seconds without walking', async () => {
+  const listener = jest.spyOn(AppState, 'addEventListener').mockReturnValue({ remove: jest.fn() });
+  jest.useFakeTimers();
+  const previous = AppState.currentState;
+  AppState.currentState = 'active';
+  mockFocused = true;
+  const timing = jest.spyOn(Animated, 'timing');
+  const onCareComplete = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <RoomPet
+        petId="dog-1"
+        care={{ kind: 'treat', offset: { x: 0, y: 0 } }}
+        onCareComplete={onCareComplete}
+      />,
+    );
+  });
+  const native = () => renderer.root.findByType('RoomPetView' as never);
+  expect(native().props.careMotion).toBe('treat');
+  expect(timing).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1999));
+  expect(onCareComplete).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1));
+  expect(onCareComplete).toHaveBeenCalledTimes(1);
+  expect(native().props.careMotion).toBe('');
+  await ReactTestRenderer.act(() => renderer.unmount());
+  timing.mockRestore();
+  listener.mockRestore();
+  AppState.currentState = previous;
+  jest.useRealTimers();
+});
+
+test('fetch runs to the toy, picks it up, carries it home and drops it', async () => {
+  jest.useFakeTimers();
+  const previous = AppState.currentState;
+  AppState.currentState = 'active';
+  mockFocused = true;
+  const listener = jest.spyOn(AppState, 'addEventListener').mockReturnValue({ remove: jest.fn() });
+  const completions: Array<(result: { finished: boolean }) => void> = [];
+  const timing = jest.spyOn(Animated, 'timing').mockReturnValue({
+    start: callback => {
+      if (callback) {completions.push(callback);}
+    },
+    stop: jest.fn(),
+    reset: jest.fn(),
+  });
+  const onCareComplete = jest.fn();
+  const onFetchPhase = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <RoomPet
+        petId="dog-1"
+        care={{ kind: 'fetch', offset: { x: -100, y: 80 } }}
+        onCareComplete={onCareComplete}
+        onFetchPhase={onFetchPhase}
+      />,
+    );
+  });
+  const native = () => renderer.root.findByType('RoomPetView' as never);
+  expect(native().props.careMotion).toBe('fetchRun');
+  await ReactTestRenderer.act(() => completions[0]({ finished: true }));
+  expect(native().props.careMotion).toBe('fetchPick');
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(799));
+  expect(onFetchPhase).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1));
+  expect(native().props.careMotion).toBe('fetchCarry');
+  expect(onFetchPhase).toHaveBeenLastCalledWith('carry');
+  expect(timing).toHaveBeenLastCalledWith(
+    expect.anything(),
+    expect.objectContaining({ toValue: { x: 0, y: 0 } }),
+  );
+  await ReactTestRenderer.act(() => completions[1]({ finished: true }));
+  expect(native().props.careMotion).toBe('fetchDrop');
+  expect(onFetchPhase).toHaveBeenLastCalledWith('drop');
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(700));
+  expect(onCareComplete).toHaveBeenCalledTimes(1);
+  expect(native().props.careMotion).toBe('');
+  await ReactTestRenderer.act(() => renderer.unmount());
+  listener.mockRestore();
+  timing.mockRestore();
+  AppState.currentState = previous;
+  jest.useRealTimers();
+});

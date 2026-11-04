@@ -1,3 +1,4 @@
+import { STORAGE_KEYS } from '../../constants/storageKeys';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getActiveMockAdoption,
@@ -5,9 +6,8 @@ import {
 } from '../../services/storage/mockAdoptionStorage';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import ReactTestRenderer from 'react-test-renderer';
-import { BackHandler } from 'react-native';
+import { Animated, BackHandler, StyleSheet } from 'react-native';
 import type { RootStackParamList } from '../../app/navigation/types';
-import { Button } from '../../components/common';
 import { MockAdoptionActivityScreen } from './MockAdoptionActivityScreen';
 import { PetStatsDialog } from './PetStatsDialog';
 
@@ -38,7 +38,7 @@ test('system back waits for the model surface to disappear and ignores repeated 
     navigation: { goBack },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
-  let renderer: ReactTestRenderer.ReactTestRenderer;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
   });
@@ -71,13 +71,12 @@ test('activity screen has one action connected to the existing AR walk', async (
     navigation: { navigate, goBack },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'cat-2' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
-  let renderer: ReactTestRenderer.ReactTestRenderer;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
   });
-  expect(renderer!.root.findAllByType(Button)).toHaveLength(1);
-  const button = renderer!.root.findByType(Button);
-  expect(button.props.children).toBe('AR 산책하기');
+  const button = renderer!.root.findAllByProps({ accessibilityLabel: 'AR 산책하기' })[0];
+  expect(button.props.accessibilityRole).toBe('button');
   await ReactTestRenderer.act(() => {
     renderer.root
       .findAll(node => typeof node.props.onLayout === 'function')[0]
@@ -130,7 +129,7 @@ test('quitting clears the session and replaces the main screen with fresh select
     navigation: { replace },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
-  let renderer: ReactTestRenderer.ReactTestRenderer;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
   });
@@ -157,7 +156,7 @@ test.each([
     navigation: {},
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
-  let renderer: ReactTestRenderer.ReactTestRenderer;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
   });
@@ -172,4 +171,174 @@ test.each([
   });
   expect(renderer!.root.findByType('RoomPet' as never).props.petId).toBe(petId);
   await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test.each(['food', 'water'] as const)(
+  'serves %s and refuses the fifth consecutive request',
+  async kind => {
+    jest.useFakeTimers();
+    const props = {
+      navigation: {},
+      route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+    } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />, {
+        createNodeMock: () => ({
+          measureInWindow: (callback: (...args: number[]) => void) => callback(20, 500, 80, 80),
+        }),
+      });
+    });
+    await ReactTestRenderer.act(() =>
+      renderer.root
+        .findAll(node => typeof node.props.onLayout === 'function')[0]
+        .props.onLayout({ nativeEvent: { layout: { width: 390, height: 844 } } }),
+    );
+    const bowl = () =>
+      renderer.root.findAllByProps({
+        accessibilityLabel: kind === 'food' ? '사료 그릇' : '물그릇',
+      })[0];
+    const pet = () => renderer.root.findByType('RoomPet' as never);
+    expect(bowl().props.accessibilityValue.text).toBe('빈 그릇');
+    for (let count = 0; count < 4; count++) {
+      await ReactTestRenderer.act(() => bowl().props.onPress());
+      expect(bowl().props.accessibilityValue.text).toBe('가득 찬 그릇');
+      await ReactTestRenderer.act(() => pet().props.onConsumed());
+      await ReactTestRenderer.act(() => pet().props.onCareComplete());
+    }
+    await ReactTestRenderer.act(() => bowl().props.onPress());
+    expect(pet().props.care).toBeNull();
+    expect(
+      renderer.root.findAllByProps({
+        children: kind === 'food' ? '지금은 배불러요' : '지금은 목마르지 않아요',
+      }).length,
+    ).toBeGreaterThan(0);
+    await ReactTestRenderer.act(() => renderer.unmount());
+    jest.useRealTimers();
+  },
+);
+
+test.each([
+  ['dog-1', '가득 찬 배변 패드', '빈 배변 패드'],
+  ['cat-2', '가득 찬 고양이 화장실', '빈 고양이 화장실'],
+])('cleans and persists the toilet for %s', async (petId, fullLabel, emptyLabel) => {
+  await AsyncStorage.clear();
+  const session = await startMockAdoption(petId, 35000);
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.MOCK_ADOPTION_TOILET,
+    JSON.stringify({
+      petId,
+      startedAt: session.startedAt,
+      cleanedAt: session.startedAt - 2000,
+      events: [session.startedAt - 1000, session.startedAt + 3600000],
+    }),
+  );
+  const props = {
+    navigation: {},
+    route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findAllByProps({ accessibilityLabel: fullLabel })[0].props.onPress();
+  });
+  expect(renderer.root.findAllByProps({ accessibilityLabel: emptyLabel }).length).toBeGreaterThan(
+    0,
+  );
+  expect(renderer.root.findAllByProps({ children: '깨끗해져서 좋아요!' }).length).toBeGreaterThan(
+    0,
+  );
+  await ReactTestRenderer.act(() => renderer.unmount());
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  expect(renderer.root.findAllByProps({ accessibilityLabel: fullLabel })).toHaveLength(0);
+  expect(renderer.root.findAllByProps({ accessibilityLabel: emptyLabel }).length).toBeGreaterThan(
+    0,
+  );
+  await ReactTestRenderer.act(() => renderer.unmount());
+  await AsyncStorage.clear();
+});
+
+test('bath fades out and back in for two seconds each while blocking input', async () => {
+  const timing = jest.spyOn(Animated, 'timing').mockImplementation((_value, config) => ({
+    start: callback => {
+      setTimeout(() => callback?.({ finished: true }), config.duration ?? 0);
+    },
+    stop: jest.fn(),
+    reset: jest.fn(),
+  }));
+  jest.useFakeTimers();
+  const goBack = jest.fn();
+  const props = {
+    navigation: { goBack },
+    route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() =>
+    renderer.root
+      .findAll(node => typeof node.props.onLayout === 'function')[0]
+      .props.onLayout({ nativeEvent: { layout: { width: 390, height: 844 } } }),
+  );
+  const model = () => renderer.root.findByType('RoomPet' as never);
+  const originalFrame = StyleSheet.flatten(model().props.style);
+  await ReactTestRenderer.act(() =>
+    renderer.root.findAllByProps({ accessibilityLabel: '목욕하기' })[0].props.onPress(),
+  );
+  expect(model().props.bathing).toBe(true);
+  expect(StyleSheet.flatten(model().props.style)).toEqual({
+    ...originalFrame,
+    top: originalFrame.top + 30,
+  });
+  expect(
+    renderer.root.findAllByProps({ importantForAccessibility: 'no-hide-descendants' }).length,
+  ).toBeGreaterThan(0);
+  expect(renderer.root.findAllByProps({ accessibilityLabel: '빈 배변 패드' })).toHaveLength(0);
+  await ReactTestRenderer.act(() =>
+    renderer.root.findAllByProps({ accessibilityLabel: '뒤로가기' })[0].props.onPress(),
+  );
+  expect(goBack).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(2999));
+  expect(model().props.bathing).toBe(true);
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1));
+  expect(model().props.bathing).toBe(true);
+  expect(timing).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ duration: 2000, toValue: 0 }),
+  );
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1999));
+  expect(model().props.bathing).toBe(true);
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1));
+  expect(model().props.bathing).toBe(false);
+  expect(StyleSheet.flatten(model().props.style)).toEqual(originalFrame);
+  expect(timing).toHaveBeenLastCalledWith(
+    expect.anything(),
+    expect.objectContaining({ duration: 2000, toValue: 1 }),
+  );
+  expect(
+    renderer.root.findAllByProps({ importantForAccessibility: 'no-hide-descendants' }).length,
+  ).toBeGreaterThan(0);
+  await ReactTestRenderer.act(() =>
+    renderer.root.findAllByProps({ accessibilityLabel: '뒤로가기' })[0].props.onPress(),
+  );
+  expect(goBack).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1999));
+  expect(
+    renderer.root.findAllByProps({ importantForAccessibility: 'no-hide-descendants' }).length,
+  ).toBeGreaterThan(0);
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1));
+  expect(
+    renderer.root.findAllByProps({ importantForAccessibility: 'no-hide-descendants' }),
+  ).toHaveLength(0);
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: '빈 배변 패드' }).length,
+  ).toBeGreaterThan(0);
+  await ReactTestRenderer.act(() => renderer.unmount());
+  timing.mockRestore();
+  jest.useRealTimers();
 });
