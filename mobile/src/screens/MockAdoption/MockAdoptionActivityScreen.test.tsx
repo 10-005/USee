@@ -6,7 +6,7 @@ import {
 } from '../../services/storage/mockAdoptionStorage';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import ReactTestRenderer from 'react-test-renderer';
-import { BackHandler } from 'react-native';
+import { Animated, BackHandler, StyleSheet } from 'react-native';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { MockAdoptionActivityScreen } from './MockAdoptionActivityScreen';
 import { PetStatsDialog } from './PetStatsDialog';
@@ -260,4 +260,85 @@ test.each([
   );
   await ReactTestRenderer.act(() => renderer.unmount());
   await AsyncStorage.clear();
+});
+
+test('bath fades out and back in for two seconds each while blocking input', async () => {
+  const timing = jest.spyOn(Animated, 'timing').mockImplementation((_value, config) => ({
+    start: callback => {
+      setTimeout(() => callback?.({ finished: true }), config.duration ?? 0);
+    },
+    stop: jest.fn(),
+    reset: jest.fn(),
+  }));
+  jest.useFakeTimers();
+  const goBack = jest.fn();
+  const props = {
+    navigation: { goBack },
+    route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() =>
+    renderer.root
+      .findAll(node => typeof node.props.onLayout === 'function')[0]
+      .props.onLayout({ nativeEvent: { layout: { width: 390, height: 844 } } }),
+  );
+  const model = () => renderer.root.findByType('RoomPet' as never);
+  const originalFrame = StyleSheet.flatten(model().props.style);
+  await ReactTestRenderer.act(() =>
+    renderer.root.findAllByProps({ accessibilityLabel: '목욕하기' })[0].props.onPress(),
+  );
+  expect(model().props.bathing).toBe(true);
+  expect(StyleSheet.flatten(model().props.style)).toEqual({
+    ...originalFrame,
+    top: originalFrame.top + 30,
+  });
+  expect(
+    renderer.root.findAllByProps({ importantForAccessibility: 'no-hide-descendants' }).length,
+  ).toBeGreaterThan(0);
+  expect(renderer.root.findAllByProps({ accessibilityLabel: '빈 배변 패드' })).toHaveLength(0);
+  await ReactTestRenderer.act(() =>
+    renderer.root.findAllByProps({ accessibilityLabel: '뒤로가기' })[0].props.onPress(),
+  );
+  expect(goBack).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(2999));
+  expect(model().props.bathing).toBe(true);
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1));
+  expect(model().props.bathing).toBe(true);
+  expect(timing).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ duration: 2000, toValue: 0 }),
+  );
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1999));
+  expect(model().props.bathing).toBe(true);
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1));
+  expect(model().props.bathing).toBe(false);
+  expect(StyleSheet.flatten(model().props.style)).toEqual(originalFrame);
+  expect(timing).toHaveBeenLastCalledWith(
+    expect.anything(),
+    expect.objectContaining({ duration: 2000, toValue: 1 }),
+  );
+  expect(
+    renderer.root.findAllByProps({ importantForAccessibility: 'no-hide-descendants' }).length,
+  ).toBeGreaterThan(0);
+  await ReactTestRenderer.act(() =>
+    renderer.root.findAllByProps({ accessibilityLabel: '뒤로가기' })[0].props.onPress(),
+  );
+  expect(goBack).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1999));
+  expect(
+    renderer.root.findAllByProps({ importantForAccessibility: 'no-hide-descendants' }).length,
+  ).toBeGreaterThan(0);
+  await ReactTestRenderer.act(() => jest.advanceTimersByTime(1));
+  expect(
+    renderer.root.findAllByProps({ importantForAccessibility: 'no-hide-descendants' }),
+  ).toHaveLength(0);
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: '빈 배변 패드' }).length,
+  ).toBeGreaterThan(0);
+  await ReactTestRenderer.act(() => renderer.unmount());
+  timing.mockRestore();
+  jest.useRealTimers();
 });
