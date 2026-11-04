@@ -13,6 +13,7 @@ export const initialReports = Array.from({ length: 23 }, (_, i) => ({
         : '칠곡군 석적읍 산책로',
   reportStatus: i % 4 === 3 ? '신고 종료' : '신고 진행 중',
   foundAt: `2026-10-${String(Math.min(19, 29 - i)).padStart(2, '0')}T18:30`,
+  createdAt: `2026-10-${String(Math.min(20, 30 - i)).padStart(2, '0')}T09:${String(i).padStart(2, '0')}`,
   traits: i % 2 ? '2살 · 수컷 · 갈색 · 3kg' : '0살 · 암컷 · 갈색 · 체중 미상',
   reporter: '해피맘',
   contact: '010-1234-1234',

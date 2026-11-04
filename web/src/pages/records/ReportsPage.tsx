@@ -52,8 +52,8 @@ export function ReportsPage() {
     )
     .sort((a, b) =>
       params.get('sort') === 'oldest'
-        ? a.foundAt.localeCompare(b.foundAt)
-        : b.foundAt.localeCompare(a.foundAt),
+        ? a.createdAt.localeCompare(b.createdAt)
+        : b.createdAt.localeCompare(a.createdAt),
     );
   const pageCount = Math.max(1, Math.ceil(rows.length / 8));
   const page = Math.min(pageCount, Math.max(1, Math.floor(Number(params.get('page'))) || 1));
@@ -179,8 +179,8 @@ export function ReportsPage() {
           value={params.get('sort') === 'oldest' ? 'oldest' : 'latest'}
           onChange={(e) => change('sort', e.target.value)}
         >
-          <option value="latest">발견일 최신순</option>
-          <option value="oldest">발견일 오래된순</option>
+          <option value="latest">최신순</option>
+          <option value="oldest">오래된 순</option>
         </FilterSelect>
       </div>
       <div className="reports-grid">

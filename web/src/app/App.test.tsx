@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { App } from '@/app/App';
 import { AppProviders } from '@/app/providers/AppProviders';
+import { initialReports } from '@/pages/records/reports-data';
 import { useUiStore } from '@/shared/model/ui-store';
 
 function renderApp(path: string) {
@@ -46,5 +47,39 @@ describe('앱 탐색', () => {
     expect(screen.getByRole('heading', { name: '페이지를 찾을 수 없습니다' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: '홈으로 돌아가기' }));
     expect(screen.getByRole('heading', { name: '보호소 홈' })).toBeInTheDocument();
+  });
+
+  it('발견 신고 모든 페이지를 게시 시각 기준으로 정렬하고 정렬 변경 시 첫 페이지로 돌아간다', () => {
+    renderApp('/reports');
+    const sort = screen.getByRole('combobox', { name: '정렬' });
+    const oldestFirst = [...initialReports]
+      .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+      .map((report) => report.id);
+
+    function readPages() {
+      const ids: string[] = [];
+      expect(screen.getByRole('button', { name: '1페이지' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      for (let page = 1; ; page++) {
+        for (const card of screen.getAllByRole('article')) {
+          const link = card.querySelector('a')!;
+          ids.push((link.getAttribute('aria-label') ?? link.href).match(/F-\d+/)![0]);
+        }
+        const next = screen.queryByRole('button', { name: `${page + 1}페이지` });
+        if (!next) return ids;
+        fireEvent.click(next);
+      }
+    }
+
+    const latestFirst = [...oldestFirst].reverse();
+    expect(sort).toHaveDisplayValue('최신순');
+    expect(readPages()).toEqual(latestFirst);
+    fireEvent.change(sort, { target: { value: 'oldest' } });
+    expect(sort).toHaveDisplayValue('오래된 순');
+    expect(readPages()).toEqual(oldestFirst);
+    fireEvent.change(sort, { target: { value: 'latest' } });
+    expect(readPages()).toEqual(latestFirst);
   });
 });
