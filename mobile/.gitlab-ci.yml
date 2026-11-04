@@ -1,3 +1,4 @@
+# 주의: MR 을 Squash 또는 Fast-forward 로 머지하면 머지 커밋이 없어 알림이 가지 않음
 # 모바일 CI: develop-mobile 에 MR 이 머지되면 Mattermost 채널에 알림
 # 필요한 CI 변수: MM_WEBHOOK_MOBILE (Masked and hidden)
 
