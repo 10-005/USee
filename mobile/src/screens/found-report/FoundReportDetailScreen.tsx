@@ -25,22 +25,23 @@ import DotsIcon from '../../assets/icons/common/dots-vertical.svg';
 import PostDeleteIcon from '../../assets/icons/common/post-delete.svg';
 import PostEditIcon from '../../assets/icons/common/post-edit.svg';
 import PostStatusIcon from '../../assets/icons/common/post-status.svg';
+import ReportIcon from '../../assets/icons/common/report.svg';
+import ReportCloseIcon from '../../assets/icons/common/report-close.svg';
 import StatusPawIcon from '../../assets/icons/common/status-paw.svg';
 import { AppHeader, Button } from '../../components/common';
-import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import {
-  type ReportProgressStatus,
-  useReportStatusStore,
-} from '../../stores/reportStatusStore';
+  ContentReportModal,
+  type ContentReportTarget,
+} from '../../components/report/ContentReportModal';
+import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
+import { useContentReportStore } from '../../stores/contentReportStore';
+import { type ReportProgressStatus, useReportStatusStore } from '../../stores/reportStatusStore';
 import { colors, radius, typography } from '../../theme';
 import { FoundReportCommentList } from './FoundReportCommentList';
 import { getFoundReport } from './data';
 import { getLostReport } from '../lost-report/data';
 
-type Props = NativeStackScreenProps<
-  RootStackParamList,
-  'FoundReportDetail' | 'LostReportDetail'
->;
+type Props = NativeStackScreenProps<RootStackParamList, 'FoundReportDetail' | 'LostReportDetail'>;
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -64,8 +65,11 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const { width } = useWindowDimensions();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [viewerMenuVisible, setViewerMenuVisible] = useState(false);
+  const [reportTarget, setReportTarget] = useState<ContentReportTarget | null>(null);
   const [page, setPage] = useState(0);
   const [pendingStatus, setPendingStatus] = useState<ReportProgressStatus | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<ReportProgressStatus>('active');
   const [statusSheetVisible, setStatusSheetVisible] = useState(false);
   const listRef = useRef<FlatList>(null);
   const scrollRef = useRef<ScrollViewInstance>(null);
@@ -73,6 +77,8 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
   const storedStatus = useReportStatusStore(state => state.statusById[report.id]);
   const setReportStatus = useReportStatusStore(state => state.setStatus);
+  const contentReports = useContentReportStore(state => state.reports);
+  const addContentReport = useContentReportStore(state => state.addReport);
   const progressStatus =
     storedStatus ?? (report.status === '완료' || report.status === '종료' ? 'completed' : 'active');
   const isCompleted = progressStatus === 'completed';
@@ -81,8 +87,8 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
       ? '종료'
       : '실종'
     : isCompleted
-      ? '완료'
-      : '제보';
+    ? '완료'
+    : '제보';
 
   const onMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     setPage(Math.round(event.nativeEvent.contentOffset.x / width));
@@ -110,12 +116,12 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     }, 100);
   };
 
-  const requestStatusChange = (nextStatus: ReportProgressStatus) => {
+  const requestStatusChange = () => {
     setStatusSheetVisible(false);
-    if (nextStatus === progressStatus) {
+    if (selectedStatus === progressStatus) {
       return;
     }
-    setPendingStatus(nextStatus);
+    setPendingStatus(selectedStatus);
   };
 
   const confirmStatusChange = () => {
@@ -134,11 +140,15 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             accessibilityLabel="게시글 메뉴"
             accessibilityRole="button"
             hitSlop={10}
-            onPress={() =>
-              report.isMine
-                ? setMenuVisible(current => !current)
-                : Alert.alert('게시글 메뉴', '신고 및 차단 기능은 추후 연결될 예정입니다.')
-            }
+            onPress={() => {
+              if (report.isMine) {
+                setMenuVisible(current => !current);
+                setViewerMenuVisible(false);
+              } else {
+                setViewerMenuVisible(current => !current);
+                setMenuVisible(false);
+              }
+            }}
             style={styles.headerMenuButton}
           >
             <DotsIcon height={24} width={24} />
@@ -195,9 +205,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
               isCompleted && styles.closedBadge,
             ]}
           >
-            <Text style={styles.badgeText}>
-              {displayStatus}
-            </Text>
+            <Text style={styles.badgeText}>{displayStatus}</Text>
           </View>
           <Text style={styles.title}>{report.name}</Text>
           <Pressable
@@ -228,7 +236,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
           <Text style={styles.description}>{report.description}</Text>
         </View>
-        <FoundReportCommentList onEditFocus={revealCommentInput} />
+        <FoundReportCommentList onEditFocus={revealCommentInput} reportId={report.id} />
       </ScrollView>
       {!keyboardVisible && !isCompleted ? (
         <View style={[styles.buttonWrap, { bottom: Math.max(insets.bottom, 12) }]}>
@@ -261,6 +269,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             <Pressable
               onPress={() => {
                 setMenuVisible(false);
+                setSelectedStatus(progressStatus);
                 setStatusSheetVisible(true);
               }}
               style={({ pressed }) => [styles.postMenuItem, pressed && styles.pressed]}
@@ -281,30 +290,86 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           </View>
         </>
       ) : null}
+      {viewerMenuVisible ? (
+        <>
+          <Pressable
+            accessibilityLabel="게시글 메뉴 닫기"
+            onPress={() => setViewerMenuVisible(false)}
+            style={styles.menuBackdrop}
+          />
+          <View style={styles.viewerPostMenu}>
+            <Pressable
+              onPress={() => {
+                setViewerMenuVisible(false);
+                setReportTarget({ id: `post:${report.id}`, type: 'post' });
+              }}
+              style={({ pressed }) => [styles.postMenuItem, pressed && styles.pressed]}
+            >
+              <ReportIcon height={22} width={22} />
+              <Text style={styles.reportMenuText}>신고하기</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : null}
+      <ContentReportModal
+        alreadyReported={contentReports.some(item => item.targetId === reportTarget?.id)}
+        onClose={() => setReportTarget(null)}
+        onSubmit={reason => {
+          if (!reportTarget) {
+            return;
+          }
+          if (contentReports.some(item => item.targetId === reportTarget.id)) {
+            setReportTarget(null);
+            return;
+          }
+          addContentReport({ reason, targetId: reportTarget.id, targetType: reportTarget.type });
+          setReportTarget(null);
+        }}
+        target={reportTarget}
+      />
       <Modal
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setStatusSheetVisible(false)}
         transparent
         visible={statusSheetVisible}
       >
-        <Pressable onPress={() => setStatusSheetVisible(false)} style={styles.sheetBackdrop}>
+        <Pressable onPress={() => setStatusSheetVisible(false)} style={styles.statusModalBackdrop}>
           <Pressable
             accessibilityViewIsModal
             onPress={event => event.stopPropagation()}
-            style={[styles.statusSheet, { paddingBottom: Math.max(insets.bottom, 24) }]}
+            style={styles.statusModal}
           >
-            <Text style={styles.statusSheetTitle}>상태</Text>
-            <View style={styles.statusDivider} />
+            <View style={styles.statusModalHeader}>
+              <Text style={styles.statusModalTitle}>상태 변경</Text>
+              <Pressable
+                accessibilityLabel="상태 변경 창 닫기"
+                hitSlop={10}
+                onPress={() => setStatusSheetVisible(false)}
+              >
+                <ReportCloseIcon height={16} width={16} />
+              </Pressable>
+            </View>
+            <Text style={styles.statusModalGuide}>변경할 상태를 선택해주세요</Text>
             <StatusOption
-              active={progressStatus === 'active'}
+              active={selectedStatus === 'active'}
               label="진행 중"
-              onPress={() => requestStatusChange('active')}
+              onPress={() => setSelectedStatus('active')}
             />
             <StatusOption
-              active={progressStatus === 'completed'}
+              active={selectedStatus === 'completed'}
               label="완료"
-              onPress={() => requestStatusChange('completed')}
+              onPress={() => setSelectedStatus('completed')}
             />
+            <Pressable
+              disabled={selectedStatus === progressStatus}
+              onPress={requestStatusChange}
+              style={[
+                styles.statusChangeButton,
+                selectedStatus === progressStatus && styles.statusChangeButtonDisabled,
+              ]}
+            >
+              <Text style={styles.statusChangeButtonText}>변경하기</Text>
+            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
@@ -357,9 +422,15 @@ function StatusOption({
       accessibilityRole="radio"
       accessibilityState={{ checked: active }}
       onPress={onPress}
-      style={({ pressed }) => [styles.statusOption, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.statusOption,
+        active && styles.statusOptionActive,
+        pressed && styles.pressed,
+      ]}
     >
-      <Text style={[styles.statusOptionText, active && styles.statusOptionActiveText]}>{label}</Text>
+      <Text style={[styles.statusOptionText, active && styles.statusOptionActiveText]}>
+        {label}
+      </Text>
       {active ? <StatusPawIcon /> : null}
     </Pressable>
   );
@@ -455,8 +526,21 @@ const styles = StyleSheet.create({
     elevation: 7,
     overflow: 'hidden',
     position: 'absolute',
-    right: 31,
-    top: 48,
+    right: 12,
+    top: 80,
+    width: 160,
+    zIndex: 9,
+  },
+  viewerPostMenu: {
+    backgroundColor: colors.white,
+    borderColor: '#D9DBE3',
+    borderRadius: 10,
+    borderWidth: 1,
+    elevation: 7,
+    overflow: 'hidden',
+    position: 'absolute',
+    right: 12,
+    top: 80,
     width: 160,
     zIndex: 9,
   },
@@ -468,32 +552,61 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   postMenuText: { ...typography.bodyRegular16, color: '#262B33' },
+  reportMenuText: { ...typography.bodyRegular16, color: '#FA705B' },
   deleteMenuText: { ...typography.bodyRegular16, color: '#FA705B' },
-  sheetBackdrop: { flex: 1, justifyContent: 'flex-end' },
-  statusSheet: {
+  statusModalBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  statusModal: {
     backgroundColor: colors.white,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
+    borderRadius: 18,
     elevation: 12,
-    minHeight: 185,
-    paddingBottom: 24,
-    paddingHorizontal: 22,
+    padding: 24,
     shadowColor: colors.black,
     shadowOffset: { height: 0, width: 0 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
+    width: '100%',
   },
-  statusSheetTitle: {
-    ...typography.bodySemiBold16,
-    color: colors.black,
-    paddingBottom: 16,
-    paddingTop: 16,
-    textAlign: 'center',
+  statusModalHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
-  statusDivider: { backgroundColor: colors.gray200, height: 1 },
-  statusOption: { alignItems: 'center', flexDirection: 'row', gap: 10, height: 42, paddingLeft: 8 },
-  statusOptionText: { ...typography.bodyRegular16, color: colors.gray700 },
+  statusModalTitle: {
+    ...typography.titleSemiBold18,
+    color: colors.gray800,
+    fontSize: 22,
+    lineHeight: 28,
+  },
+  statusModalGuide: { ...typography.bodyRegular14, color: colors.gray500, marginBottom: 14, marginTop: 16 },
+  statusOption: {
+    alignItems: 'center',
+    backgroundColor: colors.gray10,
+    borderRadius: 8,
+    flexDirection: 'row',
+    height: 44,
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingHorizontal: 12,
+  },
+  statusOptionText: { ...typography.bodyRegular14, color: colors.gray600 },
+  statusOptionActive: { backgroundColor: 'rgba(0, 157, 88, 0.1)' },
   statusOptionActiveText: { color: colors.green400 },
+  statusChangeButton: {
+    alignItems: 'center',
+    backgroundColor: colors.green400,
+    borderRadius: 8,
+    height: 48,
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  statusChangeButtonDisabled: { backgroundColor: colors.gray200 },
+  statusChangeButtonText: { ...typography.bodySemiBold16, color: colors.white },
   confirmBackdrop: {
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.3)',

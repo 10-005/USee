@@ -6,8 +6,8 @@ import {
 } from '../comments';
 
 describe('found report comments', () => {
-  it('최상위 댓글 개수를 계산한다', () => {
-    expect(getCommentCount(foundReportComments)).toBe(5);
+  it('댓글과 답글을 모두 포함한 개수를 계산한다', () => {
+    expect(getCommentCount(foundReportComments)).toBe(7);
   });
 
   it('삭제된 댓글은 안내 문구로 표시한다', () => {

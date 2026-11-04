@@ -67,7 +67,7 @@ export const foundReportComments: FoundReportComment[] = [
 ];
 
 export function getCommentCount(comments: FoundReportComment[]) {
-  return comments.length;
+  return comments.reduce((count, comment) => count + 1 + comment.replies.length, 0);
 }
 
 export function getCommentContent(comment: FoundReportReply) {

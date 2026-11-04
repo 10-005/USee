@@ -18,11 +18,17 @@ import CancelIcon from '../../assets/icons/common/cancel.svg';
 import ChatIcon from '../../assets/icons/common/chat.svg';
 import DotsIcon from '../../assets/icons/common/dots-vertical.svg';
 import PlusIcon from '../../assets/icons/common/plus.svg';
+import ReportIcon from '../../assets/icons/common/report.svg';
 import XCircleIcon from '../../assets/icons/common/x-circle.svg';
 import PetEditIcon from '../../assets/icons/mypage/pet-edit.svg';
 import PetTrashIcon from '../../assets/icons/mypage/pet-trash.svg';
 import CameraIcon from '../../assets/icons/mypage/photo-camera.svg';
 import LibraryIcon from '../../assets/icons/mypage/photo-library.svg';
+import {
+  ContentReportModal,
+  type ContentReportTarget,
+} from '../../components/report/ContentReportModal';
+import { useContentReportStore } from '../../stores/contentReportStore';
 import { colors, typography } from '../../theme';
 import { validatePetImage } from '../MyPage/petRegistration';
 import {
@@ -79,7 +85,10 @@ function CommentComposer({
         selectionLimit: 1,
       });
       if (result.errorCode) {
-        Alert.alert('사진 보관함을 열 수 없어요', result.errorMessage ?? '잠시 후 다시 시도해주세요.');
+        Alert.alert(
+          '사진 보관함을 열 수 없어요',
+          result.errorMessage ?? '잠시 후 다시 시도해주세요.',
+        );
         return;
       }
       if (!result.didCancel) {
@@ -219,6 +228,7 @@ type CommentItemProps = {
   onEditFocus?: (inputHandle: number) => void;
   onImagePress: (imageUri: string) => void;
   onMenu: () => void;
+  onReport: () => void;
   onReply: () => void;
   reply?: boolean;
 };
@@ -232,6 +242,7 @@ function CommentItem({
   onEditFocus,
   onImagePress,
   onMenu,
+  onReport,
   onReply,
   reply = false,
 }: CommentItemProps) {
@@ -281,13 +292,11 @@ function CommentItem({
               </Pressable>
             </View>
           </View>
-        ) : (
-          deleted || hasContent ? (
-            <Text style={[styles.content, deleted && styles.deletedContent]}>
-              {getCommentContent(comment)}
-            </Text>
-          ) : null
-        )}
+        ) : deleted || hasContent ? (
+          <Text style={[styles.content, deleted && styles.deletedContent]}>
+            {getCommentContent(comment)}
+          </Text>
+        ) : null}
         {comment.imageUri ? (
           <Pressable
             accessibilityLabel="댓글 이미지 크게 보기"
@@ -340,6 +349,20 @@ function CommentItem({
           </Pressable>
         </View>
       ) : null}
+      {menuOpen && !comment.isMine ? (
+        <View style={styles.viewerCommentMenu}>
+          <Pressable
+            onPress={event => {
+              event.stopPropagation();
+              onReport();
+            }}
+            style={styles.myCommentMenuItem}
+          >
+            <ReportIcon height={20} width={20} />
+            <Text style={styles.reportMenuText}>신고하기</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -353,8 +376,9 @@ type CommentThreadProps = {
   onEdit: (commentId: string, content: string) => void;
   onEditFocus?: (inputHandle: number) => void;
   onImagePress: (imageUri: string) => void;
-  onMenu: (comment: FoundReportReply) => void;
+  onMenu: (comment: FoundReportReply, isReply: boolean) => void;
   onPhotoMenuChange: (composerId: string | null) => void;
+  onReport: (comment: FoundReportReply, isReply: boolean) => void;
   onReply: (commentId: string | null) => void;
   photoMenuId: string | null;
   replyTargetId: string | null;
@@ -371,6 +395,7 @@ function CommentThread({
   onImagePress,
   onMenu,
   onPhotoMenuChange,
+  onReport,
   onReply,
   replyTargetId,
   photoMenuId,
@@ -385,7 +410,8 @@ function CommentThread({
       onEdit={content => onEdit(reply.id, content)}
       onEditFocus={onEditFocus}
       onImagePress={onImagePress}
-      onMenu={() => onMenu(reply)}
+      onMenu={() => onMenu(reply, isReply)}
+      onReport={() => onReport(reply, isReply)}
       onReply={() => onReply(comment.id)}
       reply={isReply}
     />
@@ -412,9 +438,10 @@ function CommentThread({
 
 type FoundReportCommentListProps = {
   onEditFocus?: (inputHandle: number) => void;
+  reportId: string;
 };
 
-export function FoundReportCommentList({ onEditFocus }: FoundReportCommentListProps) {
+export function FoundReportCommentList({ onEditFocus, reportId }: FoundReportCommentListProps) {
   const insets = useSafeAreaInsets();
   const [comments, dispatch] = useReducer(commentReducer, foundReportComments);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -422,7 +449,10 @@ export function FoundReportCommentList({ onEditFocus }: FoundReportCommentListPr
   const [menuId, setMenuId] = useState<string | null>(null);
   const [photoMenuId, setPhotoMenuId] = useState<string | null>(null);
   const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
+  const [reportTarget, setReportTarget] = useState<ContentReportTarget | null>(null);
   const [viewerImageUri, setViewerImageUri] = useState<string | null>(null);
+  const contentReports = useContentReportStore(state => state.reports);
+  const addContentReport = useContentReportStore(state => state.addReport);
 
   const addComment = (content: string, imageUri?: string) => {
     dispatch({
@@ -455,13 +485,19 @@ export function FoundReportCommentList({ onEditFocus }: FoundReportCommentListPr
     setReplyTargetId(null);
   };
 
-  const openMenu = (comment: FoundReportReply) => {
+  const openMenu = (comment: FoundReportReply, _isReply: boolean) => {
     setPhotoMenuId(null);
-    if (!comment.isMine) {
-      Alert.alert('댓글 메뉴', '댓글 신고 및 차단 기능은 추후 연결될 예정입니다.');
-      return;
-    }
     setMenuId(current => (current === comment.id ? null : comment.id));
+  };
+
+  const openReport = (comment: FoundReportReply, isReply: boolean) => {
+    setMenuId(null);
+    setReportTarget({
+      excerpt: getCommentContent(comment),
+      id: `${reportId}:${isReply ? 'reply' : 'comment'}:${comment.id}`,
+      nickname: comment.nickname,
+      type: isReply ? 'reply' : 'comment',
+    });
   };
 
   const changePhotoMenu = (composerId: string | null) => {
@@ -510,6 +546,7 @@ export function FoundReportCommentList({ onEditFocus }: FoundReportCommentListPr
           onImagePress={setViewerImageUri}
           onMenu={openMenu}
           onPhotoMenuChange={changePhotoMenu}
+          onReport={openReport}
           onReply={commentId => {
             setEditingId(null);
             setPhotoMenuId(null);
@@ -520,6 +557,22 @@ export function FoundReportCommentList({ onEditFocus }: FoundReportCommentListPr
           replyTargetId={replyTargetId}
         />
       ))}
+      <ContentReportModal
+        alreadyReported={contentReports.some(item => item.targetId === reportTarget?.id)}
+        onClose={() => setReportTarget(null)}
+        onSubmit={reason => {
+          if (!reportTarget) {
+            return;
+          }
+          if (contentReports.some(item => item.targetId === reportTarget.id)) {
+            setReportTarget(null);
+            return;
+          }
+          addContentReport({ reason, targetId: reportTarget.id, targetType: reportTarget.type });
+          setReportTarget(null);
+        }}
+        target={reportTarget}
+      />
       <Modal
         animationType="fade"
         onRequestClose={() => setDeleteTargetId(null)}
@@ -531,7 +584,10 @@ export function FoundReportCommentList({ onEditFocus }: FoundReportCommentListPr
             <Text style={styles.modalTitle}>댓글을 삭제하시겠습니까?</Text>
             <Text style={styles.modalDescription}>삭제 후에는 해당 정보를 복구할 수 없습니다.</Text>
             <View style={styles.modalActions}>
-              <Pressable onPress={() => setDeleteTargetId(null)} style={[styles.modalButton, styles.cancelButton]}>
+              <Pressable
+                onPress={() => setDeleteTargetId(null)}
+                style={[styles.modalButton, styles.cancelButton]}
+              >
                 <Text style={styles.modalButtonText}>취소하기</Text>
               </Pressable>
               <Pressable
@@ -564,7 +620,11 @@ export function FoundReportCommentList({ onEditFocus }: FoundReportCommentListPr
         >
           <Pressable onPress={event => event.stopPropagation()} style={styles.imageViewerContent}>
             {viewerImageUri ? (
-              <Image resizeMode="contain" source={{ uri: viewerImageUri }} style={styles.viewerImage} />
+              <Image
+                resizeMode="contain"
+                source={{ uri: viewerImageUri }}
+                style={styles.viewerImage}
+              />
             ) : null}
           </Pressable>
           <Pressable
@@ -586,20 +646,60 @@ const styles = StyleSheet.create({
   title: { ...typography.bodyRegular14, color: colors.black },
   composerWrap: { marginBottom: 18, marginTop: 10, position: 'relative', zIndex: 5 },
   compactComposerWrap: { marginLeft: 44, marginTop: 0 },
-  commentInput: { alignItems: 'center', backgroundColor: '#F1F1F1', borderColor: colors.transparent, borderRadius: 8, borderWidth: 1, flexDirection: 'row', minHeight: 48, paddingHorizontal: 16 },
+  commentInput: {
+    alignItems: 'center',
+    backgroundColor: '#F1F1F1',
+    borderColor: colors.transparent,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    minHeight: 48,
+    paddingHorizontal: 16,
+  },
   commentInputFocused: { borderColor: colors.green400 },
-  commentTextInput: { ...typography.bodyRegular16, color: colors.gray800, flex: 1, maxHeight: 88, minHeight: 40, paddingHorizontal: 10, paddingVertical: 9 },
+  commentTextInput: {
+    ...typography.bodyRegular16,
+    color: colors.gray800,
+    flex: 1,
+    maxHeight: 88,
+    minHeight: 40,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
   imagePreviewWrap: { alignSelf: 'flex-start', marginTop: 8 },
   imageThumbnailWrap: { height: 76, position: 'relative', width: 76 },
   imagePreview: { borderRadius: 8, height: 76, width: 76 },
   removeImage: { position: 'absolute', right: -7, top: -7 },
   imageGuide: { ...typography.captionRegular10, color: colors.gray400, marginTop: 5 },
-  photoMenu: { backgroundColor: colors.white, borderColor: colors.gray200, borderRadius: 10, borderWidth: 1, left: 0, paddingVertical: 6, position: 'absolute', top: 52, width: 154, zIndex: 20 },
-  photoMenuItem: { alignItems: 'center', flexDirection: 'row', gap: 12, height: 44, paddingHorizontal: 14 },
+  photoMenu: {
+    backgroundColor: colors.white,
+    borderColor: colors.gray200,
+    borderRadius: 10,
+    borderWidth: 1,
+    left: 0,
+    paddingVertical: 6,
+    position: 'absolute',
+    top: 52,
+    width: 154,
+    zIndex: 20,
+  },
+  photoMenuItem: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    height: 44,
+    paddingHorizontal: 14,
+  },
   photoMenuText: { ...typography.bodyRegular14, color: colors.gray700 },
   replyCancel: { alignSelf: 'flex-end', paddingHorizontal: 4, paddingTop: 6 },
   replyCancelText: { ...typography.captionRegular10, color: colors.gray400 },
-  comment: { alignItems: 'flex-start', flexDirection: 'row', marginBottom: 16, minHeight: 62, position: 'relative' },
+  comment: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    marginBottom: 16,
+    minHeight: 62,
+    position: 'relative',
+  },
   deletedComment: { minHeight: 0, paddingVertical: 10 },
   reply: { marginLeft: 40 },
   avatar: { borderRadius: 20, height: 40, width: 40 },
@@ -607,35 +707,125 @@ const styles = StyleSheet.create({
   commentBody: { flex: 1, marginLeft: 7, minWidth: 0 },
   deletedCommentBody: { marginLeft: 0 },
   commentMeta: { alignItems: 'flex-start', flexDirection: 'row', minHeight: 15 },
-  nickname: { color: '#636363', fontFamily: 'Pretendard-Medium', fontSize: 12, includeFontPadding: false, lineHeight: 15, maxWidth: 150 },
+  nickname: {
+    color: '#636363',
+    fontFamily: 'Pretendard-Medium',
+    fontSize: 12,
+    includeFontPadding: false,
+    lineHeight: 15,
+    maxWidth: 150,
+  },
   myNickname: { color: colors.green400 },
-  createdAt: { ...typography.captionRegular10, color: '#C1C1C1', includeFontPadding: false, marginLeft: 6, marginTop: 1 },
+  createdAt: {
+    ...typography.captionRegular10,
+    color: '#C1C1C1',
+    includeFontPadding: false,
+    marginLeft: 6,
+    marginTop: 1,
+  },
   content: { ...typography.bodyRegular14, color: colors.black, marginTop: 5 },
   deletedContent: { color: colors.gray400, marginTop: 0 },
   commentImageWrap: { borderRadius: 8, height: 120, marginTop: 8, overflow: 'hidden', width: 120 },
   commentImage: { height: '100%', width: '100%' },
   imageOnlyComment: { marginTop: 4 },
-  replyAction: { ...typography.captionRegular10, color: '#C1C1C1', fontFamily: 'Pretendard-SemiBold', marginTop: 5 },
+  replyAction: {
+    ...typography.captionRegular10,
+    color: '#C1C1C1',
+    fontFamily: 'Pretendard-SemiBold',
+    marginTop: 5,
+  },
   commentMenu: { alignItems: 'center', height: 28, justifyContent: 'center', width: 20 },
-  myCommentMenu: { backgroundColor: colors.white, borderColor: colors.gray200, borderRadius: 10, borderWidth: 1, paddingVertical: 6, position: 'absolute', right: 0, top: 24, width: 142, zIndex: 10 },
-  myCommentMenuItem: { alignItems: 'center', flexDirection: 'row', gap: 12, height: 42, paddingHorizontal: 14 },
+  myCommentMenu: {
+    backgroundColor: colors.white,
+    borderColor: colors.gray200,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingVertical: 6,
+    position: 'absolute',
+    right: 0,
+    top: 24,
+    width: 142,
+    zIndex: 10,
+  },
+  viewerCommentMenu: {
+    backgroundColor: colors.white,
+    borderColor: colors.gray200,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingVertical: 6,
+    position: 'absolute',
+    right: 0,
+    top: 24,
+    width: 142,
+    zIndex: 10,
+  },
+  myCommentMenuItem: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    height: 42,
+    paddingHorizontal: 14,
+  },
   myCommentMenuText: { ...typography.bodyRegular14, color: colors.gray700 },
+  reportMenuText: { ...typography.bodyRegular14, color: '#FA705B' },
   deleteMenuText: { ...typography.bodyRegular14, color: '#FA705B' },
   editArea: { marginTop: 5 },
-  editInputRow: { alignItems: 'center', borderColor: colors.green400, borderRadius: 8, borderWidth: 1, flexDirection: 'row', minHeight: 44, paddingHorizontal: 10 },
-  editInput: { ...typography.bodyRegular14, color: colors.black, flex: 1, maxHeight: 88, minHeight: 40, paddingRight: 8, paddingVertical: 8 },
+  editInputRow: {
+    alignItems: 'center',
+    borderColor: colors.green400,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    minHeight: 44,
+    paddingHorizontal: 10,
+  },
+  editInput: {
+    ...typography.bodyRegular14,
+    color: colors.black,
+    flex: 1,
+    maxHeight: 88,
+    minHeight: 40,
+    paddingRight: 8,
+    paddingVertical: 8,
+  },
   editSendDisabled: { opacity: 0.35 },
-  modalBackdrop: { alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.32)', flex: 1, justifyContent: 'center', paddingHorizontal: 16 },
+  modalBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.32)',
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
   deleteModal: { backgroundColor: colors.white, borderRadius: 18, padding: 18, width: '100%' },
   modalTitle: { ...typography.titleSemiBold18, color: colors.gray800 },
   modalDescription: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 14 },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
-  modalButton: { alignItems: 'center', borderRadius: 8, flex: 1, height: 42, justifyContent: 'center' },
+  modalButton: {
+    alignItems: 'center',
+    borderRadius: 8,
+    flex: 1,
+    height: 42,
+    justifyContent: 'center',
+  },
   cancelButton: { backgroundColor: colors.gray200 },
   deleteButton: { backgroundColor: '#FA705B' },
   modalButtonText: { ...typography.bodySemiBold16, color: colors.white },
-  imageViewerBackdrop: { alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.88)', flex: 1, justifyContent: 'center' },
+  imageViewerBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.88)',
+    flex: 1,
+    justifyContent: 'center',
+  },
   imageViewerContent: { height: '82%', width: '100%' },
   viewerImage: { height: '100%', width: '100%' },
-  imageViewerClose: { alignItems: 'center', backgroundColor: colors.white, borderRadius: 20, height: 40, justifyContent: 'center', position: 'absolute', right: 20, width: 40 },
+  imageViewerClose: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    height: 40,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 20,
+    width: 40,
+  },
 });
