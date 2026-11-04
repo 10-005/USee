@@ -11,10 +11,11 @@ const regions = [...new Set(initialReports.map((r) => r.location.split(' ')[0]))
 const periods = [7, 30, 90];
 
 const reportTabs = [
-  ['', '전체'],
-  ['new', '미접수'],
-  ['active', '진행 중·완료'],
-  ['closed', '실패·취소 이력'],
+  ['', '전체', ''],
+  ['new', '미접수', '완료'],
+  ['active', '진행 중', '진행 중'],
+  ['closed', '실패·취소', '실패'],
+  ['completed', '완료', ''],
 ] as const;
 
 export function ReportsPage() {
@@ -34,12 +35,12 @@ export function ReportsPage() {
     ...report,
     rescue: rescues.find((r) => r.reportId === report.id || r.source === `신고 #${report.id}`),
   }));
-  const reportKind = (report: (typeof reports)[number]) =>
-    !report.rescue
-      ? 'new'
-      : ['진행 중', '완료'].includes(report.rescue.status)
-        ? 'active'
-        : 'closed';
+  const reportKind = (report: (typeof reports)[number]) => {
+    if (!report.rescue) return 'new';
+    if (report.rescue.status === '진행 중') return 'active';
+    if (report.rescue.status === '완료') return 'completed';
+    return 'closed';
+  };
   const rows = reports
     .filter(
       (r) =>
@@ -68,7 +69,7 @@ export function ReportsPage() {
   return (
     <DemoPage title="발견 신고 목록" hideTitle>
       <div className="record-status-filters report-tabs" role="group" aria-label="접수 상태">
-        {reportTabs.map(([value, label]) => (
+        {reportTabs.map(([value, label, badgeStatus]) => (
           <button
             type="button"
             key={value}
@@ -76,17 +77,7 @@ export function ReportsPage() {
             onClick={() => change('kind', value)}
           >
             {label}{' '}
-            <RecordBadge
-              status={
-                value === 'active'
-                  ? '진행 중'
-                  : value === 'closed'
-                    ? '실패'
-                    : value === 'new'
-                      ? '완료'
-                      : ''
-              }
-            >
+            <RecordBadge status={badgeStatus}>
               {reports.filter((report) => !value || reportKind(report) === value).length}
             </RecordBadge>
           </button>

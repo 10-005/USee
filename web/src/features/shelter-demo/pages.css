@@ -151,7 +151,7 @@
   white-space: nowrap;
 }
 .record-status-filters.report-tabs {
-  grid-template-columns: repeat(4, minmax(145px, 155px));
+  grid-template-columns: repeat(5, minmax(125px, 145px));
 }
 .record-status-filters button:hover,
 .record-status-filters button[aria-pressed='true'] {
@@ -995,7 +995,7 @@ span.report-card__action {
   color: #72716c;
 }
 .report-card__body .report-card__action--retry {
-  background: #5b9dfa;
+  background: #fa705b;
 }
 .report-card__photo {
   position: relative;

@@ -92,6 +92,23 @@ describe('예시 업무 흐름', () => {
     expect(screen.getByText('최종 승인 사유')).toBeVisible();
     expect(screen.getByText('방문 상담 완료')).toBeVisible();
   });
+  it('발견 신고에서 진행 중과 완료 탭의 건수와 카드가 각각 구조 상태와 일치한다', () => {
+    open('/reports');
+    const tabs = within(screen.getByRole('group', { name: '접수 상태' }));
+    for (const [status, count] of [
+      ['진행 중', 6],
+      ['완료', 1],
+    ] as const) {
+      const tab = tabs.getByRole('button', { name: `${status} ${count}` });
+      fireEvent.click(tab);
+      expect(tab).toHaveAttribute('aria-pressed', 'true');
+      const cards = screen.getAllByRole('article');
+      expect(cards).toHaveLength(count);
+      for (const card of cards) {
+        expect(within(card).getByText(`구조 ${status}`)).toBeVisible();
+      }
+    }
+  });
   it('발견 신고의 구조 상세에서 돌아오면 신고 상태와 정렬, 페이지를 유지한다', () => {
     open('/reports?status=신고%20진행%20중&sort=oldest&period=30&page=2');
     const detail = screen.getAllByRole('link', { name: /구조 상세보기/ })[0]!;
