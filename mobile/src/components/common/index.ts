@@ -2,6 +2,7 @@ export { AnimalCard } from './AnimalCard';
 export { AppHeader } from './AppHeader';
 export { BottomNavigation } from './BottomNavigation';
 export type { BottomNavigationItem } from './BottomNavigation';
+export { RegistrationMenu } from './RegistrationMenu';
 export { Button } from './Button';
 export { ChatListItem } from './ChatListItem';
 export { StepIndicator } from './StepIndicator';

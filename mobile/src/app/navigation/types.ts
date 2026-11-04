@@ -14,13 +14,14 @@ export type RootStackParamList = {
   Home: undefined;
   FoundReportDetail: { reportId: string };
   LostReportDetail: { reportId: string };
+  LostReportPetSelection: undefined;
   ChatRoom: { roomId: string };
   MockAdoptionActivity: { petId: string };
   NoticeDetail: { noticeId: string };
   NoticeList: undefined;
   MockAdoptionSelection: undefined;
   PetList: undefined;
-  PetRegistration: { petId?: string } | undefined;
+  PetRegistration: { flow?: 'lost-report'; petId?: string } | undefined;
   PetDetail: { petId: string };
   ProfileEdit: undefined;
   Settings: undefined;

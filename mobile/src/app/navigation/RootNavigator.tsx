@@ -21,6 +21,7 @@ import { SettingsScreen } from '../../screens/MyPage/SettingsScreen';
 import { NoticeListScreen } from '../../screens/MyPage/NoticeListScreen';
 import { NoticeDetailScreen } from '../../screens/MyPage/NoticeDetailScreen';
 import { FoundReportDetailScreen } from '../../screens/found-report/FoundReportDetailScreen';
+import { LostReportPetSelectionScreen } from '../../screens/lost-report/LostReportPetSelectionScreen';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -32,6 +33,7 @@ export function RootNavigator() {
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="FoundReportDetail" component={FoundReportDetailScreen} />
         <Stack.Screen name="LostReportDetail" component={FoundReportDetailScreen} />
+        <Stack.Screen name="LostReportPetSelection" component={LostReportPetSelectionScreen} />
         <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
         <Stack.Screen name="MockAdoptionActivity" component={MockAdoptionActivityScreen} />
         <Stack.Screen name="MockAdoptionSelection" component={MockAdoptionScreen} />
