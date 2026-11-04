@@ -1,9 +1,10 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
   Image,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,8 +13,9 @@ import {
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type ScrollViewInstance,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
@@ -42,9 +44,12 @@ export function getContactDisplayValue(contact?: string) {
 
 export function FoundReportDetailScreen({ navigation, route }: Props) {
   const report = getFoundReport(route.params.reportId);
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [page, setPage] = useState(0);
   const listRef = useRef<FlatList>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const bookmarked = useAdoptionBookmarkStore(state => state.bookmarkedIds.includes(report.id));
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
 
@@ -52,8 +57,30 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     setPage(Math.round(event.nativeEvent.contentOffset.x / width));
   };
 
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () =>
+      setKeyboardVisible(true),
+    );
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () =>
+      setKeyboardVisible(false),
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  const revealCommentInput = (inputHandle: number) => {
+    setTimeout(() => {
+      scrollRef.current
+        ?.getScrollResponder()
+        ?.scrollResponderScrollNativeHandleToKeyboard(inputHandle, 100, true);
+    }, 100);
+  };
+
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <AppHeader
         onBackPress={navigation.goBack}
         rightAction={
@@ -71,7 +98,13 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
         }
         title="게시글"
       />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.reporter}>
           <Image
             source={require('../../assets/images/found-report/reporter-profile.png')}
@@ -137,16 +170,18 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
           <Text style={styles.description}>{report.description}</Text>
         </View>
-        <FoundReportCommentList />
+        <FoundReportCommentList onEditFocus={revealCommentInput} />
       </ScrollView>
-      <View style={styles.buttonWrap}>
-        <Button
-          onPress={() => Alert.alert('채팅', '채팅 화면은 추후 연결될 예정입니다.')}
-          style={styles.chatButton}
-        >
-          채팅 보내기
-        </Button>
-      </View>
+      {!keyboardVisible ? (
+        <View style={[styles.buttonWrap, { bottom: Math.max(insets.bottom, 12) }]}>
+          <Button
+            onPress={() => Alert.alert('채팅', '채팅 화면은 추후 연결될 예정입니다.')}
+            style={styles.chatButton}
+          >
+            채팅 보내기
+          </Button>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -161,7 +196,6 @@ const styles = StyleSheet.create({
     transform: [{ translateX: 6 }],
     width: 40,
   },
-  content: { paddingBottom: 88 },
   reporter: { alignItems: 'center', flexDirection: 'row', height: 62, paddingHorizontal: 20 },
   profileImage: { borderRadius: radius.pill, height: 48, width: 48 },
   reporterName: { ...typography.titleSemiBold18, color: colors.gray600, marginLeft: 16 },
@@ -202,18 +236,17 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   infoRow: { flexDirection: 'row' },
-  infoLabel: { ...typography.bodyRegular16, color: colors.gray500, width: 100 },
-  infoValue: { ...typography.bodyRegular16, color: colors.black, flex: 1 },
+  infoLabel: { ...typography.bodyRegular14, color: colors.gray400, width: 110 },
+  infoValue: { ...typography.bodyRegular14, color: colors.black, flex: 1 },
   descriptionSection: {
     borderBottomColor: colors.gray200,
     borderBottomWidth: 1,
     paddingHorizontal: 22,
     paddingVertical: 20,
   },
-  descriptionLabel: { ...typography.bodyRegular16, color: colors.gray500 },
-  description: { ...typography.bodyRegular16, color: colors.black, marginTop: 10 },
+  descriptionLabel: { ...typography.bodyRegular14, color: colors.gray400 },
+  description: { ...typography.bodyRegular14, color: colors.black, marginTop: 10 },
   buttonWrap: {
-    bottom: 0,
     left: 0,
     paddingHorizontal: 26,
     paddingVertical: 12,
