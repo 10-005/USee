@@ -1,5 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useState } from 'react';
 import {
   Alert,
   BackHandler,
@@ -28,6 +29,7 @@ import CameraIcon from '../../assets/icons/mypage/photo-camera.svg';
 import LibraryIcon from '../../assets/icons/mypage/photo-library.svg';
 import { StepIndicator } from '../../components/common';
 import { MAX_IMAGE_SIZE_MB } from '../../constants/upload';
+import { useFoundReportDraftStore } from '../../stores/foundReportDraftStore';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
 import { usePetStore } from '../../stores/petStore';
 import { colors, radius, typography } from '../../theme';
@@ -37,24 +39,30 @@ type Props = NativeStackScreenProps<RootStackParamList, 'PetRegistration'>;
 type SelectKey = 'species' | 'breed' | 'color' | null;
 type Gender = '수컷' | '암컷' | '모름';
 type Neutered = '완료' | '미완료' | '모름';
-type Microchip = '완료' | '미완료';
+type Microchip = '완료' | '미완료' | '모름';
 
 export function PetRegistrationScreen({ navigation, route }: Props) {
   const isLostReportFlow = route.params?.flow === 'lost-report';
+  const isFoundReportFlow = route.params?.flow === 'found-report';
+  const isReportFlow = isLostReportFlow || isFoundReportFlow;
+  const foundReportDraft = useFoundReportDraftStore(state => state.draft);
+  const updateFoundReportDraft = useFoundReportDraftStore(state => state.updateDraft);
   const lostReportAnimal = useLostReportDraftStore(state => state.animal);
   const lostReportEntryMode = useLostReportDraftStore(state => state.entryMode);
   const updateLostReportAnimal = useLostReportDraftStore(state => state.updateAnimal);
   const editingPet = usePetStore(state =>
-    !isLostReportFlow && route.params?.petId
+    !isReportFlow && route.params?.petId
       ? state.pets.find(pet => pet.id === route.params?.petId)
       : undefined,
   );
   const addPet = usePetStore(state => state.addPet);
   const updatePet = usePetStore(state => state.updatePet);
-  const isEditing = !isLostReportFlow && Boolean(editingPet);
+  const isEditing = !isReportFlow && Boolean(editingPet);
   const initialAnimal = isLostReportFlow ? lostReportAnimal : editingPet;
   const [photos, setPhotos] = useState<Asset[]>(() =>
-    initialAnimal
+    isFoundReportFlow
+      ? foundReportDraft.images
+      : initialAnimal
       ? initialAnimal.images.map(image => ({
           type: 'image/jpeg',
           uri: Image.resolveAssetSource(image)?.uri ?? '',
@@ -64,16 +72,35 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   const [photoMenuOpen, setPhotoMenuOpen] = useState(false);
   const [selectKey, setSelectKey] = useState<SelectKey>(null);
   const [name, setName] = useState(initialAnimal?.name ?? '');
+  const initialSpecies = isFoundReportFlow ? foundReportDraft.species : initialAnimal?.species;
   const [species, setSpecies] = useState<PetSpecies | ''>(
-    initialAnimal?.species && initialAnimal.species in PET_OPTIONS
-      ? (initialAnimal.species as PetSpecies)
+    initialSpecies && initialSpecies in PET_OPTIONS
+      ? (initialSpecies as PetSpecies)
       : '',
   );
-  const [breed, setBreed] = useState(initialAnimal?.breed ?? '');
-  const [color, setColor] = useState(initialAnimal?.color ?? '');
-  const [gender, setGender] = useState<Gender | ''>(initialAnimal?.gender ?? '');
+  const [breed, setBreed] = useState(isFoundReportFlow ? foundReportDraft.breed : initialAnimal?.breed ?? '');
+  const [color, setColor] = useState(isFoundReportFlow ? foundReportDraft.color : initialAnimal?.color ?? '');
+  const [gender, setGender] = useState<Gender | ''>(
+    isFoundReportFlow
+      ? foundReportDraft.gender === 'male'
+        ? '수컷'
+        : foundReportDraft.gender === 'female'
+          ? '암컷'
+          : foundReportDraft.gender === 'unknown'
+            ? '모름'
+            : ''
+      : initialAnimal?.gender ?? '',
+  );
   const [neutered, setNeutered] = useState<Neutered | ''>(
-    isLostReportFlow && lostReportEntryMode === 'manual'
+    isFoundReportFlow
+      ? foundReportDraft.neutered === 'done'
+        ? '완료'
+        : foundReportDraft.neutered === 'not-done'
+          ? '미완료'
+          : foundReportDraft.neutered === 'unknown'
+            ? '모름'
+            : ''
+      : isLostReportFlow && lostReportEntryMode === 'manual'
       ? ''
       : initialAnimal
       ? initialAnimal.neutered === null
@@ -83,11 +110,19 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         : '미완료'
       : '',
   );
-  const [age, setAge] = useState(initialAnimal?.age?.toString() ?? '');
-  const [weight, setWeight] = useState(initialAnimal?.weight?.toString() ?? '');
-  const [description, setDescription] = useState(initialAnimal?.description ?? '');
+  const [age, setAge] = useState(isFoundReportFlow ? foundReportDraft.age : initialAnimal?.age?.toString() ?? '');
+  const [weight, setWeight] = useState(isFoundReportFlow ? foundReportDraft.weight : initialAnimal?.weight?.toString() ?? '');
+  const [description, setDescription] = useState(isFoundReportFlow ? foundReportDraft.description : initialAnimal?.description ?? '');
   const [microchip, setMicrochip] = useState<Microchip | ''>(
-    isLostReportFlow && lostReportEntryMode === 'manual'
+    isFoundReportFlow
+      ? foundReportDraft.microchipStatus === 'done'
+        ? '완료'
+        : foundReportDraft.microchipStatus === 'not-done'
+          ? '미완료'
+          : foundReportDraft.microchipStatus === 'unknown'
+            ? '모름'
+          : ''
+      : isLostReportFlow && lostReportEntryMode === 'manual'
       ? ''
       : initialAnimal
       ? initialAnimal.microchipNumber
@@ -96,7 +131,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       : '',
   );
   const [microchipNumber, setMicrochipNumber] = useState(
-    initialAnimal?.microchipNumber ?? '',
+    isFoundReportFlow ? foundReportDraft.microchipNumber : initialAnimal?.microchipNumber ?? '',
   );
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
@@ -123,17 +158,19 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
     }
   }, [hasDraft, navigation]);
 
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      requestBack();
-      return true;
-    });
-    return () => subscription.remove();
-  }, [requestBack]);
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        requestBack();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [requestBack]),
+  );
 
   const isValid = Boolean(
     photos.length &&
-      (isLostReportFlow || name.trim()) &&
+      (isReportFlow || name.trim()) &&
       species &&
       breed &&
       color &&
@@ -261,7 +298,25 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         species: pet.species,
         weight: pet.weight,
       });
-      navigation.navigate('LostReportForm');
+      navigation.navigate('LostReportForm', { reportId: route.params?.reportId });
+      return;
+    }
+    if (isFoundReportFlow) {
+      updateFoundReportDraft({
+        age,
+        breed,
+        color,
+        description: description.trim(),
+        gender: gender === '수컷' ? 'male' : gender === '암컷' ? 'female' : 'unknown',
+        images: photos,
+        microchipNumber: microchip === '완료' ? microchipNumber.trim() : '',
+        microchipStatus:
+          microchip === '완료' ? 'done' : microchip === '미완료' ? 'not-done' : 'unknown',
+        neutered: neutered === '완료' ? 'done' : neutered === '미완료' ? 'not-done' : 'unknown',
+        species,
+        weight,
+      });
+      navigation.navigate('FoundReportForm', { reportId: route.params?.reportId });
       return;
     }
     if (isEditing) {
@@ -284,16 +339,18 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
           <LeftArrowIcon height={24} width={24} />
         </Pressable>
         <Text style={styles.headerTitle}>
-          {isLostReportFlow
+          {isFoundReportFlow
+            ? '발견 동물 등록'
+            : isLostReportFlow
             ? '실종 동물 등록'
             : isEditing
             ? '반려동물 수정하기'
             : '반려동물 등록하기'}
         </Text>
       </View>
-      {isLostReportFlow ? (
+      {isReportFlow ? (
         <View style={styles.lostReportIndicator}>
-          <StepIndicator currentStep={2} totalSteps={4} />
+          <StepIndicator currentStep={isFoundReportFlow ? 1 : 2} totalSteps={isFoundReportFlow ? 3 : 4} />
         </View>
       ) : null}
       <KeyboardAvoidingView
@@ -348,7 +405,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
             최대 3장 · JPG/PNG · 장당 {MAX_IMAGE_SIZE_MB}MB 이하
           </Text>
 
-          {!isLostReportFlow ? (
+          {!isReportFlow ? (
             <InputField
               label="이름"
               onChangeText={setName}
@@ -439,7 +496,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
                 setMicrochipNumber('');
               }
             }}
-            options={['완료', '미완료']}
+            options={isFoundReportFlow ? ['완료', '미완료', '모름'] : ['완료', '미완료']}
             required
             value={microchip}
           />
@@ -459,7 +516,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
             style={[styles.submit, !isValid && styles.submitDisabled]}
           >
             <Text style={styles.submitText}>
-              {isLostReportFlow ? '다음' : isEditing ? '수정하기' : '등록하기'}
+              {isReportFlow ? '다음' : isEditing ? '수정하기' : '등록하기'}
             </Text>
           </Pressable>
         </ScrollView>
@@ -473,8 +530,8 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         <View style={styles.cancelBackdrop}>
           <View style={styles.cancelModal}>
             <Text style={styles.cancelTitle}>
-              {isLostReportFlow
-                ? '실종 동물 등록을 취소하시겠습니까?'
+              {isReportFlow
+                ? `${isFoundReportFlow ? '발견' : '실종'} 동물 등록을 취소하시겠습니까?`
                 : `반려동물 ${isEditing ? '수정을' : '등록을'} 취소하시겠습니까?`}
             </Text>
             <Text style={styles.cancelDescription}>

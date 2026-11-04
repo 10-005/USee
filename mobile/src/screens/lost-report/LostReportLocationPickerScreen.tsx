@@ -30,6 +30,7 @@ import {
   type GeocodeCandidate,
 } from '../../services/geocode/geocode';
 import { useAdoptionLocationStore } from '../../stores/adoptionLocationStore';
+import { useFoundReportDraftStore } from '../../stores/foundReportDraftStore';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
 import { colors, radius, typography } from '../../theme';
 
@@ -40,14 +41,28 @@ const DEFAULT_LOCATION = { latitude: 36.1195, longitude: 128.3446 };
 export function LostReportLocationPickerScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const isAdoptionLocation = route.params?.target === 'adoption';
+  const isFoundReportLocation = route.params?.target === 'found-report';
   const mapRef = useRef<NaverMapViewRef>(null);
   const hasRequestedInitialLocationRef = useRef(false);
   const details = useLostReportDraftStore(state => state.details);
   const updateDetails = useLostReportDraftStore(state => state.updateDetails);
   const selectAdoptionLocation = useAdoptionLocationStore(state => state.selectLocation);
+  const foundDraft = useFoundReportDraftStore(state => state.draft);
+  const updateFoundDraft = useFoundReportDraftStore(state => state.updateDraft);
   const initialCandidate = useMemo<GeocodeCandidate | null>(() => {
     if (isAdoptionLocation) {
       return null;
+    }
+    if (isFoundReportLocation) {
+      if (foundDraft.latitude === null || foundDraft.longitude === null || !foundDraft.location) {
+        return null;
+      }
+      return {
+        jibunAddress: '',
+        latitude: foundDraft.latitude,
+        longitude: foundDraft.longitude,
+        roadAddress: foundDraft.location,
+      };
     }
     if (details.latitude === null || details.longitude === null || !details.location) {
       return null;
@@ -58,7 +73,16 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
       longitude: details.longitude,
       roadAddress: details.location,
     };
-  }, [details.latitude, details.location, details.longitude, isAdoptionLocation]);
+  }, [
+    details.latitude,
+    details.location,
+    details.longitude,
+    foundDraft.latitude,
+    foundDraft.location,
+    foundDraft.longitude,
+    isAdoptionLocation,
+    isFoundReportLocation,
+  ]);
   const [query, setQuery] = useState('');
   const [candidates, setCandidates] = useState<GeocodeCandidate[] | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState(initialCandidate);
@@ -184,6 +208,15 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
       navigation.goBack();
       return;
     }
+    if (isFoundReportLocation) {
+      updateFoundDraft({
+        latitude: selectedCandidate.latitude,
+        location: address,
+        longitude: selectedCandidate.longitude,
+      });
+      navigation.goBack();
+      return;
+    }
     updateDetails({
       detailAddress: '',
       latitude: selectedCandidate.latitude,
@@ -197,7 +230,13 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <AppHeader
         onBackPress={navigation.goBack}
-        title={isAdoptionLocation ? '양육 예정 장소 선택' : '실종 장소 선택'}
+        title={
+          isAdoptionLocation
+            ? '양육 예정 장소 선택'
+            : isFoundReportLocation
+              ? '발견 장소 선택'
+              : '실종 장소 선택'
+        }
       />
       <View style={styles.searchSection}>
         <View style={styles.searchField}>
