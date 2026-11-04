@@ -1,4 +1,3 @@
-# 루트 .gitlab-ci.yml에서 include해야 실행됩니다. 루트 파일은 작업 범위 밖이므로 수정하지 않습니다.
 web-check:
   image: node:24-bookworm-slim
   stage: test
@@ -20,3 +19,35 @@ web-check:
     paths:
       - web/dist/
     expire_in: 7 days
+
+web-preview:
+  image: node:24-bookworm
+  stage: deploy
+  needs: [web-check]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop-web"'
+      changes:
+        - web/**/*
+  resource_group: develop-web-preview
+  environment:
+    name: preview/develop-web
+    url: https://s15p31d106-develop-web.vercel.app
+  variables:
+    VERCEL_ORG_ID: team_gNA6BXt7grazmSPl6Nn9qm2c
+    VERCEL_PROJECT_ID: prj_qS8KlU6oOm7L6Ux2AOzegLxRVBsf
+  script:
+    - cd web
+    - |
+      : "${VERCEL_TOKEN:?Set VERCEL_TOKEN in GitLab CI/CD variables}"
+      git fetch --quiet --depth=1 origin develop-web
+      if ! git diff --quiet HEAD FETCH_HEAD -- .; then
+        echo "Skipping superseded web build"
+        exit 0
+      fi
+    - mkdir -p .vercel/output
+    - cp ci/vercel-output.json .vercel/output/config.json
+    - mv dist .vercel/output/static
+    - npm install --global vercel@65.11.0
+    - vercel deploy --prebuilt --environment preview --yes --json --token "$VERCEL_TOKEN" > /tmp/web-preview.json
+    - deployment_url=$(node -p "require('/tmp/web-preview.json').deployment.url")
+    - vercel alias set "$deployment_url" s15p31d106-develop-web.vercel.app --scope barleymilks-projects --token "$VERCEL_TOKEN"
