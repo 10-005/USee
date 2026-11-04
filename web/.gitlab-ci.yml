@@ -48,6 +48,5 @@ web-preview:
     - cp ci/vercel-output.json .vercel/output/config.json
     - mv dist .vercel/output/static
     - npm install --global vercel@65.11.0
-    - vercel deploy --prebuilt --environment preview --yes --json --token "$VERCEL_TOKEN" > /tmp/web-preview.json
-    - deployment_url=$(node -p "require('/tmp/web-preview.json').deployment.url")
+    - deployment_url=$(vercel deploy --prebuilt --environment preview --yes --meta "commit=$CI_COMMIT_SHA" --token "$VERCEL_TOKEN")
     - vercel alias set "$deployment_url" s15p31d106-develop-web.vercel.app --scope barleymilks-projects --token "$VERCEL_TOKEN"
