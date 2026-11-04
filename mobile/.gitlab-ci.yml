@@ -17,14 +17,24 @@ notify-mobile-merge:
       MR_IID=$(printf '%s\n' "$CI_COMMIT_MESSAGE" | sed -n 's/^See merge request .*[^0-9]\([0-9][0-9]*\)$/\1/p')
       curl -sS --fail-with-body -H "PRIVATE-TOKEN: $GITLAB_MR_READ_TOKEN" \
         "$CI_API_V4_URL/projects/$CI_PROJECT_ID/merge_requests/$MR_IID" > /tmp/mr.json
-      jq --arg commit "[$CI_COMMIT_SHORT_SHA]($CI_PROJECT_URL/-/commit/$CI_COMMIT_SHA)" '
+
+      # 커스텀 이모지 중 서로 다른 2개를 무작위로 고른다
+      EMOJIS=$(printf '%s\n' \
+        :d106_hellohyun_v_shape: :d106_hj_spinning5x: :d106_sh_uncle_sam: \
+        :d109_justin_samsung: :d109_sj_satoshi: :sj_sleeping: \
+        :d106_victory_jh: :d106_cr_mirror: :d106_joker_hj: \
+        :d106_hl_victory: :d109_tw_yaho: :d110_hooooni_molba: :d110_sexy_hooooni: \
+        | awk 'BEGIN { srand() } { e[NR] = $0 }
+               END { i = int(rand() * NR) + 1; j = int(rand() * (NR - 1)) + 1; if (j >= i) j++; print e[i] " " e[j] }')
+
+      jq --arg commit "[$CI_COMMIT_SHORT_SHA]($CI_PROJECT_URL/-/commit/$CI_COMMIT_SHA)" --arg emojis "$EMOJIS" '
         ([.source_branch | scan("S15P31D106-[0-9]+")] | .[0]) as $key
         | ((.description // "") | gsub("\r"; "")) as $d
         | {
             attachments: [{
               fallback: "develop-mobile 머지: MR \(.iid) · \(.title)",
               color: "#2EB67D",
-              pretext: "📱 **\((.merge_user // .merged_by).name)** 님이 **develop-mobile** 에 머지했습니다",
+              pretext: "# \((.merge_user // .merged_by).name) 님이 develop-mobile에 머지했습니다. \($emojis)",
               title: "MR \(.iid) · \(.title)",
               title_link: .web_url,
               text: (if $d == "" then "_설명 없음_" elif ($d | length) > 500 then $d[0:500] + " …" else $d end),
