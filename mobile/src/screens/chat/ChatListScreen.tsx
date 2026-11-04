@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, FlatList, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import TrashIcon from '../../assets/icons/common/chat-trash.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChatListItem } from '../../components/common';
@@ -36,19 +36,22 @@ export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => voi
       <View style={styles.filters}>
         {(['전체', '안 읽음'] as const).map(label => (
           <Pressable
-            accessibilityRole="button"
+            accessibilityRole="tab"
             accessibilityState={{ selected: filter === label }}
             key={label}
             onPress={() => {
               setFilter(label);
               setRevealed(undefined);
             }}
-            style={[styles.chip, filter === label && styles.selectedChip]}
+            style={styles.chip}
           >
-            <Text style={[styles.label, filter === label && styles.selectedLabel]}>{label}</Text>
-            {label === '안 읽음' && unreadTotal > 0 && (
-              <Text style={styles.count}>{unreadTotal}</Text>
-            )}
+            <View style={styles.tabTitle}>
+              <Text style={filter === label ? styles.selectedLabel : styles.label}>{label}</Text>
+              {label === '안 읽음' && unreadTotal > 0 && (
+                <Text style={styles.count}>{unreadTotal}</Text>
+              )}
+            </View>
+            <View style={filter === label ? styles.activeIndicator : styles.inactiveIndicator} />
           </Pressable>
         ))}
       </View>
@@ -82,15 +85,7 @@ export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => voi
                   onPress={() => setLeaving(item.id)}
                   style={styles.delete}
                 >
-                  <Svg width={22} height={22} viewBox="0 0 24 24">
-                    <Path
-                      d="M3 6h18M8 6V3h8v3M6 6l1 15h10l1-15M10 10v7m4-7v7"
-                      fill="none"
-                      stroke="white"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                    />
-                  </Svg>
+                  <TrashIcon width={22} height={22} />
                 </Pressable>
               )}
               <View style={open && styles.shift}>
@@ -135,20 +130,13 @@ export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => voi
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.white },
-  filters: { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#ECECEC' },
-  chip: {
-    flex: 1,
-    height: 60,
-    flexDirection: 'row',
-    gap: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: 4,
-    borderColor: 'transparent',
-  },
-  selectedChip: { borderColor: colors.green100 },
-  label: { ...typography.bodyRegular16, color: colors.black },
-  selectedLabel: { color: colors.black },
+  filters: { flexDirection: 'row', height: 56 },
+  chip: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  tabTitle: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 16 },
+  label: { ...typography.bodyRegular16, color: colors.gray600 },
+  selectedLabel: { ...typography.bodySemiBold16, color: colors.green400 },
+  activeIndicator: { backgroundColor: colors.green400, height: 4, width: '100%' },
+  inactiveIndicator: { backgroundColor: colors.gray200, height: 1, width: '100%' },
   count: {
     borderRadius: radius.pill,
     borderWidth: 1,

@@ -1,3 +1,4 @@
+import type { ChatPreview } from '../../stores/chatStore';
 import type { AdoptionApplicationStatus } from '../../services/storage/adoptionApplicationStorage';
 
 export type RootStackParamList = {
@@ -14,7 +15,7 @@ export type RootStackParamList = {
   Home: undefined;
   FoundReportDetail: { reportId: string };
   LostReportDetail: { reportId: string };
-  ChatRoom: { roomId: string };
+  ChatRoom: { roomId: string; preview?: ChatPreview };
   MockAdoptionActivity: { petId: string };
   NoticeDetail: { noticeId: string };
   NoticeList: undefined;

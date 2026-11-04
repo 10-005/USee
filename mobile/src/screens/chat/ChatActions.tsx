@@ -1,6 +1,7 @@
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { BackHandler, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import LeaveIcon from '../../assets/images/chat/leave.svg';
+import LeaveIcon from '../../assets/icons/common/leave.svg';
 import ReportIcon from '../../assets/icons/common/report.svg';
 import { colors, typography } from '../../theme';
 
@@ -16,68 +17,76 @@ type Props = {
 
 export function ChatActions({ action, onChoose, onClose, onLeave }: Props) {
   const insets = useSafeAreaInsets();
+  useEffect(() => {
+    if (action !== 'menu') {
+      return;
+    }
+    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => back.remove();
+  }, [action, onClose]);
+
+  if (action === 'menu') {
+    return (
+      <>
+        <Pressable accessibilityLabel="메뉴 닫기" style={styles.backdrop} onPress={onClose} />
+        <View style={styles.menu}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onChoose?.('report')}
+            style={styles.option}
+          >
+            <ReportIcon width={20} height={20} />
+            <Text style={styles.dangerText}>신고하기</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onChoose?.('leave')}
+            style={styles.option}
+          >
+            <LeaveIcon width={20} height={20} />
+            <Text style={styles.dangerText}>채팅방 나가기</Text>
+          </Pressable>
+        </View>
+      </>
+    );
+  }
   return (
     <Modal transparent visible statusBarTranslucent animationType="fade" onRequestClose={onClose}>
-      {action === 'menu' ? (
-        <View style={styles.layer}>
-          <Pressable
-            accessibilityLabel="메뉴 닫기"
-            style={StyleSheet.absoluteFill}
-            onPress={onClose}
-          />
-          <View style={[styles.menu, { top: insets.top + 55, right: insets.right + 12 }]}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => onChoose?.('report')}
-              style={styles.option}
-            >
-              <ReportIcon width={20} height={20} />
-              <Text style={styles.dangerText}>신고하기</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => onChoose?.('leave')}
-              style={styles.option}
-            >
-              <LeaveIcon width={20} height={20} />
-              <Text style={styles.dangerText}>채팅방 나가기</Text>
-            </Pressable>
-          </View>
+      <View
+        style={[styles.overlay, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
+      >
+        <View accessibilityViewIsModal style={styles.card}>
+          <ScrollView bounces={false} contentContainerStyle={styles.content}>
+            <Text style={styles.title}>채팅방을 나가시겠습니까?</Text>
+            <Text style={styles.body}>삭제된 대화 내역은 복원할 수 없습니다.</Text>
+            <View style={styles.actions}>
+              <Pressable accessibilityRole="button" onPress={onClose} style={styles.button}>
+                <Text style={styles.buttonText}>취소</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={onLeave}
+                style={[styles.button, styles.confirm]}
+              >
+                <Text style={styles.buttonText}>채팅방 나가기</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
         </View>
-      ) : (
-        <View
-          style={[
-            styles.overlay,
-            { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 },
-          ]}
-        >
-          <View accessibilityViewIsModal style={styles.card}>
-            <ScrollView bounces={false} contentContainerStyle={styles.content}>
-              <Text style={styles.title}>채팅방을 나가시겠습니까?</Text>
-              <Text style={styles.body}>삭제된 대화 내역은 복원할 수 없습니다.</Text>
-              <View style={styles.actions}>
-                <Pressable accessibilityRole="button" onPress={onClose} style={styles.button}>
-                  <Text style={styles.buttonText}>취소</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={onLeave}
-                  style={[styles.button, styles.confirm]}
-                >
-                  <Text style={styles.buttonText}>채팅방 나가기</Text>
-                </Pressable>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      )}
+      </View>
     </Modal>
   );
 }
 const styles = StyleSheet.create({
-  layer: { flex: 1 },
+  backdrop: { ...StyleSheet.absoluteFill, zIndex: 8 },
   menu: {
     position: 'absolute',
+    top: 80,
+    right: 12,
+    zIndex: 9,
     width: 160,
     borderRadius: 10,
     borderWidth: 1,
