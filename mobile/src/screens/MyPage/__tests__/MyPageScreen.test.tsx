@@ -13,6 +13,7 @@ describe('MyPageScreen', () => {
       screen = renderer.create(
         <MyPageScreen
           onOpenMockAdoption={jest.fn()}
+          onOpenMyPosts={jest.fn()}
           onOpenAdoptionApplications={onOpenAdoptionApplications}
           onOpenNotices={jest.fn()}
           onOpenPets={jest.fn()}
@@ -38,6 +39,7 @@ describe('MyPageScreen', () => {
         <MyPageScreen
           onOpenAdoptionApplications={jest.fn()}
           onOpenMockAdoption={jest.fn()}
+          onOpenMyPosts={jest.fn()}
           onOpenNotices={jest.fn()}
           onOpenPets={onOpenPets}
           onOpenProfileEdit={jest.fn()}
@@ -60,6 +62,7 @@ describe('MyPageScreen', () => {
         <MyPageScreen
           onOpenAdoptionApplications={jest.fn()}
           onOpenMockAdoption={jest.fn()}
+          onOpenMyPosts={jest.fn()}
           onOpenNotices={jest.fn()}
           onOpenPets={jest.fn()}
           onOpenProfileEdit={onOpenProfileEdit}
@@ -82,6 +85,7 @@ describe('MyPageScreen', () => {
         <MyPageScreen
           onOpenAdoptionApplications={jest.fn()}
           onOpenMockAdoption={jest.fn()}
+          onOpenMyPosts={jest.fn()}
           onOpenNotices={jest.fn()}
           onOpenPets={jest.fn()}
           onOpenProfileEdit={jest.fn()}
@@ -104,6 +108,7 @@ describe('MyPageScreen', () => {
         <MyPageScreen
           onOpenAdoptionApplications={jest.fn()}
           onOpenMockAdoption={jest.fn()}
+          onOpenMyPosts={jest.fn()}
           onOpenNotices={onOpenNotices}
           onOpenPets={jest.fn()}
           onOpenProfileEdit={jest.fn()}
@@ -126,6 +131,7 @@ describe('MyPageScreen', () => {
         <MyPageScreen
           onOpenAdoptionApplications={jest.fn()}
           onOpenMockAdoption={jest.fn()}
+          onOpenMyPosts={jest.fn()}
           onOpenNotices={jest.fn()}
           onOpenPets={jest.fn()}
           onOpenProfileEdit={jest.fn()}
@@ -137,5 +143,30 @@ describe('MyPageScreen', () => {
 
     act(() => screen.root.findByProps({ accessibilityLabel: '저장한 게시글' }).props.onPress());
     expect(onOpenSavedPosts).toHaveBeenCalledTimes(1);
+  });
+
+  it('내가 작성한 게시글을 누르면 내 게시글 목록으로 이동한다', () => {
+    const onOpenMyPosts = jest.fn();
+    let screen!: renderer.ReactTestRenderer;
+
+    act(() => {
+      screen = renderer.create(
+        <MyPageScreen
+          onOpenAdoptionApplications={jest.fn()}
+          onOpenMockAdoption={jest.fn()}
+          onOpenMyPosts={onOpenMyPosts}
+          onOpenNotices={jest.fn()}
+          onOpenPets={jest.fn()}
+          onOpenProfileEdit={jest.fn()}
+          onOpenSavedPosts={jest.fn()}
+          onOpenSettings={jest.fn()}
+        />,
+      );
+    });
+
+    act(() =>
+      screen.root.findByProps({ accessibilityLabel: '내가 작성한 게시글' }).props.onPress(),
+    );
+    expect(onOpenMyPosts).toHaveBeenCalledTimes(1);
   });
 });
