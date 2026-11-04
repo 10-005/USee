@@ -58,4 +58,37 @@ describe('lostReportDraftStore', () => {
       species: '',
     });
   });
+
+  it('실종 정보와 연락처 입력값을 저장한다', () => {
+    useLostReportDraftStore.getState().updateDetails({
+      detailAddress: '인동도서관 앞',
+      exposeContact: true,
+      latitude: 36.1063,
+      location: '경북 구미시 인동동',
+      longitude: 128.418,
+      lostAt: '2026-11-04T03:00:00.000Z',
+    });
+
+    expect(useLostReportDraftStore.getState().details).toMatchObject({
+      detailAddress: '인동도서관 앞',
+      exposeContact: true,
+      latitude: 36.1063,
+      location: '경북 구미시 인동동',
+      longitude: 128.418,
+      lostAt: '2026-11-04T03:00:00.000Z',
+    });
+  });
+
+  it('신고서 초기화 시 동물 정보와 실종 정보를 함께 비운다', () => {
+    useLostReportDraftStore.getState().selectPet(pet);
+    useLostReportDraftStore.getState().updateDetails({ location: '경북 구미시 인동동' });
+
+    useLostReportDraftStore.getState().resetDraft();
+
+    const state = useLostReportDraftStore.getState();
+    expect(state.entryMode).toBeNull();
+    expect(state.animal.images).toEqual([]);
+    expect(state.details.location).toBe('');
+    expect(state.details.detailAddress).toBe('');
+  });
 });

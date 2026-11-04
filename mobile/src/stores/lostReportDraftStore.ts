@@ -20,6 +20,16 @@ export type LostReportAnimalDraft = {
   weight: number | null;
 };
 
+export type LostReportDetailsDraft = {
+  contact: string;
+  detailAddress: string;
+  exposeContact: boolean;
+  latitude: number | null;
+  location: string;
+  longitude: number | null;
+  lostAt: string;
+};
+
 const createEmptyAnimalDraft = (): LostReportAnimalDraft => ({
   age: null,
   breed: '',
@@ -33,6 +43,16 @@ const createEmptyAnimalDraft = (): LostReportAnimalDraft => ({
   sourcePetId: null,
   species: '',
   weight: null,
+});
+
+const createEmptyDetailsDraft = (): LostReportDetailsDraft => ({
+  contact: '010-1234-5678',
+  detailAddress: '',
+  exposeContact: false,
+  latitude: null,
+  location: '',
+  longitude: null,
+  lostAt: '',
 });
 
 const createAnimalDraftFromPet = (pet: Pet): LostReportAnimalDraft => ({
@@ -52,23 +72,40 @@ const createAnimalDraftFromPet = (pet: Pet): LostReportAnimalDraft => ({
 
 type LostReportDraftState = {
   animal: LostReportAnimalDraft;
+  details: LostReportDetailsDraft;
   entryMode: LostReportEntryMode;
+  resetDraft: () => void;
   resetSelection: () => void;
   selectManual: () => void;
   selectPet: (pet: Pet) => void;
   selectedPetId: string | null;
   updateAnimal: (values: Partial<LostReportAnimalDraft>) => void;
+  updateDetails: (values: Partial<LostReportDetailsDraft>) => void;
 };
 
 export const useLostReportDraftStore = create<LostReportDraftState>(set => ({
   animal: createEmptyAnimalDraft(),
+  details: createEmptyDetailsDraft(),
   entryMode: null,
+  resetDraft: () =>
+    set({
+      animal: createEmptyAnimalDraft(),
+      details: createEmptyDetailsDraft(),
+      entryMode: null,
+      selectedPetId: null,
+    }),
   resetSelection: () =>
-    set({ animal: createEmptyAnimalDraft(), entryMode: null, selectedPetId: null }),
+    set({
+      animal: createEmptyAnimalDraft(),
+      details: createEmptyDetailsDraft(),
+      entryMode: null,
+      selectedPetId: null,
+    }),
   selectManual: () =>
     set({ animal: createEmptyAnimalDraft(), entryMode: 'manual', selectedPetId: null }),
   selectPet: pet =>
     set({ animal: createAnimalDraftFromPet(pet), entryMode: 'pet', selectedPetId: pet.id }),
   selectedPetId: null,
   updateAnimal: values => set(state => ({ animal: { ...state.animal, ...values } })),
+  updateDetails: values => set(state => ({ details: { ...state.details, ...values } })),
 }));

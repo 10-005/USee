@@ -8,6 +8,7 @@ import { MockAdoptionActivityScreen } from '../../screens/MockAdoption/MockAdopt
 import { MockAdoptionBudgetScreen } from '../../screens/MockAdoption/MockAdoptionBudgetScreen';
 import { ArWalkScreen } from '../../screens/ArWalk/ArWalkScreen';
 import { AdoptionApplicationScreen } from '../../screens/adoption/AdoptionApplicationScreen';
+import { AdoptionApplicantEditScreen } from '../../screens/adoption/AdoptionApplicantEditScreen';
 import { AdoptionApplicationHistoryScreen } from '../../screens/adoption/AdoptionApplicationHistoryScreen';
 import { AdoptionApplicationListScreen } from '../../screens/adoption/AdoptionApplicationListScreen';
 import { AdoptionApplicationReviewScreen } from '../../screens/adoption/AdoptionApplicationReviewScreen';
@@ -22,6 +23,8 @@ import { NoticeListScreen } from '../../screens/MyPage/NoticeListScreen';
 import { NoticeDetailScreen } from '../../screens/MyPage/NoticeDetailScreen';
 import { FoundReportDetailScreen } from '../../screens/found-report/FoundReportDetailScreen';
 import { LostReportPetSelectionScreen } from '../../screens/lost-report/LostReportPetSelectionScreen';
+import { LostReportFormScreen } from '../../screens/lost-report/LostReportFormScreen';
+import { LostReportLocationPickerScreen } from '../../screens/lost-report/LostReportLocationPickerScreen';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -33,6 +36,11 @@ export function RootNavigator() {
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="FoundReportDetail" component={FoundReportDetailScreen} />
         <Stack.Screen name="LostReportDetail" component={FoundReportDetailScreen} />
+        <Stack.Screen name="LostReportForm" component={LostReportFormScreen} />
+        <Stack.Screen
+          name="LostReportLocationPicker"
+          component={LostReportLocationPickerScreen}
+        />
         <Stack.Screen name="LostReportPetSelection" component={LostReportPetSelectionScreen} />
         <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
         <Stack.Screen name="MockAdoptionActivity" component={MockAdoptionActivityScreen} />
@@ -60,6 +68,7 @@ export function RootNavigator() {
         />
         <Stack.Screen name="AdoptionDetail" component={AdoptionDetailScreen} />
         <Stack.Screen name="AdoptionApplication" component={AdoptionApplicationScreen} />
+        <Stack.Screen name="AdoptionApplicantEdit" component={AdoptionApplicantEditScreen} />
         <Stack.Screen
           name="AdoptionApplicationHistory"
           component={AdoptionApplicationHistoryScreen}
