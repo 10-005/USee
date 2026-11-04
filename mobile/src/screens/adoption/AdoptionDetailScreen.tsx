@@ -5,7 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { RootStackParamList } from '../../app/navigation/types';
 import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
-import RightArrowIcon from '../../assets/icons/common/right-arrow.svg';
+import RightArrowGreenIcon from '../../assets/icons/common/right-arrow-green.svg';
 import { AppHeader, Button } from '../../components/common';
 import { getAdoptionApplicationRecord } from '../../services/storage/adoptionApplicationStorage';
 import { getAdoptionApplicationDraft } from '../../services/storage/adoptionDraftStorage';
@@ -150,7 +150,7 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
               style={({ pressed }) => [styles.shelterLink, pressed && styles.pressed]}
             >
               <Text style={styles.shelterLinkText}>보호센터 보기</Text>
-              <RightArrowIcon />
+              <RightArrowGreenIcon />
             </Pressable>
           </View>
           <InfoRows

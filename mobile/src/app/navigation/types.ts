@@ -16,6 +16,7 @@ export type RootStackParamList = {
   Home: undefined;
   FoundReportDetail: { reportId: string };
   FoundReportForm: { reportId?: string } | undefined;
+  FoundReportMap: undefined;
   LostReportDetail: { reportId: string };
   LostReportForm: { reportId?: string } | undefined;
   LostReportLocationPicker: { target?: 'adoption' | 'found-report' | 'lost-report' } | undefined;
