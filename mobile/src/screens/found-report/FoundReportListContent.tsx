@@ -1,7 +1,6 @@
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   FlatList,
   Image,
   Pressable,
@@ -16,6 +15,7 @@ import {
 import type { RootStackParamList } from '../../app/navigation/types';
 import DateIcon from '../../assets/icons/common/date.svg';
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
+import MapButtonIcon from '../../assets/icons/common/map-2.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
 import SearchIcon from '../../assets/icons/common/search.svg';
 import { colors, radius, typography } from '../../theme';
@@ -118,7 +118,7 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
         .map(report => {
           const editedReport =
             activeTab === 'found' ? foundReportEdits[report.id] : lostReportEdits[report.id];
-          const currentReport = editedReport ? { ...report, ...editedReport } : report;
+          const currentReport = (editedReport ? { ...report, ...editedReport } : report) as Report;
           const storedStatus = statusById[report.id];
           if (!storedStatus) {
             return currentReport;
@@ -268,10 +268,10 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
         {activeTab === 'found' ? <Pressable
           accessibilityLabel="지도로 보기"
           accessibilityRole="button"
-          onPress={() => Alert.alert('지도', '지도 탐색은 S15P31D106-102에서 연결될 예정입니다.')}
+          onPress={() => navigation.navigate('FoundReportMap')}
           style={({ pressed }) => [styles.mapButton, pressed && styles.pressed]}
         >
-          <MapIcon height={24} width={24} />
+          <MapButtonIcon height={24} width={24} />
         </Pressable> : null}
       </View>
       <ScrollView

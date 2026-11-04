@@ -11,6 +11,8 @@ export type FoundReport = {
   images: ImageSourcePropType[];
   isMine: boolean;
   location: string;
+  latitude: number;
+  longitude: number;
   name: string;
   neutered: boolean;
   species: '개' | '고양이' | '기타';
@@ -35,6 +37,8 @@ export const foundReports: FoundReport[] = [
     images: [dogBed, dogGolden, dogField],
     isMine: true,
     location: '구미시 인동동 123-123 알리바바바',
+    latitude: 36.1068,
+    longitude: 128.4217,
     name: '믹스견',
     neutered: true,
     species: '개',
@@ -52,6 +56,8 @@ export const foundReports: FoundReport[] = [
     images: [dogGolden, dogBed],
     isMine: false,
     location: '구미시 진평동 산책로 인근',
+    latitude: 36.1061,
+    longitude: 128.4289,
     name: '리트리버',
     neutered: false,
     species: '개',
@@ -68,6 +74,8 @@ export const foundReports: FoundReport[] = [
     images: [dogField],
     isMine: false,
     location: '구미시 고아읍 들판 인근',
+    latitude: 36.2106,
+    longitude: 128.3276,
     name: '믹스견',
     neutered: false,
     species: '개',
@@ -85,6 +93,8 @@ export const foundReports: FoundReport[] = [
     images: [dogPoodle, dogGolden],
     isMine: false,
     location: '구미시 인동동 주택가',
+    latitude: 36.1097,
+    longitude: 128.4184,
     name: '푸들',
     neutered: true,
     species: '개',
