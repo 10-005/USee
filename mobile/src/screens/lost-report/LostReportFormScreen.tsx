@@ -1,6 +1,7 @@
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   BackHandler,
   Keyboard,
@@ -20,6 +21,7 @@ import CalendarIcon from '../../assets/icons/common/calendar.svg';
 import LocationIcon from '../../assets/icons/common/location.svg';
 import { AppHeader, StepIndicator, Switch } from '../../components/common';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
+import { useLostReportEditStore } from '../../stores/lostReportEditStore';
 import { colors, radius, typography } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LostReportForm'>;
@@ -55,11 +57,13 @@ function formatPhone(value: string) {
   return `${digits.slice(0, 3)}-${digits.slice(3, digits.length - 4)}-${digits.slice(-4)}`;
 }
 
-export function LostReportFormScreen({ navigation }: Props) {
+export function LostReportFormScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const details = useLostReportDraftStore(state => state.details);
   const resetDraft = useLostReportDraftStore(state => state.resetDraft);
   const updateDetails = useLostReportDraftStore(state => state.updateDetails);
+  const updateReport = useLostReportEditStore(state => state.updateReport);
+  const isEditing = Boolean(route.params?.reportId);
   const [step, setStep] = useState<Step>(3);
   const [error, setError] = useState('');
 
@@ -83,13 +87,15 @@ export function LostReportFormScreen({ navigation }: Props) {
     navigation.goBack();
   }, [navigation, step]);
 
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      goBack();
-      return true;
-    });
-    return () => subscription.remove();
-  }, [goBack]);
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        goBack();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [goBack]),
+  );
 
   const openDateTimePicker = () => {
     Keyboard.dismiss();
@@ -138,13 +144,35 @@ export function LostReportFormScreen({ navigation }: Props) {
       setError('');
       return;
     }
+    if (isEditing && route.params?.reportId) {
+      const animal = useLostReportDraftStore.getState().animal;
+      updateReport(route.params.reportId, {
+        age: animal.age === null ? '모름' : `${animal.age}살`,
+        color: animal.color,
+        contact: details.exposeContact ? details.contact : undefined,
+        date: details.lostAt.slice(0, 10),
+        description: animal.description,
+        gender: animal.gender ?? '모름',
+        images: animal.images,
+        location: details.detailAddress
+          ? `${details.location} ${details.detailAddress}`
+          : details.location,
+        name: animal.name || animal.breed,
+        neutered: animal.neutered === true,
+        species: animal.species === '강아지' ? '개' : animal.species as '고양이' | '기타',
+        weight: animal.weight === null ? '모름' : `${animal.weight}kg`,
+      });
+      resetDraft();
+      navigation.navigate('LostReportDetail', { reportId: route.params.reportId });
+      return;
+    }
     resetDraft();
     navigation.navigate('Home');
   };
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <AppHeader onBackPress={goBack} title="실종 동물 등록" />
+      <AppHeader onBackPress={goBack} title={isEditing ? '실종 신고 수정' : '실종 동물 등록'} />
       <View style={styles.indicator}>
         <StepIndicator currentStep={step} totalSteps={4} />
       </View>
@@ -184,7 +212,9 @@ export function LostReportFormScreen({ navigation }: Props) {
           pressed && canContinue && styles.pressed,
         ]}
       >
-        <Text style={styles.submitLabel}>{step === 3 ? '다음' : '게시글 등록'}</Text>
+        <Text style={styles.submitLabel}>
+          {step === 3 ? '다음' : isEditing ? '게시글 수정' : '게시글 등록'}
+        </Text>
       </Pressable>
     </SafeAreaView>
   );

@@ -1,3 +1,4 @@
+import type { ChatPreview } from '../../stores/chatStore';
 import type { AdoptionApplicationStatus } from '../../services/storage/adoptionApplicationStorage';
 
 export type RootStackParamList = {
@@ -14,17 +15,20 @@ export type RootStackParamList = {
   AdoptionDetail: { animalId: string };
   Home: undefined;
   FoundReportDetail: { reportId: string };
+  FoundReportForm: { reportId?: string } | undefined;
   LostReportDetail: { reportId: string };
-  LostReportForm: undefined;
-  LostReportLocationPicker: { target?: 'adoption' | 'lost-report' } | undefined;
+  LostReportForm: { reportId?: string } | undefined;
+  LostReportLocationPicker: { target?: 'adoption' | 'found-report' | 'lost-report' } | undefined;
   LostReportPetSelection: undefined;
-  ChatRoom: { roomId: string };
+  ChatRoom: { roomId: string; preview?: ChatPreview };
   MockAdoptionActivity: { petId: string };
   NoticeDetail: { noticeId: string };
   NoticeList: undefined;
   MockAdoptionSelection: undefined;
   PetList: undefined;
-  PetRegistration: { flow?: 'lost-report'; petId?: string } | undefined;
+  PetRegistration:
+    | { flow?: 'found-report' | 'lost-report'; petId?: string; reportId?: string }
+    | undefined;
   PetDetail: { petId: string };
   ProfileEdit: undefined;
   Settings: undefined;

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android",
+    "android:standalone": "react-native run-android --mode release --no-packager",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "ios": "react-native run-ios",

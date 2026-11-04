@@ -1,6 +1,7 @@
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   BackHandler,
@@ -22,8 +23,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { RootStackParamList } from '../../app/navigation/types';
 import CalendarIcon from '../../assets/icons/common/calendar.svg';
 import LeftArrowIcon from '../../assets/icons/common/left-arrow.svg';
-import CameraIcon from '../../assets/icons/mypage/photo-camera.svg';
-import LibraryIcon from '../../assets/icons/mypage/photo-library.svg';
+import CameraIcon from '../../assets/icons/common/photo-camera.svg';
+import LibraryIcon from '../../assets/icons/common/photo-library.svg';
 import {
   ALLOWED_IMAGE_TYPES,
   MAX_IMAGE_SIZE_BYTES,
@@ -79,13 +80,15 @@ export function ProfileEditScreen({ navigation }: Props) {
     }
   }, [hasChanges, navigation]);
 
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      requestBack();
-      return true;
-    });
-    return () => subscription.remove();
-  }, [requestBack]);
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        requestBack();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [requestBack]),
+  );
 
   const validateImage = (asset?: Asset) => {
     if (!asset?.uri) {
