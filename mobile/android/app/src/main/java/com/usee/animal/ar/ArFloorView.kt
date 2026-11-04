@@ -28,6 +28,7 @@ class ArFloorView(
   private val reactContext: ReactContext,
 ) : FrameLayout(reactContext) {
   private var sceneView: ARSceneView? = null
+  private var traversalDebug: TraversalDebugView? = null
   private var dogNode: DogModelNode? = null
   private var shadowNode: CylinderNode? = null
   private var leash: DogLeash? = null
@@ -161,7 +162,12 @@ class ArFloorView(
       onSessionUpdated = { session, frame -> handleFrame(session, frame) }
     }
     sceneView = view
+    val debug = TraversalDebugView(context).apply {
+      layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+    }
+    traversalDebug = debug
     addView(view)
+    addView(debug)
     view.modelLoader.loadModelInstanceAsync("models/dog.glb") { instance ->
       if (instance == null || disposed || sceneView !== view) {
         return@loadModelInstanceAsync
@@ -229,6 +235,8 @@ class ArFloorView(
     sceneView = null
     removeView(view)
     view.destroy()
+    traversalDebug?.let { removeView(it); it.release() }
+    traversalDebug = null
   }
 
   private fun handleFrame(session: Session, frame: Frame) {
@@ -291,7 +299,8 @@ class ArFloorView(
         node.play(DogAnimation(shown.dog.clip, shown.dog.clipLoop, shown.dog.animationRevision))
       }
     }
-    sceneView?.planeRenderer?.isVisible = !shown.dog.visible
+    sceneView?.planeRenderer?.isVisible = false
+    traversalDebug?.update(frame, floorAnalyzer?.latest, scratch.planes, scratch.walls, shown.dog, scratch.stops.summary(), scratch.userGround, scratch.depth)
     emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen, shown.dog.userMoving)
   }
 
