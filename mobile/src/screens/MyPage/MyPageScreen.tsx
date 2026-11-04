@@ -18,6 +18,8 @@ type Props = {
   onOpenAdoptionApplications: () => void;
   onOpenPets: () => void;
   onOpenProfileEdit: () => void;
+  onOpenNotices: () => void;
+  onOpenSettings: () => void;
 };
 
 const unavailable = (name: string) =>
@@ -26,7 +28,6 @@ const unavailable = (name: string) =>
 const menuItems = [
   { label: '내가 작성한 게시글', icon: MyPostsIcon },
   { label: '저장한 게시글', icon: SavedPostsIcon },
-  { label: '공지사항', icon: NoticeIcon },
 ] as const;
 
 export function MyPageScreen({
@@ -34,6 +35,8 @@ export function MyPageScreen({
   onOpenMockAdoption,
   onOpenPets,
   onOpenProfileEdit,
+  onOpenNotices,
+  onOpenSettings,
 }: Props) {
   const profile = useProfileStore(state => state.profile);
   return (
@@ -44,7 +47,7 @@ export function MyPageScreen({
           accessibilityLabel="환경설정"
           accessibilityRole="button"
           hitSlop={10}
-          onPress={() => unavailable('환경설정')}
+          onPress={onOpenSettings}
           style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]}
         >
           <SettingsIcon />
@@ -104,6 +107,7 @@ export function MyPageScreen({
               onPress={() => unavailable(item.label)}
             />
           ))}
+          <MenuRow icon={NoticeIcon} label="공지사항" onPress={onOpenNotices} />
         </View>
       </View>
     </View>

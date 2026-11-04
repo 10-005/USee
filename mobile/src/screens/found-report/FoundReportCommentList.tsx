@@ -1,0 +1,641 @@
+import { useReducer, useState } from 'react';
+import {
+  Alert,
+  Image,
+  Modal,
+  PermissionsAndroid,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { launchCamera, launchImageLibrary, type Asset } from 'react-native-image-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import CancelIcon from '../../assets/icons/common/cancel.svg';
+import ChatIcon from '../../assets/icons/common/chat.svg';
+import DotsIcon from '../../assets/icons/common/dots-vertical.svg';
+import PlusIcon from '../../assets/icons/common/plus.svg';
+import XCircleIcon from '../../assets/icons/common/x-circle.svg';
+import PetEditIcon from '../../assets/icons/mypage/pet-edit.svg';
+import PetTrashIcon from '../../assets/icons/mypage/pet-trash.svg';
+import CameraIcon from '../../assets/icons/mypage/photo-camera.svg';
+import LibraryIcon from '../../assets/icons/mypage/photo-library.svg';
+import { colors, typography } from '../../theme';
+import { validatePetImage } from '../MyPage/petRegistration';
+import {
+  commentReducer,
+  foundReportComments,
+  getCommentContent,
+  getCommentCount,
+  type FoundReportComment,
+  type FoundReportReply,
+} from './comments';
+
+type ComposerProps = {
+  compact?: boolean;
+  onCancel?: () => void;
+  onDismissMenus: () => void;
+  onPhotoMenuChange: (open: boolean) => void;
+  onStartWriting?: () => void;
+  onSubmit: (content: string, imageUri?: string) => void;
+  photoMenuOpen: boolean;
+};
+
+function CommentComposer({
+  compact = false,
+  onCancel,
+  onDismissMenus,
+  onPhotoMenuChange,
+  onStartWriting,
+  onSubmit,
+  photoMenuOpen,
+}: ComposerProps) {
+  const [content, setContent] = useState('');
+  const [focused, setFocused] = useState(false);
+  const [image, setImage] = useState<Asset | null>(null);
+  const canSubmit = Boolean(content.trim() || image?.uri);
+
+  const acceptImage = (asset?: Asset) => {
+    if (!asset) {
+      return;
+    }
+    const error = validatePetImage(asset);
+    if (error) {
+      Alert.alert('사진을 첨부할 수 없어요', error);
+      return;
+    }
+    setImage(asset);
+  };
+
+  const chooseFromLibrary = async () => {
+    onPhotoMenuChange(false);
+    try {
+      const result = await launchImageLibrary({
+        includeExtra: true,
+        mediaType: 'photo',
+        selectionLimit: 1,
+      });
+      if (result.errorCode) {
+        Alert.alert('사진 보관함을 열 수 없어요', result.errorMessage ?? '잠시 후 다시 시도해주세요.');
+        return;
+      }
+      if (!result.didCancel) {
+        acceptImage(result.assets?.[0]);
+      }
+    } catch {
+      Alert.alert('사진을 첨부할 수 없어요', '앱을 새로 빌드한 뒤 다시 시도해주세요.');
+    }
+  };
+
+  const takePhoto = async () => {
+    onPhotoMenuChange(false);
+    if (Platform.OS === 'android') {
+      const permission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
+        buttonNegative: '취소',
+        buttonPositive: '허용',
+        message: '댓글 사진을 촬영하려면 카메라 권한이 필요합니다.',
+        title: '카메라 권한',
+      });
+      if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
+        Alert.alert('카메라 권한이 필요해요', '설정에서 카메라 권한을 허용해주세요.');
+        return;
+      }
+    }
+    try {
+      const result = await launchCamera({ mediaType: 'photo', saveToPhotos: false });
+      if (result.errorCode) {
+        Alert.alert('카메라를 열 수 없어요', result.errorMessage ?? '잠시 후 다시 시도해주세요.');
+        return;
+      }
+      if (!result.didCancel) {
+        acceptImage(result.assets?.[0]);
+      }
+    } catch {
+      Alert.alert('사진을 첨부할 수 없어요', '앱을 새로 빌드한 뒤 다시 시도해주세요.');
+    }
+  };
+
+  const submit = () => {
+    if (!canSubmit) {
+      return;
+    }
+    onSubmit(content.trim(), image?.uri);
+    setContent('');
+    setImage(null);
+    setFocused(false);
+  };
+
+  return (
+    <View style={[styles.composerWrap, compact && styles.compactComposerWrap]}>
+      <View style={[styles.commentInput, focused && styles.commentInputFocused]}>
+        <Pressable
+          accessibilityLabel="댓글 사진 첨부"
+          hitSlop={8}
+          onPress={event => {
+            event.stopPropagation();
+            onStartWriting?.();
+            onDismissMenus();
+            onPhotoMenuChange(!photoMenuOpen);
+          }}
+        >
+          <PlusIcon height={20} width={20} />
+        </Pressable>
+        <TextInput
+          multiline
+          onBlur={() => setFocused(false)}
+          onChangeText={setContent}
+          onFocus={() => {
+            setFocused(true);
+            onStartWriting?.();
+            onDismissMenus();
+          }}
+          placeholder={compact ? '입력하면 이렇게...' : '메시지를 입력하세요'}
+          placeholderTextColor={colors.gray300}
+          style={styles.commentTextInput}
+          value={content}
+        />
+        <Pressable accessibilityLabel="댓글 전송" disabled={!canSubmit} onPress={submit}>
+          <ChatIcon height={20} width={20} />
+        </Pressable>
+      </View>
+      {image?.uri ? (
+        <View style={styles.imagePreviewWrap}>
+          <View style={styles.imageThumbnailWrap}>
+            <Image source={{ uri: image.uri }} style={styles.imagePreview} />
+            <Pressable
+              accessibilityLabel="첨부 사진 삭제"
+              hitSlop={8}
+              onPress={() => setImage(null)}
+              style={styles.removeImage}
+            >
+              <XCircleIcon height={20} width={20} />
+            </Pressable>
+          </View>
+          <Text style={styles.imageGuide}>사진은 1장만 첨부 가능해요.</Text>
+        </View>
+      ) : null}
+      {photoMenuOpen ? (
+        <View style={styles.photoMenu}>
+          <Pressable
+            onPress={event => {
+              event.stopPropagation();
+              chooseFromLibrary();
+            }}
+            style={styles.photoMenuItem}
+          >
+            <LibraryIcon height={22} width={22} />
+            <Text style={styles.photoMenuText}>사진 보관함</Text>
+          </Pressable>
+          <Pressable
+            onPress={event => {
+              event.stopPropagation();
+              takePhoto();
+            }}
+            style={styles.photoMenuItem}
+          >
+            <CameraIcon height={22} width={22} />
+            <Text style={styles.photoMenuText}>사진 찍기</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {compact && onCancel ? (
+        <Pressable onPress={onCancel} style={styles.replyCancel}>
+          <Text style={styles.replyCancelText}>답글 취소</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+type CommentItemProps = {
+  comment: FoundReportReply;
+  editing: boolean;
+  menuOpen: boolean;
+  onDelete: () => void;
+  onEdit: (content: string) => void;
+  onEditFocus?: (inputHandle: number) => void;
+  onImagePress: (imageUri: string) => void;
+  onMenu: () => void;
+  onReply: () => void;
+  reply?: boolean;
+};
+
+function CommentItem({
+  comment,
+  editing,
+  menuOpen,
+  onDelete,
+  onEdit,
+  onEditFocus,
+  onImagePress,
+  onMenu,
+  onReply,
+  reply = false,
+}: CommentItemProps) {
+  const deleted = Boolean(comment.deleted);
+  const hasContent = Boolean(comment.content.trim());
+  const [draft, setDraft] = useState(comment.content);
+
+  return (
+    <View style={[styles.comment, reply && styles.reply, deleted && styles.deletedComment]}>
+      {deleted ? (
+        <View style={styles.deletedAvatar} />
+      ) : (
+        <Image
+          source={require('../../assets/images/found-report/reporter-profile.png')}
+          style={styles.avatar}
+        />
+      )}
+      <View style={[styles.commentBody, deleted && styles.deletedCommentBody]}>
+        {!deleted ? (
+          <View style={styles.commentMeta}>
+            <Text numberOfLines={1} style={[styles.nickname, comment.isMine && styles.myNickname]}>
+              {comment.nickname}
+            </Text>
+            <Text style={styles.createdAt}>{comment.createdAt}</Text>
+          </View>
+        ) : null}
+        {editing ? (
+          <View style={styles.editArea}>
+            <View style={styles.editInputRow}>
+              <TextInput
+                autoFocus
+                multiline
+                onChangeText={setDraft}
+                onFocus={event => onEditFocus?.(event.nativeEvent.target)}
+                placeholder="텍스트를 입력하세요"
+                placeholderTextColor={colors.gray300}
+                style={styles.editInput}
+                value={draft}
+              />
+              <Pressable
+                accessibilityLabel="댓글 수정 전송"
+                disabled={!draft.trim()}
+                onPress={() => onEdit(draft.trim())}
+                style={!draft.trim() && styles.editSendDisabled}
+              >
+                <ChatIcon height={20} width={20} />
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          deleted || hasContent ? (
+            <Text style={[styles.content, deleted && styles.deletedContent]}>
+              {getCommentContent(comment)}
+            </Text>
+          ) : null
+        )}
+        {comment.imageUri ? (
+          <Pressable
+            accessibilityLabel="댓글 이미지 크게 보기"
+            onPress={() => onImagePress(comment.imageUri!)}
+            style={[styles.commentImageWrap, !hasContent && styles.imageOnlyComment]}
+          >
+            <Image source={{ uri: comment.imageUri }} style={styles.commentImage} />
+          </Pressable>
+        ) : null}
+        {!deleted && !editing && !reply ? (
+          <Pressable hitSlop={6} onPress={onReply}>
+            <Text style={styles.replyAction}>답글달기</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {!deleted && !editing ? (
+        <Pressable
+          accessibilityLabel="댓글 메뉴"
+          hitSlop={10}
+          onPress={event => {
+            event.stopPropagation();
+            onMenu();
+          }}
+          style={styles.commentMenu}
+        >
+          <DotsIcon height={12} width={12} />
+        </Pressable>
+      ) : null}
+      {menuOpen && comment.isMine ? (
+        <View style={styles.myCommentMenu}>
+          <Pressable
+            onPress={event => {
+              event.stopPropagation();
+              onEdit(comment.content);
+            }}
+            style={styles.myCommentMenuItem}
+          >
+            <PetEditIcon height={20} width={20} />
+            <Text style={styles.myCommentMenuText}>수정하기</Text>
+          </Pressable>
+          <Pressable
+            onPress={event => {
+              event.stopPropagation();
+              onDelete();
+            }}
+            style={styles.myCommentMenuItem}
+          >
+            <PetTrashIcon height={20} width={20} />
+            <Text style={styles.deleteMenuText}>삭제하기</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+type CommentThreadProps = {
+  comment: FoundReportComment;
+  editingId: string | null;
+  menuId: string | null;
+  onAddReply: (commentId: string, content: string, imageUri?: string) => void;
+  onDelete: (commentId: string) => void;
+  onEdit: (commentId: string, content: string) => void;
+  onEditFocus?: (inputHandle: number) => void;
+  onImagePress: (imageUri: string) => void;
+  onMenu: (comment: FoundReportReply) => void;
+  onPhotoMenuChange: (composerId: string | null) => void;
+  onReply: (commentId: string | null) => void;
+  photoMenuId: string | null;
+  replyTargetId: string | null;
+};
+
+function CommentThread({
+  comment,
+  editingId,
+  menuId,
+  onAddReply,
+  onDelete,
+  onEdit,
+  onEditFocus,
+  onImagePress,
+  onMenu,
+  onPhotoMenuChange,
+  onReply,
+  replyTargetId,
+  photoMenuId,
+}: CommentThreadProps) {
+  const item = (reply: FoundReportReply, isReply = false) => (
+    <CommentItem
+      comment={reply}
+      editing={editingId === reply.id}
+      key={reply.id}
+      menuOpen={menuId === reply.id}
+      onDelete={() => onDelete(reply.id)}
+      onEdit={content => onEdit(reply.id, content)}
+      onEditFocus={onEditFocus}
+      onImagePress={onImagePress}
+      onMenu={() => onMenu(reply)}
+      onReply={() => onReply(comment.id)}
+      reply={isReply}
+    />
+  );
+
+  return (
+    <View>
+      {item(comment)}
+      {replyTargetId === comment.id ? (
+        <CommentComposer
+          compact
+          onCancel={() => onReply(null)}
+          onDismissMenus={() => onPhotoMenuChange(null)}
+          onPhotoMenuChange={open => onPhotoMenuChange(open ? `reply-${comment.id}` : null)}
+          onStartWriting={() => onReply(comment.id)}
+          onSubmit={(content, imageUri) => onAddReply(comment.id, content, imageUri)}
+          photoMenuOpen={photoMenuId === `reply-${comment.id}`}
+        />
+      ) : null}
+      {comment.replies.map(reply => item(reply, true))}
+    </View>
+  );
+}
+
+type FoundReportCommentListProps = {
+  onEditFocus?: (inputHandle: number) => void;
+};
+
+export function FoundReportCommentList({ onEditFocus }: FoundReportCommentListProps) {
+  const insets = useSafeAreaInsets();
+  const [comments, dispatch] = useReducer(commentReducer, foundReportComments);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const [photoMenuId, setPhotoMenuId] = useState<string | null>(null);
+  const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
+  const [viewerImageUri, setViewerImageUri] = useState<string | null>(null);
+
+  const addComment = (content: string, imageUri?: string) => {
+    dispatch({
+      comment: {
+        content,
+        createdAt: '방금 전',
+        id: `comment-${Date.now()}`,
+        imageUri,
+        isMine: true,
+        nickname: '내 닉네임',
+        replies: [],
+      },
+      type: 'addComment',
+    });
+  };
+
+  const addReply = (commentId: string, content: string, imageUri?: string) => {
+    dispatch({
+      commentId,
+      reply: {
+        content,
+        createdAt: '방금 전',
+        id: `reply-${Date.now()}`,
+        imageUri,
+        isMine: true,
+        nickname: '내 닉네임',
+      },
+      type: 'addReply',
+    });
+    setReplyTargetId(null);
+  };
+
+  const openMenu = (comment: FoundReportReply) => {
+    setPhotoMenuId(null);
+    if (!comment.isMine) {
+      Alert.alert('댓글 메뉴', '댓글 신고 및 차단 기능은 추후 연결될 예정입니다.');
+      return;
+    }
+    setMenuId(current => (current === comment.id ? null : comment.id));
+  };
+
+  const changePhotoMenu = (composerId: string | null) => {
+    setMenuId(null);
+    setPhotoMenuId(composerId);
+  };
+
+  const dismissMenus = () => {
+    setMenuId(null);
+    setPhotoMenuId(null);
+  };
+
+  return (
+    <Pressable accessible={false} onPress={dismissMenus} style={styles.container}>
+      <Text style={styles.title}>{getCommentCount(comments)}개의 댓글</Text>
+      <CommentComposer
+        onDismissMenus={dismissMenus}
+        onPhotoMenuChange={open => changePhotoMenu(open ? 'root' : null)}
+        onStartWriting={() => {
+          setEditingId(null);
+          setReplyTargetId(null);
+        }}
+        onSubmit={addComment}
+        photoMenuOpen={photoMenuId === 'root'}
+      />
+      {comments.map(comment => (
+        <CommentThread
+          comment={comment}
+          editingId={editingId}
+          key={comment.id}
+          menuId={menuId}
+          onAddReply={addReply}
+          onDelete={setDeleteTargetId}
+          onEdit={(commentId, content) => {
+            if (editingId === commentId) {
+              dispatch({ commentId, content, type: 'update' });
+              setEditingId(null);
+            } else {
+              setEditingId(commentId);
+              setMenuId(null);
+              setPhotoMenuId(null);
+              setReplyTargetId(null);
+            }
+          }}
+          onEditFocus={onEditFocus}
+          onImagePress={setViewerImageUri}
+          onMenu={openMenu}
+          onPhotoMenuChange={changePhotoMenu}
+          onReply={commentId => {
+            setEditingId(null);
+            setPhotoMenuId(null);
+            setReplyTargetId(commentId);
+            setMenuId(null);
+          }}
+          photoMenuId={photoMenuId}
+          replyTargetId={replyTargetId}
+        />
+      ))}
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setDeleteTargetId(null)}
+        transparent
+        visible={Boolean(deleteTargetId)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.deleteModal}>
+            <Text style={styles.modalTitle}>댓글을 삭제하시겠습니까?</Text>
+            <Text style={styles.modalDescription}>삭제 후에는 해당 정보를 복구할 수 없습니다.</Text>
+            <View style={styles.modalActions}>
+              <Pressable onPress={() => setDeleteTargetId(null)} style={[styles.modalButton, styles.cancelButton]}>
+                <Text style={styles.modalButtonText}>취소하기</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (deleteTargetId) {
+                    dispatch({ commentId: deleteTargetId, type: 'delete' });
+                  }
+                  setDeleteTargetId(null);
+                  setMenuId(null);
+                }}
+                style={[styles.modalButton, styles.deleteButton]}
+              >
+                <Text style={styles.modalButtonText}>삭제하기</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setViewerImageUri(null)}
+        statusBarTranslucent
+        transparent
+        visible={Boolean(viewerImageUri)}
+      >
+        <Pressable
+          accessibilityLabel="확대 이미지 닫기"
+          onPress={() => setViewerImageUri(null)}
+          style={styles.imageViewerBackdrop}
+        >
+          <Pressable onPress={event => event.stopPropagation()} style={styles.imageViewerContent}>
+            {viewerImageUri ? (
+              <Image resizeMode="contain" source={{ uri: viewerImageUri }} style={styles.viewerImage} />
+            ) : null}
+          </Pressable>
+          <Pressable
+            accessibilityLabel="확대 이미지 닫기"
+            hitSlop={12}
+            onPress={() => setViewerImageUri(null)}
+            style={[styles.imageViewerClose, { top: insets.top + 16 }]}
+          >
+            <CancelIcon height={20} width={20} />
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { paddingHorizontal: 22, paddingTop: 20 },
+  title: { ...typography.bodyRegular14, color: colors.black },
+  composerWrap: { marginBottom: 18, marginTop: 10, position: 'relative', zIndex: 5 },
+  compactComposerWrap: { marginLeft: 44, marginTop: 0 },
+  commentInput: { alignItems: 'center', backgroundColor: '#F1F1F1', borderColor: colors.transparent, borderRadius: 8, borderWidth: 1, flexDirection: 'row', minHeight: 48, paddingHorizontal: 16 },
+  commentInputFocused: { borderColor: colors.green400 },
+  commentTextInput: { ...typography.bodyRegular16, color: colors.gray800, flex: 1, maxHeight: 88, minHeight: 40, paddingHorizontal: 10, paddingVertical: 9 },
+  imagePreviewWrap: { alignSelf: 'flex-start', marginTop: 8 },
+  imageThumbnailWrap: { height: 76, position: 'relative', width: 76 },
+  imagePreview: { borderRadius: 8, height: 76, width: 76 },
+  removeImage: { position: 'absolute', right: -7, top: -7 },
+  imageGuide: { ...typography.captionRegular10, color: colors.gray400, marginTop: 5 },
+  photoMenu: { backgroundColor: colors.white, borderColor: colors.gray200, borderRadius: 10, borderWidth: 1, left: 0, paddingVertical: 6, position: 'absolute', top: 52, width: 154, zIndex: 20 },
+  photoMenuItem: { alignItems: 'center', flexDirection: 'row', gap: 12, height: 44, paddingHorizontal: 14 },
+  photoMenuText: { ...typography.bodyRegular14, color: colors.gray700 },
+  replyCancel: { alignSelf: 'flex-end', paddingHorizontal: 4, paddingTop: 6 },
+  replyCancelText: { ...typography.captionRegular10, color: colors.gray400 },
+  comment: { alignItems: 'flex-start', flexDirection: 'row', marginBottom: 16, minHeight: 62, position: 'relative' },
+  deletedComment: { minHeight: 0, paddingVertical: 10 },
+  reply: { marginLeft: 40 },
+  avatar: { borderRadius: 20, height: 40, width: 40 },
+  deletedAvatar: { height: 0, width: 0 },
+  commentBody: { flex: 1, marginLeft: 7, minWidth: 0 },
+  deletedCommentBody: { marginLeft: 0 },
+  commentMeta: { alignItems: 'flex-start', flexDirection: 'row', minHeight: 15 },
+  nickname: { color: '#636363', fontFamily: 'Pretendard-Medium', fontSize: 12, includeFontPadding: false, lineHeight: 15, maxWidth: 150 },
+  myNickname: { color: colors.green400 },
+  createdAt: { ...typography.captionRegular10, color: '#C1C1C1', includeFontPadding: false, marginLeft: 6, marginTop: 1 },
+  content: { ...typography.bodyRegular14, color: colors.black, marginTop: 5 },
+  deletedContent: { color: colors.gray400, marginTop: 0 },
+  commentImageWrap: { borderRadius: 8, height: 120, marginTop: 8, overflow: 'hidden', width: 120 },
+  commentImage: { height: '100%', width: '100%' },
+  imageOnlyComment: { marginTop: 4 },
+  replyAction: { ...typography.captionRegular10, color: '#C1C1C1', fontFamily: 'Pretendard-SemiBold', marginTop: 5 },
+  commentMenu: { alignItems: 'center', height: 28, justifyContent: 'center', width: 20 },
+  myCommentMenu: { backgroundColor: colors.white, borderColor: colors.gray200, borderRadius: 10, borderWidth: 1, paddingVertical: 6, position: 'absolute', right: 0, top: 24, width: 142, zIndex: 10 },
+  myCommentMenuItem: { alignItems: 'center', flexDirection: 'row', gap: 12, height: 42, paddingHorizontal: 14 },
+  myCommentMenuText: { ...typography.bodyRegular14, color: colors.gray700 },
+  deleteMenuText: { ...typography.bodyRegular14, color: '#FA705B' },
+  editArea: { marginTop: 5 },
+  editInputRow: { alignItems: 'center', borderColor: colors.green400, borderRadius: 8, borderWidth: 1, flexDirection: 'row', minHeight: 44, paddingHorizontal: 10 },
+  editInput: { ...typography.bodyRegular14, color: colors.black, flex: 1, maxHeight: 88, minHeight: 40, paddingRight: 8, paddingVertical: 8 },
+  editSendDisabled: { opacity: 0.35 },
+  modalBackdrop: { alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.32)', flex: 1, justifyContent: 'center', paddingHorizontal: 16 },
+  deleteModal: { backgroundColor: colors.white, borderRadius: 18, padding: 18, width: '100%' },
+  modalTitle: { ...typography.titleSemiBold18, color: colors.gray800 },
+  modalDescription: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 14 },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  modalButton: { alignItems: 'center', borderRadius: 8, flex: 1, height: 42, justifyContent: 'center' },
+  cancelButton: { backgroundColor: colors.gray200 },
+  deleteButton: { backgroundColor: '#FA705B' },
+  modalButtonText: { ...typography.bodySemiBold16, color: colors.white },
+  imageViewerBackdrop: { alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.88)', flex: 1, justifyContent: 'center' },
+  imageViewerContent: { height: '82%', width: '100%' },
+  viewerImage: { height: '100%', width: '100%' },
+  imageViewerClose: { alignItems: 'center', backgroundColor: colors.white, borderRadius: 20, height: 40, justifyContent: 'center', position: 'absolute', right: 20, width: 40 },
+});

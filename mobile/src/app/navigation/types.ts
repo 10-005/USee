@@ -12,12 +12,16 @@ export type RootStackParamList = {
   AdoptionApplicationReview: { animalId: string };
   AdoptionDetail: { animalId: string };
   Home: undefined;
+  FoundReportDetail: { reportId: string };
   MockAdoptionActivity: { petId: string };
+  NoticeDetail: { noticeId: string };
+  NoticeList: undefined;
   MockAdoptionSelection: undefined;
   PetList: undefined;
   PetRegistration: { petId?: string } | undefined;
   PetDetail: { petId: string };
   ProfileEdit: undefined;
+  Settings: undefined;
   MockAdoptionBudget: { petId: string };
   ShelterDetail: { shelterId: string };
 };
