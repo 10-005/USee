@@ -1,6 +1,7 @@
 package com.usee.animal.ar
 
 import io.github.sceneview.model.ModelInstance
+import io.github.sceneview.math.Position
 import io.github.sceneview.node.ModelNode
 
 internal class DogModelNode(
@@ -11,6 +12,28 @@ internal class DogModelNode(
 ) {
   private val indices = (0 until animationCount).associateBy { animator.getAnimationName(it) }
   val durations = indices.mapValues { animator.getAnimationDuration(it.value) }
+  private val leashSocket = emptyNodes.firstOrNull { it.name == "LeashAttachment" }
+  private val neck = emptyNodes.firstOrNull { it.name == "neck" }
+  private val leftSocket = emptyNodes.firstOrNull { it.name == "LeashAttachmentLeft" }
+  private val rightSocket = emptyNodes.firstOrNull { it.name == "LeashAttachmentRight" }
+  private var frontLeash = false
+  val leashPosition: Position?
+    get() = leashSocket?.worldPosition ?: neck?.getWorldPosition(Position(0f, 0.05069732f, 0.05752291f))
+  fun leashPositionFor(camera: LeashPoint, cameraRight: LeashPoint): Position? {
+    val origin = worldPosition
+    val forward = getWorldPosition(Position(z = 1f)) - origin
+    val facing = LeashInteraction.facingViewer(
+      LeashPoint(forward.x, 0f, forward.z), LeashPoint(camera.x - origin.x, 0f, camera.z - origin.z), frontLeash,
+    )
+    frontLeash = facing
+    if (!facing) return leashPosition
+    val left = leftSocket?.worldPosition ?: return leashPosition
+    val right = rightSocket?.worldPosition ?: return leashPosition
+    val separation = LeashPoint(left.x - right.x, left.y - right.y, left.z - right.z)
+    val side = separation.x * cameraRight.x + separation.y * cameraRight.y + separation.z * cameraRight.z
+    return if (side <= 0f) left else right
+  }
+  var onPoseUpdated: ((DogModelNode, Long) -> Unit)? = null
   private var current = -1
   private var revision = -1
   private var startedAt = 0L
@@ -45,9 +68,11 @@ internal class DogModelNode(
     super.onFrame(frameTimeNanos)
     if (manualPlayback) {
       applyPose(frameTimeNanos)
+      onPoseUpdated?.invoke(this, frameTimeNanos)
       return
     }
     if (blendPrevious(frameTimeNanos)) animator.updateBoneMatrices()
+    onPoseUpdated?.invoke(this, frameTimeNanos)
   }
 
   private fun applyPose(frameTimeNanos: Long) {

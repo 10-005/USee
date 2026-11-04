@@ -28,6 +28,10 @@ class ArFloorView(
   private var sceneView: ARSceneView? = null
   private var dogNode: DogModelNode? = null
   private var shadowNode: CylinderNode? = null
+  private var leash: DogLeash? = null
+  private var leashHand: LeashPoint? = null
+  private var leashCamera: LeashPoint? = null
+  private var leashCameraRight: LeashPoint? = null
   private var modelReady = false
   private var active = false
   private var disposed = false
@@ -44,6 +48,7 @@ class ArFloorView(
   private val projectionMatrix = FloatArray(16)
   private val cameraPoint = FloatArray(4)
   private val clipPoint = FloatArray(4)
+  private val inverseProjection = FloatArray(16)
 
   fun requestPlacement(request: Int) {
     if (request > lastPlacementRequest) leader.requestPlacement()
@@ -126,6 +131,19 @@ class ArFloorView(
           return@post
         }
         val node = DogModelNode(instance)
+        val dogLeash = DogLeash(view)
+        leash = dogLeash
+        node.onPoseUpdated = { posedDog, time ->
+          val camera = leashCamera
+          val right = leashCameraRight
+          val collar = if (camera != null && right != null) posedDog.leashPositionFor(camera, right) else null
+          val hand = leashHand
+          if (active && sceneView === view && posedDog.isVisible && collar != null && hand != null) {
+            dogLeash.update(LeashPoint(collar.x, collar.y, collar.z), hand, time)
+          } else {
+            dogLeash.hide()
+          }
+        }
         leader = DogLeader(requiresPlacement = false, animations = DogAnimationController(node.durations))
         node.isShadowCaster = true
         node.isVisible = false
@@ -154,6 +172,12 @@ class ArFloorView(
   }
 
   private fun stop() {
+    dogNode?.onPoseUpdated = null
+    leash?.close()
+    leash = null
+    leashHand = null
+    leashCamera = null
+    leashCameraRight = null
     floorAnalyzer?.close()
     floorAnalyzer = null
     modelReady = false
@@ -194,6 +218,20 @@ class ArFloorView(
     val camera = frame.camera
     camera.getViewMatrix(viewMatrix, 0)
     camera.getProjectionMatrix(projectionMatrix, 0, 0.1f, 100f)
+    val cameraPose = camera.displayOrientedPose
+    leashCamera = LeashPoint(cameraPose.tx(), cameraPose.ty(), cameraPose.tz())
+    val screenRight = cameraPose.rotateVector(floatArrayOf(1f, 0f, 0f))
+    leashCameraRight = LeashPoint(screenRight[0], screenRight[1], screenRight[2])
+    leashHand = if (camera.trackingState == com.google.ar.core.TrackingState.TRACKING &&
+      android.opengl.Matrix.invertM(inverseProjection, 0, projectionMatrix, 0)) {
+      // NDC (0,-1) is exactly the native AR viewport's bottom center. Keep the hand
+      // 35cm in front of the camera, so it stays fixed when the phone turns or moves.
+      val hand = LeashCurve.handInCamera(inverseProjection)
+      val world = camera.displayOrientedPose.transformPoint(floatArrayOf(
+        hand.x, hand.y, hand.z,
+      ))
+      LeashPoint(world[0], world[1], world[2])
+    } else null
     android.opengl.Matrix.multiplyMV(cameraPoint, 0, viewMatrix, 0,
       floatArrayOf(shown.dog.x, shown.dog.y + DOG_MODEL_UNITS / 2f, shown.dog.z, 1f), 0)
     android.opengl.Matrix.multiplyMV(clipPoint, 0, projectionMatrix, 0, cameraPoint, 0)
