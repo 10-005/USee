@@ -44,24 +44,29 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const [statsVisible, setStatsVisible] = useState(false);
   const walkPending = useRef(false);
   const [care, setCare] = useState<{
-    kind: 'food' | 'water' | 'treat';
+    kind: 'food' | 'water' | 'treat' | 'fetch';
     offset: { x: number; y: number };
   } | null>(null);
   const careBusy = useRef(false);
+  const [toyGround, setToyGround] = useState<{ x: number; y: number } | null>(null);
   const [bathing, setBathing] = useState(false);
   const [bathReturning, setBathReturning] = useState(false);
   const bathingRef = useRef(false);
   const bathTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const bathScreenOpacity = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    if (!bathReturning) {return;}
+    if (!bathReturning) {
+      return;
+    }
     const animation = Animated.timing(bathScreenOpacity, {
       toValue: 1,
       duration: 2000,
       useNativeDriver: true,
     });
     animation.start(({ finished }) => {
-      if (!finished || !bathingRef.current) {return;}
+      if (!finished || !bathingRef.current) {
+        return;
+      }
       bathingRef.current = false;
       setBathReturning(false);
     });
@@ -129,6 +134,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         careBusy.current = false;
         setTreatActive(false);
         setCare(null);
+        setToyGround(null);
         setFullBowl({ food: false, water: false });
         setRoomVisible(false);
         setStatsVisible(false);
@@ -153,6 +159,11 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     top:
       (roomSize.height - 1678 * backgroundScale) / 2 +
       (1140 - 554 * 0.68 - (900 - 554)) * backgroundScale,
+  };
+  // Use the background's cover transform so the landing point stays beside the pot.
+  const toyLanding = {
+    x: (roomSize.width - 937 * backgroundScale) / 2 + 510 * backgroundScale,
+    y: (roomSize.height - 1678 * backgroundScale) / 2 + 900 * backgroundScale,
   };
   const ending = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -250,6 +261,15 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         resizeMode="cover"
         style={styles.background}
       />
+      {toyGround && !bathing ? (
+        <Image
+          pointerEvents="none"
+          accessibilityLabel="바닥에 놓인 강아지 장난감"
+          source={require('../../assets/images/mock-adoption/img_dog_toy.png')}
+          resizeMode="contain"
+          style={[styles.groundToy, { left: toyGround.x - 20, top: toyGround.y - 20 }]}
+        />
+      ) : null}
       {roomVisible && pet && roomSize.width > 0 ? (
         <RoomPet
           key={`${pet.id}-${returnSequence}`}
@@ -261,8 +281,17 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           sceneOpacity={bathScreenOpacity}
           care={care}
           onConsumed={() => {
-            if (care && care.kind !== 'treat') {
+            if (care && (care.kind === 'food' || care.kind === 'water')) {
               setFullBowl(value => ({ ...value, [care.kind]: false }));
+            }
+          }}
+          onFetchPhase={phase => {
+            if (phase === 'carry' || phase === 'cancel') {
+              setToyGround(null);
+            }
+            if (phase === 'drop') {
+              setToyGround({ x: petFrame.left + petWidth / 2, y: petFrame.top + petHeight * 0.79 });
+              showToast('♥');
             }
           }}
           onCareComplete={() => {
@@ -445,7 +474,9 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           width={roomSize.width}
           height={roomSize.height}
           target={{ x: petFrame.left + petWidth / 2, y: petFrame.top + petHeight * 0.62 }}
-          disabled={!!care || busy || statsVisible || bathReturning || roomSize.width <= 0}
+          disabled={
+            !!care || busy || statsVisible || bathReturning || treatActive || roomSize.width <= 0
+          }
           onBusyChange={active => {
             careBusy.current = active;
             setTreatActive(active);
@@ -454,6 +485,34 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
             setTreatActive(false);
             setCare({ kind: 'treat', offset: { x: 0, y: 0 } });
             showToast('♥');
+          }}
+        />
+      ) : null}
+      {roomVisible && pet?.category === 'dog' && !leaving && !bathing ? (
+        <TreatLauncher
+          item="toy"
+          category="dog"
+          bottomOffset={92}
+          width={roomSize.width}
+          height={roomSize.height}
+          target={toyLanding}
+          disabled={
+            !!care || busy || statsVisible || bathReturning || treatActive || roomSize.width <= 0
+          }
+          onBusyChange={active => {
+            careBusy.current = active;
+            setTreatActive(active);
+          }}
+          onLanded={point => {
+            setTreatActive(false);
+            setToyGround(point);
+            setCare({
+              kind: 'fetch',
+              offset: {
+                x: point.x - (petFrame.left + petWidth / 2),
+                y: point.y - (petFrame.top + petHeight * 0.79) + petHeight * 0.05,
+              },
+            });
           }}
         />
       ) : null}
@@ -511,6 +570,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   background: { position: 'absolute', width: '100%', height: '100%' },
+  groundToy: { position: 'absolute', width: 40, height: 40 },
   pet: { position: 'absolute' },
   toilet: { position: 'absolute', right: '3%', top: '47%', width: '36%', height: '13%' },
   toiletImage: { width: '100%', height: '100%' },
