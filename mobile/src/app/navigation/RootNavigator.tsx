@@ -22,6 +22,7 @@ import { SettingsScreen } from '../../screens/MyPage/SettingsScreen';
 import { NoticeListScreen } from '../../screens/MyPage/NoticeListScreen';
 import { NoticeDetailScreen } from '../../screens/MyPage/NoticeDetailScreen';
 import { FoundReportDetailScreen } from '../../screens/found-report/FoundReportDetailScreen';
+import { FoundReportFormScreen } from '../../screens/found-report/FoundReportFormScreen';
 import { LostReportPetSelectionScreen } from '../../screens/lost-report/LostReportPetSelectionScreen';
 import { LostReportFormScreen } from '../../screens/lost-report/LostReportFormScreen';
 import { LostReportLocationPickerScreen } from '../../screens/lost-report/LostReportLocationPickerScreen';
@@ -35,6 +36,7 @@ export function RootNavigator() {
       <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="FoundReportDetail" component={FoundReportDetailScreen} />
+        <Stack.Screen name="FoundReportForm" component={FoundReportFormScreen} />
         <Stack.Screen name="LostReportDetail" component={FoundReportDetailScreen} />
         <Stack.Screen name="LostReportForm" component={LostReportFormScreen} />
         <Stack.Screen

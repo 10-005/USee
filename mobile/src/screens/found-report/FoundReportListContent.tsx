@@ -19,6 +19,8 @@ import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
 import SearchIcon from '../../assets/icons/common/search.svg';
 import { colors, radius, typography } from '../../theme';
+import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
+import { useLostReportEditStore } from '../../stores/lostReportEditStore';
 import { useReportStatusStore } from '../../stores/reportStatusStore';
 import {
   AdoptionFilterSheet,
@@ -101,32 +103,54 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
   const [filters, setFilters] = useState(initialFilters);
   const statusById = useReportStatusStore(state => state.statusById);
+  const deletedFoundReportIds = useFoundReportEditStore(state => state.deletedIds);
+  const foundReportEdits = useFoundReportEditStore(state => state.editsById);
+  const deletedLostReportIds = useLostReportEditStore(state => state.deletedIds);
+  const lostReportEdits = useLostReportEditStore(state => state.editsById);
   const reports = useMemo(
     () => {
-      const source = (activeTab === 'found' ? foundReports : lostReports).map(report => {
-        const storedStatus = statusById[report.id];
-        if (!storedStatus) {
-          return report;
-        }
-        return {
-          ...report,
-          status:
-            activeTab === 'found'
-              ? storedStatus === 'active'
-                ? '진행 중'
-                : '완료'
-              : storedStatus === 'active'
-                ? '실종'
-                : '종료',
-        } as Report;
-      });
+      const source = (activeTab === 'found' ? foundReports : lostReports)
+        .filter(report =>
+          activeTab === 'found'
+            ? !deletedFoundReportIds.includes(report.id)
+            : !deletedLostReportIds.includes(report.id),
+        )
+        .map(report => {
+          const editedReport =
+            activeTab === 'found' ? foundReportEdits[report.id] : lostReportEdits[report.id];
+          const currentReport = editedReport ? { ...report, ...editedReport } : report;
+          const storedStatus = statusById[report.id];
+          if (!storedStatus) {
+            return currentReport;
+          }
+          return {
+            ...currentReport,
+            status:
+              activeTab === 'found'
+                ? storedStatus === 'active'
+                  ? '진행 중'
+                  : '완료'
+                : storedStatus === 'active'
+                  ? '실종'
+                  : '종료',
+          } as Report;
+        });
       return filterReports(
         source,
         query,
         filters,
       );
     },
-    [activeTab, filters, query, statusById],
+    [
+      activeTab,
+      deletedFoundReportIds,
+      deletedLostReportIds,
+      filters,
+      foundReportEdits,
+      lostReportEdits,
+      query,
+      statusById,
+    ],
   );
 
   useEffect(() => {

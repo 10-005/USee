@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
@@ -9,6 +9,7 @@ import RightArrowIcon from '../../assets/icons/common/right-arrow.svg';
 import { AppHeader, Button } from '../../components/common';
 import { getAdoptionApplicationRecord } from '../../services/storage/adoptionApplicationStorage';
 import { getAdoptionApplicationDraft } from '../../services/storage/adoptionDraftStorage';
+import { useChatStore } from '../../stores/chatStore';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals } from './data';
@@ -40,10 +41,23 @@ function InfoRows({ rows }: { rows: string[][] }) {
 }
 
 export function AdoptionDetailScreen({ navigation, route }: Props) {
+  const insets = useSafeAreaInsets();
   const animal =
     adoptionAnimals.find(item => item.id === route.params.animalId) ?? adoptionAnimals[0];
+  const isClosed = animal.status === '종료';
   const bookmarked = useAdoptionBookmarkStore(state => state.bookmarkedIds.includes(animal.id));
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
+  const shelterName = '익산유기동물보호소';
+  const openChat = async () => {
+    try {
+      const params = await useChatStore.getState().openPostRoom('adoption', animal.id, shelterName, 'iksan-shelter');
+      if (navigation.isFocused()) {
+        navigation.navigate('ChatRoom', params);
+      }
+    } catch {
+      Alert.alert('채팅', '채팅방을 열 수 없어요. 다시 시도해 주세요.');
+    }
+  };
   const openApplication = async () => {
     const [record, draft] = await Promise.all([
       getAdoptionApplicationRecord(),
@@ -65,15 +79,18 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <AppHeader onBackPress={navigation.goBack} title="게시글" />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: isClosed ? 24 + insets.bottom : 96 + insets.bottom }}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.shelterProfile}>
           <Image
             source={require('../../assets/images/adoption/shelter-profile.jpg')}
             style={styles.profileImage}
           />
-          <Text style={styles.shelterName}>익산유기동물보호소</Text>
+          <Text style={styles.shelterName}>{shelterName}</Text>
           <Text style={styles.profileMeta}>26.10.26</Text>
         </View>
         <Image
@@ -140,26 +157,27 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
             rows={[
               ['관할기관', '전북특별자치도 익산시'],
               ['상태', '보호중'],
-              ['보호센터', '익산유기동물보호소'],
+              ['보호센터', shelterName],
               ['연락처', '063-855-1214'],
               ['보호장소', '전북특별자치도 익산시 삼기면 황금로 342-17'],
             ]}
           />
         </View>
-        <View style={styles.actions}>
-          <Button style={styles.action}>채팅 보내기</Button>
+      </ScrollView>
+      {!isClosed ? (
+        <View style={[styles.actions, { bottom: insets.bottom + 12 }]}>
+          <Button onPress={openChat} style={styles.action}>채팅 보내기</Button>
           <Button onPress={openApplication} style={[styles.action, styles.applyButton]}>
             입양 신청하기
           </Button>
         </View>
-      </ScrollView>
+      ) : null}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
-  scrollContent: { paddingBottom: 24 },
   shelterProfile: { alignItems: 'center', flexDirection: 'row', height: 62, paddingHorizontal: 26 },
   profileImage: { borderRadius: 24, height: 48, width: 48 },
   shelterName: { ...typography.titleSemiBold18, color: colors.gray600, flex: 1, marginLeft: 16 },
@@ -202,8 +220,15 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row' },
   infoLabel: { ...typography.bodyRegular14, color: colors.gray400, width: 110 },
   infoValue: { ...typography.bodyRegular14, color: colors.black, flex: 1 },
-  actions: { flexDirection: 'row', gap: 8, paddingHorizontal: 15, paddingTop: 20 },
-  action: { flex: 1 },
+  actions: {
+    flexDirection: 'row',
+    gap: 8,
+    left: 0,
+    paddingHorizontal: 15,
+    position: 'absolute',
+    right: 0,
+  },
+  action: { elevation: 8, flex: 1 },
   applyButton: { backgroundColor: '#FAB45B' },
   pressed: { opacity: 0.7 },
 });

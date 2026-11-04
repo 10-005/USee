@@ -22,8 +22,8 @@ import ReportIcon from '../../assets/icons/common/report.svg';
 import XCircleIcon from '../../assets/icons/common/x-circle.svg';
 import PetEditIcon from '../../assets/icons/mypage/pet-edit.svg';
 import PetTrashIcon from '../../assets/icons/mypage/pet-trash.svg';
-import CameraIcon from '../../assets/icons/mypage/photo-camera.svg';
-import LibraryIcon from '../../assets/icons/mypage/photo-library.svg';
+import CameraIcon from '../../assets/icons/common/photo-camera.svg';
+import LibraryIcon from '../../assets/icons/common/photo-library.svg';
 import {
   ContentReportModal,
   type ContentReportTarget,
@@ -161,7 +161,7 @@ function CommentComposer({
             onStartWriting?.();
             onDismissMenus();
           }}
-          placeholder={compact ? '입력하면 이렇게...' : '메시지를 입력하세요'}
+          placeholder="메시지를 입력하세요"
           placeholderTextColor={colors.gray300}
           style={styles.commentTextInput}
           value={content}
@@ -220,6 +220,9 @@ function CommentComposer({
 }
 
 type CommentItemProps = {
+  onAuthor: () => void;
+  authorMenuOpen: boolean;
+  onChat: () => void;
   comment: FoundReportReply;
   editing: boolean;
   menuOpen: boolean;
@@ -234,6 +237,9 @@ type CommentItemProps = {
 };
 
 function CommentItem({
+  onAuthor,
+  authorMenuOpen,
+  onChat,
   comment,
   editing,
   menuOpen,
@@ -255,15 +261,23 @@ function CommentItem({
       {deleted ? (
         <View style={styles.deletedAvatar} />
       ) : (
-        <Image
-          source={require('../../assets/images/found-report/reporter-profile.png')}
-          style={styles.avatar}
-        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${comment.nickname} 프로필`}
+          disabled={!comment.authorId || comment.isMine}
+          onPress={event => { event.stopPropagation(); onAuthor(); }}
+          accessibilityState={{ expanded: authorMenuOpen }}
+        >
+          <Image source={require('../../assets/images/found-report/reporter-profile.png')} style={styles.avatar} />
+        </Pressable>
       )}
       <View style={[styles.commentBody, deleted && styles.deletedCommentBody]}>
         {!deleted ? (
           <View style={styles.commentMeta}>
-            <Text numberOfLines={1} style={[styles.nickname, comment.isMine && styles.myNickname]}>
+            <Text
+              accessibilityRole={comment.authorId && !comment.isMine ? 'button' : undefined}
+              onPress={comment.authorId && !comment.isMine ? event => { event.stopPropagation(); onAuthor(); } : undefined}
+              numberOfLines={1} style={[styles.nickname, comment.isMine && styles.myNickname]}>
               {comment.nickname}
             </Text>
             <Text style={styles.createdAt}>{comment.createdAt}</Text>
@@ -349,17 +363,19 @@ function CommentItem({
           </Pressable>
         </View>
       ) : null}
-      {menuOpen && !comment.isMine ? (
-        <View style={styles.viewerCommentMenu}>
+      {(menuOpen || authorMenuOpen) && !comment.isMine ? (
+        <View style={[styles.viewerCommentMenu, authorMenuOpen && styles.authorMenu]}>
           <Pressable
             onPress={event => {
               event.stopPropagation();
-              onReport();
+              if (authorMenuOpen) { onChat(); } else { onReport(); }
             }}
             style={styles.myCommentMenuItem}
           >
-            <ReportIcon height={20} width={20} />
-            <Text style={styles.reportMenuText}>신고하기</Text>
+             {authorMenuOpen ? <ChatIcon height={20} width={20} /> : <ReportIcon height={20} width={20} />}
+            <Text style={authorMenuOpen ? styles.myCommentMenuText : styles.reportMenuText}>
+              {authorMenuOpen ? '채팅하기' : '신고하기'}
+            </Text>
           </Pressable>
         </View>
       ) : null}
@@ -368,6 +384,8 @@ function CommentItem({
 }
 
 type CommentThreadProps = {
+  onAuthor: (comment: FoundReportReply) => void;
+  onChat: (comment: FoundReportReply) => void;
   comment: FoundReportComment;
   editingId: string | null;
   menuId: string | null;
@@ -385,6 +403,8 @@ type CommentThreadProps = {
 };
 
 function CommentThread({
+  onAuthor,
+  onChat,
   comment,
   editingId,
   menuId,
@@ -402,6 +422,9 @@ function CommentThread({
 }: CommentThreadProps) {
   const item = (reply: FoundReportReply, isReply = false) => (
     <CommentItem
+      onAuthor={() => onAuthor(reply)}
+      authorMenuOpen={menuId === `author:${reply.id}`}
+      onChat={() => onChat(reply)}
       comment={reply}
       editing={editingId === reply.id}
       key={reply.id}
@@ -437,11 +460,12 @@ function CommentThread({
 }
 
 type FoundReportCommentListProps = {
+  onChat: (name: string, authorId: string) => void;
   onEditFocus?: (inputHandle: number) => void;
   reportId: string;
 };
 
-export function FoundReportCommentList({ onEditFocus, reportId }: FoundReportCommentListProps) {
+export function FoundReportCommentList({ onChat, onEditFocus, reportId }: FoundReportCommentListProps) {
   const insets = useSafeAreaInsets();
   const [comments, dispatch] = useReducer(commentReducer, foundReportComments);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -525,6 +549,15 @@ export function FoundReportCommentList({ onEditFocus, reportId }: FoundReportCom
       />
       {comments.map(comment => (
         <CommentThread
+          onAuthor={author => {
+            setPhotoMenuId(null);
+            const id = `author:${author.id}`;
+            setMenuId(current => current === id ? null : id);
+          }}
+          onChat={author => {
+            dismissMenus();
+            if (author.authorId) { onChat(author.nickname, author.authorId); }
+          }}
           comment={comment}
           editingId={editingId}
           key={comment.id}
@@ -759,6 +792,7 @@ const styles = StyleSheet.create({
     width: 142,
     zIndex: 10,
   },
+  authorMenu: { left: 47, right: undefined, top: 19 },
   myCommentMenuItem: {
     alignItems: 'center',
     flexDirection: 'row',

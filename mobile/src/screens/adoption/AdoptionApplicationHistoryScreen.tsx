@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import CheckIcon from '../../assets/icons/common/check.svg';
@@ -119,6 +119,7 @@ function ProcessProgress({ activeStep }: { activeStep: number }) {
 }
 
 export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
+  const insets = useSafeAreaInsets();
   const [record, setRecord] = useState<AdoptionApplicationRecord | null>(null);
   const [status, setStatus] = useState<AdoptionApplicationStatus>('DRAFT');
   const [showConfirm, setShowConfirm] = useState(false);
@@ -198,7 +199,7 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <AppHeader onBackPress={navigation.goBack} title="입양 신청 내역" />
       <View style={styles.statusArea}>
         <View
@@ -224,7 +225,7 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
           <ProcessProgress activeStep={presentation.activeStep} />
         ) : null}
       </View>
-      <View style={styles.sheet}>
+      <View style={[styles.sheet, { paddingBottom: insets.bottom }]}>
         <View style={styles.animalRow}>
           <Image
             source={require('../../assets/images/adoption/animal-detail.jpg')}

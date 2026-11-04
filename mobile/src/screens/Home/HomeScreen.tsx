@@ -371,7 +371,7 @@ export function HomeScreen({ navigation }: Props) {
           onClose={() => setRegistrationMenuOpen(false)}
           onSelectFound={() => {
             setRegistrationMenuOpen(false);
-            Alert.alert('목격 신고', '목격 신고 등록 화면은 다음 작업에서 연결할 예정이에요.');
+            navigation.navigate('PetRegistration', { flow: 'found-report' });
           }}
           onSelectLost={() => {
             setRegistrationMenuOpen(false);
