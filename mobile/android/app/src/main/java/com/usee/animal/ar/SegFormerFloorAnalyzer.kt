@@ -90,15 +90,15 @@ internal class SegFormerFloorAnalyzer(context: Context) : AutoCloseable {
             require(shape.size == 4 && shape[0] == 1L && shape[1] == 150L) { "Unexpected SegFormer output" }
             val maskWidth = shape[3].toInt()
             val maskHeight = shape[2].toInt()
-            val walkable = SemanticFloorMask.decode(output.floatBuffer, 150, maskWidth, maskHeight)
+            val pixels = SemanticFloorMask.decodeDetails(output.floatBuffer, 150, maskWidth, maskHeight)
             val elapsed = SystemClock.elapsedRealtimeNanos() - now
             if (BuildConfig.DEBUG) Log.d(TAG, "analysisMs=${elapsed / 1_000_000}, accepted=${now > invalidatedAt}, rotation=$rotation")
             if (elapsed > SemanticFloorMask.MAX_AGE_NANOS) {
               Log.w(TAG, "SegFormer result expired before publication: ${elapsed / 1_000_000}ms")
             }
             if (!closed && now - invalidatedAt > 0L) latest = SemanticFloorMask(
-              maskWidth, maskHeight, walkable, inverse, focal[0], focal[1], center[0], center[1],
-              width, height, rotation, now,
+              maskWidth, maskHeight, pixels.walkable, inverse, focal[0], focal[1], center[0], center[1],
+              width, height, rotation, now, pixels.labels, pixels.confident,
             )
           }
         }
