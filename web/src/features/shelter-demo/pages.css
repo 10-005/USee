@@ -594,6 +594,24 @@
 .rescue-detail-status .shelter-choice label {
   min-width: 0;
 }
+:is(.rescue-detail-status, .rescue-form) .shelter-choice + .ui-field {
+  margin-top: 16px;
+}
+:is(.rescue-detail-status, .rescue-form) .shelter-choice + .ui-field .ui-field__label {
+  font-size: 14px;
+}
+:is(.rescue-detail-status, .rescue-form) .shelter-choice + .ui-field textarea:focus {
+  --reason-focus: #15803d;
+  border-color: var(--reason-focus);
+  outline: 3px solid color-mix(in srgb, var(--reason-focus) 22%, transparent);
+  outline-offset: 0;
+}
+:is(.rescue-detail-status, .rescue-form)
+  .shelter-choice
+  + .ui-field
+  textarea[aria-invalid='true']:focus {
+  --reason-focus: #b42318;
+}
 .rescue-status-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -27,6 +27,38 @@ function useReportListUrl() {
   return state.reportSearch ? `/reports?${state.reportSearch}` : '/reports';
 }
 
+function useRescueStatus(record?: Rescue) {
+  const [status, setStatus] = useState<RescueStatus>(record?.status ?? '진행 중');
+  const [reason, setReason] = useState(record?.statusReason ?? '');
+  const requiresReason = status === '실패' || status === '취소';
+  const statusReason = requiresReason ? reason.trim() : undefined;
+  const missingReason = requiresReason && !statusReason;
+  const changeStatus = (value: string) => {
+    setStatus(value as RescueStatus);
+    setReason(value === record?.status ? (record.statusReason ?? '') : '');
+  };
+  return { status, changeStatus, reason, setReason, requiresReason, statusReason, missingReason };
+}
+
+function StatusReasonField({
+  draft,
+  submitted,
+}: {
+  draft: ReturnType<typeof useRescueStatus>;
+  submitted: boolean;
+}) {
+  if (!draft.requiresReason) return null;
+  return (
+    <TextAreaField
+      label={`${draft.status} 사유`}
+      required
+      value={draft.reason}
+      onChange={(e) => draft.setReason(e.target.value)}
+      error={submitted && draft.missingReason ? `${draft.status} 사유를 입력해 주세요.` : undefined}
+    />
+  );
+}
+
 export function RescueDetailPage() {
   const { id } = useParams();
   const { search } = useLocation();
@@ -43,7 +75,9 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
     (r) => r.id === (record.reportId ?? record.source.replace(/^신고 #/, '')),
   );
   const save = useShelterDemo((s) => s.saveRescue);
-  const [status, setStatus] = useState<RescueStatus>(record.status);
+  const draft = useRescueStatus(record);
+  const { status, statusReason } = draft;
+  const [submitted, setSubmitted] = useState(false);
   const [confirmStatus, setConfirmStatus] = useState(false);
   return (
     <DemoPage
@@ -130,13 +164,19 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
             label="구조 상태"
             hideLabel
             value={status}
-            onChange={(value) => {
-              setStatus(value as RescueStatus);
-            }}
+            onChange={draft.changeStatus}
             options={rescueStates.map((value) => ({ value, label: value }))}
           />
+          <StatusReasonField draft={draft} submitted={submitted} />
           <div className="page-actions">
-            <Button variant="approval" fullWidth onClick={() => setConfirmStatus(true)}>
+            <Button
+              variant="approval"
+              fullWidth
+              onClick={() => {
+                setSubmitted(true);
+                if (!draft.missingReason) setConfirmStatus(true);
+              }}
+            >
               상태 저장
             </Button>
           </div>
@@ -154,7 +194,8 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
             </Button>
             <Button
               onClick={() => {
-                save({ ...record, status });
+                save({ ...record, status, statusReason });
+                setSubmitted(false);
                 setConfirmStatus(false);
               }}
             >
@@ -195,12 +236,12 @@ function RescueForm({
   const [reason, setReason] = useState(record?.reason ?? '');
   const [location, setLocation] = useState(record?.location ?? report?.location ?? '');
   const [date, setDate] = useState(record?.date ?? '');
-  const [status, setStatus] = useState<RescueStatus>(record?.status ?? '진행 중');
+  const draft = useRescueStatus(record);
   const [submitted, setSubmitted] = useState(false);
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitted(true);
-    if (!reason || !location.trim() || !date) {
+    if (!reason || !location.trim() || !date || draft.missingReason) {
       const form = e.currentTarget;
       requestAnimationFrame(() => {
         const first = form.querySelector<HTMLElement>('[aria-invalid="true"]');
@@ -224,7 +265,8 @@ function RescueForm({
         ? record.receivedAt
         : new Date().toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16),
       memo: value('memo'),
-      status,
+      status: draft.status,
+      statusReason: draft.statusReason,
     };
     save(next);
     navigate(`/rescues/${next.id}`, { state });
@@ -312,8 +354,8 @@ function RescueForm({
             <ChoiceGroup
               label="구조 상태"
               hideLabel
-              value={status}
-              onChange={(value) => setStatus(value as RescueStatus)}
+              value={draft.status}
+              onChange={draft.changeStatus}
               options={rescueStates.map((value) => ({ value, label: value }))}
             />
           ) : (
@@ -325,6 +367,7 @@ function RescueForm({
               ))}
             </ul>
           )}
+          <StatusReasonField draft={draft} submitted={submitted} />
         </FormSection>
         <div className="page-actions">
           <Button variant="secondary" onClick={() => setCancel(true)}>

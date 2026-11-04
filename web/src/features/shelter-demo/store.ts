@@ -28,6 +28,7 @@ export type Rescue = {
   date: string;
   receivedAt?: string;
   status: RescueStatus;
+  statusReason?: string;
   source: string;
   reason: string;
   location: string;

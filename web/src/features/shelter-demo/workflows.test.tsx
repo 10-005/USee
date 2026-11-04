@@ -36,6 +36,34 @@ afterEach(() => {
   Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
 });
 describe('예시 업무 흐름', () => {
+  it.each([
+    ['실패', '취소'],
+    ['취소', '실패'],
+  ] as const)('구조 상세와 수정 화면에서 %s 및 %s 사유를 입력해야 저장한다', (first, second) => {
+    const rescue = useShelterDemo.getState().rescues.find((r) => r.status === '진행 중')!;
+    open(`/rescues/${rescue.id}`);
+    fireEvent.click(screen.getByRole('radio', { name: first }));
+    const field = screen.getByRole('textbox', { name: `${first} 사유 *` });
+    fireEvent.change(field, { target: { value: '   ' } });
+    fireEvent.click(screen.getByRole('button', { name: '상태 저장' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(`${first} 사유를 입력해 주세요.`);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.change(field, { target: { value: ' 현장에서 동물을 찾지 못함 ' } });
+    fireEvent.click(screen.getByRole('button', { name: '상태 저장' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '저장' }));
+    fireEvent.click(screen.getByRole('link', { name: '수정' }));
+    expect(screen.getByLabelText(`${first} 사유 *`)).toHaveValue('현장에서 동물을 찾지 못함');
+    fireEvent.click(screen.getByRole('radio', { name: second }));
+    fireEvent.click(screen.getByRole('button', { name: '저장하기' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(`${second} 사유를 입력해 주세요.`);
+    expect(useShelterDemo.getState().rescues.find((r) => r.id === rescue.id)?.status).toBe(first);
+    fireEvent.change(screen.getByLabelText(`${second} 사유 *`), {
+      target: { value: '현장 확인 결과' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '저장하기' }));
+    expect(screen.getByLabelText(`${second} 사유 *`)).toHaveValue('현장 확인 결과');
+    expect(screen.getByRole('link', { name: '수정' })).toBeVisible();
+  });
   it('구조 상세는 접수 일시와 구조 일시를 각각 표시하고 수정 후에도 접수 일시를 유지한다', () => {
     const rescue = useShelterDemo.getState().rescues[0]!;
     open(`/rescues/${rescue.id}`);
