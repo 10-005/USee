@@ -2,6 +2,8 @@ import { requireNativeComponent, type NativeSyntheticEvent, type ViewProps } fro
 
 export type FloorTrackingStatus =
   | 'searching'
+  | 'analyzing'
+  | 'recognitionError'
   | 'ready'
   | 'anchored'
   | 'lost'
@@ -18,10 +20,13 @@ export type FloorTracking = {
   facing: number;
   clip?: string;
   moving?: boolean;
+  onScreen?: boolean;
+  userMoving?: boolean;
 };
 
 type ArFloorNativeProps = ViewProps & {
   active?: boolean;
+  showTraversalDebug?: boolean;
   placementRequest?: number;
   actionRequest?: string;
   onTracking?: (event: NativeSyntheticEvent<FloorTracking>) => void;

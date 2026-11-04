@@ -18,9 +18,9 @@ export type LostReport = {
   weight: string;
 };
 
-const dogBed = require('../../assets/images/found-report/report-dog-bed.png');
+const dogBed = require('../../assets/images/found-report/report-dog-bed.jpg');
 const dogGolden = require('../../assets/images/found-report/report-dog-golden.png');
-const dogField = require('../../assets/images/found-report/report-dog-field.png');
+const dogField = require('../../assets/images/found-report/report-dog-field.jpg');
 const dogPoodle = require('../../assets/images/found-report/report-dog-poodle.png');
 
 export const lostReports: LostReport[] = [

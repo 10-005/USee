@@ -6,6 +6,7 @@ import com.google.ar.core.Pose
 import com.google.ar.core.Session
 import com.google.ar.core.TrackingFailureReason
 import com.google.ar.core.TrackingState
+import android.os.SystemClock
 import kotlin.math.abs
 import kotlin.math.hypot
 
@@ -18,6 +19,12 @@ internal class SessionScratch {
   var walls: List<WallSegment> = emptyList()
   var lostSince = 0L
   var lastShown = ShownDog("searching", hiddenDog())
+  val navigation = WalkabilityMemory()
+  val depth = DepthTerrain()
+  val userGround = UserWalkRegion()
+  val stops = WalkStopStats()
+  var lastStopReport = 0L
+  val groundLevel = GroundLevelFilter()
 }
 
 internal data class ShownDog(
@@ -31,8 +38,11 @@ internal fun updateDog(
   leader: DogLeader,
   scratch: SessionScratch,
   modelReady: Boolean,
+  floorMask: SemanticFloorMask?,
+  semanticFailed: Boolean,
 ): ShownDog {
   val camera = frame.camera
+  val diagnosticNow = SystemClock.elapsedRealtimeNanos()
   if (!modelReady) {
     leader.cancelPlacement()
     return ShownDog("searching", hiddenDog())
@@ -43,13 +53,21 @@ internal fun updateDog(
     scratch.lastTimestamp = 0L
     scratch.planesTimestamp = 0L
     val now = System.nanoTime()
-    if (scratch.lostSince == 0L) scratch.lostSince = now
+    if (scratch.lostSince == 0L) {
+      scratch.lostSince = now
+      scratch.navigation.clear()
+      scratch.depth.clear()
+      scratch.userGround.clear()
+      scratch.groundLevel.clear()
+    }
+    if (leader.isPlaced) recordStop(scratch, "추적 끊김", diagnosticNow)
     val failed = camera.trackingFailureReason == TrackingFailureReason.CAMERA_UNAVAILABLE
     // Brief tracking noise freezes the model rather than flashing it on/off.
     if (!failed && now - scratch.lostSince < 200_000_000L) return scratch.lastShown
     return ShownDog(if (failed) "error" else "lost", hiddenDog())
   }
   scratch.lostSince = 0L
+  val semanticNow = SystemClock.elapsedRealtimeNanos()
   // SceneView may deliver several render callbacks for a single camera frame.
   // Reuse its result instead of resetting motion or querying the floor again.
   if (frame.timestamp == scratch.lastTimestamp) return scratch.lastShown
@@ -58,6 +76,7 @@ internal fun updateDog(
   val now = frame.timestamp
   val dt = if (scratch.lastTimestamp == 0L) 0f else (now - scratch.lastTimestamp) / 1_000_000_000f
   scratch.lastTimestamp = now
+  scratch.depth.update(frame, semanticNow)
 
   // Reuse ARCore's detected polygons. No raycast or whole-plane enumeration
   // for every candidate point; refresh the plane collection only at 5 Hz.
@@ -68,15 +87,52 @@ internal fun updateDog(
     scratch.planesTimestamp = now
   }
   val cameraY = pose.ty()
-  val dog = leader.update(dt, pose.tx(), pose.tz(), scratch.lookWorld[0], scratch.lookWorld[2]) { x, z ->
-    floorYAt(scratch.planes, cameraY, x, z)
+  val detectedGround = floorYAt(scratch.planes, cameraY, pose.tx(), pose.tz())
+  if (scratch.groundLevel.isEstimated && detectedGround != null) scratch.userGround.clear()
+  val userGroundY = scratch.groundLevel.update(detectedGround, cameraY - 1.35f, scratch.planesTimestamp)
+  scratch.userGround.update(pose.tx(), pose.tz(), userGroundY)
+  leader.setTrustedGround(scratch.userGround::heightAt)
+  leader.setRouteGround { x, z ->
+    scratch.userGround.heightAt(x, z) ?: floorYAt(scratch.planes, cameraY, x, z, userGroundY)?.takeIf { ground ->
+      when (scratch.depth.latest?.evidence(x, ground, z, semanticNow) ?: FloorEvidence.UNKNOWN) {
+        FloorEvidence.CLEAR -> true
+        FloorEvidence.OBSTACLE -> false
+        FloorEvidence.UNKNOWN -> floorMask != null && !semanticFailed &&
+          walkableFloorAt(scratch.planes, cameraY, floorMask, x, z, semanticNow, userGroundY) != null
+      }
+    }
   }
+  leader.beginNavigationFrame()
+  fun walkableFloor(x: Float, z: Float): Float? {
+    scratch.userGround.heightAt(x, z)?.let { return it }
+    val ground = floorYAt(scratch.planes, cameraY, x, z, userGroundY)
+    val geometry = ground?.let { scratch.depth.latest?.evidence(x, it, z, semanticNow) } ?: FloorEvidence.UNKNOWN
+    val evidence = if (geometry != FloorEvidence.UNKNOWN) geometry
+      else if (ground == null || floorMask == null || semanticFailed) FloorEvidence.UNKNOWN
+      else when (floorMask.evidenceAt(x, ground, z, semanticNow)) {
+        FloorEvidence.CLEAR -> if (walkableFloorAt(scratch.planes, cameraY, floorMask, x, z, semanticNow, userGroundY) != null) FloorEvidence.CLEAR else FloorEvidence.UNKNOWN
+        FloorEvidence.OBSTACLE -> FloorEvidence.OBSTACLE
+        FloorEvidence.UNKNOWN -> FloorEvidence.UNKNOWN
+      }
+    val decision = scratch.navigation.resolve(x, z, ground, evidence,
+      if (geometry != FloorEvidence.UNKNOWN) scratch.depth.latest!!.observationId else floorMask?.capturedAtNanos ?: -1L, semanticNow, leader.isPlaced)
+    leader.observeNavigation(decision.cautious, if (semanticFailed && decision.height == null) "분석 실패" else decision.reason)
+    return decision.height
+  }
+  val dog = leader.update(dt, pose.tx(), pose.tz(), scratch.lookWorld[0], scratch.lookWorld[2]) { x, z ->
+    walkableFloor(x, z)
+  }
+  if (leader.isPlaced) recordStop(scratch, when {
+    dt > 0.25f -> "프레임 지연"
+    dog.blocked -> dog.stopReason
+    else -> ""
+  }, diagnosticNow)
   val lookLength = hypot(scratch.lookWorld[0], scratch.lookWorld[2])
   var ready = false
   if (!leader.isPlaced && lookLength > 0.15f) {
     val targetX = pose.tx() + scratch.lookWorld[0] / lookLength * DOG_LEAD_METERS
     val targetZ = pose.tz() + scratch.lookWorld[2] / lookLength * DOG_LEAD_METERS
-    val ground = floorYAt(scratch.planes, cameraY, targetX, targetZ)
+    val ground = walkableFloor(targetX, targetZ)
     ready = ground != null && leader.canPlaceAt(pose.tx(), pose.tz(), targetX, targetZ, ground)
   }
   val status = when {
@@ -87,6 +143,25 @@ internal fun updateDog(
   return ShownDog(status, dog).also {
     scratch.lastShown = it
   }
+}
+
+private val FOOTPRINT = arrayOf(0f to 0f, -0.12f to 0f, 0.12f to 0f, 0f to -0.12f, 0f to 0.12f)
+
+private fun recordStop(scratch: SessionScratch, reason: String, now: Long) {
+  scratch.stops.record(reason, now)
+  if (now - scratch.lastStopReport >= 5_000_000_000L) {
+    scratch.lastStopReport = now
+    val report = scratch.stops.report()
+    if (report.isNotEmpty()) android.util.Log.i("ArWalkStops", report)
+  }
+}
+
+/** Shared by motion and diagnostics so the overlay cannot invent a different floor policy. */
+internal fun walkableFloorAt(planes: Collection<Plane>, cameraY: Float, mask: SemanticFloorMask, x: Float, z: Float, now: Long, referenceY: Float? = null): Float? {
+  val ground = floorYAt(planes, cameraY, x, z, referenceY) ?: return null
+  if (!mask.allows(x, ground, z, now)) return null
+  val accepted = FOOTPRINT.count { (dx, dz) -> mask.allows(x + dx, ground, z + dz, now) }
+  return if (accepted >= 4) ground else null
 }
 
 private fun hiddenDog() = DogFrame(0f, 0f, 0f, 0f, false, "Idle", 0f)
@@ -121,8 +196,8 @@ private fun wallSegment(plane: Plane): WallSegment? {
   )
 }
 
-private fun floorYAt(planes: Collection<Plane>, cameraY: Float, x: Float, z: Float): Float? {
-  val standingHeight = cameraY - 1.35f
+internal fun floorYAt(planes: Collection<Plane>, cameraY: Float, x: Float, z: Float, referenceY: Float? = null): Float? {
+  val standingHeight = referenceY ?: (cameraY - 1.35f)
   var bestY: Float? = null
   var bestDistance = Float.POSITIVE_INFINITY
   for (plane in planes) {

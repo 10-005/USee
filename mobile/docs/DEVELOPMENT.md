@@ -85,7 +85,31 @@ npm run android
 npx react-native run-android --device <device-id>
 ```
 
-### Android 빌드 및 패키징
+### USB 없이 실행하는 테스트 앱
+
+`npm run android`로 설치하는 debug 앱은 PC의 Metro 개발 서버에 연결합니다.
+휴대폰에 JavaScript·이미지·강아지 모델·SegFormer 모델을 포함하려면 아래 명령을 사용합니다.
+설치할 때만 기기를 연결하고, 설치 후에는 USB를 분리한 뒤 앱 아이콘으로 실행할 수 있습니다.
+
+```bash
+npm run android:standalone
+```
+
+이 명령은 release 빌드로 설치하며 Metro를 실행하지 않습니다.
+현재 프로젝트의 디버그 서명 설정을 사용하는 내부 테스트용 설치본입니다.
+AR 산책의 모델 추론은 기기에서 실행되지만, 서버 연동 기능은 인터넷 연결이 필요합니다.
+
+APK만 만들거나 수동 설치하려면 Windows에서 `android` 디렉터리 기준으로 실행합니다.
+
+```powershell
+.\gradlew.bat :app:assembleRelease -PreactNativeArchitectures=arm64-v8a
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+
+- USB 독립 실행 APK: `android/app/build/outputs/apk/release/app-release.apk`
+- `arm64-v8a`는 현재 테스트하는 Galaxy S21용입니다. 다른 ABI까지 포함하려면 옵션을 생략합니다.
+
+### Android 빌드 산출물
 
 Windows에서는 `android` 디렉터리에서 다음 명령을 실행합니다.
 
