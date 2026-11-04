@@ -23,7 +23,7 @@ class DogLeader(
     wallAvoidance.isClear(cameraX, cameraZ, targetX, targetZ, floorY)
 
   fun requestPlacement() {
-    if (!placed) placementRequested = true
+    placementRequested = true
   }
 
   fun cancelPlacement() {
@@ -41,6 +41,13 @@ class DogLeader(
     speed = 0f
     animations.pause()
     moving = false
+    blocked = false
+    userMoving = false
+  }
+
+  internal fun pausedFrame(): DogFrame {
+    pauseTracking()
+    return frame(placed, 0f)
   }
   private var x = 0f
   private var y = 0f
@@ -57,6 +64,9 @@ class DogLeader(
   private var speed = 0f
   private var backing = false
   private var moving = false
+  private var returning = false
+  private var blocked = false
+  private var userMoving = false
 
   fun update(
     deltaSeconds: Float,
@@ -107,8 +117,31 @@ class DogLeader(
     // While backing up, stay on the visible side and face the approaching walker.
     val lead = if (placed && backing) 1.0f else DOG_LEAD_METERS
     val prediction = if (placed) 0.55f else 0f
-    val targetX = cameraX + headingX * lead + velocityX * prediction
-    val targetZ = cameraZ + headingZ * lead + velocityZ * prediction
+    userMoving = hypot(velocityX, velocityZ) > 0.15f
+    val userDistance = hypot(cameraX - x, cameraZ - z)
+    if (placed && userDistance >= 2f) returning = true
+    if (returning && userDistance <= 1f) returning = false
+    val distance = userDistance.coerceAtLeast(0.001f)
+    val targetX = if (returning) cameraX + (x - cameraX) / distance * 0.8f
+      else cameraX + headingX * lead + velocityX * prediction
+    val targetZ = if (returning) cameraZ + (z - cameraZ) / distance * 0.8f
+      else cameraZ + headingZ * lead + velocityZ * prediction
+    if (placed && placementRequested) {
+      placementRequested = false
+      val px = cameraX + headingX * lead
+      val pz = cameraZ + headingZ * lead
+      val ground = floorAt(px, pz)
+      if (ground != null && canPlaceAt(cameraX, cameraZ, px, pz, ground)) {
+        x = px
+        z = pz
+        y = ground
+        speed = 0f
+        moving = false
+        blocked = false
+        returning = false
+        return frame(true, 0f)
+      }
+    }
     if (!placed) {
       if (requiresPlacement && !placementRequested) return frame(false, 0f)
       // A press applies only at this moment; don't spawn later on an unrelated floor.
@@ -160,7 +193,7 @@ class DogLeader(
       atan2(headingX, headingZ), dt,
     ) else WallRoute(desiredYaw)
     if (wallRoute.blocked) routeFound = false
-    val bodyYaw = if (wallRoute.detouring && !backing) atan2(headingX, headingZ) else desiredYaw
+    val bodyYaw = if (wallRoute.detouring && !backing && !returning) atan2(headingX, headingZ) else desiredYaw
     val turn = wrap(bodyYaw - yaw)
     val previousYaw = yaw
     yaw = wrap(yaw + turn.coerceIn(-4.5f * dt, 4.5f * dt))
@@ -187,6 +220,7 @@ class DogLeader(
     } else if (step > 0f && wallRoute.detouring) {
       wallAvoidance.rejectRoute(wallRoute.yaw)
     }
+    blocked = gap > 0.18f && actualSpeed == 0f
     if (actualSpeed == 0f) speed = 0f
     val turnRate = wrap(yaw - previousYaw) / dt
     moving = actualSpeed > 0.07f || abs(turnRate) > 0.4f && abs(turn) > 0.12f
@@ -228,7 +262,7 @@ class DogLeader(
 
   private fun frame(visible: Boolean, actualSpeed: Float) = DogFrame(
     x, y, z, Math.toDegrees(yaw.toDouble()).toFloat(), visible && placed,
-    animations.current.clip, actualSpeed, animations.current.loop, animations.current.revision, moving,
+    animations.current.clip, actualSpeed, animations.current.loop, animations.current.revision, moving, blocked, userMoving,
   )
 
   private fun wrap(angle: Float): Float {
@@ -254,4 +288,6 @@ data class DogFrame(
   val clipLoop: Boolean = true,
   val animationRevision: Int = 0,
   val moving: Boolean = false,
+  val blocked: Boolean = false,
+  val userMoving: Boolean = false,
 )

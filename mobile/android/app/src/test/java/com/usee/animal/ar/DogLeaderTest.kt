@@ -5,6 +5,41 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun waitingForSemanticRecognitionStopsAnimationAndMotion() {
+    val leader = DogLeader()
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    for (i in 1..30) leader.update(0.02f, 0f, -i * 0.02f, 0f, -1f, floor)
+    val paused = leader.pausedFrame()
+    assertTrue(paused.visible)
+    assertFalse(paused.moving)
+    assertFalse(paused.blocked)
+    assertEquals("Idle", paused.clip)
+    assertEquals(0f, paused.speedMetersPerSecond, 0f)
+  }
+
+  @Test fun automaticPlacementRetriesUntilFloorIsKnown() {
+    val leader = DogLeader()
+    assertFalse(leader.update(0f, 0f, 0f, 0f, -1f) { _, _ -> null }.visible)
+    assertTrue(leader.update(0.02f, 0f, 0f, 0f, -1f, floor).visible)
+  }
+
+  @Test fun distantDogReturnsTowardUserEvenWhenUserLooksAway() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var dog = initial
+    for (i in 1..40) dog = leader.update(0.02f, 0f, 2f, 0f, -1f, floor)
+    assertTrue(dog.z > initial.z + 0.2f)
+  }
+
+  @Test fun blockedFloorIsReportedButNormalRestIsNot() {
+    val leader = DogLeader()
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    assertFalse(leader.update(0.02f, 0f, 0f, 0f, -1f, floor).blocked)
+    val stopped = leader.update(0.02f, 0f, -0.5f, 0f, -1f) { _, _ -> null }
+    assertTrue(stopped.blocked)
+    assertEquals(0f, stopped.speedMetersPerSecond, 0f)
+  }
+
   private val floor: (Float, Float) -> Float? = { _, _ -> 0f }
 
   @Test fun manualPlacementWaitsForPressAndUsesCurrentPosition() {
@@ -18,7 +53,8 @@ class DogLeaderTest {
     assertEquals(3f, dog.z, 0.001f)
     leader.requestPlacement()
     val next = leader.update(0.02f, 4f, 3f, 1f, 0f, floor)
-    assertTrue(hypot(next.x - dog.x, next.z - dog.z) < 0.08f)
+    assertEquals(5f, next.x, 0.001f)
+    assertEquals(3f, next.z, 0.001f)
   }
 
   @Test fun invalidPlacementDoesNotSpawnLaterWithoutAnotherPress() {
