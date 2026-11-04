@@ -48,3 +48,20 @@ for (const relativePath of targets) {
   source = source.replaceAll('commandLine("node",', 'commandLine(nodeExecutable(),');
   fs.writeFileSync(filePath, source);
 }
+
+const naverMapShadowNode = path.join(
+  __dirname,
+  '../node_modules/@mj-studio/react-native-naver-map/android/src/main/java/com/mjstudio/reactnativenavermap/util/view/SizeReportingShadowNode.kt',
+);
+
+if (fs.existsSync(naverMapShadowNode)) {
+  let source = fs.readFileSync(naverMapShadowNode, 'utf8');
+  source = source
+    .replace('data["width"] = layoutWidth', 'data["width"] = getLayoutWidth()')
+    .replace('data["height"] = layoutHeight', 'data["height"] = getLayoutHeight()')
+    .replace(
+      'uiViewOperationQueue.enqueueUpdateExtraData(reactTag, data)',
+      'uiViewOperationQueue.enqueueUpdateExtraData(getReactTag(), data)',
+    );
+  fs.writeFileSync(naverMapShadowNode, source);
+}
