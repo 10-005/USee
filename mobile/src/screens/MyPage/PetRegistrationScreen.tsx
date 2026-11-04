@@ -261,7 +261,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         species: pet.species,
         weight: pet.weight,
       });
-      Alert.alert('실종 동물 등록', '기본 정보가 저장되었어요. 다음 단계를 이어서 구현할게요.');
+      navigation.navigate('LostReportForm');
       return;
     }
     if (isEditing) {
