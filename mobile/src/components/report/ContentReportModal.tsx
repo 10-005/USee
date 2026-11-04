@@ -1,11 +1,5 @@
 import { useEffect, useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import ReportCloseIcon from '../../assets/icons/common/report-close.svg';
 import ReportPawIcon from '../../assets/icons/common/report-paw.svg';
@@ -43,7 +37,9 @@ export function ContentReportModal({ alreadyReported = false, onClose, onSubmit,
     return null;
   }
 
-  const targetName = target.type === 'post' ? '게시글' : target.type === 'reply' ? '답글' : '댓글';
+  const targetName = { post: '게시글', reply: '답글', comment: '댓글', user: '사용자' }[
+    target.type
+  ];
   const reasons = target.type === 'post' ? POST_REASONS : COMMENT_REASONS;
   const canSubmit = Boolean(reason);
 
@@ -59,7 +55,9 @@ export function ContentReportModal({ alreadyReported = false, onClose, onSubmit,
             <>
               <Text style={styles.duplicateTitle}>{`이미 신고한 ${targetName}입니다.`}</Text>
               <Text style={styles.duplicateDescription}>
-                같은 콘텐츠는 중복으로 신고할 수 없습니다.
+                {target.type === 'user'
+                  ? '같은 사용자는 중복으로 신고할 수 없습니다.'
+                  : '같은 콘텐츠는 중복으로 신고할 수 없습니다.'}
               </Text>
               <Pressable onPress={onClose} style={styles.submitButton}>
                 <Text style={styles.submitText}>확인</Text>
@@ -74,14 +72,16 @@ export function ContentReportModal({ alreadyReported = false, onClose, onSubmit,
                 </Pressable>
               </View>
               <Text style={styles.guide}>신고 사유를 선택해주세요</Text>
-              {target.type !== 'post' && target.excerpt ? (
+              {target.type === 'user' || (target.type !== 'post' && target.excerpt) ? (
                 <View style={styles.targetCard}>
                   <Text numberOfLines={1} style={styles.targetMeta}>
                     {`신고 대상 · ${target.nickname ?? '사용자'}`}
                   </Text>
-                  <Text numberOfLines={2} style={styles.targetExcerpt}>
-                    {target.excerpt}
-                  </Text>
+                  {target.excerpt && (
+                    <Text numberOfLines={2} style={styles.targetExcerpt}>
+                      {target.excerpt}
+                    </Text>
+                  )}
                 </View>
               ) : null}
               <View style={styles.reasonList}>

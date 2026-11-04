@@ -6,7 +6,7 @@ type ChatListItemProps = {
   avatarSource: ImageSourcePropType;
   lastMessage: string;
   name: string;
-  onPress: () => void;
+  onPress?: () => void;
   time: string;
   unreadCount?: number;
 };
@@ -28,13 +28,8 @@ export function ChatListItem({
     .filter(Boolean)
     .join(', ');
 
-  return (
-    <Pressable
-      accessibilityLabel={accessibilityLabel}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
-    >
+  const content = (
+    <>
       <Image source={avatarSource} style={styles.avatar} />
       <View style={styles.content}>
         <View style={styles.header}>
@@ -54,7 +49,22 @@ export function ChatListItem({
           ) : null}
         </View>
       </View>
+    </>
+  );
+
+  return onPress ? (
+    <Pressable
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
+    >
+      {content}
     </Pressable>
+  ) : (
+    <View accessible accessibilityLabel={accessibilityLabel} style={styles.container}>
+      {content}
+    </View>
   );
 }
 

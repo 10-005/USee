@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 
 import { createPersistStorage } from '../services/storage/persistStorage';
 
-export type ContentReportTargetType = 'post' | 'comment' | 'reply';
+export type ContentReportTargetType = 'post' | 'comment' | 'reply' | 'user';
 
 export type ContentReportRecord = {
   reason: string;
