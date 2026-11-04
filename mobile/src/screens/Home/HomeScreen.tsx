@@ -37,6 +37,7 @@ import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
 import { MyPageScreen } from '../MyPage/MyPageScreen';
 import { FoundReportListContent } from '../found-report/FoundReportListContent';
+import { ChatListScreen } from '../chat/ChatListScreen';
 import { AdoptionFilterSheet, type AdoptionFilters, type FilterKey } from './AdoptionFilterSheet';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
@@ -264,12 +265,16 @@ export function HomeScreen({ navigation }: Props) {
     </View>
   );
 
-  if (selectedTab === 'mockAdoption') {
+  if (selectedTab === 'mockAdoption' || selectedTab === 'chat') {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <View style={styles.mockAdoptionEntry}>
-          <Button onPress={() => navigation.navigate('MockAdoptionSelection')}>동물 선택</Button>
-        </View>
+        {selectedTab === 'chat' ? (
+          <ChatListScreen onOpenRoom={roomId => navigation.navigate('ChatRoom', { roomId })} />
+        ) : (
+          <View style={styles.mockAdoptionEntry}>
+            <Button onPress={() => navigation.navigate('MockAdoptionSelection')}>동물 선택</Button>
+          </View>
+        )}
         {navigationBar}
       </SafeAreaView>
     );
