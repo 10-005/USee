@@ -382,23 +382,28 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         <View
           pointerEvents="none"
           style={[
-            styles.toast,
+            styles.toastAnchor,
             {
               top: Math.max(16, petFrame.top + petHeight * 0.38 - 48),
               left: Math.max(
                 16,
-                Math.min(roomSize.width - 256, petFrame.left + petWidth / 2 - 120),
+                Math.min(
+                  roomSize.width * 0.4 - 16,
+                  petFrame.left + petWidth / 2 - roomSize.width * 0.3,
+                ),
               ),
-              width: Math.min(240, Math.max(0, roomSize.width - 32)),
+              width: roomSize.width * 0.6,
             },
           ]}
         >
-          <Text
-            accessibilityLiveRegion="polite"
-            style={[styles.toastText, toast === '♥' && styles.heartToast]}
-          >
-            {toast}
-          </Text>
+          <View style={[styles.toast, toast === '♥' && styles.heartToastBackground]}>
+            <Text
+              accessibilityLiveRegion="polite"
+              style={[styles.toastText, toast === '♥' && styles.heartToast]}
+            >
+              {toast}
+            </Text>
+          </View>
         </View>
       ) : null}
       {pet ? (
@@ -455,15 +460,20 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 4,
   },
-  toast: {
+  toastAnchor: {
     position: 'absolute',
+    alignItems: 'center',
+  },
+  toast: {
+    maxWidth: '100%',
     alignItems: 'center',
     backgroundColor: 'rgba(51, 51, 51, 0.5)',
     borderRadius: 20,
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  toastText: { color: colors.white, ...typography.bodyRegular14 },
+  toastText: { color: colors.white, ...typography.bodyRegular14, textAlign: 'center' },
   heartToast: { color: '#FF6B8A', fontSize: 32, lineHeight: 40 },
+  heartToastBackground: { backgroundColor: 'transparent' },
   pressed: { opacity: 0.7 },
 });
