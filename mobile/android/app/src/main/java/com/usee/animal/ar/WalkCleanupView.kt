@@ -14,6 +14,8 @@ import kotlin.math.hypot
 
 /** Owns one cleanup event in the current AR session's world coordinate system. */
 internal class WalkCleanupView(context: Context) : View(context) {
+  var showNotices = false
+    set(value) { field = value; invalidate() }
   var petName = "강아지"
   private val density = resources.displayMetrics.density
   private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -105,12 +107,14 @@ internal class WalkCleanupView(context: Context) : View(context) {
     super.onDraw(canvas)
     if (!tracking || !state.pending) return
     val now = SystemClock.elapsedRealtime()
-    paint.color = Color.argb(210, 17, 17, 17)
-    canvas.drawRoundRect(20 * density, 160 * density, width - 20 * density, 212 * density, 12 * density, 12 * density, paint)
-    paint.color = Color.WHITE
-    paint.textSize = 16 * resources.displayMetrics.scaledDensity
-    paint.textAlign = Paint.Align.CENTER
-    canvas.drawText("${petName}의 배변을 치워주세요", width / 2f, 192 * density, paint)
+    if (showNotices) {
+      paint.color = Color.argb(210, 17, 17, 17)
+      canvas.drawRoundRect(20 * density, 332 * density, width - 20 * density, 384 * density, 12 * density, 12 * density, paint)
+      paint.color = Color.WHITE
+      paint.textSize = 16 * resources.displayMetrics.scaledDensity
+      paint.textAlign = Paint.Align.CENTER
+      canvas.drawText("${petName}의 배변을 치워주세요", width / 2f, 364 * density, paint)
+    }
     if (visiblePoop && (!collecting || now - thrownAt < 350L)) square(canvas, screenX, screenY, Color.rgb(123, 76, 43))
     if (thrownAt != 0L) {
       val elapsed = now - thrownAt

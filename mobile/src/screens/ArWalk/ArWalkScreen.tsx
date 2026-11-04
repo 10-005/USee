@@ -1,6 +1,7 @@
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useIsFocused } from '@react-navigation/native';
 import { useEffect, useState } from 'react';
-import { Pressable, Switch, Text, View, type NativeSyntheticEvent } from 'react-native';
+import { Pressable, Text, View, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCameraPermission } from 'react-native-vision-camera';
 
@@ -62,11 +63,13 @@ export function ArWalkScreen({
 }: Partial<NativeStackScreenProps<RootStackParamList, 'ArWalk'>>) {
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const { hasPermission, requestPermission, canRequestPermission } = useCameraPermission();
   const [status, setStatus] = useState<FloorTrackingStatus | 'leading'>('searching');
   const [placementRequest, setPlacementRequest] = useState(0);
   const [canReposition, setCanReposition] = useState(true);
-  const [showTraversalDebug, setShowTraversalDebug] = useState(true);
+  const [showTraversalDebug, setShowTraversalDebug] = useState(false);
+  const [showWalkNotices, setShowWalkNotices] = useState(false);
 
   useEffect(() => {
     if (!hasPermission && canRequestPermission) {
@@ -95,6 +98,7 @@ export function ArWalkScreen({
           petName={route?.params?.petName ?? '강아지'}
           placementRequest={placementRequest}
           showTraversalDebug={showTraversalDebug}
+          showWalkNotices={showWalkNotices}
           collapsable={false}
           style={styles.camera}
           onTracking={onTracking}
@@ -104,22 +108,40 @@ export function ArWalkScreen({
           <Text style={styles.messageText}>강아지와 산책하려면 카메라 권한이 필요합니다.</Text>
         </View>
       )}
-      <View pointerEvents="none" style={styles.overlay}>
-        <View style={[styles.status, { top: insets.top + 56 }]}>
-          <Text style={styles.statusLabel}>{copy.label}</Text>
-          <Text style={styles.statusHint}>{copy.hint}</Text>
+      {showWalkNotices && (
+        <View pointerEvents="none" style={styles.overlay}>
+          <View style={[styles.status, { top: headerHeight + 64 }]}>
+            <Text style={styles.statusLabel}>{copy.label}</Text>
+            <Text style={styles.statusHint}>{copy.hint}</Text>
+          </View>
         </View>
-      </View>
+      )}
       {hasPermission && (
-        <View style={[styles.areaToggle, { top: insets.top + 8 }]}>
-          <Text style={styles.areaToggleLabel}>영역 표시</Text>
-          <Switch
+        <View pointerEvents="box-none" style={[styles.displayControls, { top: headerHeight + 8 }]}>
+          <Pressable
+            accessibilityRole="switch"
             accessibilityLabel="이동 가능 영역 표시"
-            value={showTraversalDebug}
-            onValueChange={setShowTraversalDebug}
-            trackColor={{ false: '#666666', true: '#36875C' }}
-            thumbColor="#FFFFFF"
-          />
+            accessibilityState={{ checked: showTraversalDebug }}
+            onPress={() => setShowTraversalDebug(value => !value)}
+            style={styles.areaToggle}
+          >
+            <Text style={styles.areaToggleLabel}>영역 표시</Text>
+            <View style={[styles.toggleTrack, showTraversalDebug && styles.toggleTrackOn]}>
+              <View style={[styles.toggleThumb, showTraversalDebug && styles.toggleThumbOn]} />
+            </View>
+          </Pressable>
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityLabel="상단 안내 표시"
+            accessibilityState={{ checked: showWalkNotices }}
+            onPress={() => setShowWalkNotices(value => !value)}
+            style={styles.areaToggle}
+          >
+            <Text style={styles.areaToggleLabel}>안내 표시</Text>
+            <View style={[styles.toggleTrack, showWalkNotices && styles.toggleTrackOn]}>
+              <View style={[styles.toggleThumb, showWalkNotices && styles.toggleThumbOn]} />
+            </View>
+          </Pressable>
         </View>
       )}
       {hasPermission && canReposition && (

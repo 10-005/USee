@@ -18,6 +18,15 @@ import kotlin.math.hypot
 
 /** 30%-opacity diagnostic overlay above the live AR camera. No frame/image is retained. */
 internal class TraversalDebugView(context: Context) : View(context) {
+  private var showAreas = false
+  private var showNotices = false
+
+  fun setDisplay(areas: Boolean, notices: Boolean) {
+    showAreas = areas
+    showNotices = notices
+    invalidate()
+  }
+
   private val paint = Paint().apply { isFilterBitmap = false }
   private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 12f * resources.displayMetrics.scaledDensity }
   private var bitmap: Bitmap? = null
@@ -118,14 +127,18 @@ internal class TraversalDebugView(context: Context) : View(context) {
 
   override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
-    destination.set(0, 0, width, height)
-    paint.alpha = 77
-    val current = bitmap
-    if (current != null) canvas.drawBitmap(current, null, destination, paint)
-    else canvas.drawColor((YELLOW and 0x00ffffff) or (77 shl 24))
-    paint.alpha = 255
+    if (!showAreas && !showNotices) return
+    if (showAreas) {
+      destination.set(0, 0, width, height)
+      paint.alpha = 77
+      val current = bitmap
+      if (current != null) canvas.drawBitmap(current, null, destination, paint)
+      else canvas.drawColor((YELLOW and 0x00ffffff) or (77 shl 24))
+      paint.alpha = 255
+    }
+    if (!showNotices) return
     val density = resources.displayMetrics.density
-    val top = 132f * density
+    val top = 236f * density
     paint.color = Color.BLACK
     canvas.drawRect(8f * density, top, width - 8f * density, top + 84f * density, paint)
     canvas.drawText("초록: 실제 보행 경로·이동 가능 / 빨강: 장애물", 16f * density, top + 18f * density, text)

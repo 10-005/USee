@@ -37,7 +37,8 @@ class ArFloorView(
   }
 
   private var traversalDebug: TraversalDebugView? = null
-  private var showTraversalDebug = true
+  private var showTraversalDebug = false
+  private var showWalkNotices = false
   private var dogNode: DogModelNode? = null
   private var shadowNode: CylinderNode? = null
   private var leash: DogLeash? = null
@@ -74,7 +75,13 @@ class ArFloorView(
 
   fun setShowTraversalDebug(visible: Boolean) {
     showTraversalDebug = visible
-    traversalDebug?.visibility = if (visible) VISIBLE else GONE
+    traversalDebug?.setDisplay(showTraversalDebug, showWalkNotices)
+  }
+
+  fun setShowWalkNotices(visible: Boolean) {
+    showWalkNotices = visible
+    traversalDebug?.setDisplay(showTraversalDebug, showWalkNotices)
+    cleanup?.showNotices = visible
   }
 
   override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
@@ -179,13 +186,14 @@ class ArFloorView(
     sceneView = view
     val debug = TraversalDebugView(context).apply {
       layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-      visibility = if (showTraversalDebug) VISIBLE else GONE
+      setDisplay(showTraversalDebug, showWalkNotices)
     }
     traversalDebug = debug
     addView(view)
     addView(debug)
     cleanup = WalkCleanupView(context).also {
       it.petName = petName
+      it.showNotices = showWalkNotices
       addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
     view.modelLoader.loadModelInstanceAsync("models/dog.glb") { instance ->
@@ -322,7 +330,7 @@ class ArFloorView(
       }
     }
     sceneView?.planeRenderer?.isVisible = false
-    if (showTraversalDebug) {
+    if (showTraversalDebug || showWalkNotices) {
       traversalDebug?.update(frame, floorAnalyzer?.latest, scratch.planes, scratch.walls, shown.dog, scratch.stops.summary(), scratch.userGround, scratch.depth)
     }
     if (camera.trackingState == com.google.ar.core.TrackingState.TRACKING && shown.dog.visible) {
