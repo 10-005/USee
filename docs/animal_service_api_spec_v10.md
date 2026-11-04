@@ -15,8 +15,9 @@
 
 | 번호 | 결정 | API 반영 |
 |---|---|---|
-| Q473 | **보호동물 목록(11.1)을 신고 목록(7.1·8.1)과 같은 형식으로 통일.** 필터는 `regFrom`·`regTo`(**`regDttm` 기준** 날짜 범위, 7.1 규칙)·`districtCode`·`speciesSeq`·`protectionStatus`(기본 PROTECTING)·`gender`·`isNeutered`·`keyword`(특징 검색 유지)이고, `shelterSeq`·`breedSeq`·`colorSeq`·`adoptionStatus` 필터와 `noticeEndDate` 정렬은 **삭제**. 정렬은 `regDttm`만. 포함 매칭은 Q463과 동일. 목록 항목은 7.1 구성에 맞춰 `classification`(이름 포함)·`age`·`isNeutered`·`weight`·`noticeStartDate`·`noticeEndDate`·`shelter{shelterSeq, shelterName, districtCode}`·`regDttm`을 추가 | 1.4·11.1 |
+| Q473 | **보호동물 목록(11.1)을 신고 목록(7.1·8.1)과 같은 형식으로 통일.** 필터는 `status`(**보호 상태+입양 상태 합성 파생값 5종**, 11.3과 동일)·`regFrom`·`regTo`(**`regDttm` 기준** 날짜 범위, 7.1 규칙)·`districtCode`·`speciesSeq`·`gender`·`isNeutered`·`keyword`(특징 검색 유지)이고, **모든 파라미터는 생략 시 전체**(`status`도 기본값 없음). `shelterSeq`·`breedSeq`·`colorSeq`·`protectionStatus`·`adoptionStatus` 필터와 `noticeEndDate` 정렬은 **삭제**. 정렬은 `regDttm`만. 포함 매칭은 Q463과 동일. 목록 항목은 7.1 구성에 맞춰 `classification`(이름 포함)·`age`·`isNeutered`·`weight`·`noticeStartDate`·`noticeEndDate`·`shelter{shelterSeq, shelterName, districtCode}`·`regDttm`을 추가 | 1.4·11.1 |
 | Q474 | **보호동물 상세(11.2) 재정리.** 목록 필드 + 상세 전용 필드 구조로 재작성. `classification`은 1.4 전체형(이름 포함), 8.2처럼 `shelter` 블록, `modDttm` 추가. `rescueInfo`·`simulation` 블록은 유지 | 11.2 |
+| 공통 | **목록 쿼리 파라미터는 모두 생략 시 전체.** 7.1·8.1의 `status` 기본 ACTIVE(Q463)와 11.1의 `protectionStatus` 기본 PROTECTING을 폐기해 1.1 규칙("생략 = 조건 없음")과 일치시킴. 8.8·10.1·11.3은 이미 전체가 기본 | 1.1·7.1·8.1·11.1 |
 | Q475 | **우리 보호소 목록(11.3) 보호소 웹용으로 재정의.** 탭은 보호 상태와 입양 상태를 합친 **파생 `status` 5값**(`PROTECTING_AVAILABLE`/`PROTECTING_UNAVAILABLE`/`RETURNED`/`ADOPTED`/`ENDED`, 생략 시 전체)이고 그 외 필터는 `period`(`RECENT_7D/30D/90D`, `regDttm` 기준)·`speciesSeq`·`gender`·`isNeutered`·`sort=regDttm`. size 기본 8. 응답은 10.1과 같은 `data:{ statusCounts, page }`로 **상태별 건수를 동봉**(`status` 제외 필터로 집계). 항목은 11.1과 동일 | 1.1·1.4·11.3 |
 
 ## v9 변경 요약 (v8 → v9)
@@ -584,7 +585,7 @@ v4의 `POST /files/upload-urls`(입양 수료증 비공개 업로드)는 **수�
 ### 7.1 GET /missing-reports · 7.2 GET /missing-reports/{id}
 
 **검색 파라미터 [확정 정책] (Q463)** `?status=ACTIVE&occurredFrom=2026-10-01&occurredTo=2026-10-31&districtCode=27110&speciesSeq=1&gender=MALE&isNeutered=true&keyword=목줄&page=0&size=20&sort=regDttm,desc`.
-- 필터(모두 선택): `status`(기본 ACTIVE), `occurredFrom`·`occurredTo`(`YYYY-MM-DD`, **`occurredDttm` 기준**, KST 일 단위 양끝 포함, 한쪽만 보내도 됨, `from > to`면 400), `districtCode`(5.5 값, Q406 A), `speciesSeq`(서버는 `combinationSeq→animal_breeds→animal_species`로 종을 찾음), `gender`, `isNeutered`, `keyword`. v6까지의 `breedSeq`·`colorSeq`는 **삭제**(보내도 1.1 규칙에 따라 무시).
+- 필터(모두 선택, **생략 시 그 조건 없이 전체**): `status`(`ACTIVE`/`CLOSED`. v9까지의 기본 ACTIVE는 v10에서 폐기, 생략 시 CLOSED 포함 전체), `occurredFrom`·`occurredTo`(`YYYY-MM-DD`, **`occurredDttm` 기준**, KST 일 단위 양끝 포함, 한쪽만 보내도 됨, `from > to`면 400), `districtCode`(5.5 값, Q406 A), `speciesSeq`(서버는 `combinationSeq→animal_breeds→animal_species`로 종을 찾음), `gender`, `isNeutered`, `keyword`. v6까지의 `breedSeq`·`colorSeq`는 **삭제**(보내도 1.1 규칙에 따라 무시).
 - **[확정 정책] 포함 매칭(Q463):** 확실히 아닌 것만 거릅니다. `gender=MALE`은 `MALE`+`UNKNOWN`, `gender=FEMALE`은 `FEMALE`+`UNKNOWN`, `gender=UNKNOWN`은 `UNKNOWN`만. `isNeutered=true`는 TRUE+NULL(모름), `isNeutered=false`는 FALSE+NULL. 생략하면 그 속성은 조건 없음. "모름만" 고르는 필터값은 없습니다.
 - `keyword`는 **`description`에만** `ILIKE '%키워드%'`(S7, pg_trgm 인덱스 [가안]; v6까지의 `address` 검색은 제외). 비노출 필터는 같은 쿼리에서 적용합니다.
 - 정렬 화이트리스트: **`regDttm`만**. 생략 시 `regDttm,desc`(최신순), `sort=regDttm,asc`(오래된순). 다른 필드는 400 `COMMON_INVALID_INPUT`. 위치 반경 검색·거리순은 이번 범위에 없습니다.
@@ -677,7 +678,7 @@ v4의 `POST /files/upload-urls`(입양 수료증 비공개 업로드)는 **수�
 ### 8.1 GET /found-reports · 8.2 GET /found-reports/{id}
 
 **검색 [확정 정책] (Q463)** `?status=ACTIVE&occurredFrom=2026-10-01&occurredTo=2026-10-31&districtCode=27110&speciesSeq=1&gender=UNKNOWN&isNeutered=false&keyword=목줄&page=0&size=20&sort=regDttm,desc`.
-- 필터(모두 선택): 7.1과 동일한 8개 — `status`(기본 ACTIVE), `occurredFrom`·`occurredTo`(`occurredDttm` 기준 날짜 범위), `districtCode`(Q406 A), `speciesSeq`, `gender`, `isNeutered`, `keyword`. v6까지의 `breedSeq`·`colorSeq`·`shelterSeq`(담당 보호소 공개 필터)는 **삭제**.
+- 필터(모두 선택, **생략 시 그 조건 없이 전체**): 7.1과 동일한 8개 — `status`(`ACTIVE`/`CLOSED`. v9까지의 기본 ACTIVE는 v10에서 폐기, 생략 시 CLOSED 포함 전체), `occurredFrom`·`occurredTo`(`occurredDttm` 기준 날짜 범위), `districtCode`(Q406 A), `speciesSeq`, `gender`, `isNeutered`, `keyword`. v6까지의 `breedSeq`·`colorSeq`·`shelterSeq`(담당 보호소 공개 필터)는 **삭제**.
 - **포함 매칭(Q463)**은 7.1과 같습니다(`MALE/FEMALE`은 `UNKNOWN` 포함, `true/false`는 NULL 포함).
 - `keyword`는 **`description`에만** ILIKE(S7). v6까지의 `landmarkDescription`·`address` 검색은 제외.
 - 정렬 화이트리스트: **`regDttm`만**(기본 desc, `asc` 허용).
@@ -1005,11 +1006,11 @@ v8까지의 `GET /rescues/status-counts`는 **삭제**합니다. 목록 상단 �
 
 > **v10 변경(Q473·Q474):** 사용자 앱의 보호동물 목록·상세를 실종·발견 신고(7.1·8.1)와 같은 필터·항목 구성으로 통일했습니다. v9까지의 `shelterSeq`·`breedSeq`·`colorSeq`·`adoptionStatus` 필터와 `noticeEndDate` 정렬은 삭제, 기간 필터와 동물 속성 필드를 추가했습니다.
 
-**검색 파라미터 [확정 정책] (Q473)** `?protectionStatus=PROTECTING&regFrom=2026-10-01&regTo=2026-10-31&districtCode=27110&speciesSeq=1&gender=MALE&isNeutered=true&keyword=순함&page=0&size=20&sort=regDttm,desc`.
+**검색 파라미터 [확정 정책] (Q473)** `?status=PROTECTING_AVAILABLE&regFrom=2026-10-01&regTo=2026-10-31&districtCode=27110&speciesSeq=1&gender=MALE&isNeutered=true&keyword=순함&page=0&size=20&sort=regDttm,desc`. **모든 파라미터는 선택이며 생략하면 그 조건 없이 전체**입니다(`status`도 기본값 없음. 7.1·8.1과 같은 규칙).
 
 | 파라미터 | 값 | 의미 |
 |---|---|---|
-| `protectionStatus` | `PROTECTING` / `RETURNED` / `ADOPTED` / `ENDED` | 보호 상태. **생략 시 PROTECTING**(신고 목록의 `status` 기본 ACTIVE와 같은 역할). 입양 가능 여부(`adoptionStatus`) 필터는 두지 않으며 항목의 `adoptionStatus` 값으로 화면이 구분 |
+| `status` | `PROTECTING_AVAILABLE` / `PROTECTING_UNAVAILABLE` / `RETURNED` / `ADOPTED` / `ENDED` | **보호 상태와 입양 상태를 합친 파생값**(아래 매핑표). 생략 시 전체. `protectionStatus`·`adoptionStatus`를 따로 받지 않음 |
 | `regFrom`·`regTo` | `YYYY-MM-DD` | **`regDttm`(등록일) 기준** 날짜 범위. KST 일 단위 양끝 포함, 한쪽만 보내도 됨, `from > to`면 400. 7.1 `occurredFrom/To`와 같은 규칙이며 보호동물에는 발생 일시가 없어 등록일을 씀 |
 | `districtCode` | 5자리 | 지역. **보호소 소재지**(`shelters.district_code`) 기준 JOIN. 5.5 값, 7.1과 동일 |
 | `speciesSeq` | | 축종. 7.1과 동일(`combinationSeq→animal_breeds→animal_species`) |
@@ -1019,7 +1020,17 @@ v8까지의 `GET /rescues/status-counts`는 **삭제**합니다. 목록 상단 �
 | `sort` | `regDttm,desc`(기본) / `regDttm,asc` | 등록일 최신순/오래된순. **화이트리스트 `regDttm`만**(v9의 `noticeEndDate` 정렬 삭제) |
 | `page`·`size` | size 기본 20, 최대 100 | 1.1 기본 |
 
-- 모든 필터는 선택입니다. v9까지의 `shelterSeq`·`breedSeq`·`colorSeq`·`adoptionStatus`는 **삭제**(보내도 1.1 규칙에 따라 무시). 특정 보호소의 동물만 보는 화면은 9.2 보호소 상세와 별도로 두지 않습니다. 범위는 비삭제 보호동물 전체이며 비노출 필터는 같은 쿼리에서 적용합니다.
+**[확정 정책] 파생 `status` 매핑(Q473·Q475, 11.1·11.3 공통)** — DB `protection_status`·`adoption_status` 조합 CHECK(`ck_shelter_status_pair`, DB v16 §7)에 따라 다섯 값이 겹침 없이 전체를 덮습니다. 응답 항목에는 두 원본 상태(`protectionStatus`·`adoptionStatus`)를 그대로 내리고 합성값은 요청 필터·탭에만 씁니다.
+
+| `status` | 화면 표시 | `protectionStatus` | `adoptionStatus` |
+|---|---|---|---|
+| `PROTECTING_AVAILABLE` | 보호중·입양 가능 | `PROTECTING` | `AVAILABLE` |
+| `PROTECTING_UNAVAILABLE` | 보호중·입양 불가 | `PROTECTING` | `UNAVAILABLE` |
+| `RETURNED` | 반환 완료 | `RETURNED` | `UNAVAILABLE` |
+| `ADOPTED` | 입양 완료 | `ADOPTED` | `ADOPTED` |
+| `ENDED` | 보호 종료 | `ENDED` | `UNAVAILABLE` |
+
+- v9까지의 `shelterSeq`·`breedSeq`·`colorSeq`·`protectionStatus`·`adoptionStatus`는 **삭제**(보내도 1.1 규칙에 따라 무시). 특정 보호소의 동물만 보는 화면은 9.2 보호소 상세와 별도로 두지 않습니다. 범위는 비삭제 보호동물 전체이며 비노출 필터는 같은 쿼리에서 적용합니다.
 
 **목록 200 `data.content[]` [초안]**
 ```json
@@ -1084,7 +1095,7 @@ v8까지의 `GET /rescues/status-counts`는 **삭제**합니다. 목록 상단 �
 - **[확정 정책] (Q458·Q456·Q469)** `registrationNumber`는 보호소가 입력한 정부 공식 동물등록번호(없으면 null, 화면 "미등록"), `weight`는 **자유 텍스트 문자열**(null 가능, Q469로 v6 Q458의 kg 숫자에서 변경. 반려동물·실종·발견과 동일 형식), `age`는 자유 텍스트. `commentCount`는 이 보호동물 게시글의 루트+답글 중 비삭제 수(실종·발견 상세와 같은 기준).
 - **[확정 정책]** PROTECTING이면서 비삭제이면 AVAILABLE/UNAVAILABLE 관계없이 AI 매칭 후보.
 - **[초안] `simulation`** 블록은 상세 화면의 "모의 입양" 버튼용 파생 정보입니다. `speciesCode`는 조합→품종→종의 `species_code`, `personality`는 품종의 값(NULL 가능), `canStart`는 요청자가 USER이고 종이 DOG/CAT이며 동물이 보호 중이고 요청자에게 진행 중 세션이 없을 때 `true`, `activeSessionSeq`는 요청자의 진행 중 세션(있으면). 18.1 참조.
-- **오류 [초안]** 11.2: 404 `ANIMAL_NOT_FOUND`(없음·삭제). 11.5~11.9: 404 `ANIMAL_NOT_FOUND`에 **다른 보호소 소속**도 포함(Q434). 11.1: 400 `CATALOG_INVALID_DISTRICT_CODE`, `COMMON_INVALID_INPUT`(정렬 화이트리스트 밖, 날짜 형식·역전, 허용값 밖 `protectionStatus`·`gender`·`isNeutered`).
+- **오류 [초안]** 11.2: 404 `ANIMAL_NOT_FOUND`(없음·삭제). 11.5~11.9: 404 `ANIMAL_NOT_FOUND`에 **다른 보호소 소속**도 포함(Q434). 11.1: 400 `CATALOG_INVALID_DISTRICT_CODE`, `COMMON_INVALID_INPUT`(정렬 화이트리스트 밖, 날짜 형식·역전, 허용값 밖 `status`·`gender`·`isNeutered`).
 
 ### 11.3 GET /shelter-animals/me
 
@@ -1094,7 +1105,7 @@ v8까지의 `GET /rescues/status-counts`는 **삭제**합니다. 목록 상단 �
 
 | 파라미터 | 값 | 의미 |
 |---|---|---|
-| `status` | `PROTECTING_AVAILABLE` / `PROTECTING_UNAVAILABLE` / `RETURNED` / `ADOPTED` / `ENDED` | 화면 상단 탭. **보호 상태와 입양 상태를 합친 파생값**(아래 표). 생략 시 전체(ENDED 포함). v9의 `protectionStatus`·`adoptionStatus` 두 필터를 대체 |
+| `status` | `PROTECTING_AVAILABLE` / `PROTECTING_UNAVAILABLE` / `RETURNED` / `ADOPTED` / `ENDED` | 화면 상단 탭. **보호 상태와 입양 상태를 합친 파생값**(11.1의 매핑표와 동일). 생략 시 전체(ENDED 포함). v9의 `protectionStatus`·`adoptionStatus` 두 필터를 대체 |
 | `period` | `RECENT_7D` / `RECENT_30D` / `RECENT_90D` | 등록 기간. **`regDttm`이 요청 시각 기준 최근 N일 이내.** 생략 시 전체. 8.8·10.1과 같은 프리셋(사용자 앱 11.1은 날짜 범위, 기간 형식 이원화는 의도) |
 | `speciesSeq` | | 축종. 7.1과 동일 |
 | `gender` | `MALE` / `FEMALE` / `UNKNOWN` | 포함 매칭(Q463) |
@@ -1102,17 +1113,8 @@ v8까지의 `GET /rescues/status-counts`는 **삭제**합니다. 목록 상단 �
 | `sort` | `regDttm,desc`(기본) / `regDttm,asc` | 등록일 최신순/오래된순. 화이트리스트 `regDttm`만 |
 | `page`·`size` | size 기본 **8**, 최대 100 | 1.1 기본 20의 예외(8.8·10.1과 동일) |
 
-**[확정 정책] 파생 `status` 매핑(Q475)** — DB `protection_status`·`adoption_status` 조합 CHECK(DB v16 §7)에 따라 다섯 값이 겹침 없이 전체를 덮습니다.
-
-| `status` | 화면 탭 | `protectionStatus` | `adoptionStatus` |
-|---|---|---|---|
-| `PROTECTING_AVAILABLE` | 보호중·입양 가능 | `PROTECTING` | `AVAILABLE` |
-| `PROTECTING_UNAVAILABLE` | 보호중·입양 불가 | `PROTECTING` | `UNAVAILABLE` |
-| `RETURNED` | 반환 완료 | `RETURNED` | `UNAVAILABLE` |
-| `ADOPTED` | 입양 완료 | `ADOPTED` | `ADOPTED` |
-| `ENDED` | 보호 종료 | `ENDED` | `UNAVAILABLE` |
-
-- 모든 필터는 선택이며 생략하면 우리 보호소 보호동물 전량입니다. 11.1의 `districtCode`·`keyword`·날짜 범위는 받지 않습니다.
+- 파생 `status`의 값·매핑은 **11.1의 매핑표**를 그대로 씁니다(Q473·Q475 공통).
+- 모든 필터는 선택이며 생략하면 그 조건 없이 우리 보호소 보호동물 전량입니다. 11.1의 `districtCode`·`keyword`·날짜 범위는 받지 않습니다.
 
 **성공 200 `data` [초안]** — 10.1과 같은 `Page<T>` 래퍼(1.4 예외, Q475)
 ```json
@@ -2457,7 +2459,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | Q460 보호소 입양 | 12.16 건수 신설, DRAFT·CANCELED 비노출, 신청번호=`applicationSeq`, 수료증 제외(4.3 삭제) | 4장·12장·19장 |
 | Q461 구조일지 | 사유 코드 4종, 장소·일시 접수 시 필수, 상세 장소, 10.1 필터·항목, 10.7 신설(Q471로 삭제), 10.2 `modDttm`·`foundReportSummary` | 10장·11.2·19장 |
 | Q462 수료증 컬럼 삭제 (2026-11-04) | v6 Q460(기능 제외) 위에 `adoption_applications.certificate_storage_key` 삭제. S3 `certificates/`·Redis `upload:file:*`·`ADOPTION_CERTIFICATE_*` 전부 없음 | 1.4·4.3·12.3·12.9·19장 |
-| Q463 신고 검색 파라미터 | 7.1/8.1 필터 = `status`·`occurredFrom/To`(날짜, `occurredDttm` 기준)·`districtCode`·`speciesSeq`·`gender`·`isNeutered`·`keyword`(`description`만)·`sort`(`regDttm`만). `breedSeq`·`colorSeq`·`shelterSeq` 삭제. 포함 매칭: `MALE/FEMALE`은 `UNKNOWN` 포함, `true/false`는 NULL 포함 | 1.1·7.1·8.1 |
+| Q463 신고 검색 파라미터 | 7.1/8.1 필터 = `status`(v10부터 기본값 없음, 생략 시 전체)·`occurredFrom/To`(날짜, `occurredDttm` 기준)·`districtCode`·`speciesSeq`·`gender`·`isNeutered`·`keyword`(`description`만)·`sort`(`regDttm`만). `breedSeq`·`colorSeq`·`shelterSeq` 삭제. 포함 매칭: `MALE/FEMALE`은 `UNKNOWN` 포함, `true/false`는 NULL 포함 | 1.1·7.1·8.1 |
 | Q464 내 신고 목록·담당 목록 | 7.3/8.3 파라미터 없음·배열·`regDttm desc` 고정. 8.8은 `status`·`period(RECENT_7D/30D/90D)`·`districtCode`·`speciesSeq`·`rescueStatus(NONE/PROCESSING/DONE/ABORTED)`·`sort`, size 기본 8, `Page<T>` 유지. 앱/웹 기간 형식 이원화는 의도 | 1.1·7.3·8.3·8.8 |
 | Q465 실종 `name` 삭제 | 실종 신고에 동물 이름 없음. 7.1 목록·7.4 요청에서 제거, DB 컬럼 삭제 | 7.1·7.4·DB v13 |
 | Q466 실종 `petSeq` 삭제 | 반려동물 연결·스냅샷·소유자 검증 없음. 7.2·7.4·7.5·6.5 문구와 7.4의 `USER_PET_NOT_FOUND` 제거, DB 컬럼 삭제. 반려동물 정보 결합은 앱 | 6.5·7장·19장·21.1·DB v13 |
@@ -2467,7 +2469,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | Q470 담당 목록 신고자 정보 (2026-11-04) | 8.8 각 항목에 `reporter:{ name, phone }` 추가. `name`은 `users.name` 실명(보호소 화면은 닉네임이 아닌 실명), v8의 `reporterPhone`은 `reporter.phone`으로 흡수. 나이·성별·중성화·몸무게는 Q468로 이미 포함 | 8.3·8.8 |
 | Q471 구조 목록 개편 | 10.1 기간 필터를 `rescuedFrom/To` 날짜 범위에서 `period(RECENT_7D/30D/90D, rescuedDttm 기준)`으로 교체, size 기본 8, 응답을 `data:{ statusCounts, page }`로 바꿔 상태별 건수를 동봉(건수는 `status` 제외 필터만 적용), **10.7 삭제**. 항목 `animal.isNeutered`·`rescueMemo` 추가. 동물 정보 출처(REPORT=발견 신고/DIRECT=보호동물) 현행 유지 | 1.1·1.4·10장·19장·21.2·DB v15 |
 | Q472 구조 상세 보강 | 10.2 `foundReportSummary`에 `isNeutered` 추가, `reporter`를 `{ name, phone }` 실명으로 변경(v8 `displayName` 닉네임 대체) | 10.2 |
-| Q473 보호동물 목록 통일 (2026-11-04) | 11.1 필터 = `protectionStatus`(기본 PROTECTING)·`regFrom/To`(`regDttm` 기준 날짜 범위)·`districtCode`(보호소 소재지)·`speciesSeq`·`gender`·`isNeutered`(포함 매칭)·`keyword`(`description`·`healthCheck`)·`sort=regDttm`만. `shelterSeq`·`breedSeq`·`colorSeq`·`adoptionStatus` 필터, `noticeEndDate` 정렬 삭제. 항목은 7.1 형식 + `protectionStatus`·`adoptionStatus`·공고기간·`shelter{shelterSeq, shelterName, districtCode}` | 1.4·11.1·DB v16 |
+| Q473 보호동물 목록 통일 (2026-11-04) | 11.1 필터 = `status`(보호+입양 합성 파생 5값, 11.3과 공통 매핑)·`regFrom/To`(`regDttm` 기준 날짜 범위)·`districtCode`(보호소 소재지)·`speciesSeq`·`gender`·`isNeutered`(포함 매칭)·`keyword`(`description`·`healthCheck`)·`sort=regDttm`만. **모든 파라미터 생략 시 전체**(기본값 없음). `shelterSeq`·`breedSeq`·`colorSeq`·`protectionStatus`·`adoptionStatus` 필터, `noticeEndDate` 정렬 삭제. 항목은 7.1 형식 + `protectionStatus`·`adoptionStatus`·공고기간·`shelter{shelterSeq, shelterName, districtCode}` | 1.4·11.1·DB v16 |
 | Q474 보호동물 상세 재정리 | 11.2 = 목록 필드 + 상세 전용. `classification` 1.4 전체형, `shelter` 블록, `modDttm` 추가. `rescueInfo`·`simulation` 유지 | 11.2 |
 | Q475 우리 보호소 목록 재정의 | 11.3 탭은 보호·입양 상태를 합친 파생 `status` 5값(`PROTECTING_AVAILABLE`/`PROTECTING_UNAVAILABLE`/`RETURNED`/`ADOPTED`/`ENDED`), 필터 `period(RECENT_7D/30D/90D, regDttm)`·`speciesSeq`·`gender`·`isNeutered`·`sort=regDttm`, size 8, 응답 `data:{ statusCounts, page }`(건수는 `status` 제외 필터). 항목은 11.1과 동일 | 1.1·1.4·11.3·DB v16 |
 
