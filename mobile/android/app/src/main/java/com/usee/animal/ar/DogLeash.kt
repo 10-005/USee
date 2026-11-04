@@ -29,7 +29,7 @@ internal class DogLeash(private val view: ARSceneView) : AutoCloseable {
     curve.reset()
   }
 
-  fun update(collar: LeashPoint, hand: LeashPoint, time: Long) {
+  fun update(collar: LeashPoint, hand: LeashPoint, time: Long): Float {
     val dt = if (previousTime == 0L) 0f else (time - previousTime) / 1_000_000_000f
     previousTime = time
     val points = curve.points(collar, hand, dt, segments.size)
@@ -38,6 +38,7 @@ internal class DogLeash(private val view: ARSceneView) : AutoCloseable {
       segment.transformManager.setTransform(segment.transformInstance, LeashCurve.segmentTransform(points[index], points[index + 1]))
       segment.isVisible = true
     }
+    return points.zipWithNext().sumOf { (a, b) -> (b - a).length().toDouble() }.toFloat()
   }
 
   fun hitTest(x: Float, y: Float, viewMatrix: FloatArray, projection: FloatArray, width: Int, height: Int, tolerance: Float): Boolean {

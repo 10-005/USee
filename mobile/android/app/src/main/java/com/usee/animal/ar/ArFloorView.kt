@@ -150,10 +150,10 @@ class ArFloorView(
     val view = FloorSceneView(
       context = activity,
       sharedLifecycle = activity.lifecycle,
-      sessionConfiguration = { _, config ->
+      sessionConfiguration = { session, config ->
         config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL_AND_VERTICAL
-        // Walking uses plane polygons, so per-frame depth processing is unnecessary.
-        config.depthMode = Config.DepthMode.DISABLED
+        scratch.depth.supported = session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)
+        config.depthMode = if (scratch.depth.supported) Config.DepthMode.AUTOMATIC else Config.DepthMode.DISABLED
         config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
       },
     ).apply {
@@ -179,7 +179,7 @@ class ArFloorView(
           val collar = if (camera != null && right != null) posedDog.leashPositionFor(camera, right) else null
           val hand = leashHand
           if (active && sceneView === view && posedDog.isVisible && collar != null && hand != null) {
-            dogLeash.update(LeashPoint(collar.x, collar.y, collar.z), hand, time)
+            leader.updateLeashLength(dogLeash.update(LeashPoint(collar.x, collar.y, collar.z), hand, time))
           } else {
             dogLeash.hide()
           }
