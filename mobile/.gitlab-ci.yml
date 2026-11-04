@@ -18,15 +18,24 @@ notify-mobile-merge:
       curl -sS --fail-with-body -H "PRIVATE-TOKEN: $GITLAB_MR_READ_TOKEN" \
         "$CI_API_V4_URL/projects/$CI_PROJECT_ID/merge_requests/$MR_IID" > /tmp/mr.json
 
-      # 커스텀 이모지 중 서로 다른 2개를 무작위로 고른다
+      # 커스텀 이모지 중 서로 다른 n개를 무작위로 고른다 (개수는 -v n=3 에서 변경)
       EMOJIS=$(printf '%s\n' \
         :d106_hellohyun_v_shape: :d106_hj_spinning5x: :d106_sh_uncle_sam: \
         :d109_justin_samsung: :d109_sj_satoshi: :sj_sleeping: \
         :d106_victory_jh: :d106_cr_mirror: :d106_joker_hj: \
         :d106_hl_victory: :d109_tw_yaho: :d110_hooooni_molba: :d110_sexy_hooooni: \
-        | awk 'BEGIN { srand() } { e[NR] = $0 }
-               END { i = int(rand() * NR) + 1; j = int(rand() * (NR - 1)) + 1; if (j >= i) j++; print e[i] " " e[j] }')
-
+        :park_bum_wow: :park_bum_bald: :park_bum_cute: :park_bum_alpha_male: \
+        :jihyun_singing: :jh_yaong: :mk_singing: :mk_smile: :sanghyun_fruity: \
+        | awk -v n=3 'BEGIN { srand() } { e[NR] = $0 }
+               END {
+                 out = ""
+                 for (k = 1; k <= n && k <= NR; k++) {
+                   r = k + int(rand() * (NR - k + 1))
+                   t = e[k]; e[k] = e[r]; e[r] = t
+                   out = out (k > 1 ? " " : "") e[k]
+                 }
+                 print out
+               }')
       jq --arg commit "[$CI_COMMIT_SHORT_SHA]($CI_PROJECT_URL/-/commit/$CI_COMMIT_SHA)" --arg emojis "$EMOJIS" '
         ([.source_branch | scan("S15P31D106-[0-9]+")] | .[0]) as $key
         | ((.description // "") | gsub("\r"; "")) as $d
