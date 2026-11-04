@@ -5,12 +5,14 @@ import type { PetCategory } from './data';
 
 type Props = {
   category: PetCategory;
+  item?: 'treat' | 'toy';
+  bottomOffset?: number;
   width: number;
   height: number;
   target: { x: number; y: number };
   disabled: boolean;
   onBusyChange: (busy: boolean) => void;
-  onLanded: () => void;
+  onLanded: (point: { x: number; y: number }) => void;
 };
 
 export function TreatLauncher(props: Props) {
@@ -19,15 +21,13 @@ export function TreatLauncher(props: Props) {
   const phaseRef = useRef(phase);
   const latest = useRef(props);
   latest.current = props;
-  const bottom = insets.bottom + 20;
+  const bottom = insets.bottom + 20 + (props.bottomOffset ?? 0);
   const position = useRef(new Animated.ValueXY()).current;
   const progress = useRef(new Animated.Value(0)).current;
-  const hold = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const point = useRef({ x: 0, y: 0 });
   const [flight, setFlight] = useState({ x: 0, y: 0, targetX: 0, targetY: 0 });
   const resetRef = useRef(() => {});
   resetRef.current = () => {
-    clearTimeout(hold.current);
     progress.stopAnimation();
     phaseRef.current = 'idle';
     setPhase('idle');
@@ -43,29 +43,26 @@ export function TreatLauncher(props: Props) {
             x: latest.current.width - 20 - 72 + locationX - 36,
             y: latest.current.height - bottom - 72 + locationY - 36,
           };
-          hold.current = setTimeout(() => {
-            if (latest.current.disabled) {return;}
-            position.setValue(point.current);
-            phaseRef.current = 'drag';
-            setPhase('drag');
-            latest.current.onBusyChange(true);
-          }, 300);
+          if (latest.current.disabled) {return;}
+          position.setValue(point.current);
+          phaseRef.current = 'drag';
+          setPhase('drag');
+          latest.current.onBusyChange(true);
         },
         onPanResponderMove: (_event, gesture) => {
-          if (phaseRef.current !== 'drag') {
-            if (Math.abs(gesture.dx) + Math.abs(gesture.dy) > 12) {clearTimeout(hold.current);}
-            return;
-          }
+          if (phaseRef.current !== 'drag') {return;}
           position.setValue({ x: point.current.x + gesture.dx, y: point.current.y + gesture.dy });
         },
         onPanResponderRelease: (_event, gesture) => {
-          clearTimeout(hold.current);
-          if (phaseRef.current !== 'drag') {return;}
+          if (phaseRef.current !== 'drag') {
+            return;
+          }
           if (gesture.dy > -40 || (gesture.vy > -0.25 && gesture.dy > -80)) {
             resetRef.current();
             return;
           }
-          const { target } = latest.current;
+          const current = latest.current;
+          const target = current.target;
           setFlight({
             x: point.current.x + gesture.dx,
             y: point.current.y + gesture.dy,
@@ -81,10 +78,12 @@ export function TreatLauncher(props: Props) {
             easing: Easing.linear,
             useNativeDriver: true,
           }).start(({ finished }) => {
-            if (!finished || phaseRef.current !== 'flight') {return;}
+            if (!finished || phaseRef.current !== 'flight') {
+              return;
+            }
             phaseRef.current = 'idle';
             setPhase('idle');
-            latest.current.onLanded();
+            latest.current.onLanded({ x: target.x, y: target.y });
           });
         },
         onPanResponderTerminationRequest: () => false,
@@ -95,19 +94,21 @@ export function TreatLauncher(props: Props) {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
       if (state !== 'active') {
-        clearTimeout(hold.current);
-        if (phaseRef.current !== 'idle') {resetRef.current();}
+        if (phaseRef.current !== 'idle') {
+          resetRef.current();
+        }
       }
     });
     return () => {
-      clearTimeout(hold.current);
       progress.stopAnimation();
       subscription.remove();
       latest.current.onBusyChange(false);
     };
   }, [progress]);
   const source =
-    props.category === 'dog'
+    props.item === 'toy'
+      ? require('../../assets/images/mock-adoption/img_dog_toy.png')
+      : props.category === 'dog'
       ? require('../../assets/images/mock-adoption/img_dog_treats.png')
       : require('../../assets/images/mock-adoption/img_cat_treats.png');
   const samples = Array.from({ length: 21 }, (_, index) => index / 20);
@@ -121,7 +122,9 @@ export function TreatLauncher(props: Props) {
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       <View
         {...responder.panHandlers}
-        accessibilityLabel="길게 눌러 위로 던져 간식 주기"
+        accessibilityLabel={
+          props.item === 'toy' ? '잡아서 위로 던져 공놀이하기' : '잡아서 위로 던져 간식 주기'
+        }
         style={[styles.dock, { bottom }]}
       >
         <Image
@@ -152,7 +155,10 @@ export function TreatLauncher(props: Props) {
                 {
                   scale:
                     phase === 'flight'
-                      ? progress.interpolate({ inputRange: [0, 1], outputRange: [0.8, 0.35] })
+                      ? progress.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.8, props.item === 'toy' ? 0.55 : 0.35],
+                        })
                       : 0.8,
                 },
               ],
