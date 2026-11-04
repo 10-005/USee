@@ -34,10 +34,16 @@ class ArFloorView(
   private var lastEventKey = ""
   private var pendingEventKey = ""
   private var pendingEventSince = 0L
-  private var leader = DogLeader(requiresPlacement = true)
+  private var leader = DogLeader(requiresPlacement = false)
   private var lastPlacementRequest = 0
   private var lastActionRequest = ""
   private var scratch = SessionScratch()
+  private var floorAnalyzer: SegFormerFloorAnalyzer? = null
+  private var wasBlocked = false
+  private val viewMatrix = FloatArray(16)
+  private val projectionMatrix = FloatArray(16)
+  private val cameraPoint = FloatArray(4)
+  private val clipPoint = FloatArray(4)
 
   fun requestPlacement(request: Int) {
     if (request > lastPlacementRequest) leader.requestPlacement()
@@ -90,8 +96,10 @@ class ArFloorView(
     }
     val activity = reactContext.currentActivity as? ComponentActivity ?: return
     // A newly created AR session has a new world coordinate system.
-    leader = DogLeader(requiresPlacement = true)
+    leader = DogLeader(requiresPlacement = false)
     scratch = SessionScratch()
+    floorAnalyzer = SegFormerFloorAnalyzer(context)
+    wasBlocked = false
     lastEventKey = ""
     pendingEventKey = ""
     val view = FloorSceneView(
@@ -118,7 +126,7 @@ class ArFloorView(
           return@post
         }
         val node = DogModelNode(instance)
-        leader = DogLeader(requiresPlacement = true, animations = DogAnimationController(node.durations))
+        leader = DogLeader(requiresPlacement = false, animations = DogAnimationController(node.durations))
         node.isShadowCaster = true
         node.isVisible = false
         val shadow = CylinderNode(
@@ -146,6 +154,8 @@ class ArFloorView(
   }
 
   private fun stop() {
+    floorAnalyzer?.close()
+    floorAnalyzer = null
     modelReady = false
     dogNode = null
     shadowNode = null
@@ -156,13 +166,39 @@ class ArFloorView(
   }
 
   private fun handleFrame(session: Session, frame: Frame) {
+    // Rotate the physical CPU image into display orientation before semantic inference.
+    val relative = frame.camera.displayOrientedPose.inverse().compose(frame.camera.pose)
+    val right = relative.rotateVector(floatArrayOf(1f, 0f, 0f))
+    val rotation = ((kotlin.math.round(Math.toDegrees(kotlin.math.atan2(-right[1], right[0]).toDouble()) / 90.0).toInt() * 90) + 360) % 360
+    floorAnalyzer?.submit(frame, rotation)
     val shown = updateDog(
       session = session,
       frame = frame,
       leader = leader,
       scratch = scratch,
       modelReady = modelReady,
+      floorMask = floorAnalyzer?.latest,
+      semanticFailed = floorAnalyzer?.failed == true,
     )
+    val blocked = shown.dog.visible && shown.dog.blocked && frame.camera.trackingState == com.google.ar.core.TrackingState.TRACKING
+    if (blocked && !wasBlocked) {
+      val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+      if (android.os.Build.VERSION.SDK_INT >= 26) {
+        vibrator?.vibrate(android.os.VibrationEffect.createOneShot(180L, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+      } else {
+        @Suppress("DEPRECATION")
+        vibrator?.vibrate(180L)
+      }
+    }
+    wasBlocked = blocked
+    val camera = frame.camera
+    camera.getViewMatrix(viewMatrix, 0)
+    camera.getProjectionMatrix(projectionMatrix, 0, 0.1f, 100f)
+    android.opengl.Matrix.multiplyMV(cameraPoint, 0, viewMatrix, 0,
+      floatArrayOf(shown.dog.x, shown.dog.y + DOG_MODEL_UNITS / 2f, shown.dog.z, 1f), 0)
+    android.opengl.Matrix.multiplyMV(clipPoint, 0, projectionMatrix, 0, cameraPoint, 0)
+    val onScreen = shown.dog.visible && clipPoint[3] > 0f &&
+      kotlin.math.abs(clipPoint[0]) <= clipPoint[3] && kotlin.math.abs(clipPoint[1]) <= clipPoint[3]
     val node = dogNode
     val shadow = shadowNode
     if (node != null) {
@@ -176,7 +212,7 @@ class ArFloorView(
       }
     }
     sceneView?.planeRenderer?.isVisible = !shown.dog.visible
-    emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving)
+    emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen, shown.dog.userMoving)
   }
 
   private fun pawLift(node: ModelNode): Float {
@@ -184,11 +220,11 @@ class ArFloorView(
     return -node.scale.y * feet - PAW_SINK
   }
 
-  private fun emit(status: String, visible: Boolean, clip: String, moving: Boolean) {
+  private fun emit(status: String, visible: Boolean, clip: String, moving: Boolean, onScreen: Boolean, userMoving: Boolean) {
     if (disposed) {
       return
     }
-    val key = "$status|$visible|$moving"
+    val key = "$status|$visible|$moving|$onScreen|$userMoving"
     val now = SystemClock.elapsedRealtime()
     if (pendingEventKey != key) {
       pendingEventKey = key
@@ -217,6 +253,8 @@ class ArFloorView(
           visible = visible,
           clip = clip,
           moving = moving,
+          onScreen = onScreen,
+          userMoving = userMoving,
         ),
       )
     }
@@ -263,6 +301,8 @@ class ArFloorView(
     private val visible: Boolean,
     private val clip: String,
     private val moving: Boolean,
+    private val onScreen: Boolean,
+    private val userMoving: Boolean,
   ) : Event<TrackingEvent>(surfaceId, viewId) {
     override fun getEventName(): String = "topTracking"
 
@@ -277,6 +317,8 @@ class ArFloorView(
       putDouble("facing", 1.0)
       putString("clip", clip)
       putBoolean("moving", moving)
+      putBoolean("onScreen", onScreen)
+      putBoolean("userMoving", userMoving)
     }
   }
 }

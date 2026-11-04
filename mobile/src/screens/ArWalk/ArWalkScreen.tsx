@@ -1,5 +1,5 @@
 import { useIsFocused } from '@react-navigation/native';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, View, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCameraPermission } from 'react-native-vision-camera';
@@ -10,16 +10,23 @@ import {
   type FloorTracking,
   type FloorTrackingStatus,
 } from './components/ArFloorView';
-import { DogActions } from './components/DogActions';
 
 const STATUS_COPY: Record<FloorTrackingStatus | 'leading', { label: string; hint: string }> = {
+  analyzing: {
+    label: '걸을 수 있는 바닥을 확인하는 중',
+    hint: '바닥이 화면에 보이도록 휴대폰을 천천히 움직여 주세요.',
+  },
+  recognitionError: {
+    label: '바닥 인식을 시작하지 못했습니다',
+    hint: '산책 화면을 닫았다가 다시 열어 주세요.',
+  },
   searching: {
     label: '바닥을 찾는 중',
     hint: '바닥이 보이도록 휴대폰을 천천히 움직여 주세요.',
   },
   ready: {
     label: '강아지를 놓을 수 있어요',
-    hint: '버튼을 누르면 내 앞 약 1m의 바닥에서 산책을 시작합니다.',
+    hint: '바닥이 확인되면 내 앞 약 1m에 강아지가 자동으로 배치됩니다.',
   },
   anchored: {
     label: '앞에서 기다리는 중',
@@ -53,8 +60,7 @@ export function ArWalkScreen() {
   const { hasPermission, requestPermission, canRequestPermission } = useCameraPermission();
   const [status, setStatus] = useState<FloorTrackingStatus | 'leading'>('searching');
   const [placementRequest, setPlacementRequest] = useState(0);
-  const [actionRequest, setActionRequest] = useState('');
-  const actionSequence = useRef(0);
+  const [canReposition, setCanReposition] = useState(true);
 
   useEffect(() => {
     if (!hasPermission && canRequestPermission) {
@@ -64,6 +70,11 @@ export function ArWalkScreen() {
 
   const onTracking = (event: NativeSyntheticEvent<FloorTracking>) => {
     const next = event.nativeEvent;
+    setCanReposition(
+      ['analyzing', 'searching', 'ready', 'anchored'].includes(next.status) &&
+        !next.onScreen &&
+        !next.userMoving,
+    );
     const shown = next.status === 'anchored' && next.moving ? 'leading' : next.status;
     setStatus(current => (current === shown ? current : shown));
   };
@@ -76,7 +87,6 @@ export function ArWalkScreen() {
         <ArFloorView
           active={isFocused}
           placementRequest={placementRequest}
-          actionRequest={actionRequest}
           collapsable={false}
           style={styles.camera}
           onTracking={onTracking}
@@ -92,30 +102,24 @@ export function ArWalkScreen() {
           <Text style={styles.statusHint}>{copy.hint}</Text>
         </View>
       </View>
-      {hasPermission && (status === 'searching' || status === 'ready') && (
+      {hasPermission && canReposition && (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="강아지 배치하기"
-          accessibilityState={{ disabled: status !== 'ready' }}
-          disabled={status !== 'ready' || !isFocused}
+          accessibilityState={{
+            disabled: !isFocused || status === 'searching' || status === 'analyzing',
+          }}
+          disabled={!isFocused || status === 'searching' || status === 'analyzing'}
           onPress={() => setPlacementRequest(value => value + 1)}
           style={[
             styles.placeButton,
             { bottom: insets.bottom + 24 },
-            status !== 'ready' && styles.placeButtonDisabled,
+            (status === 'searching' || status === 'analyzing') && styles.placeButtonDisabled,
           ]}
         >
-          <Text style={styles.placeButtonText}>
-            {status === 'ready' ? '강아지 배치하기' : '바닥을 비춰 주세요'}
-          </Text>
+          <Text style={styles.placeButtonText}>강아지 배치하기</Text>
         </Pressable>
       )}
-      <DogActions
-        available={hasPermission && isFocused && (status === 'anchored' || status === 'leading')}
-        moving={status === 'leading'}
-        bottom={insets.bottom}
-        onAction={action => setActionRequest(`${++actionSequence.current}:${action}`)}
-      />
     </View>
   );
 }

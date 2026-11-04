@@ -6,6 +6,7 @@ import com.google.ar.core.Pose
 import com.google.ar.core.Session
 import com.google.ar.core.TrackingFailureReason
 import com.google.ar.core.TrackingState
+import android.os.SystemClock
 import kotlin.math.abs
 import kotlin.math.hypot
 
@@ -31,6 +32,8 @@ internal fun updateDog(
   leader: DogLeader,
   scratch: SessionScratch,
   modelReady: Boolean,
+  floorMask: SemanticFloorMask?,
+  semanticFailed: Boolean,
 ): ShownDog {
   val camera = frame.camera
   if (!modelReady) {
@@ -50,6 +53,15 @@ internal fun updateDog(
     return ShownDog(if (failed) "error" else "lost", hiddenDog())
   }
   scratch.lostSince = 0L
+  if (semanticFailed) {
+    leader.pauseTracking()
+    return ShownDog("recognitionError", hiddenDog())
+  }
+  val semanticNow = SystemClock.elapsedRealtimeNanos()
+  if (floorMask == null || semanticNow - floorMask.capturedAtNanos > SemanticFloorMask.MAX_AGE_NANOS) {
+    scratch.lastTimestamp = 0L
+    return ShownDog("analyzing", leader.pausedFrame()).also { scratch.lastShown = it }
+  }
   // SceneView may deliver several render callbacks for a single camera frame.
   // Reuse its result instead of resetting motion or querying the floor again.
   if (frame.timestamp == scratch.lastTimestamp) return scratch.lastShown
@@ -68,15 +80,23 @@ internal fun updateDog(
     scratch.planesTimestamp = now
   }
   val cameraY = pose.ty()
+  fun walkableFloor(x: Float, z: Float): Float? {
+    val ground = floorYAt(scratch.planes, cameraY, x, z) ?: return null
+    // Check a small footprint, not just one pixel at the center of the dog.
+    for ((dx, dz) in FOOTPRINT) {
+      if (!floorMask.allows(x + dx, ground, z + dz, semanticNow)) return null
+    }
+    return ground
+  }
   val dog = leader.update(dt, pose.tx(), pose.tz(), scratch.lookWorld[0], scratch.lookWorld[2]) { x, z ->
-    floorYAt(scratch.planes, cameraY, x, z)
+    walkableFloor(x, z)
   }
   val lookLength = hypot(scratch.lookWorld[0], scratch.lookWorld[2])
   var ready = false
   if (!leader.isPlaced && lookLength > 0.15f) {
     val targetX = pose.tx() + scratch.lookWorld[0] / lookLength * DOG_LEAD_METERS
     val targetZ = pose.tz() + scratch.lookWorld[2] / lookLength * DOG_LEAD_METERS
-    val ground = floorYAt(scratch.planes, cameraY, targetX, targetZ)
+    val ground = walkableFloor(targetX, targetZ)
     ready = ground != null && leader.canPlaceAt(pose.tx(), pose.tz(), targetX, targetZ, ground)
   }
   val status = when {
@@ -88,6 +108,8 @@ internal fun updateDog(
     scratch.lastShown = it
   }
 }
+
+private val FOOTPRINT = arrayOf(0f to 0f, -0.15f to 0f, 0.15f to 0f, 0f to -0.15f, 0f to 0.15f)
 
 private fun hiddenDog() = DogFrame(0f, 0f, 0f, 0f, false, "Idle", 0f)
 
