@@ -26,7 +26,9 @@ import PlusIcon from '../../assets/icons/common/plus.svg';
 import XCircleIcon from '../../assets/icons/common/x-circle.svg';
 import CameraIcon from '../../assets/icons/mypage/photo-camera.svg';
 import LibraryIcon from '../../assets/icons/mypage/photo-library.svg';
+import { StepIndicator } from '../../components/common';
 import { MAX_IMAGE_SIZE_MB } from '../../constants/upload';
+import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
 import { usePetStore } from '../../stores/petStore';
 import { colors, radius, typography } from '../../theme';
 import { PET_OPTIONS, type PetSpecies, validatePetImage } from './petRegistration';
@@ -38,15 +40,22 @@ type Neutered = '완료' | '미완료' | '모름';
 type Microchip = '완료' | '미완료';
 
 export function PetRegistrationScreen({ navigation, route }: Props) {
+  const isLostReportFlow = route.params?.flow === 'lost-report';
+  const lostReportAnimal = useLostReportDraftStore(state => state.animal);
+  const lostReportEntryMode = useLostReportDraftStore(state => state.entryMode);
+  const updateLostReportAnimal = useLostReportDraftStore(state => state.updateAnimal);
   const editingPet = usePetStore(state =>
-    route.params?.petId ? state.pets.find(pet => pet.id === route.params?.petId) : undefined,
+    !isLostReportFlow && route.params?.petId
+      ? state.pets.find(pet => pet.id === route.params?.petId)
+      : undefined,
   );
   const addPet = usePetStore(state => state.addPet);
   const updatePet = usePetStore(state => state.updatePet);
-  const isEditing = Boolean(editingPet);
+  const isEditing = !isLostReportFlow && Boolean(editingPet);
+  const initialAnimal = isLostReportFlow ? lostReportAnimal : editingPet;
   const [photos, setPhotos] = useState<Asset[]>(() =>
-    editingPet
-      ? editingPet.images.map(image => ({
+    initialAnimal
+      ? initialAnimal.images.map(image => ({
           type: 'image/jpeg',
           uri: Image.resolveAssetSource(image)?.uri ?? '',
         }))
@@ -54,31 +63,41 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   );
   const [photoMenuOpen, setPhotoMenuOpen] = useState(false);
   const [selectKey, setSelectKey] = useState<SelectKey>(null);
-  const [name, setName] = useState(editingPet?.name ?? '');
+  const [name, setName] = useState(initialAnimal?.name ?? '');
   const [species, setSpecies] = useState<PetSpecies | ''>(
-    editingPet?.species && editingPet.species in PET_OPTIONS
-      ? (editingPet.species as PetSpecies)
+    initialAnimal?.species && initialAnimal.species in PET_OPTIONS
+      ? (initialAnimal.species as PetSpecies)
       : '',
   );
-  const [breed, setBreed] = useState(editingPet?.breed ?? '');
-  const [color, setColor] = useState(editingPet?.color ?? '');
-  const [gender, setGender] = useState<Gender | ''>(editingPet?.gender ?? '');
+  const [breed, setBreed] = useState(initialAnimal?.breed ?? '');
+  const [color, setColor] = useState(initialAnimal?.color ?? '');
+  const [gender, setGender] = useState<Gender | ''>(initialAnimal?.gender ?? '');
   const [neutered, setNeutered] = useState<Neutered | ''>(
-    editingPet
-      ? editingPet.neutered === null
+    isLostReportFlow && lostReportEntryMode === 'manual'
+      ? ''
+      : initialAnimal
+      ? initialAnimal.neutered === null
         ? '모름'
-        : editingPet.neutered
+        : initialAnimal.neutered
         ? '완료'
         : '미완료'
       : '',
   );
-  const [age, setAge] = useState(editingPet?.age?.toString() ?? '');
-  const [weight, setWeight] = useState(editingPet?.weight?.toString() ?? '');
-  const [description, setDescription] = useState(editingPet?.description ?? '');
+  const [age, setAge] = useState(initialAnimal?.age?.toString() ?? '');
+  const [weight, setWeight] = useState(initialAnimal?.weight?.toString() ?? '');
+  const [description, setDescription] = useState(initialAnimal?.description ?? '');
   const [microchip, setMicrochip] = useState<Microchip | ''>(
-    editingPet ? (editingPet.microchipNumber ? '완료' : '미완료') : '',
+    isLostReportFlow && lostReportEntryMode === 'manual'
+      ? ''
+      : initialAnimal
+      ? initialAnimal.microchipNumber
+        ? '완료'
+        : '미완료'
+      : '',
   );
-  const [microchipNumber, setMicrochipNumber] = useState(editingPet?.microchipNumber ?? '');
+  const [microchipNumber, setMicrochipNumber] = useState(
+    initialAnimal?.microchipNumber ?? '',
+  );
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   const hasDraft = Boolean(
@@ -114,7 +133,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
 
   const isValid = Boolean(
     photos.length &&
-      name.trim() &&
+      (isLostReportFlow || name.trim()) &&
       species &&
       breed &&
       color &&
@@ -228,6 +247,23 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       species,
       weight: weight ? Number(weight) : null,
     };
+    if (isLostReportFlow) {
+      updateLostReportAnimal({
+        age: pet.age,
+        breed: pet.breed,
+        color: pet.color,
+        description: pet.description,
+        gender: pet.gender,
+        images: [...sources],
+        microchipNumber: pet.microchipNumber,
+        name: pet.name,
+        neutered: pet.neutered,
+        species: pet.species,
+        weight: pet.weight,
+      });
+      Alert.alert('실종 동물 등록', '기본 정보가 저장되었어요. 다음 단계를 이어서 구현할게요.');
+      return;
+    }
     if (isEditing) {
       updatePet(pet);
     } else {
@@ -248,9 +284,18 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
           <LeftArrowIcon height={24} width={24} />
         </Pressable>
         <Text style={styles.headerTitle}>
-          {isEditing ? '반려동물 수정하기' : '반려동물 등록하기'}
+          {isLostReportFlow
+            ? '실종 동물 등록'
+            : isEditing
+            ? '반려동물 수정하기'
+            : '반려동물 등록하기'}
         </Text>
       </View>
+      {isLostReportFlow ? (
+        <View style={styles.lostReportIndicator}>
+          <StepIndicator currentStep={2} totalSteps={4} />
+        </View>
+      ) : null}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}
@@ -303,13 +348,15 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
             최대 3장 · JPG/PNG · 장당 {MAX_IMAGE_SIZE_MB}MB 이하
           </Text>
 
-          <InputField
-            label="이름"
-            onChangeText={setName}
-            placeholder="예: 두둥"
-            required
-            value={name}
-          />
+          {!isLostReportFlow ? (
+            <InputField
+              label="이름"
+              onChangeText={setName}
+              placeholder="예: 두둥"
+              required
+              value={name}
+            />
+          ) : null}
           <SelectField
             isOpen={selectKey === 'species'}
             label="동물 종류"
@@ -411,7 +458,9 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
             onPress={submit}
             style={[styles.submit, !isValid && styles.submitDisabled]}
           >
-            <Text style={styles.submitText}>{isEditing ? '수정하기' : '등록하기'}</Text>
+            <Text style={styles.submitText}>
+              {isLostReportFlow ? '다음' : isEditing ? '수정하기' : '등록하기'}
+            </Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -424,7 +473,9 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         <View style={styles.cancelBackdrop}>
           <View style={styles.cancelModal}>
             <Text style={styles.cancelTitle}>
-              반려동물 {isEditing ? '수정을' : '등록을'} 취소하시겠습니까?
+              {isLostReportFlow
+                ? '실종 동물 등록을 취소하시겠습니까?'
+                : `반려동물 ${isEditing ? '수정을' : '등록을'} 취소하시겠습니까?`}
             </Text>
             <Text style={styles.cancelDescription}>
               작성 중인 정보는 저장되지 않으며,{`\n`}다시 복구할 수 없습니다.
@@ -434,7 +485,9 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
                 <Text style={styles.cancelButtonText}>계속 작성하기</Text>
               </Pressable>
               <Pressable onPress={navigation.goBack} style={styles.confirmCancelButton}>
-                <Text style={styles.cancelButtonText}>등록 취소하기</Text>
+                <Text style={styles.cancelButtonText}>
+                  {isEditing ? '수정 취소하기' : '등록 취소하기'}
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -563,6 +616,7 @@ const styles = StyleSheet.create({
     width: 40,
   },
   headerTitle: { ...typography.titleSemiBold18, color: colors.black },
+  lostReportIndicator: { alignItems: 'center', height: 28, paddingTop: 2 },
   content: { paddingBottom: 30, paddingHorizontal: 26, paddingTop: 17 },
   label: { ...typography.bodySemiBold16, color: colors.black, marginBottom: 16 },
   photoArea: {
@@ -674,7 +728,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   choiceSelected: { backgroundColor: colors.green200, borderColor: colors.green200 },
-  choiceText: { ...typography.bodyRegular16, color: colors.gray300 },
+  choiceText: { ...typography.bodyRegular14, color: colors.gray300 },
   choiceTextSelected: { color: colors.white, fontFamily: 'Pretendard-Medium' },
   row: { flexDirection: 'row', gap: 13 },
   half: { flex: 1 },
