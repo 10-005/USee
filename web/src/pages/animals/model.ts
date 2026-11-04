@@ -43,7 +43,6 @@ export const animalFilters = [
     options: [
       ['female', '암컷'],
       ['male', '수컷'],
-      ['unknown', '모름'],
     ],
   },
   {
@@ -60,7 +59,6 @@ export const animalFilters = [
     options: [
       ['yes', '완료'],
       ['no', '미완료'],
-      ['unknown', '모름'],
     ],
   },
 ] as const;
@@ -90,9 +88,9 @@ export function selectAnimals(
         (!filters.status || filters.status === animal.status) &&
         (!filters.period || (daysAgo >= 0 && daysAgo < Number(filters.period))) &&
         (!filters.species || filters.species === animal.species) &&
-        (!filters.sex || filters.sex === animal.sex) &&
+        (!filters.sex || animal.sex === 'unknown' || filters.sex === animal.sex) &&
         (!filters.adoptable || filters.adoptable === String(animal.adoptable)) &&
-        (!filters.neutered || filters.neutered === animal.neutered)
+        (!filters.neutered || animal.neutered === 'unknown' || filters.neutered === animal.neutered)
       );
     })
     .sort((a, b) => {

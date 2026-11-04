@@ -6,6 +6,36 @@ import { selectAnimals } from './model';
 import { sampleAnimals, sampleReferenceDate } from './sample-data';
 
 describe('보호동물 목록', () => {
+  it.each([
+    ['sex=female', [1, 3, 4, 6, 7, 9]],
+    ['sex=male', [2, 3, 5, 6, 8, 9]],
+    ['neutered=yes', [1, 2, 3, 7, 8, 9]],
+    ['neutered=no', [4, 5, 6, 7, 8, 9]],
+    ['sex=female&neutered=no', [4, 6, 7, 9]],
+    ['sex=male&neutered=yes', [2, 3, 8, 9]],
+  ] as const)('%s 선택 시 해당 조건과 모름인 동물만 포함한다', (query, expected) => {
+    // 첫 아홉 마리는 성별과 중성화 여부의 3 × 3 조합을 하나씩 포함한다.
+    const animals = sampleAnimals.slice(0, 9);
+    const result = selectAnimals(animals, new URLSearchParams(query), sampleReferenceDate);
+    expect(result.map((animal) => animal.id)).toEqual(
+      expected.map((n) => `sample-${String(n).padStart(2, '0')}`),
+    );
+  });
+
+  it('모름 선택지를 숨기고 기존 모름 필터 URL은 전체로 표시한다', () => {
+    render(
+      <MemoryRouter initialEntries={['/animals?sex=unknown&neutered=unknown']}>
+        <AnimalsPage />
+      </MemoryRouter>,
+    );
+    for (const name of ['성별', '중성화 여부']) {
+      const filter = screen.getByRole('combobox', { name });
+      expect(within(filter).queryByRole('option', { name: '모름' })).not.toBeInTheDocument();
+      expect(filter).toHaveDisplayValue('전체');
+    }
+    expect(screen.getByRole('status')).toHaveTextContent('총 24마리');
+  });
+
   it('여섯 필터를 함께 적용하고 원본 데이터를 변경하지 않는다', () => {
     const params = new URLSearchParams(
       'status=protected&period=30&species=dog&sex=female&adoptable=true&neutered=yes',
