@@ -121,7 +121,7 @@ export function PetDetailScreen({ navigation, route }: Props) {
         onPress={() => Alert.alert('실종 신고하기', '실종 신고 화면은 관련 작업에서 연결됩니다.')}
         style={({ pressed }) => [
           styles.reportButton,
-          { bottom: insets.bottom + 22 },
+          { bottom: insets.bottom + 12 },
           pressed && styles.pressed,
         ]}
       >
@@ -247,10 +247,10 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   divider: { backgroundColor: colors.gray200, height: 1, marginTop: 10 },
-  details: { marginTop: 8 },
-  detailRow: { alignItems: 'center', flexDirection: 'row', minHeight: 30 },
-  detailLabel: { ...typography.bodyRegular16, color: colors.gray800, width: 92 },
-  detailValue: { ...typography.bodySemiBold16, color: '#0A0A0A', flex: 1 },
+  details: { gap: 10, marginTop: 12 },
+  detailRow: { flexDirection: 'row' },
+  detailLabel: { ...typography.bodyRegular14, color: colors.gray400, width: 110 },
+  detailValue: { ...typography.bodyRegular14, color: colors.black, flex: 1 },
   reportButton: {
     alignItems: 'center',
     backgroundColor: '#FAB45B',
@@ -295,8 +295,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   deleteModal: { backgroundColor: colors.white, borderRadius: 18, padding: 24, width: '100%' },
-  modalTitle: { color: '#222222', fontFamily: 'Pretendard-Bold', fontSize: 22, lineHeight: 28 },
-  modalDescription: { ...typography.bodyRegular16, color: colors.gray500, marginTop: 16 },
+  modalTitle: { ...typography.titleBold18, color: colors.gray800 },
+  modalDescription: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 12 },
   modalActions: { flexDirection: 'row', gap: 14, marginTop: 16 },
   modalButton: {
     alignItems: 'center',

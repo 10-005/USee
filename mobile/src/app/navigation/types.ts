@@ -3,6 +3,7 @@ import type { AdoptionApplicationStatus } from '../../services/storage/adoptionA
 export type RootStackParamList = {
   ArWalk: undefined;
   AdoptionApplication: { animalId: string };
+  AdoptionApplicantEdit: undefined;
   AdoptionApplicationHistory: {
     animalId: string;
     previewStatus?: AdoptionApplicationStatus;
@@ -14,13 +15,16 @@ export type RootStackParamList = {
   Home: undefined;
   FoundReportDetail: { reportId: string };
   LostReportDetail: { reportId: string };
+  LostReportForm: undefined;
+  LostReportLocationPicker: { target?: 'adoption' | 'lost-report' } | undefined;
+  LostReportPetSelection: undefined;
   ChatRoom: { roomId: string };
   MockAdoptionActivity: { petId: string };
   NoticeDetail: { noticeId: string };
   NoticeList: undefined;
   MockAdoptionSelection: undefined;
   PetList: undefined;
-  PetRegistration: { petId?: string } | undefined;
+  PetRegistration: { flow?: 'lost-report'; petId?: string } | undefined;
   PetDetail: { petId: string };
   ProfileEdit: undefined;
   Settings: undefined;

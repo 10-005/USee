@@ -20,6 +20,7 @@
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
       <meta-data android:name="com.google.ar.core" android:value="optional" />
+      <meta-data android:name="com.naver.maps.map.NCP_KEY_ID" android:value="q6yzj1wy8x" />
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"

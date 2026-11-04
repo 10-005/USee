@@ -1,14 +1,11 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import Geolocation from '@react-native-community/geolocation';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { saveSubmittedAdoptionApplication } from '../../services/storage/adoptionApplicationStorage';
 import {
   Image,
   Keyboard,
   Modal,
-  PermissionsAndroid,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -33,11 +30,18 @@ import {
   removeAdoptionApplicationDraft,
   saveAdoptionApplicationDraft,
 } from '../../services/storage/adoptionDraftStorage';
+import { useAdoptionApplicantStore } from '../../stores/adoptionApplicantStore';
+import { useAdoptionLocationStore } from '../../stores/adoptionLocationStore';
 import { colors, radius, spacing, typography } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AdoptionApplication'>;
 export type AdoptionApplicationForm = {
   address: string;
+  addressLatitude: number | null;
+  addressLongitude: number | null;
+  applicantBirthDate: string;
+  applicantName: string;
+  applicantPhone: string;
   email: string;
   visitDate: string;
   housing: string;
@@ -82,6 +86,11 @@ type FormState = AdoptionApplicationForm;
 
 const initialForm: FormState = {
   address: '',
+  addressLatitude: null,
+  addressLongitude: null,
+  applicantBirthDate: '2001.05.27',
+  applicantName: '박범준',
+  applicantPhone: '010-1234-5678',
   email: '',
   visitDate: '',
   housing: '',
@@ -251,23 +260,29 @@ function CalendarField({ value, onChange }: { value: string; onChange: (value: s
 
 function FormInput({
   autoCapitalize,
+  editable = true,
   keyboardType,
+  maxLength,
   multiline = false,
-  placeholder,
+  placeholder = '',
   value,
   onChangeText,
 }: {
   autoCapitalize?: TextInputProps['autoCapitalize'];
+  editable?: boolean;
   keyboardType?: TextInputProps['keyboardType'];
+  maxLength?: number;
   multiline?: boolean;
-  placeholder: string;
+  placeholder?: string;
   value: string;
-  onChangeText: (value: string) => void;
+  onChangeText?: (value: string) => void;
 }) {
   return (
     <TextInput
       autoCapitalize={autoCapitalize}
+      editable={editable}
       keyboardType={keyboardType}
+      maxLength={maxLength}
       multiline={multiline}
       onChangeText={onChangeText}
       placeholder={placeholder}
@@ -308,12 +323,16 @@ export function AdoptionApplicationScreen({ navigation, route }: Props) {
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState('');
   const [draftFeedback, setDraftFeedback] = useState('');
-  const [isFindingLocation, setIsFindingLocation] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [draftToResume, setDraftToResume] = useState<AdoptionApplicationDraft<FormState> | null>(
     null,
   );
   const scrollRef = useRef<ScrollViewInstance>(null);
+  const locationSelection = useAdoptionLocationStore(state => state.selection);
+  const appliedLocationIdRef = useRef(locationSelection.id);
+  const applicantResult = useAdoptionApplicantStore(state => state.result);
+  const beginApplicantEditing = useAdoptionApplicantStore(state => state.beginEditing);
+  const appliedApplicantIdRef = useRef(applicantResult.id);
   const update = <Key extends keyof FormState>(key: Key, value: FormState[Key]) =>
     setForm(current => ({ ...current, [key]: value }));
 
@@ -403,50 +422,32 @@ export function AdoptionApplicationScreen({ navigation, route }: Props) {
     scrollRef.current?.scrollTo({ animated: false, y: 0 });
   }, [step]);
 
-  const findCurrentLocation = async () => {
-    setDraftFeedback('');
-    setError('');
-    try {
-      if (Platform.OS === 'android') {
-        const permission = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: '현재 위치 사용',
-            message: '실제 양육 예정 장소를 찾기 위해 현재 위치 권한이 필요합니다.',
-            buttonNegative: '취소',
-            buttonPositive: '허용',
-          },
-        );
-        if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
-          setError('현재 위치를 찾으려면 위치 권한을 허용해 주세요.');
-          return;
-        }
-      }
-      setIsFindingLocation(true);
-      Geolocation.getCurrentPosition(
-        ({ coords }) => {
-          update(
-            'address',
-            `현재 위치 (위도 ${coords.latitude.toFixed(6)}, 경도 ${coords.longitude.toFixed(6)})`,
-          );
-          setDraftFeedback('현재 위치를 불러왔습니다. 상세 주소가 필요하면 직접 수정해 주세요.');
-          setIsFindingLocation(false);
-        },
-        locationError => {
-          setError(
-            locationError.code === 3
-              ? '위치를 찾는 데 시간이 오래 걸립니다. GPS를 켜고 다시 시도해 주세요.'
-              : '현재 위치를 불러오지 못했습니다. 위치 설정을 확인해 주세요.',
-          );
-          setIsFindingLocation(false);
-        },
-        { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
-      );
-    } catch {
-      setIsFindingLocation(false);
-      setError('현재 위치를 불러오지 못했습니다. 위치 설정을 확인해 주세요.');
+  useEffect(() => {
+    if (locationSelection.id === appliedLocationIdRef.current) {
+      return;
     }
-  };
+    appliedLocationIdRef.current = locationSelection.id;
+    setForm(current => ({
+      ...current,
+      address: locationSelection.address,
+      addressLatitude: locationSelection.latitude,
+      addressLongitude: locationSelection.longitude,
+    }));
+    setError('');
+  }, [locationSelection]);
+
+  useEffect(() => {
+    if (applicantResult.id === appliedApplicantIdRef.current) {
+      return;
+    }
+    appliedApplicantIdRef.current = applicantResult.id;
+    setForm(current => ({
+      ...current,
+      applicantBirthDate: applicantResult.birthDate,
+      applicantName: applicantResult.name,
+      applicantPhone: applicantResult.phone,
+    }));
+  }, [applicantResult]);
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
@@ -480,8 +481,17 @@ export function AdoptionApplicationScreen({ navigation, route }: Props) {
         {step === 1 ? (
           <StepOne
             form={form}
-            isFindingLocation={isFindingLocation}
-            onFindCurrentLocation={findCurrentLocation}
+            onEditApplicant={() => {
+              beginApplicantEditing({
+                birthDate: form.applicantBirthDate,
+                name: form.applicantName,
+                phone: form.applicantPhone,
+              });
+              navigation.navigate('AdoptionApplicantEdit');
+            }}
+            onOpenLocationPicker={() =>
+              navigation.navigate('LostReportLocationPicker', { target: 'adoption' })
+            }
             update={update}
           />
         ) : null}
@@ -598,10 +608,10 @@ type StepProps = {
 
 function StepOne({
   form,
-  isFindingLocation,
-  onFindCurrentLocation,
+  onEditApplicant,
+  onOpenLocationPicker,
   update,
-}: StepProps & { isFindingLocation: boolean; onFindCurrentLocation: () => void }) {
+}: StepProps & { onEditApplicant: () => void; onOpenLocationPicker: () => void }) {
   return (
     <>
       <View style={styles.animalSummary}>
@@ -630,34 +640,32 @@ function StepOne({
       <View style={styles.profileCard}>
         <View style={styles.profileHeader}>
           <Text style={styles.profileName}>
-            우사기　<Text style={styles.profileMeta}>2000.00.00</Text>
+            {form.applicantName}　
+            <Text style={styles.profileMeta}>{form.applicantBirthDate}</Text>
           </Text>
-          <Pressable accessibilityLabel="신청자 정보 수정" accessibilityRole="button">
+          <Pressable
+            accessibilityLabel="신청자 정보 수정"
+            accessibilityRole="button"
+            onPress={onEditApplicant}
+          >
             <EditIcon height={20} width={20} />
           </Pressable>
         </View>
         <View style={styles.profileMetaRow}>
           <PhoneIcon />
-          <Text style={styles.profileMeta}>010-1234-4567</Text>
+          <Text style={styles.profileMeta}>{form.applicantPhone}</Text>
         </View>
       </View>
       <FieldLabel>실제 양육 예정 장소*</FieldLabel>
-      <FormInput
-        onChangeText={value => update('address', value)}
-        placeholder="도로명, 건물명, 지번으로 검색"
-        value={form.address}
-      />
+      {form.address ? <FormInput editable={false} value={form.address} /> : null}
       <Button
-        disabled={isFindingLocation}
-        onPress={onFindCurrentLocation}
+        onPress={onOpenLocationPicker}
         variant="secondary"
-        style={styles.locationButton}
+        style={[styles.locationButton, form.address && styles.locationButtonWithAddress]}
       >
         <View style={styles.locationButtonContent}>
           <LocationIcon />
-          <Text style={styles.locationButtonText}>
-            {isFindingLocation ? '현재 위치 찾는 중...' : '현재 위치로 찾기'}
-          </Text>
+          <Text style={styles.locationButtonText}>지도에서 위치 선택</Text>
         </View>
       </Button>
       <FieldLabel>이메일</FieldLabel>
@@ -1052,8 +1060,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderColor: colors.green400,
     borderWidth: 1,
-    marginTop: 12,
   },
+  locationButtonWithAddress: { marginTop: 12 },
   locationButtonContent: { alignItems: 'center', flexDirection: 'row', gap: 8 },
   locationButtonText: { ...typography.bodySemiBold16, color: colors.green400 },
   divider: { backgroundColor: colors.gray200, height: 1, marginVertical: 20 },
