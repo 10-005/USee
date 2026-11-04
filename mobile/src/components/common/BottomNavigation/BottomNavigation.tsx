@@ -56,7 +56,12 @@ export function BottomNavigation<Key extends string>({
                   {centerAction.label ? (
                     <>
                       <View style={styles.centerTabIcon}>{centerAction.icon}</View>
-                      <Text style={[styles.label, centerAction.selected && styles.selectedLabel]}>
+                      <Text
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.8}
+                        numberOfLines={1}
+                        style={[styles.label, centerAction.selected && styles.selectedLabel]}
+                      >
                         {centerAction.label}
                       </Text>
                     </>
@@ -75,7 +80,14 @@ export function BottomNavigation<Key extends string>({
                 style={({ pressed }) => [styles.item, pressed && styles.pressed]}
               >
                 <View style={styles.icon}>{item.icon(selected)}</View>
-                <Text style={[styles.label, selected && styles.selectedLabel]}>{item.label}</Text>
+                <Text
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                  numberOfLines={1}
+                  style={[styles.label, selected && styles.selectedLabel]}
+                >
+                  {item.label}
+                </Text>
               </Pressable>
             </View>
           </Fragment>
@@ -94,19 +106,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     height: 60,
     justifyContent: 'space-between',
-    paddingHorizontal: spacing[8],
+    paddingHorizontal: spacing[4],
     paddingVertical: spacing[4],
   },
   itemSlot: {
     alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
-    width: 56,
+    minWidth: 0,
   },
   item: {
     alignItems: 'center',
     gap: spacing[2],
     justifyContent: 'center',
-    width: 56,
+    width: '100%',
   },
   icon: {
     alignItems: 'center',
@@ -117,6 +130,8 @@ const styles = StyleSheet.create({
   label: {
     ...typography.captionSemiBold12,
     color: '#777671',
+    textAlign: 'center',
+    width: '100%',
   },
   selectedLabel: {
     color: colors.green100,

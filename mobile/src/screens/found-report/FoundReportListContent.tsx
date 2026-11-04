@@ -249,7 +249,7 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  tabs: { flexDirection: 'row', height: 60 },
+  tabs: { flexDirection: 'row', height: 56 },
   tab: { alignItems: 'center', flex: 1, justifyContent: 'flex-end' },
   activeTabText: { ...typography.bodySemiBold16, color: colors.green400, marginBottom: 16 },
   tabText: { ...typography.bodyRegular16, color: colors.gray600, marginBottom: 16 },

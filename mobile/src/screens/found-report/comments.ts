@@ -3,6 +3,8 @@ export type FoundReportReply = {
   createdAt: string;
   deleted?: boolean;
   id: string;
+  imageUri?: string;
+  isMine?: boolean;
   nickname: string;
 };
 
@@ -15,7 +17,8 @@ export const foundReportComments: FoundReportComment[] = [
     content: '해리 눈여겨봐주세요.',
     createdAt: '26.10.18 23:27',
     id: 'comment-1',
-    nickname: '보리보리',
+    isMine: true,
+    nickname: '내 닉네임',
     replies: [],
   },
   {
@@ -69,4 +72,51 @@ export function getCommentCount(comments: FoundReportComment[]) {
 
 export function getCommentContent(comment: FoundReportReply) {
   return comment.deleted ? '삭제된 댓글입니다.' : comment.content;
+}
+
+export type CommentAction =
+  | { comment: FoundReportComment; type: 'addComment' }
+  | { commentId: string; reply: FoundReportReply; type: 'addReply' }
+  | { commentId: string; type: 'delete' }
+  | { commentId: string; content: string; type: 'update' };
+
+const updateReply = (
+  comments: FoundReportComment[],
+  replyId: string,
+  update: (reply: FoundReportReply) => FoundReportReply,
+) =>
+  comments.map(comment => ({
+    ...comment,
+    replies: comment.replies.map(reply => (reply.id === replyId ? update(reply) : reply)),
+  }));
+
+export function commentReducer(
+  comments: FoundReportComment[],
+  action: CommentAction,
+): FoundReportComment[] {
+  if (action.type === 'addComment') {
+    return [action.comment, ...comments];
+  }
+  if (action.type === 'addReply') {
+    return comments.map(comment =>
+      comment.id === action.commentId
+        ? { ...comment, replies: [...comment.replies, action.reply] }
+        : comment,
+    );
+  }
+  if (action.type === 'update') {
+    const hasTopLevel = comments.some(comment => comment.id === action.commentId);
+    return hasTopLevel
+      ? comments.map(comment =>
+          comment.id === action.commentId ? { ...comment, content: action.content } : comment,
+        )
+      : updateReply(comments, action.commentId, reply => ({ ...reply, content: action.content }));
+  }
+  const deleted = { content: '', deleted: true, imageUri: undefined };
+  const hasTopLevel = comments.some(comment => comment.id === action.commentId);
+  return hasTopLevel
+    ? comments.map(comment =>
+        comment.id === action.commentId ? { ...comment, ...deleted } : comment,
+      )
+    : updateReply(comments, action.commentId, reply => ({ ...reply, ...deleted }));
 }
