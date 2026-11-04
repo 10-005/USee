@@ -35,5 +35,6 @@ export type RootStackParamList = {
   Settings: undefined;
   SavedPosts: undefined;
   MockAdoptionBudget: { petId: string };
+  MyPosts: undefined;
   ShelterDetail: { shelterId: string };
 };

@@ -286,6 +286,7 @@ export function HomeScreen({ navigation }: Props) {
       {selectedTab === 'mypage' ? (
         <MyPageScreen
           onOpenMockAdoption={openMockAdoption}
+          onOpenMyPosts={() => navigation.navigate('MyPosts')}
           onOpenAdoptionApplications={() => navigation.navigate('AdoptionApplicationList')}
           onOpenPets={() => navigation.navigate('PetList')}
           onOpenProfileEdit={() => navigation.navigate('ProfileEdit')}

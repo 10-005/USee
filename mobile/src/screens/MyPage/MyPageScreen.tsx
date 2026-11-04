@@ -1,4 +1,4 @@
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { SvgProps } from 'react-native-svg';
 
 import ApplicationListIcon from '../../assets/icons/mypage/application-list.svg';
@@ -15,6 +15,7 @@ import { colors, radius, typography } from '../../theme';
 
 type Props = {
   onOpenMockAdoption: () => void;
+  onOpenMyPosts: () => void;
   onOpenAdoptionApplications: () => void;
   onOpenPets: () => void;
   onOpenProfileEdit: () => void;
@@ -23,12 +24,10 @@ type Props = {
   onOpenSavedPosts: () => void;
 };
 
-const unavailable = (name: string) =>
-  Alert.alert(name, '해당 화면은 다음 작업에서 연결될 예정입니다.');
-
 export function MyPageScreen({
   onOpenAdoptionApplications,
   onOpenMockAdoption,
+  onOpenMyPosts,
   onOpenPets,
   onOpenProfileEdit,
   onOpenNotices,
@@ -99,7 +98,7 @@ export function MyPageScreen({
           <MenuRow
             icon={MyPostsIcon}
             label="내가 작성한 게시글"
-            onPress={() => unavailable('내가 작성한 게시글')}
+            onPress={onOpenMyPosts}
           />
           <MenuRow icon={SavedPostsIcon} label="저장한 게시글" onPress={onOpenSavedPosts} />
           <MenuRow icon={NoticeIcon} label="공지사항" onPress={onOpenNotices} />

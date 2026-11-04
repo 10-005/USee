@@ -20,6 +20,7 @@ import { PetRegistrationScreen } from '../../screens/MyPage/PetRegistrationScree
 import { ProfileEditScreen } from '../../screens/MyPage/ProfileEditScreen';
 import { SettingsScreen } from '../../screens/MyPage/SettingsScreen';
 import { SavedPostsScreen } from '../../screens/MyPage/SavedPostsScreen';
+import { MyPostsScreen } from '../../screens/MyPage/MyPostsScreen';
 import { NoticeListScreen } from '../../screens/MyPage/NoticeListScreen';
 import { NoticeDetailScreen } from '../../screens/MyPage/NoticeDetailScreen';
 import { FoundReportDetailScreen } from '../../screens/found-report/FoundReportDetailScreen';
@@ -56,6 +57,7 @@ export function RootNavigator() {
         <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="SavedPosts" component={SavedPostsScreen} />
+        <Stack.Screen name="MyPosts" component={MyPostsScreen} />
         <Stack.Screen name="NoticeList" component={NoticeListScreen} />
         <Stack.Screen name="NoticeDetail" component={NoticeDetailScreen} />
         <Stack.Screen name="MockAdoptionBudget" component={MockAdoptionBudgetScreen} />
