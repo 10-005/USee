@@ -1,6 +1,7 @@
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   BackHandler,
@@ -79,13 +80,15 @@ export function ProfileEditScreen({ navigation }: Props) {
     }
   }, [hasChanges, navigation]);
 
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      requestBack();
-      return true;
-    });
-    return () => subscription.remove();
-  }, [requestBack]);
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        requestBack();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [requestBack]),
+  );
 
   const validateImage = (asset?: Asset) => {
     if (!asset?.uri) {
