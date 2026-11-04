@@ -14,6 +14,7 @@ export type RootStackParamList = {
   Home: undefined;
   FoundReportDetail: { reportId: string };
   LostReportDetail: { reportId: string };
+  ChatRoom: { roomId: string };
   MockAdoptionActivity: { petId: string };
   NoticeDetail: { noticeId: string };
   NoticeList: undefined;

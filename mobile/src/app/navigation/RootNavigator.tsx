@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { MockAdoptionScreen } from '../../screens/MockAdoption/MockAdoptionScreen';
 import { HomeScreen } from '../../screens/Home/HomeScreen';
+import { ChatRoomScreen } from '../../screens/chat/ChatRoomScreen';
 import { MockAdoptionActivityScreen } from '../../screens/MockAdoption/MockAdoptionActivityScreen';
 import { MockAdoptionBudgetScreen } from '../../screens/MockAdoption/MockAdoptionBudgetScreen';
 import { ArWalkScreen } from '../../screens/ArWalk/ArWalkScreen';
@@ -31,6 +32,7 @@ export function RootNavigator() {
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="FoundReportDetail" component={FoundReportDetailScreen} />
         <Stack.Screen name="LostReportDetail" component={FoundReportDetailScreen} />
+        <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
         <Stack.Screen name="MockAdoptionActivity" component={MockAdoptionActivityScreen} />
         <Stack.Screen name="MockAdoptionSelection" component={MockAdoptionScreen} />
         <Stack.Screen name="PetList" component={PetListScreen} />

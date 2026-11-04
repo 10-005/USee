@@ -15,6 +15,7 @@
     "postinstall": "node scripts/android-node-path.js"
   },
   "dependencies": {
+    "@dr.pogodin/react-native-fs": "2.41.0",
     "@react-native-async-storage/async-storage": "^3.1.1",
     "@react-native-clipboard/clipboard": "^1.16.3",
     "@react-native-community/datetimepicker": "^9.2.2",

@@ -1,5 +1,16 @@
 /* global jest */
 
+jest.mock('@dr.pogodin/react-native-fs', () => ({
+  DocumentDirectoryPath: '/documents',
+  copyFile: jest.fn(),
+  mkdir: jest.fn(),
+  unlink: jest.fn(),
+}));
+
+jest.mock('react-native-image-picker', () => ({
+  launchImageLibrary: jest.fn().mockResolvedValue({ didCancel: true }),
+}));
+
 jest.mock(
   '@react-native-async-storage/async-storage',
   () => require('@react-native-async-storage/async-storage/jest').default,
