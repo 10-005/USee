@@ -14,9 +14,29 @@ internal class DogModelNode(
   val durations = indices.mapValues { animator.getAnimationDuration(it.value) }
   private val leashSocket = emptyNodes.firstOrNull { it.name == "LeashAttachment" }
   private val neck = emptyNodes.firstOrNull { it.name == "neck" }
+  private val bodyBack = emptyNodes.firstOrNull { it.name == "Spine_base" }
+  private val bodyFront = emptyNodes.firstOrNull { it.name == "Spine_05" }
+  private val head = emptyNodes.firstOrNull { it.name == "head" }
+  private val nose = emptyNodes.firstOrNull { it.name == "nose" }
   private val leftSocket = emptyNodes.firstOrNull { it.name == "LeashAttachmentLeft" }
   private val rightSocket = emptyNodes.firstOrNull { it.name == "LeashAttachmentRight" }
   private var frontLeash = false
+  /** Read after animator updates: capsules follow the same pose as the collar sockets. */
+  fun leashBody(): LeashBody? {
+    fun Position.point() = LeashPoint(x,y,z)
+    val back = bodyBack?.worldPosition?.point() ?: return null
+    val front = bodyFront?.worldPosition?.point() ?: return null
+    val neckPoint = neck?.worldPosition?.point() ?: return null
+    val headPoint = head?.worldPosition?.point() ?: return null
+    val nosePoint = nose?.worldPosition?.point() ?: return null
+    val origin = worldPosition.point()
+    val scale = (getWorldPosition(Position(x = 1f)).point() - origin).length()
+    return LeashBody(listOf(
+      LeashCapsule(back,front,0.085f*scale + 0.009f),
+      LeashCapsule(neckPoint,headPoint,0.045f*scale + 0.009f),
+      LeashCapsule(headPoint + (nosePoint-headPoint)*0.25f,nosePoint,0.065f*scale + 0.009f),
+    ),neckPoint)
+  }
   val leashPosition: Position?
     get() = leashSocket?.worldPosition ?: neck?.getWorldPosition(Position(0f, 0.05069732f, 0.05752291f))
   fun leashPositionFor(camera: LeashPoint, cameraRight: LeashPoint): Position? {

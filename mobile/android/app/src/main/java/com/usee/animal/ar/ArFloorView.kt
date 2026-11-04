@@ -192,7 +192,7 @@ class ArFloorView(
           val collar = if (camera != null && right != null) posedDog.leashPositionFor(camera, right) else null
           val hand = leashHand
           if (active && sceneView === view && posedDog.isVisible && collar != null && hand != null) {
-            leader.updateLeashLength(dogLeash.update(LeashPoint(collar.x, collar.y, collar.z), hand, time))
+            leader.updateLeashLength(dogLeash.update(LeashPoint(collar.x, collar.y, collar.z), hand, time, posedDog.leashBody()))
           } else {
             dogLeash.hide()
           }

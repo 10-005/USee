@@ -7,6 +7,7 @@ import io.github.sceneview.node.CylinderNode
 /** World-space rope; its hand endpoint is unprojected from the viewport's bottom center. */
 internal class DogLeash(private val view: ARSceneView) : AutoCloseable {
   private val curve = LeashCurve()
+  private val collision = LeashCollision()
   private val material = view.materialLoader.createColorInstance(
     colorOf(r = 0.025f, g = 0.18f, b = 0.65f, a = 1f),
     metallic = 0f, roughness = 0.7f, reflectance = 0.25f,
@@ -27,18 +28,25 @@ internal class DogLeash(private val view: ARSceneView) : AutoCloseable {
     previousTime = 0L
     latestPoints = emptyList()
     curve.reset()
+    collision.reset()
   }
 
-  fun update(collar: LeashPoint, hand: LeashPoint, time: Long): Float {
+  fun update(collar: LeashPoint, hand: LeashPoint, time: Long, body: LeashBody?): Float {
     val dt = if (previousTime == 0L) 0f else (time - previousTime) / 1_000_000_000f
     previousTime = time
-    val points = curve.points(collar, hand, dt, segments.size)
+    val desired = curve.points(collar, hand, dt, segments.size)
+    val points = if (body != null) collision.route(desired,body,segments.size) else desired
     latestPoints = points
     segments.forEachIndexed { index, segment ->
+      if (index + 1 >= points.size) {
+        segment.isVisible = false
+        return@forEachIndexed
+      }
       segment.transformManager.setTransform(segment.transformInstance, LeashCurve.segmentTransform(points[index], points[index + 1]))
       segment.isVisible = true
     }
-    return points.zipWithNext().sumOf { (a, b) -> (b - a).length().toDouble() }.toFloat()
+    return if (points.isEmpty()) (hand-collar).length()
+      else points.zipWithNext().sumOf { (a, b) -> (b - a).length().toDouble() }.toFloat()
   }
 
   fun hitTest(x: Float, y: Float, viewMatrix: FloatArray, projection: FloatArray, width: Int, height: Int, tolerance: Float): Boolean {
