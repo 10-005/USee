@@ -25,22 +25,22 @@ import DotsIcon from '../../assets/icons/common/dots-vertical.svg';
 import PostDeleteIcon from '../../assets/icons/common/post-delete.svg';
 import PostEditIcon from '../../assets/icons/common/post-edit.svg';
 import PostStatusIcon from '../../assets/icons/common/post-status.svg';
+import ReportIcon from '../../assets/icons/common/report.svg';
 import StatusPawIcon from '../../assets/icons/common/status-paw.svg';
 import { AppHeader, Button } from '../../components/common';
-import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import {
-  type ReportProgressStatus,
-  useReportStatusStore,
-} from '../../stores/reportStatusStore';
+  ContentReportModal,
+  type ContentReportTarget,
+} from '../../components/report/ContentReportModal';
+import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
+import { useContentReportStore } from '../../stores/contentReportStore';
+import { type ReportProgressStatus, useReportStatusStore } from '../../stores/reportStatusStore';
 import { colors, radius, typography } from '../../theme';
 import { FoundReportCommentList } from './FoundReportCommentList';
 import { getFoundReport } from './data';
 import { getLostReport } from '../lost-report/data';
 
-type Props = NativeStackScreenProps<
-  RootStackParamList,
-  'FoundReportDetail' | 'LostReportDetail'
->;
+type Props = NativeStackScreenProps<RootStackParamList, 'FoundReportDetail' | 'LostReportDetail'>;
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -64,6 +64,8 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const { width } = useWindowDimensions();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [viewerMenuVisible, setViewerMenuVisible] = useState(false);
+  const [reportTarget, setReportTarget] = useState<ContentReportTarget | null>(null);
   const [page, setPage] = useState(0);
   const [pendingStatus, setPendingStatus] = useState<ReportProgressStatus | null>(null);
   const [statusSheetVisible, setStatusSheetVisible] = useState(false);
@@ -73,6 +75,8 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
   const storedStatus = useReportStatusStore(state => state.statusById[report.id]);
   const setReportStatus = useReportStatusStore(state => state.setStatus);
+  const contentReports = useContentReportStore(state => state.reports);
+  const addContentReport = useContentReportStore(state => state.addReport);
   const progressStatus =
     storedStatus ?? (report.status === '완료' || report.status === '종료' ? 'completed' : 'active');
   const isCompleted = progressStatus === 'completed';
@@ -81,8 +85,8 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
       ? '종료'
       : '실종'
     : isCompleted
-      ? '완료'
-      : '제보';
+    ? '완료'
+    : '제보';
 
   const onMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     setPage(Math.round(event.nativeEvent.contentOffset.x / width));
@@ -134,11 +138,15 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             accessibilityLabel="게시글 메뉴"
             accessibilityRole="button"
             hitSlop={10}
-            onPress={() =>
-              report.isMine
-                ? setMenuVisible(current => !current)
-                : Alert.alert('게시글 메뉴', '신고 및 차단 기능은 추후 연결될 예정입니다.')
-            }
+            onPress={() => {
+              if (report.isMine) {
+                setMenuVisible(current => !current);
+                setViewerMenuVisible(false);
+              } else {
+                setViewerMenuVisible(current => !current);
+                setMenuVisible(false);
+              }
+            }}
             style={styles.headerMenuButton}
           >
             <DotsIcon height={24} width={24} />
@@ -195,9 +203,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
               isCompleted && styles.closedBadge,
             ]}
           >
-            <Text style={styles.badgeText}>
-              {displayStatus}
-            </Text>
+            <Text style={styles.badgeText}>{displayStatus}</Text>
           </View>
           <Text style={styles.title}>{report.name}</Text>
           <Pressable
@@ -228,7 +234,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
           <Text style={styles.description}>{report.description}</Text>
         </View>
-        <FoundReportCommentList onEditFocus={revealCommentInput} />
+        <FoundReportCommentList onEditFocus={revealCommentInput} reportId={report.id} />
       </ScrollView>
       {!keyboardVisible && !isCompleted ? (
         <View style={[styles.buttonWrap, { bottom: Math.max(insets.bottom, 12) }]}>
@@ -281,6 +287,43 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           </View>
         </>
       ) : null}
+      {viewerMenuVisible ? (
+        <>
+          <Pressable
+            accessibilityLabel="게시글 메뉴 닫기"
+            onPress={() => setViewerMenuVisible(false)}
+            style={styles.menuBackdrop}
+          />
+          <View style={styles.viewerPostMenu}>
+            <Pressable
+              onPress={() => {
+                setViewerMenuVisible(false);
+                setReportTarget({ id: `post:${report.id}`, type: 'post' });
+              }}
+              style={({ pressed }) => [styles.postMenuItem, pressed && styles.pressed]}
+            >
+              <ReportIcon height={22} width={22} />
+              <Text style={styles.reportMenuText}>신고하기</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : null}
+      <ContentReportModal
+        alreadyReported={contentReports.some(item => item.targetId === reportTarget?.id)}
+        onClose={() => setReportTarget(null)}
+        onSubmit={reason => {
+          if (!reportTarget) {
+            return;
+          }
+          if (contentReports.some(item => item.targetId === reportTarget.id)) {
+            setReportTarget(null);
+            return;
+          }
+          addContentReport({ reason, targetId: reportTarget.id, targetType: reportTarget.type });
+          setReportTarget(null);
+        }}
+        target={reportTarget}
+      />
       <Modal
         animationType="slide"
         onRequestClose={() => setStatusSheetVisible(false)}
@@ -359,7 +402,9 @@ function StatusOption({
       onPress={onPress}
       style={({ pressed }) => [styles.statusOption, pressed && styles.pressed]}
     >
-      <Text style={[styles.statusOptionText, active && styles.statusOptionActiveText]}>{label}</Text>
+      <Text style={[styles.statusOptionText, active && styles.statusOptionActiveText]}>
+        {label}
+      </Text>
       {active ? <StatusPawIcon /> : null}
     </Pressable>
   );
@@ -455,8 +500,21 @@ const styles = StyleSheet.create({
     elevation: 7,
     overflow: 'hidden',
     position: 'absolute',
-    right: 31,
-    top: 48,
+    right: 12,
+    top: 80,
+    width: 160,
+    zIndex: 9,
+  },
+  viewerPostMenu: {
+    backgroundColor: colors.white,
+    borderColor: '#D9DBE3',
+    borderRadius: 10,
+    borderWidth: 1,
+    elevation: 7,
+    overflow: 'hidden',
+    position: 'absolute',
+    right: 12,
+    top: 80,
     width: 160,
     zIndex: 9,
   },
@@ -468,6 +526,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   postMenuText: { ...typography.bodyRegular16, color: '#262B33' },
+  reportMenuText: { ...typography.bodyRegular16, color: '#FA705B' },
   deleteMenuText: { ...typography.bodyRegular16, color: '#FA705B' },
   sheetBackdrop: { flex: 1, justifyContent: 'flex-end' },
   statusSheet: {
