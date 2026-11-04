@@ -2,7 +2,8 @@
 # 필요한 CI 변수: MM_WEBHOOK_MOBILE (Masked and hidden)
 
 notify-mobile-merge:
-  stage: .post                # GitLab 기본 마지막 단계 → 루트 stages 수정 불필요
+  stage: deploy               # .post 작업만 있는 파이프라인은 GitLab 이 실행하지 않음
+  needs: []                   # 앞 단계 작업 결과와 상관없이 바로 실행
   image: alpine:3.22
   variables:
     GIT_STRATEGY: none        # 저장소 체크아웃 불필요
