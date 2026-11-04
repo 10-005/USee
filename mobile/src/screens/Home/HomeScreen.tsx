@@ -30,7 +30,7 @@ import MyPageIcon from '../../assets/icons/navigation/mypage.svg';
 import PlusIcon from '../../assets/icons/navigation/plus.svg';
 import SearchActiveIcon from '../../assets/icons/navigation/search-active.svg';
 import SearchIcon from '../../assets/icons/navigation/search.svg';
-import { BottomNavigation, Button } from '../../components/common';
+import { BottomNavigation, Button, RegistrationMenu } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { colors, radius, typography } from '../../theme';
@@ -110,6 +110,7 @@ export function HomeScreen({ navigation }: Props) {
   const [query, setQuery] = useState('');
   const listRef = useRef<FlatList<AdoptionAnimal>>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
+  const [registrationMenuOpen, setRegistrationMenuOpen] = useState(false);
   const [filterValues, setFilterValues] = useState(initialFilters);
   const bookmarkedIds = useAdoptionBookmarkStore(state => state.bookmarkedIds);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
@@ -251,11 +252,14 @@ export function HomeScreen({ navigation }: Props) {
         centerAction={{
           accessibilityLabel: '등록',
           icon: <PlusIcon height={24} width={24} />,
-          onPress: () => Alert.alert('등록', '해당 화면은 다음 작업에서 연결될 예정입니다.'),
-          selected: false,
+          onPress: () => setRegistrationMenuOpen(open => !open),
+          selected: registrationMenuOpen,
         }}
         items={navigationItems}
-        onSelect={setSelectedTab}
+        onSelect={key => {
+          setRegistrationMenuOpen(false);
+          setSelectedTab(key);
+        }}
         selectedKey={selectedTab}
       />
     </View>
@@ -361,6 +365,20 @@ export function HomeScreen({ navigation }: Props) {
         </>
       )}
       {navigationBar}
+      {registrationMenuOpen ? (
+        <RegistrationMenu
+          bottom={insets.bottom + 84}
+          onClose={() => setRegistrationMenuOpen(false)}
+          onSelectFound={() => {
+            setRegistrationMenuOpen(false);
+            Alert.alert('목격 신고', '목격 신고 등록 화면은 다음 작업에서 연결할 예정이에요.');
+          }}
+          onSelectLost={() => {
+            setRegistrationMenuOpen(false);
+            navigation.navigate('LostReportPetSelection');
+          }}
+        />
+      ) : null}
       {selectedTab === 'adoption' ? (
         <AdoptionFilterSheet
           activeFilter={activeFilter}
@@ -453,6 +471,6 @@ const styles = StyleSheet.create({
   cardMetaRow: { alignItems: 'center', flexDirection: 'row', gap: 4, width: '100%' },
   cardSummary: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
   cardDescription: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
-  navigationWrap: { left: 25, position: 'absolute', right: 25 },
+  navigationWrap: { left: 25, position: 'absolute', right: 25, zIndex: 31 },
   pressed: { opacity: 0.75 },
 });

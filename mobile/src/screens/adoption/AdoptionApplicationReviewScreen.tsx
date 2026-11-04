@@ -24,6 +24,11 @@ type Section = {
 
 const EMPTY_FORM: AdoptionApplicationForm = {
   address: '',
+  addressLatitude: null,
+  addressLongitude: null,
+  applicantBirthDate: '',
+  applicantName: '',
+  applicantPhone: '',
   email: '',
   visitDate: '',
   housing: '',
@@ -115,11 +120,10 @@ function buildSections(form: AdoptionApplicationForm): Section[] {
     {
       title: '신청자 기본 정보',
       answers: [
-        { label: '신청자', value: '우사기' },
-        { label: '생년월일', value: '2001.05.27' },
-        { label: '연락처', value: '010-1234-5678' },
+        { label: '신청자', value: form.applicantName },
+        { label: '생년월일', value: form.applicantBirthDate },
+        { label: '연락처', value: form.applicantPhone },
         { label: '현재 거주지', value: form.address },
-        { label: '상세주소', value: '-' },
         { label: '이메일', value: form.email },
         { label: '방문 상담 희망일', value: form.visitDate },
       ],
