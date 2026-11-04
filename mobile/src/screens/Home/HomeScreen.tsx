@@ -382,6 +382,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     height: 50,
     marginHorizontal: 20,
+    marginTop: 16,
     paddingHorizontal: 14,
   },
   searchInput: {
@@ -391,9 +392,9 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     paddingVertical: 0,
   },
-  filterScroll: { flexGrow: 0, height: 50 },
+  filterScroll: { flexGrow: 0, height: 54 },
   filterScrollAboveSheet: { position: 'relative', zIndex: 21 },
-  filters: { gap: 6, paddingHorizontal: 20, paddingVertical: 12 },
+  filters: { gap: 6, paddingHorizontal: 20, paddingVertical: 14 },
   filterChip: {
     alignItems: 'center',
     borderColor: colors.gray200,
