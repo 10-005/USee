@@ -2,6 +2,8 @@ package com.usee.animal.ar
 
 import android.content.Context
 import android.os.SystemClock
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.Lifecycle
@@ -32,6 +34,11 @@ class ArFloorView(
   private var leashHand: LeashPoint? = null
   private var leashCamera: LeashPoint? = null
   private var leashCameraRight: LeashPoint? = null
+  private var leashGesture = false
+  private var leashTap = false
+  private var touchX = 0f
+  private var touchY = 0f
+  private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
   private var modelReady = false
   private var active = false
   private var disposed = false
@@ -53,6 +60,39 @@ class ArFloorView(
   fun requestPlacement(request: Int) {
     if (request > lastPlacementRequest) leader.requestPlacement()
     lastPlacementRequest = request
+  }
+
+  override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+    if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+      leashGesture = active && dogNode?.isVisible == true && leash?.hitTest(
+        event.x, event.y, viewMatrix, projectionMatrix, width, height, 24f * resources.displayMetrics.density,
+      ) == true
+      leashTap = leashGesture
+      touchX = event.x
+      touchY = event.y
+    }
+    return leashGesture || super.onInterceptTouchEvent(event)
+  }
+
+  override fun onTouchEvent(event: MotionEvent): Boolean {
+    if (!leashGesture) return super.onTouchEvent(event)
+    if (event.actionMasked == MotionEvent.ACTION_MOVE &&
+      kotlin.math.hypot(event.x - touchX, event.y - touchY) > touchSlop) leashTap = false
+    if (event.actionMasked == MotionEvent.ACTION_UP) {
+      if (leashTap && event.eventTime - event.downTime < 500L) performClick()
+      leashGesture = false
+      leashTap = false
+    } else if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+      leashGesture = false
+      leashTap = false
+    }
+    return true
+  }
+
+  override fun performClick(): Boolean {
+    super.performClick()
+    if (active && dogNode?.isVisible == true) leader.requestRecall()
+    return true
   }
 
   fun requestAction(request: String) {
@@ -178,6 +218,8 @@ class ArFloorView(
     leashHand = null
     leashCamera = null
     leashCameraRight = null
+    leashGesture = false
+    leashTap = false
     floorAnalyzer?.close()
     floorAnalyzer = null
     modelReady = false

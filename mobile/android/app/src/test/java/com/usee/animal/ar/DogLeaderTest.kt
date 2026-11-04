@@ -5,6 +5,39 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun recallOverridesLeadingAndHoldsHalfMeterDespiteLookingAway() {
+    val leader = DogLeader()
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.requestRecall()
+    var dog = leader.update(0.02f, 0f, 0f, 1f, 0f, floor)
+    for (i in 1..400) dog = leader.update(0.02f, 0f, 0f, 1f, 0f, floor)
+    assertEquals(0.5f, hypot(dog.x, dog.z), 0.02f)
+    assertTrue("Called dog should face the user", cos(Math.toRadians(dog.yawDegrees.toDouble())) > 0.9)
+    for (i in 1..200) dog = leader.update(0.02f, 0f, 0f, 0f, 1f, floor)
+    assertEquals(0.5f, hypot(dog.x, dog.z), 0.02f)
+  }
+
+  @Test fun recallDoesNotMoveAwayWhenUserIsAlreadyClose() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.requestRecall()
+    var dog = initial
+    for (i in 1..100) dog = leader.update(0.02f, 0f, -0.6f, 0f, -1f, floor)
+    assertEquals(initial.z, dog.z, 0.001f)
+  }
+
+  @Test fun recallStillStopsAtUnknownFloorAndResumesWhenRecognized() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.requestRecall()
+    val blocked = leader.update(0.02f, 0f, 0f, 0f, -1f) { _, _ -> null }
+    assertEquals(initial.z, blocked.z, 0f)
+    assertTrue(blocked.blocked)
+    var dog = blocked
+    for (i in 1..400) dog = leader.update(0.02f, 0f, 0f, 0f, -1f, floor)
+    assertEquals(0.5f, hypot(dog.x, dog.z), 0.02f)
+  }
+
   @Test fun waitingForSemanticRecognitionStopsAnimationAndMotion() {
     val leader = DogLeader()
     leader.update(0f, 0f, 0f, 0f, -1f, floor)

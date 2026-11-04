@@ -30,6 +30,10 @@ class DogLeader(
     placementRequested = false
   }
 
+  fun requestRecall() {
+    if (placed) { recalling = true; returning = false }
+  }
+
   fun requestAction(action: String) {
     if (placed) animations.request(action)
   }
@@ -65,6 +69,7 @@ class DogLeader(
   private var backing = false
   private var moving = false
   private var returning = false
+  private var recalling = false
   private var blocked = false
   private var userMoving = false
 
@@ -119,12 +124,17 @@ class DogLeader(
     val prediction = if (placed) 0.55f else 0f
     userMoving = hypot(velocityX, velocityZ) > 0.15f
     val userDistance = hypot(cameraX - x, cameraZ - z)
-    if (placed && userDistance >= 2f) returning = true
-    if (returning && userDistance <= 1f) returning = false
+    if (!recalling) {
+      if (placed && userDistance >= 2f) returning = true
+      if (returning && userDistance <= 1f) returning = false
+    }
     val distance = userDistance.coerceAtLeast(0.001f)
-    val targetX = if (returning) cameraX + (x - cameraX) / distance * 0.8f
+    val recallDistance = min(userDistance, 0.5f)
+    val targetX = if (recalling) cameraX + (x - cameraX) / distance * recallDistance
+      else if (returning) cameraX + (x - cameraX) / distance * 0.8f
       else cameraX + headingX * lead + velocityX * prediction
-    val targetZ = if (returning) cameraZ + (z - cameraZ) / distance * 0.8f
+    val targetZ = if (recalling) cameraZ + (z - cameraZ) / distance * recallDistance
+      else if (returning) cameraZ + (z - cameraZ) / distance * 0.8f
       else cameraZ + headingZ * lead + velocityZ * prediction
     if (placed && placementRequested) {
       placementRequested = false
@@ -139,6 +149,7 @@ class DogLeader(
         moving = false
         blocked = false
         returning = false
+        recalling = false
         return frame(true, 0f)
       }
     }
@@ -160,16 +171,18 @@ class DogLeader(
     val dx = targetX - x
     val dz = targetZ - z
     val gap = hypot(dx, dz)
+    val arrivalGap = if (recalling) 0.015f else 0.18f
     var desiredYaw = when {
-      gap > 0.18f -> atan2(dx, dz)
+      gap > arrivalGap -> atan2(dx, dz)
+      recalling -> atan2(cameraX - x, cameraZ - z)
       backing -> atan2(cameraX - x, cameraZ - z)
       else -> atan2(headingX, headingZ)
     }
 
     // Steering is cheap geometry and reacts to each new camera sample. Only
     // the actual next step needs AR floor queries, never a long route ahead.
-    var routeFound = gap <= 0.18f
-    if (gap > 0.18f) {
+    var routeFound = gap <= arrivalGap
+    if (gap > arrivalGap) {
       val directYaw = desiredYaw
       var bestScore = Float.POSITIVE_INFINITY
       for (offset in ROUTE_OFFSETS) {
@@ -188,21 +201,21 @@ class DogLeader(
         if (offset == 0f) break
       }
     }
-    val wallRoute = if (routeFound && gap > 0.18f) wallAvoidance.steer(
+    val wallRoute = if (routeFound && gap > arrivalGap) wallAvoidance.steer(
       x, z, y, desiredYaw, min(gap, max(0.35f, min(0.8f, speed * 0.4f))),
       atan2(headingX, headingZ), dt,
     ) else WallRoute(desiredYaw)
     if (wallRoute.blocked) routeFound = false
-    val bodyYaw = if (wallRoute.detouring && !backing && !returning) atan2(headingX, headingZ) else desiredYaw
+    val bodyYaw = if (wallRoute.detouring && !backing && !returning && !recalling) atan2(headingX, headingZ) else desiredYaw
     val turn = wrap(bodyYaw - yaw)
     val previousYaw = yaw
     yaw = wrap(yaw + turn.coerceIn(-4.5f * dt, 4.5f * dt))
     val alignment = max(0.25f, cos(wrap(bodyYaw - yaw)))
-    val maxSpeed = if (wallRoute.detouring) 1.1f else 3.6f
-    val wantedSpeed = if (routeFound && gap > 0.18f) min(maxSpeed, gap * 1.8f) * alignment else 0f
+    val maxSpeed = if (wallRoute.detouring || recalling) 1.1f else 3.6f
+    val wantedSpeed = if (routeFound && gap > arrivalGap) min(maxSpeed, gap * 1.8f) * alignment else 0f
     val acceleration = if (wantedSpeed > speed) 2.8f else 5f
     speed += (wantedSpeed - speed).coerceIn(-acceleration * dt, acceleration * dt)
-    val step = min(speed * dt, max(0f, gap - 0.12f))
+    val step = min(speed * dt, max(0f, gap - if (recalling) 0f else 0.12f))
     val ux = sin(wallRoute.yaw)
     val uz = cos(wallRoute.yaw)
     var actualSpeed = 0f
@@ -220,7 +233,7 @@ class DogLeader(
     } else if (step > 0f && wallRoute.detouring) {
       wallAvoidance.rejectRoute(wallRoute.yaw)
     }
-    blocked = gap > 0.18f && actualSpeed == 0f
+    blocked = gap > arrivalGap && actualSpeed == 0f
     if (actualSpeed == 0f) speed = 0f
     val turnRate = wrap(yaw - previousYaw) / dt
     moving = actualSpeed > 0.07f || abs(turnRate) > 0.4f && abs(turn) > 0.12f
