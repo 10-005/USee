@@ -1,0 +1,76 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: data
+spec:
+  schedule: "0 */6 * * *"
+  timeZone: Asia/Seoul
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        spec:
+          restartPolicy: Never
+          # 1) 덤프: DB와 같은 이미지라 pg_dump 버전이 서버와 일치
+          initContainers:
+            - name: dump
+              image: pgvector/pgvector:pg17
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  TS=$(date +%Y%m%d-%H%M)
+                  pg_dump -Fc -d animal -f /backup/animal-$TS.dump
+                  pg_dumpall --globals-only -f /backup/globals-$TS.sql
+                  ls -l /backup
+              env:
+                - name: TZ
+                  value: Asia/Seoul
+                - name: PGHOST
+                  value: postgres.data.svc.cluster.local
+                - name: PGUSER
+                  value: postgres
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef: { name: postgres-credentials, key: POSTGRES_PASSWORD }
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+              resources:
+                requests: { cpu: 100m, memory: 128Mi }
+                limits: { memory: 512Mi }
+          # 2) 업로드: 키 권한이 PutObject뿐이라 s3api put-object만 쓴다 (aws s3 cp는 목록·조회를 할 수 있음)
+          containers:
+            - name: upload
+              image: amazon/aws-cli:2.38.6
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  for f in /backup/*; do
+                    aws s3api put-object --bucket "$BACKUP_BUCKET" --key "postgres/$(basename "$f")" --body "$f" > /dev/null
+                    echo "업로드: s3://$BACKUP_BUCKET/postgres/$(basename "$f")"
+                  done
+              env:
+                - name: AWS_REGION
+                  value: ap-northeast-2
+                - name: BACKUP_BUCKET
+                  value: s15p31d106-backup-887324111755
+              envFrom:
+                - secretRef:
+                    name: postgres-backup-s3
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                  readOnly: true
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { memory: 256Mi }
+          volumes:
+            - name: backup
+              emptyDir: {}
