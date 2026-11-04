@@ -161,7 +161,7 @@ function CommentComposer({
             onStartWriting?.();
             onDismissMenus();
           }}
-          placeholder={compact ? '입력하면 이렇게...' : '메시지를 입력하세요'}
+          placeholder="메시지를 입력하세요"
           placeholderTextColor={colors.gray300}
           style={styles.commentTextInput}
           value={content}

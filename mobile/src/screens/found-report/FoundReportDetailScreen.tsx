@@ -36,6 +36,10 @@ import {
 import { useChatStore } from '../../stores/chatStore';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { useContentReportStore } from '../../stores/contentReportStore';
+import { useFoundReportDraftStore } from '../../stores/foundReportDraftStore';
+import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
+import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
+import { useLostReportEditStore } from '../../stores/lostReportEditStore';
 import { type ReportProgressStatus, useReportStatusStore } from '../../stores/reportStatusStore';
 import { colors, radius, typography } from '../../theme';
 import { FoundReportCommentList } from './FoundReportCommentList';
@@ -59,13 +63,26 @@ export function getContactDisplayValue(contact?: string) {
 
 export function FoundReportDetailScreen({ navigation, route }: Props) {
   const isLostReport = route.name === 'LostReportDetail';
-  const report = isLostReport
+  const baseReport = isLostReport
     ? getLostReport(route.params.reportId)
     : getFoundReport(route.params.reportId);
+  const foundReportEdit = useFoundReportEditStore(state => state.editsById[route.params.reportId]);
+  const lostReportEdit = useLostReportEditStore(state => state.editsById[route.params.reportId]);
+  const deleteFoundReport = useFoundReportEditStore(state => state.deleteReport);
+  const deleteLostReport = useLostReportEditStore(state => state.deleteReport);
+  const report = {
+    ...baseReport,
+    ...(isLostReport ? lostReportEdit : foundReportEdit),
+  };
+  const updateFoundReportDraft = useFoundReportDraftStore(state => state.updateDraft);
+  const selectManualLostReport = useLostReportDraftStore(state => state.selectManual);
+  const updateLostReportAnimal = useLostReportDraftStore(state => state.updateAnimal);
+  const updateLostReportDetails = useLostReportDraftStore(state => state.updateDetails);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [deleteVisible, setDeleteVisible] = useState(false);
   const [viewerMenuVisible, setViewerMenuVisible] = useState(false);
   const [reportTarget, setReportTarget] = useState<ContentReportTarget | null>(null);
   const [page, setPage] = useState(0);
@@ -276,7 +293,74 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             <Pressable
               onPress={() => {
                 setMenuVisible(false);
-                Alert.alert('수정하기', '게시글 수정 화면은 등록·수정 작업에서 연결됩니다.');
+                if (isLostReport) {
+                  selectManualLostReport();
+                  updateLostReportAnimal({
+                    age: Number.isNaN(Number.parseFloat(report.age))
+                      ? null
+                      : Number.parseFloat(report.age),
+                    breed: report.name,
+                    color: report.color,
+                    description: report.description,
+                    gender: report.gender,
+                    images: [...report.images],
+                    microchipNumber: '',
+                    name: report.name,
+                    neutered: report.neutered,
+                    sourcePetId: null,
+                    species: report.species === '개' ? '강아지' : report.species,
+                    weight: Number.isNaN(Number.parseFloat(report.weight))
+                      ? null
+                      : Number.parseFloat(report.weight),
+                  });
+                  updateLostReportDetails({
+                    contact: report.contact ?? '',
+                    detailAddress: '',
+                    exposeContact: Boolean(report.contact),
+                    latitude: null,
+                    location: report.location,
+                    longitude: null,
+                    lostAt: new Date(report.date).toISOString(),
+                  });
+                  navigation.navigate('PetRegistration', {
+                    flow: 'lost-report',
+                    reportId: report.id,
+                  });
+                  return;
+                }
+                updateFoundReportDraft({
+                  age: report.age,
+                  breed: report.name,
+                  color: report.color,
+                  contact: report.contact ?? '',
+                  description: report.description,
+                  exposeContact: Boolean(report.contact),
+                  foundAt: new Date(report.date).toISOString(),
+                  foundSituation: report.description,
+                  gender:
+                    report.gender === '수컷'
+                      ? 'male'
+                      : report.gender === '암컷'
+                        ? 'female'
+                        : 'unknown',
+                  images: report.images.map(image => ({
+                    type: 'image/jpeg',
+                    uri: Image.resolveAssetSource(image)?.uri ?? '',
+                  })),
+                  latitude: null,
+                  location: report.location,
+                  longitude: null,
+                  microchipNumber: '',
+                  microchipStatus: 'unknown',
+                  neutered: report.neutered ? 'done' : 'not-done',
+                  species: report.species === '개' ? '강아지' : report.species,
+                  terrain: '',
+                  weight: report.weight,
+                });
+                navigation.navigate('PetRegistration', {
+                  flow: 'found-report',
+                  reportId: report.id,
+                });
               }}
               style={({ pressed }) => [styles.postMenuItem, pressed && styles.pressed]}
             >
@@ -297,7 +381,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             <Pressable
               onPress={() => {
                 setMenuVisible(false);
-                Alert.alert('삭제하기', '게시글 삭제 기능은 등록·수정 작업에서 연결됩니다.');
+                setDeleteVisible(true);
               }}
               style={({ pressed }) => [styles.postMenuItem, pressed && styles.pressed]}
             >
@@ -307,6 +391,46 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           </View>
         </>
       ) : null}
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setDeleteVisible(false)}
+        transparent
+        visible={deleteVisible}
+      >
+        <View style={styles.deleteModalBackdrop}>
+          <View style={styles.deleteModal}>
+            <Text style={styles.deleteModalTitle}>
+              {isLostReport ? '실종 신고를 삭제하시겠습니까?' : '발견 제보를 삭제하시겠습니까?'}
+            </Text>
+            <Text style={styles.deleteModalDescription}>
+              삭제 후에는 해당 정보를 복구할 수 없습니다.
+            </Text>
+            <View style={styles.deleteModalActions}>
+              <Pressable
+                onPress={() => setDeleteVisible(false)}
+                style={[styles.deleteModalButton, styles.deleteCancelButton]}
+              >
+                <Text style={styles.deleteModalButtonText}>취소</Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel={`${isLostReport ? '실종 신고' : '발견 제보'} 삭제 확인`}
+                onPress={() => {
+                  if (isLostReport) {
+                    deleteLostReport(report.id);
+                  } else {
+                    deleteFoundReport(report.id);
+                  }
+                  setDeleteVisible(false);
+                  navigation.goBack();
+                }}
+                style={[styles.deleteModalButton, styles.deleteConfirmButton]}
+              >
+                <Text style={styles.deleteModalButtonText}>삭제하기</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
       {viewerMenuVisible ? (
         <>
           <Pressable
@@ -571,6 +695,31 @@ const styles = StyleSheet.create({
   postMenuText: { ...typography.bodyRegular16, color: '#262B33' },
   reportMenuText: { ...typography.bodyRegular16, color: '#FA705B' },
   deleteMenuText: { ...typography.bodyRegular16, color: '#FA705B' },
+  deleteModalBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  deleteModal: { backgroundColor: colors.white, borderRadius: 18, padding: 24, width: '100%' },
+  deleteModalTitle: { ...typography.titleBold18, color: colors.gray800 },
+  deleteModalDescription: {
+    ...typography.bodyRegular14,
+    color: colors.gray500,
+    marginTop: 12,
+  },
+  deleteModalActions: { flexDirection: 'row', gap: 14, marginTop: 16 },
+  deleteModalButton: {
+    alignItems: 'center',
+    borderRadius: 10,
+    flex: 1,
+    height: 40,
+    justifyContent: 'center',
+  },
+  deleteCancelButton: { backgroundColor: colors.gray200 },
+  deleteConfirmButton: { backgroundColor: '#FA705B' },
+  deleteModalButtonText: { ...typography.bodySemiBold16, color: colors.white },
   statusModalBackdrop: {
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
