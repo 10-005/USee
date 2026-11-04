@@ -1,15 +1,25 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type ElementRef, useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Alert, BackHandler, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Animated,
+  BackHandler,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../app/navigation/types';
-import { Button } from '../../components/common';
 import BackIcon from '../../assets/icons/common/left-arrow.svg';
 import { colors, typography } from '../../theme';
 import { endMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { mockAdoptionPets } from './data';
 import { RoomPet } from './RoomPet';
+import { useToilet } from './useToilet';
+import { TreatLauncher } from './TreatLauncher';
 import { PetStatsDialog, type PetStats } from './PetStatsDialog';
 
 // Temporary preview values until the server provides the selected pet's stats.
@@ -23,19 +33,68 @@ const mockPetStats: PetStats = {
   activity: 45,
 };
 
+const BOWL_VISUAL_OFFSET = 70;
+const PREVIOUS_ACTION_HEIGHT = 72;
+
 type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
 
 export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
+  const toilet = useToilet(route.params.petId, pet?.category ?? 'dog');
   const [statsVisible, setStatsVisible] = useState(false);
   const walkPending = useRef(false);
+  const [care, setCare] = useState<{
+    kind: 'food' | 'water' | 'treat' | 'fetch';
+    offset: { x: number; y: number };
+  } | null>(null);
+  const careBusy = useRef(false);
+  const [toyGround, setToyGround] = useState<{ x: number; y: number } | null>(null);
+  const [bathing, setBathing] = useState(false);
+  const [bathReturning, setBathReturning] = useState(false);
+  const bathingRef = useRef(false);
+  const bathTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const bathScreenOpacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!bathReturning) {
+      return;
+    }
+    const animation = Animated.timing(bathScreenOpacity, {
+      toValue: 1,
+      duration: 2000,
+      useNativeDriver: true,
+    });
+    animation.start(({ finished }) => {
+      if (!finished || !bathingRef.current) {
+        return;
+      }
+      bathingRef.current = false;
+      setBathReturning(false);
+    });
+    return () => animation.stop();
+  }, [bathReturning, bathScreenOpacity]);
+  useEffect(
+    () => () => {
+      clearTimeout(bathTimer.current);
+      bathScreenOpacity.stopAnimation();
+    },
+    [bathScreenOpacity],
+  );
+  const [treatActive, setTreatActive] = useState(false);
+  const [fullBowl, setFullBowl] = useState({ food: false, water: false });
+  const streak = useRef({ kind: '', count: 0 });
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const fillScale = useRef(new Animated.Value(1)).current;
+  const bowlViews = useRef<Partial<Record<'food' | 'water', ElementRef<typeof View> | null>>>({});
+  const screenView = useRef<ElementRef<typeof View>>(null);
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
   const [returnSequence, setReturnSequence] = useState(0);
   const [roomVisible, setRoomVisible] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const leavingRef = useRef(false);
   const pendingNavigation = useRef<(() => void) | null>(null);
   const hideThenNavigate = useCallback((action: () => void) => {
-    if (leavingRef.current) {
+    if (leavingRef.current || careBusy.current || bathingRef.current) {
       return;
     }
     leavingRef.current = true;
@@ -66,10 +125,21 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       });
       return () => {
         back.remove();
+        clearTimeout(bathTimer.current);
+        bathScreenOpacity.stopAnimation();
+        bathScreenOpacity.setValue(1);
+        bathingRef.current = false;
+        setBathing(false);
+        setBathReturning(false);
+        careBusy.current = false;
+        setTreatActive(false);
+        setCare(null);
+        setToyGround(null);
+        setFullBowl({ food: false, water: false });
         setRoomVisible(false);
         setStatsVisible(false);
       };
-    }, [hideThenNavigate, navigation]),
+    }, [hideThenNavigate, navigation, bathScreenOpacity]),
   );
   const [roomSize, setRoomSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
@@ -90,6 +160,11 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       (roomSize.height - 1678 * backgroundScale) / 2 +
       (1140 - 554 * 0.68 - (900 - 554)) * backgroundScale,
   };
+  // Use the background's cover transform so the landing point stays beside the pot.
+  const toyLanding = {
+    x: (roomSize.width - 937 * backgroundScale) / 2 + 510 * backgroundScale,
+    y: (roomSize.height - 1678 * backgroundScale) / 2 + 900 * backgroundScale,
+  };
   const ending = useRef(false);
   const [busy, setBusy] = useState(false);
   const quit = async () => {
@@ -108,53 +183,239 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       setBusy(false);
     }
   };
+  const showToast = (message: string) => {
+    setToast(message);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 2500);
+  };
+  const startBath = () => {
+    if (careBusy.current || bathingRef.current || leaving || busy || !roomVisible) {
+      return;
+    }
+    bathingRef.current = true;
+    setBathing(true);
+    setStatsVisible(false);
+    setToast('');
+    clearTimeout(toastTimer.current);
+    bathTimer.current = setTimeout(() => {
+      Animated.timing(bathScreenOpacity, {
+        toValue: 0,
+        duration: 2000,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished || !bathingRef.current) {
+          return;
+        }
+        setBathing(false);
+        setBathReturning(true);
+      });
+    }, 3000);
+  };
+  const provide = (kind: 'food' | 'water') => {
+    if (careBusy.current || bathingRef.current || leaving || busy || !pet) {
+      return;
+    }
+    streak.current = { kind, count: streak.current.kind === kind ? streak.current.count + 1 : 1 };
+    setFullBowl(value => ({ ...value, [kind]: true }));
+    fillScale.setValue(0.8);
+    Animated.spring(fillScale, { toValue: 1, useNativeDriver: true }).start();
+    if (streak.current.count >= 5) {
+      showToast(kind === 'food' ? '지금은 배불러요' : '지금은 목마르지 않아요');
+      return;
+    }
+    careBusy.current = true;
+    bowlViews.current[kind]?.measureInWindow((x, y, width, height) => {
+      screenView.current?.measureInWindow((screenX, screenY) => {
+        setCare({
+          kind,
+          offset: {
+            // At the front diagonal eating pose the muzzle is left and above
+            // the feet. Align the muzzle, rather than the feet, to the bowl.
+            x: x - screenX + width / 2 + petWidth * 0.06 + 22 - (petFrame.left + petWidth / 2),
+            y:
+              y -
+              screenY -
+              BOWL_VISUAL_OFFSET +
+              height * 0.55 +
+              petHeight * 0.06 -
+              (petFrame.top + petHeight * (1 - 177.28 / 900)),
+          },
+        });
+      });
+    });
+  };
   return (
     <View
+      ref={screenView}
       style={styles.container}
       onLayout={({ nativeEvent: { layout } }) => {
         setRoomSize({ width: layout.width, height: layout.height });
       }}
     >
       <Image
-        source={require('../../assets/images/mock-adoption/img_home_background.png')}
+        source={
+          bathing
+            ? require('../../assets/images/mock-adoption/img_dog_showerbooth.png')
+            : require('../../assets/images/mock-adoption/img_home_background.png')
+        }
         resizeMode="cover"
         style={styles.background}
       />
-      {pet ? (
+      {toyGround && !bathing ? (
         <Image
-          accessibilityLabel={pet.category === 'dog' ? '빈 배변 패드' : '빈 고양이 화장실'}
-          source={
-            pet.category === 'dog'
-              ? require('../../assets/images/mock-adoption/img_dog_empty_toilet.png')
-              : require('../../assets/images/mock-adoption/img_cat_empty_toilet.png')
-          }
+          pointerEvents="none"
+          accessibilityLabel="바닥에 놓인 강아지 장난감"
+          source={require('../../assets/images/mock-adoption/img_dog_toy.png')}
           resizeMode="contain"
-          style={styles.toilet}
+          style={[styles.groundToy, { left: toyGround.x - 20, top: toyGround.y - 20 }]}
         />
       ) : null}
       {roomVisible && pet && roomSize.width > 0 ? (
         <RoomPet
           key={`${pet.id}-${returnSequence}`}
           petId={pet.id}
-          style={[styles.pet, petFrame]}
+          style={[styles.pet, petFrame, bathing && { top: petFrame.top + 30 }]}
           returnSequence={returnSequence}
           entryOffset={{ x: roomSize.width * 0.55, y: roomSize.height * 0.3 }}
-          onPress={() => setStatsVisible(true)}
+          bathing={bathing}
+          sceneOpacity={bathScreenOpacity}
+          care={care}
+          onConsumed={() => {
+            if (care && (care.kind === 'food' || care.kind === 'water')) {
+              setFullBowl(value => ({ ...value, [care.kind]: false }));
+            }
+          }}
+          onFetchPhase={phase => {
+            if (phase === 'carry' || phase === 'cancel') {
+              setToyGround(null);
+            }
+            if (phase === 'drop') {
+              setToyGround({ x: petFrame.left + petWidth / 2, y: petFrame.top + petHeight * 0.79 });
+              showToast('♥');
+            }
+          }}
+          onCareComplete={() => {
+            careBusy.current = false;
+            setCare(null);
+          }}
+          onPress={() => {
+            if (!careBusy.current && !bathingRef.current) {
+              setStatsVisible(true);
+            }
+          }}
           leaving={leaving}
           onHidden={onPetHidden}
         />
       ) : null}
-      <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
+      {pet && !bathing ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            pet.category === 'dog'
+              ? toilet.full
+                ? '가득 찬 배변 패드'
+                : '빈 배변 패드'
+              : toilet.full
+              ? '가득 찬 고양이 화장실'
+              : '빈 고양이 화장실'
+          }
+          disabled={!toilet.full || !!care || leaving || busy || bathReturning}
+          onPress={async () => {
+            if (careBusy.current || bathingRef.current) {
+              return;
+            }
+            try {
+              if (await toilet.clean()) {
+                showToast('깨끗해져서 좋아요!');
+              }
+            } catch {
+              showToast('청소 상태를 저장하지 못했어요. 다시 시도해주세요.');
+            }
+          }}
+          style={styles.toilet}
+        >
+          <Image
+            source={
+              pet.category === 'dog'
+                ? toilet.full
+                  ? require('../../assets/images/mock-adoption/img_dog_full_toilet.png')
+                  : require('../../assets/images/mock-adoption/img_dog_empty_toilet.png')
+                : toilet.full
+                ? require('../../assets/images/mock-adoption/img_cat_full_toilet.png')
+                : require('../../assets/images/mock-adoption/img_cat_empty_toilet.png')
+            }
+            resizeMode="contain"
+            style={styles.toiletImage}
+          />
+        </Pressable>
+      ) : null}
+      <SafeAreaView
+        accessibilityElementsHidden={bathing || bathReturning}
+        importantForAccessibility={bathing || bathReturning ? 'no-hide-descendants' : 'auto'}
+        style={[styles.safeArea, bathing && styles.bathHidden]}
+        pointerEvents={bathing || bathReturning ? 'none' : 'box-none'}
+      >
         <View style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="뒤로가기"
-            disabled={leaving}
-            onPress={() => hideThenNavigate(() => navigation.goBack())}
-            style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-          >
-            <BackIcon width={24} height={24} />
-          </Pressable>
+          <View style={styles.topActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="뒤로가기"
+              disabled={leaving}
+              onPress={() => hideThenNavigate(() => navigation.goBack())}
+              style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+            >
+              <BackIcon width={24} height={24} />
+            </Pressable>
+            <View style={styles.action}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="AR 산책하기"
+                style={({ pressed }) => [styles.walk, pressed && styles.pressed]}
+                disabled={busy || leaving}
+                onPress={() => {
+                  hideThenNavigate(() => {
+                    walkPending.current = true;
+                    navigation.navigate('ArWalk');
+                  });
+                }}
+              >
+                <Image
+                  source={require('../../assets/images/mock-adoption/img_dog_walking.png')}
+                  resizeMode="contain"
+                  style={styles.walkImage}
+                />
+              </Pressable>
+              <Image
+                accessibilityLabel="동물병원"
+                source={require('../../assets/images/mock-adoption/img_veterinary_hospital.png')}
+                resizeMode="contain"
+                style={styles.hospitalImage}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="목욕하기"
+                disabled={busy || leaving || !!care || treatActive}
+                onPress={startBath}
+                style={({ pressed }) => [styles.shower, pressed && styles.pressed]}
+              >
+                <Image
+                  source={require('../../assets/images/mock-adoption/img_shower.png')}
+                  resizeMode="contain"
+                  style={styles.walkImage}
+                />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="모의입양 그만두기"
+                accessibilityState={{ disabled: busy || leaving }}
+                disabled={busy || leaving}
+                onPress={quit}
+                style={({ pressed }) => [styles.quit, pressed && styles.pressed]}
+              >
+                <Text style={styles.quitLabel}>모의입양 그만두기</Text>
+              </Pressable>
+            </View>
+          </View>
           <Pressable accessibilityRole="button" accessibilityLabel="알림" style={styles.iconButton}>
             <Image
               source={require('../../assets/images/mock-adoption/img_alarm.png')}
@@ -165,46 +426,135 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         </View>
         <View style={styles.room} pointerEvents="box-none">
           <View style={styles.bowls}>
-            <Image
-              accessibilityLabel="사료 그릇"
-              source={require('../../assets/images/mock-adoption/img_full_feetstuff_bowl.png')}
-              resizeMode="contain"
-              style={styles.bowl}
-            />
-            <Image
-              accessibilityLabel="물그릇"
-              source={require('../../assets/images/mock-adoption/img_full_water_bowl.png')}
-              resizeMode="contain"
-              style={styles.bowl}
-            />
-          </View>
-        </View>
-        <View style={styles.action}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="모의입양 그만두기"
-            accessibilityState={{ disabled: busy || leaving }}
-            disabled={busy || leaving}
-            onPress={quit}
-            style={({ pressed }) => [styles.quit, pressed && styles.pressed]}
-          >
-            <Text style={styles.quitLabel}>모의입양 그만두기</Text>
-          </Pressable>
-          <View style={styles.walk}>
-            <Button
-              disabled={busy || leaving}
-              onPress={() => {
-                hideThenNavigate(() => {
-                  walkPending.current = true;
-                  navigation.navigate('ArWalk');
-                });
-              }}
-            >
-              AR 산책하기
-            </Button>
+            {(['food', 'water'] as const).map(kind => (
+              <Pressable
+                key={kind}
+                accessibilityRole="button"
+                accessibilityLabel={kind === 'food' ? '사료 그릇' : '물그릇'}
+                accessibilityValue={{ text: fullBowl[kind] ? '가득 찬 그릇' : '빈 그릇' }}
+                disabled={!!care || leaving || busy}
+                onPress={() => provide(kind)}
+                style={styles.bowl}
+              >
+                <View
+                  collapsable={false}
+                  ref={view => {
+                    bowlViews.current[kind] = view;
+                  }}
+                  style={styles.bowlContent}
+                >
+                  <Animated.Image
+                    source={
+                      kind === 'food'
+                        ? fullBowl[kind]
+                          ? require('../../assets/images/mock-adoption/img_full_feetstuff_bowl.png')
+                          : require('../../assets/images/mock-adoption/img_empty_feetstuff_bowl.png')
+                        : fullBowl[kind]
+                        ? require('../../assets/images/mock-adoption/img_full_water_bowl.png')
+                        : require('../../assets/images/mock-adoption/img_empty_water_bowl.png')
+                    }
+                    resizeMode="contain"
+                    style={{
+                      ...styles.bowlImage,
+                      transform: [{ scale: fullBowl[kind] ? fillScale : 1 }],
+                    }}
+                  />
+                </View>
+              </Pressable>
+            ))}
           </View>
         </View>
       </SafeAreaView>
+      {care || treatActive || bathing || bathReturning ? (
+        <View style={StyleSheet.absoluteFill} onStartShouldSetResponder={() => true} />
+      ) : null}
+      {roomVisible && pet && !leaving && !bathing ? (
+        <TreatLauncher
+          category={pet.category}
+          width={roomSize.width}
+          height={roomSize.height}
+          target={{ x: petFrame.left + petWidth / 2, y: petFrame.top + petHeight * 0.62 }}
+          disabled={
+            !!care || busy || statsVisible || bathReturning || treatActive || roomSize.width <= 0
+          }
+          onBusyChange={active => {
+            careBusy.current = active;
+            setTreatActive(active);
+          }}
+          onLanded={() => {
+            setTreatActive(false);
+            setCare({ kind: 'treat', offset: { x: 0, y: 0 } });
+            showToast('♥');
+          }}
+        />
+      ) : null}
+      {roomVisible && pet?.category === 'dog' && !leaving && !bathing ? (
+        <TreatLauncher
+          item="toy"
+          category="dog"
+          bottomOffset={92}
+          width={roomSize.width}
+          height={roomSize.height}
+          target={toyLanding}
+          disabled={
+            !!care || busy || statsVisible || bathReturning || treatActive || roomSize.width <= 0
+          }
+          onBusyChange={active => {
+            careBusy.current = active;
+            setTreatActive(active);
+          }}
+          onLanded={point => {
+            setTreatActive(false);
+            setToyGround(point);
+            setCare({
+              kind: 'fetch',
+              offset: {
+                x: point.x - (petFrame.left + petWidth / 2),
+                y: point.y - (petFrame.top + petHeight * 0.79) + petHeight * 0.05,
+              },
+            });
+          }}
+        />
+      ) : null}
+      {toast && !bathing ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.toastAnchor,
+            {
+              top: Math.max(16, petFrame.top + petHeight * 0.38 - 48),
+              left: Math.max(
+                16,
+                Math.min(
+                  roomSize.width * 0.4 - 16,
+                  petFrame.left + petWidth / 2 - roomSize.width * 0.3,
+                ),
+              ),
+              width: roomSize.width * 0.6,
+            },
+          ]}
+        >
+          <View style={[styles.toast, toast === '♥' && styles.heartToastBackground]}>
+            <Text
+              accessibilityLiveRegion="polite"
+              style={[styles.toastText, toast === '♥' && styles.heartToast]}
+            >
+              {toast}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+      {bathing || bathReturning ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.bathFade,
+            {
+              opacity: bathScreenOpacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+            },
+          ]}
+        />
+      ) : null}
       {pet ? (
         <PetStatsDialog
           visible={statsVisible}
@@ -220,9 +570,21 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   background: { position: 'absolute', width: '100%', height: '100%' },
+  groundToy: { position: 'absolute', width: 40, height: 40 },
   pet: { position: 'absolute' },
   toilet: { position: 'absolute', right: '3%', top: '47%', width: '36%', height: '13%' },
+  toiletImage: { width: '100%', height: '100%' },
   safeArea: { flex: 1 },
+  bathHidden: { opacity: 0 },
+  bathFade: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#000000',
+  },
+  shower: { width: 60, height: 60, marginTop: 16 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -235,23 +597,43 @@ const styles = StyleSheet.create({
   bowls: {
     position: 'absolute',
     left: 16,
-    bottom: 24,
+    bottom: 24 + PREVIOUS_ACTION_HEIGHT,
+    transform: [{ translateY: BOWL_VISUAL_OFFSET }],
     flexDirection: 'row',
     width: '44%',
     maxWidth: 220,
     gap: 4,
   },
   bowl: { flex: 1, aspectRatio: 1 },
+  bowlContent: { flex: 1 },
+  bowlImage: { width: '100%', height: '100%' },
   quit: { justifyContent: 'center', minHeight: 48, paddingHorizontal: 4 },
   quitLabel: { ...typography.bodyRegular14, color: colors.gray700 },
-  walk: { flex: 1 },
+  topActions: { alignItems: 'flex-start', gap: 4 },
+  walk: { width: 60, height: 60, alignItems: 'center', justifyContent: 'center' },
+  walkImage: { width: '100%', height: '100%' },
+  // The action container's 4dp gap brings the total spacing to 20dp.
+  hospitalImage: { width: 60, height: 60, marginTop: 16 },
   action: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 16,
+    width: 180,
+    marginTop: 8,
+    alignItems: 'flex-start',
+    gap: 4,
   },
+  toastAnchor: {
+    position: 'absolute',
+    alignItems: 'center',
+  },
+  toast: {
+    maxWidth: '100%',
+    alignItems: 'center',
+    backgroundColor: 'rgba(51, 51, 51, 0.5)',
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  toastText: { color: colors.white, ...typography.bodyRegular14, textAlign: 'center' },
+  heartToast: { color: '#FF6B8A', fontSize: 32, lineHeight: 40 },
+  heartToastBackground: { backgroundColor: 'transparent' },
   pressed: { opacity: 0.7 },
 });
