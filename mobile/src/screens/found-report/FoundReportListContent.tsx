@@ -14,6 +14,8 @@ import {
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import DateIcon from '../../assets/icons/common/date.svg';
+import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
+import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import MapButtonIcon from '../../assets/icons/common/map-2.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
@@ -22,6 +24,7 @@ import { colors, radius, typography } from '../../theme';
 import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
 import { useLostReportEditStore } from '../../stores/lostReportEditStore';
 import { useReportStatusStore } from '../../stores/reportStatusStore';
+import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import {
   AdoptionFilterSheet,
   type AdoptionFilters,
@@ -103,6 +106,8 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
   const [filters, setFilters] = useState(initialFilters);
   const statusById = useReportStatusStore(state => state.statusById);
+  const bookmarkedIds = useAdoptionBookmarkStore(state => state.bookmarkedIds);
+  const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
   const deletedFoundReportIds = useFoundReportEditStore(state => state.deletedIds);
   const foundReportEdits = useFoundReportEditStore(state => state.editsById);
   const deletedLostReportIds = useLostReportEditStore(state => state.deletedIds);
@@ -196,6 +201,21 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
       ]}
     >
       <Image source={item.images[0]} style={[styles.cardImage, { height: cardWidth }]} />
+      <Pressable
+        accessibilityLabel={`${item.name} 북마크 ${
+          bookmarkedIds.includes(item.id) ? '해제' : '등록'
+        }`}
+        accessibilityRole="button"
+        accessibilityState={{ selected: bookmarkedIds.includes(item.id) }}
+        hitSlop={8}
+        onPress={event => {
+          event.stopPropagation();
+          toggleBookmark(item.id);
+        }}
+        style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
+      >
+        {bookmarkedIds.includes(item.id) ? <BookmarkActiveIcon /> : <BookmarkIcon />}
+      </Pressable>
       <View
         style={[
           styles.badge,
@@ -390,6 +410,16 @@ const styles = StyleSheet.create({
   columns: { gap: 12 },
   card: { marginBottom: 18 },
   cardImage: { borderRadius: radius.sm, width: '100%' },
+  bookmarkButton: {
+    alignItems: 'center',
+    height: 24,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 8,
+    top: 8,
+    width: 24,
+    zIndex: 2,
+  },
   badge: {
     alignItems: 'center',
     backgroundColor: colors.blue,

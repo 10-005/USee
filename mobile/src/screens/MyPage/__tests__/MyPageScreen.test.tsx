@@ -17,6 +17,7 @@ describe('MyPageScreen', () => {
           onOpenNotices={jest.fn()}
           onOpenPets={jest.fn()}
           onOpenProfileEdit={jest.fn()}
+          onOpenSavedPosts={jest.fn()}
           onOpenSettings={jest.fn()}
         />,
       );
@@ -40,6 +41,7 @@ describe('MyPageScreen', () => {
           onOpenNotices={jest.fn()}
           onOpenPets={onOpenPets}
           onOpenProfileEdit={jest.fn()}
+          onOpenSavedPosts={jest.fn()}
           onOpenSettings={jest.fn()}
         />,
       );
@@ -61,6 +63,7 @@ describe('MyPageScreen', () => {
           onOpenNotices={jest.fn()}
           onOpenPets={jest.fn()}
           onOpenProfileEdit={onOpenProfileEdit}
+          onOpenSavedPosts={jest.fn()}
           onOpenSettings={jest.fn()}
         />,
       );
@@ -82,6 +85,7 @@ describe('MyPageScreen', () => {
           onOpenNotices={jest.fn()}
           onOpenPets={jest.fn()}
           onOpenProfileEdit={jest.fn()}
+          onOpenSavedPosts={jest.fn()}
           onOpenSettings={onOpenSettings}
         />,
       );
@@ -103,6 +107,7 @@ describe('MyPageScreen', () => {
           onOpenNotices={onOpenNotices}
           onOpenPets={jest.fn()}
           onOpenProfileEdit={jest.fn()}
+          onOpenSavedPosts={jest.fn()}
           onOpenSettings={jest.fn()}
         />,
       );
@@ -110,5 +115,27 @@ describe('MyPageScreen', () => {
 
     act(() => screen.root.findByProps({ accessibilityLabel: '공지사항' }).props.onPress());
     expect(onOpenNotices).toHaveBeenCalledTimes(1);
+  });
+
+  it('저장한 게시글을 누르면 북마크 목록으로 이동한다', () => {
+    const onOpenSavedPosts = jest.fn();
+    let screen!: renderer.ReactTestRenderer;
+
+    act(() => {
+      screen = renderer.create(
+        <MyPageScreen
+          onOpenAdoptionApplications={jest.fn()}
+          onOpenMockAdoption={jest.fn()}
+          onOpenNotices={jest.fn()}
+          onOpenPets={jest.fn()}
+          onOpenProfileEdit={jest.fn()}
+          onOpenSavedPosts={onOpenSavedPosts}
+          onOpenSettings={jest.fn()}
+        />,
+      );
+    });
+
+    act(() => screen.root.findByProps({ accessibilityLabel: '저장한 게시글' }).props.onPress());
+    expect(onOpenSavedPosts).toHaveBeenCalledTimes(1);
   });
 });
