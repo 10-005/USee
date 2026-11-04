@@ -15,7 +15,11 @@ import io.github.sceneview.math.Rotation
 import io.github.sceneview.math.Scale
 import io.github.sceneview.math.colorOf
 import io.github.sceneview.node.SphereNode
+import io.github.sceneview.node.ImageNode
+import io.github.sceneview.math.Direction
+import io.github.sceneview.math.Size
 import kotlin.math.sin
+import kotlin.math.cos
 
 /** Non-AR scene: one model, fixed camera, no touch controls or camera session. */
 class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactContext) {
@@ -162,6 +166,8 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
       )
       var previousCare = ""
       var careRevision = 1000000
+      var carriedToy: ImageNode? = null
+      val mouth = node.emptyNodes.firstOrNull { it.name == "mouth" }
       val bubbles = mutableListOf<SphereNode>()
       var bathElapsed = 0f
       var wasBathing = false
@@ -213,8 +219,10 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
               "eat" -> "Eat"
               "treat" -> "Eat"
               "drink" -> "Drink"
+              "fetchRun", "fetchCarry" -> "Trot"
+              "fetchPick", "fetchDrop" -> "EatDrinkStart"
               else -> "Walk"
-            }, true, careRevision))
+            }, careMotion != "fetchPick" && careMotion != "fetchDrop", careRevision))
           }
         } else {
           if (previousCare.isNotEmpty() || wasBathing) behavior = RoomPetBehavior(node.durations)
@@ -224,6 +232,9 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
         wasBathing = bathing
         val targetYaw = when {
           bathing -> 0f
+          careMotion == "fetchRun" || careMotion == "fetchPick" -> -170f
+          careMotion == "fetchCarry" -> 10f
+          careMotion == "fetchDrop" -> 0f
           careMotion == "treat" -> 0f
           careMotion == "return" -> 25f
           careMotion == "eat" || careMotion == "drink" -> -25f
@@ -234,6 +245,25 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
         }
         yaw += (targetYaw - yaw) * (dt * 3f).coerceAtMost(1f)
         node.rotation = Rotation(y = yaw)
+        if (careMotion == "fetchCarry" && carriedToy == null) {
+          carriedToy = ImageNode(
+            materialLoader = view.materialLoader,
+            imageFileLocation = "models/img_dog_toy.png",
+            size = Size(0.252f, 0.252f, 0f),
+            normal = Direction(0f, 0f, 1f),
+          ).apply { isShadowCaster = false; isVisible = false; view.addChildNode(this) }
+        }
+        carriedToy?.let { toy ->
+          toy.isVisible = careMotion == "fetchCarry" && mouth != null
+          // Follow the animated mouth bone, while keeping the sprite facing the camera.
+          mouth?.let {
+            val forward = Math.toRadians(yaw.toDouble()).toFloat()
+            toy.worldPosition = it.worldPosition + Position(
+              sin(forward) * 0.30f, -0.125f, cos(forward) * 0.30f,
+            )
+          }
+          toy.worldRotation = Rotation(z = 45f)
+        }
       }
     }
   }

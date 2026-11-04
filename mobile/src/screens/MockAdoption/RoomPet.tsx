@@ -38,11 +38,13 @@ export function RoomPet({
   onCareComplete,
   bathing = false,
   sceneOpacity = 1,
+  onFetchPhase,
 }: Pick<Props, 'petId' | 'style'> & {
   returnSequence?: number;
   bathing?: boolean;
   sceneOpacity?: number | Animated.Value;
-  care?: { kind: 'food' | 'water' | 'treat'; offset: { x: number; y: number } } | null;
+  care?: { kind: 'food' | 'water' | 'treat' | 'fetch'; offset: { x: number; y: number } } | null;
+  onFetchPhase?: (phase: 'carry' | 'drop' | 'cancel') => void;
   onConsumed?: () => void;
   onCareComplete?: () => void;
   entryOffset?: { x: number; y: number };
@@ -52,8 +54,8 @@ export function RoomPet({
 }) {
   const focused = useIsFocused();
   const [careMotion, setCareMotion] = useState('');
-  const callbacks = useRef({ onConsumed, onCareComplete });
-  callbacks.current = { onConsumed, onCareComplete };
+  const callbacks = useRef({ onConsumed, onCareComplete, onFetchPhase });
+  callbacks.current = { onConsumed, onCareComplete, onFetchPhase };
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const completedReturn = useRef(0);
   const { x: entryX, y: entryY } = entryOffset;
@@ -67,6 +69,46 @@ export function RoomPet({
     }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    if (care.kind === 'fetch') {
+      setCareMotion('fetchRun');
+      Animated.timing(offset, {
+        toValue: care.offset,
+        duration: 1400,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished || cancelled) {return;}
+        setCareMotion('fetchPick');
+        timer = setTimeout(() => {
+          if (cancelled) {return;}
+          callbacks.current.onFetchPhase?.('carry');
+          setCareMotion('fetchCarry');
+          Animated.timing(offset, {
+            toValue: { x: 0, y: 0 },
+            duration: 1600,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }).start(({ finished: returned }) => {
+            if (!returned || cancelled) {return;}
+            setCareMotion('fetchDrop');
+            callbacks.current.onFetchPhase?.('drop');
+            timer = setTimeout(() => {
+              if (cancelled) {return;}
+              setCareMotion('');
+              callbacks.current.onCareComplete?.();
+            }, 700);
+          });
+        }, 800);
+      });
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+        offset.stopAnimation();
+        offset.setValue({ x: 0, y: 0 });
+        setCareMotion('');
+        callbacks.current.onFetchPhase?.('cancel');
+      };
+    }
     if (care.kind === 'treat') {
       setCareMotion('treat');
       timer = setTimeout(() => {
