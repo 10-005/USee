@@ -10,6 +10,7 @@ import { Animated, BackHandler, StyleSheet } from 'react-native';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { MockAdoptionActivityScreen } from './MockAdoptionActivityScreen';
 import { PetStatsDialog } from './PetStatsDialog';
+import { useShopStore } from '../../stores/shopStore';
 
 jest.mock('./RoomPet', () => ({ RoomPet: 'RoomPet' }));
 let mockFocusRoom: () => () => void;
@@ -176,6 +177,11 @@ test.each([
 test.each(['food', 'water'] as const)(
   'serves %s and refuses the fifth consecutive request',
   async kind => {
+    await AsyncStorage.clear();
+    const session = await startMockAdoption('dog-1', 35000);
+    useShopStore.getState().open(session);
+    useShopStore.getState().setQuantity('food', 1, 'dog');
+    useShopStore.getState().checkout('dog');
     jest.useFakeTimers();
     const props = {
       navigation: {},
@@ -224,6 +230,11 @@ test.each([
 ])('cleans and persists the toilet for %s', async (petId, fullLabel, emptyLabel) => {
   await AsyncStorage.clear();
   const session = await startMockAdoption(petId, 35000);
+  const species = petId.startsWith('dog') ? 'dog' : 'cat';
+  useShopStore.getState().open(session);
+  useShopStore.getState().setQuantity('cleaner', 1, species);
+  useShopStore.getState().setQuantity(species === 'dog' ? 'pads' : 'litter', 1, species);
+  useShopStore.getState().checkout(species);
   await AsyncStorage.setItem(
     STORAGE_KEYS.MOCK_ADOPTION_TOILET,
     JSON.stringify({

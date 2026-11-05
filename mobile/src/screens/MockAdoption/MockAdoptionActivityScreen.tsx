@@ -21,6 +21,9 @@ import { RoomPet } from './RoomPet';
 import { useToilet } from './useToilet';
 import { TreatLauncher } from './TreatLauncher';
 import { PetStatsDialog, type PetStats } from './PetStatsDialog';
+import { useShopSession } from '../shop/useShopSession';
+import { useShopStore } from '../../stores/shopStore';
+import { consumeCareSupplies } from '../../services/shop/consumption';
 
 // Temporary preview values until the server provides the selected pet's stats.
 const mockPetStats: PetStats = {
@@ -39,6 +42,7 @@ const PREVIOUS_ACTION_HEIGHT = 72;
 type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
 
 export function MockAdoptionActivityScreen({ navigation, route }: Props) {
+  useShopSession(route.params.petId);
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
   const toilet = useToilet(route.params.petId, pet?.category ?? 'dog');
   const [statsVisible, setStatsVisible] = useState(false);
@@ -215,14 +219,19 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     if (careBusy.current || bathingRef.current || leaving || busy || !pet) {
       return;
     }
-    streak.current = { kind, count: streak.current.kind === kind ? streak.current.count + 1 : 1 };
-    setFullBowl(value => ({ ...value, [kind]: true }));
-    fillScale.setValue(0.8);
-    Animated.spring(fillScale, { toValue: 1, useNativeDriver: true }).start();
-    if (streak.current.count >= 5) {
+    const nextStreak = { kind, count: streak.current.kind === kind ? streak.current.count + 1 : 1 };
+    if (nextStreak.count >= 5) {
       showToast(kind === 'food' ? '지금은 배불러요' : '지금은 목마르지 않아요');
       return;
     }
+    if (kind === 'food' && !consumeCareSupplies(pet.id, pet.category, 'food')) {
+      showToast(useShopStore.getState().error || '사료를 사용할 수 없어요.');
+      return;
+    }
+    streak.current = nextStreak;
+    setFullBowl(value => ({ ...value, [kind]: true }));
+    fillScale.setValue(0.8);
+    Animated.spring(fillScale, { toValue: 1, useNativeDriver: true }).start();
     careBusy.current = true;
     bowlViews.current[kind]?.measureInWindow((x, y, width, height) => {
       screenView.current?.measureInWindow((screenX, screenY) => {
@@ -325,8 +334,10 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
               return;
             }
             try {
-              if (await toilet.clean()) {
+              if (await toilet.clean(() => consumeCareSupplies(pet.id, pet.category, 'clean'))) {
                 showToast('깨끗해져서 좋아요!');
+              } else if (useShopStore.getState().error) {
+                showToast(useShopStore.getState().error!);
               }
             } catch {
               showToast('청소 상태를 저장하지 못했어요. 다시 시도해주세요.');
@@ -512,6 +523,11 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           }}
           onLanded={() => {
             setTreatActive(false);
+            if (!consumeCareSupplies(pet.id, pet.category, 'treat')) {
+              careBusy.current = false;
+              showToast(useShopStore.getState().error || '간식을 사용할 수 없어요.');
+              return;
+            }
             setCare({ kind: 'treat', offset: { x: 0, y: 0 } });
             showToast('♥');
           }}
