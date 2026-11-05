@@ -49,6 +49,7 @@ test('mock adoption selects one pet across categories and preserves adoption fil
   await ReactTestRenderer.act(async () => {
     await renderer.root.findAllByProps({ accessibilityLabel: '모의입양' })[0].props.onPress();
   });
+  expect(renderer!.root.findAllByProps({ accessibilityLabel: '기간 필터' })).toHaveLength(0);
   expect(renderer!.root.findAllByProps({ accessibilityRole: 'radio' })).toHaveLength(0);
   expect(mockNavigate).not.toHaveBeenCalled();
   await ReactTestRenderer.act(() => renderer.root.findByType(Button).props.onPress());
@@ -82,7 +83,7 @@ test('my page resumes an active adoption without asking for the budget again', a
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
-test('bottom navigation preserves adoption state until the logo moves the list to the top', async () => {
+test('returning to adoption resets the hidden search and filter header', async () => {
   const props = {
     navigation: { navigate: mockNavigate },
     route: { key: 'home', name: 'Home' },
@@ -93,7 +94,7 @@ test('bottom navigation preserves adoption state until the logo moves the list t
   });
 
   await ReactTestRenderer.act(() => {
-    renderer.root.findAllByType(FlatList)[0].props.onScroll({
+    renderer.root.findByType(FlatList).props.onScroll({
       nativeEvent: { contentOffset: { y: 180 } },
     });
   });
@@ -106,12 +107,6 @@ test('bottom navigation preserves adoption state until the logo moves the list t
     renderer.root.findAllByProps({ accessibilityLabel: '입양' })[0].props.onPress();
   });
 
-  expect(renderer!.root.findAll(node => node.props.pointerEvents === 'none')).not.toHaveLength(0);
-  await ReactTestRenderer.act(() => {
-    renderer.root
-      .findAllByProps({ accessibilityLabel: '입양 목록 상단으로 이동' })[0]
-      .props.onPress();
-  });
   expect(renderer!.root.findAll(node => node.props.pointerEvents === 'none')).toHaveLength(0);
   expect(
     renderer!.root.findAllByProps({ placeholder: '특징으로 검색해보세요' }).length,

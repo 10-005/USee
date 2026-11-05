@@ -352,6 +352,9 @@ export function HomeScreen({ navigation }: Props) {
         items={navigationItems}
         onSelect={key => {
           setRegistrationMenuOpen(false);
+          if (key === 'adoption') {
+            resetAdoptionListHeader();
+          }
           setSelectedTab(key);
         }}
         selectedKey={selectedTab}
@@ -359,142 +362,24 @@ export function HomeScreen({ navigation }: Props) {
     </View>
   );
 
+  if (selectedTab === 'mockAdoption' || selectedTab === 'chat') {
+    return (
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        {selectedTab === 'chat' ? (
+          <ChatListScreen onOpenRoom={roomId => navigation.navigate('ChatRoom', { roomId })} />
+        ) : (
+          <View style={styles.mockAdoptionEntry}>
+            <Button onPress={() => navigation.navigate('MockAdoptionSelection')}>동물 선택</Button>
+          </View>
+        )}
+        {navigationBar}
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <View
-        importantForAccessibility={selectedTab === 'adoption' ? 'auto' : 'no-hide-descendants'}
-        style={[styles.tabScreen, selectedTab !== 'adoption' && styles.hiddenTabScreen]}
-      >
-        <View style={styles.header}>
-          <Pressable
-            accessibilityLabel="입양 목록 상단으로 이동"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={scrollAdoptionToTop}
-          >
-            <Image
-              resizeMode="contain"
-              source={require('../../assets/images/logo.png')}
-              style={styles.logo}
-            />
-          </Pressable>
-          <Pressable
-            accessibilityLabel="알림"
-            accessibilityRole="button"
-            onPress={() => navigation.navigate('Notifications')}
-            style={styles.headerIcon}
-          >
-            <NotificationIcon />
-          </Pressable>
-        </View>
-        <View style={styles.listArea}>
-          <FlatList
-            columnWrapperStyle={styles.column}
-            contentContainerStyle={[
-              styles.listContent,
-              { paddingBottom: 104 + insets.bottom, paddingTop: SEARCH_FILTERS_HEIGHT },
-            ]}
-            data={animals}
-            decelerationRate="fast"
-            key={listKey}
-            keyExtractor={item => item.id}
-            numColumns={2}
-            onScroll={handleListScroll}
-            ref={listRef}
-            renderItem={renderAnimal}
-            showsVerticalScrollIndicator={false}
-            scrollEventThrottle={16}
-          />
-          <Animated.View
-            pointerEvents={controlsVisible ? 'auto' : 'none'}
-            style={[
-              styles.searchAndFilters,
-              activeFilter && styles.searchAndFiltersAboveSheet,
-              {
-                filter: [
-                  {
-                    blur: controlsProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [3, 0],
-                    }),
-                  },
-                ],
-                opacity: controlsProgress.interpolate({
-                  inputRange: [0, 0.35, 1],
-                  outputRange: [0, 0, 1],
-                }),
-                transform: [
-                  {
-                    translateY: controlsProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-SEARCH_FILTERS_HEIGHT, 0],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <View style={styles.searchBox}>
-              <SearchInputIcon />
-              <TextInput
-                onChangeText={setQuery}
-                placeholder="특징으로 검색해보세요"
-                placeholderTextColor={colors.gray400}
-                style={styles.searchInput}
-                value={query}
-              />
-            </View>
-            <ScrollView
-              contentContainerStyle={styles.filters}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
-            >
-              {filterItems.map(filter => (
-                <Pressable
-                  accessibilityLabel={`${filter.label} 필터`}
-                  accessibilityRole="button"
-                  key={filter.key}
-                  onPress={() =>
-                    setActiveFilter(current => (current === filter.key ? null : filter.key))
-                  }
-                  style={[
-                    styles.filterChip,
-                    activeFilter === filter.key && styles.filterChipOpen,
-                    isFilterApplied(filter.key) && styles.filterChipApplied,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterText,
-                      isFilterApplied(filter.key) && styles.filterTextApplied,
-                    ]}
-                  >
-                    {getFilterLabel(filter.key, filter.label)}
-                  </Text>
-                  <FilterArrowIcon />
-                </Pressable>
-              ))}
-            </ScrollView>
-          </Animated.View>
-        </View>
-      </View>
-      <View
-        importantForAccessibility={selectedTab === 'search' ? 'auto' : 'no-hide-descendants'}
-        style={[styles.tabScreen, selectedTab !== 'search' && styles.hiddenTabScreen]}
-      >
-        <FoundReportListContent bottomInset={insets.bottom} navigation={navigation} />
-      </View>
-      <View
-        importantForAccessibility={selectedTab === 'chat' ? 'auto' : 'no-hide-descendants'}
-        style={[styles.tabScreen, selectedTab !== 'chat' && styles.hiddenTabScreen]}
-      >
-        <ChatListScreen onOpenRoom={roomId => navigation.navigate('ChatRoom', { roomId })} />
-      </View>
-      <View
-        importantForAccessibility={selectedTab === 'mypage' ? 'auto' : 'no-hide-descendants'}
-        style={[styles.tabScreen, selectedTab !== 'mypage' && styles.hiddenTabScreen]}
-      >
+      {selectedTab === 'mypage' ? (
         <MyPageScreen
           onOpenMockAdoption={openMockAdoption}
           onOpenMyPosts={() => navigation.navigate('MyPosts')}
@@ -505,15 +390,125 @@ export function HomeScreen({ navigation }: Props) {
           onOpenSettings={() => navigation.navigate('Settings')}
           onOpenSavedPosts={() => navigation.navigate('SavedPosts')}
         />
-      </View>
-      <View
-        importantForAccessibility={selectedTab === 'mockAdoption' ? 'auto' : 'no-hide-descendants'}
-        style={[styles.tabScreen, selectedTab !== 'mockAdoption' && styles.hiddenTabScreen]}
-      >
-        <View style={styles.mockAdoptionEntry}>
-          <Button onPress={() => navigation.navigate('MockAdoptionSelection')}>동물 선택</Button>
-        </View>
-      </View>
+      ) : selectedTab === 'search' ? (
+        <FoundReportListContent bottomInset={insets.bottom} navigation={navigation} />
+      ) : (
+        <>
+          <View style={styles.header}>
+            <Pressable
+              accessibilityLabel="입양 목록 상단으로 이동"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={scrollAdoptionToTop}
+            >
+              <Image
+                resizeMode="contain"
+                source={require('../../assets/images/logo.png')}
+                style={styles.logo}
+              />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="알림"
+              accessibilityRole="button"
+              onPress={() => navigation.navigate('Notifications')}
+              style={styles.headerIcon}
+            >
+              <NotificationIcon />
+            </Pressable>
+          </View>
+          <View style={styles.listArea}>
+            <FlatList
+              columnWrapperStyle={styles.column}
+              contentContainerStyle={[
+                styles.listContent,
+                { paddingBottom: 104 + insets.bottom, paddingTop: SEARCH_FILTERS_HEIGHT },
+              ]}
+              data={animals}
+              decelerationRate="fast"
+              key={listKey}
+              keyExtractor={item => item.id}
+              numColumns={2}
+              onScroll={handleListScroll}
+              ref={listRef}
+              renderItem={renderAnimal}
+              showsVerticalScrollIndicator={false}
+              scrollEventThrottle={16}
+            />
+            <Animated.View
+              pointerEvents={controlsVisible ? 'auto' : 'none'}
+              style={[
+                styles.searchAndFilters,
+                activeFilter && styles.searchAndFiltersAboveSheet,
+                {
+                  filter: [
+                    {
+                      blur: controlsProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [3, 0],
+                      }),
+                    },
+                  ],
+                  opacity: controlsProgress.interpolate({
+                    inputRange: [0, 0.35, 1],
+                    outputRange: [0, 0, 1],
+                  }),
+                  transform: [
+                    {
+                      translateY: controlsProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-SEARCH_FILTERS_HEIGHT, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <View style={styles.searchBox}>
+                <SearchInputIcon />
+                <TextInput
+                  onChangeText={setQuery}
+                  placeholder="특징으로 검색해보세요"
+                  placeholderTextColor={colors.gray400}
+                  style={styles.searchInput}
+                  value={query}
+                />
+              </View>
+              <ScrollView
+                contentContainerStyle={styles.filters}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
+              >
+                {filterItems.map(filter => (
+                  <Pressable
+                    accessibilityLabel={`${filter.label} 필터`}
+                    accessibilityRole="button"
+                    key={filter.key}
+                    onPress={() =>
+                      setActiveFilter(current => (current === filter.key ? null : filter.key))
+                    }
+                    style={[
+                      styles.filterChip,
+                      activeFilter === filter.key && styles.filterChipOpen,
+                      isFilterApplied(filter.key) && styles.filterChipApplied,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterText,
+                        isFilterApplied(filter.key) && styles.filterTextApplied,
+                      ]}
+                    >
+                      {getFilterLabel(filter.key, filter.label)}
+                    </Text>
+                    <FilterArrowIcon />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </Animated.View>
+          </View>
+        </>
+      )}
       {activeFilter ? null : navigationBar}
       {registrationMenuOpen && !activeFilter ? (
         <RegistrationMenu
@@ -544,8 +539,6 @@ export function HomeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   mockAdoptionEntry: { flex: 1, justifyContent: 'center', paddingHorizontal: 20 },
   safeArea: { backgroundColor: colors.white, flex: 1 },
-  tabScreen: { flex: 1 },
-  hiddenTabScreen: { display: 'none' },
   header: { alignItems: 'center', flexDirection: 'row', height: 56, justifyContent: 'center' },
   logo: { height: 34, width: 88 },
   headerIcon: { position: 'absolute', right: 20 },
