@@ -6,6 +6,7 @@ import {
   type ShopSnapshot,
   migrateShopCartV2,
   migrateShopBudgetV3,
+  migrateShopOwnedItemsV4,
 } from '../shopDatabase';
 import { open } from '@op-engineering/op-sqlite';
 
@@ -16,10 +17,32 @@ const snapshot: ShopSnapshot = {
   spent: 0,
   cart: { food: 2, bowl: 1 },
   inventory: {},
+  ownedItems: [],
   selectedIds: ['food'],
 };
 beforeEach(() => {
   getShopDatabase().executeSync('DELETE FROM shop_sessions');
+});
+
+it('migrates aggregate stock into independently counted items without losing remaining uses', () => {
+  const db = open({ name: 'owned-migration-test.sqlite' });
+  db.executeSync('PRAGMA foreign_keys=ON');
+  db.executeSync('CREATE TABLE products (id TEXT PRIMARY KEY, bundle_quantity INTEGER)');
+  db.executeSync('CREATE TABLE shop_sessions (id TEXT PRIMARY KEY)');
+  db.executeSync(
+    'CREATE TABLE inventory_items (session_id TEXT, product_id TEXT, quantity INTEGER)',
+  );
+  db.executeSync("INSERT INTO products VALUES ('food',12)");
+  db.executeSync("INSERT INTO shop_sessions VALUES ('test')");
+  db.executeSync("INSERT INTO inventory_items VALUES ('test','food',13)");
+  migrateShopOwnedItemsV4(db);
+  expect(db.executeSync('SELECT capacity,remaining FROM owned_items ORDER BY rowid').rows).toEqual([
+    { capacity: 12, remaining: 12 },
+    { capacity: 12, remaining: 1 },
+  ]);
+  expect(db.executeSync('PRAGMA foreign_key_check').rows).toEqual([]);
+  expect(db.executeSync('PRAGMA user_version').rows[0].user_version).toBe(4);
+  db.close();
 });
 
 it('seeds 32 distinct products once and reads the SQL columns', () => {
@@ -30,7 +53,7 @@ it('seeds 32 distinct products once and reads the SQL columns', () => {
   db.executeSync('UPDATE products SET price=1234 WHERE id=?', ['food']);
   expect(readShopProducts().find(p => p.id === 'food')!.price).toBe(1234);
   db.executeSync('UPDATE products SET price=10600 WHERE id=?', ['food']);
-  expect(db.executeSync('PRAGMA user_version').rows[0].user_version).toBe(3);
+  expect(db.executeSync('PRAGMA user_version').rows[0].user_version).toBe(4);
 });
 
 it('restores selection, bundle quantities, budget and inventory', () => {
