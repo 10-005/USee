@@ -34,4 +34,11 @@ data:
     GRANT USAGE ON SCHEMA chat TO notification_app;
     ALTER DEFAULT PRIVILEGES FOR ROLE chat_app IN SCHEMA chat
       GRANT SELECT ON TABLES TO notification_app;
+
+    -- 팀원 조회용 읽기 전용 계정. 이미 초기화된 DB에는 scripts/create-dev-readonly-role.sh로 만든다
+    CREATE ROLE dev_readonly LOGIN PASSWORD '${DEV_READONLY_PASSWORD}' CONNECTION LIMIT 5;
+    GRANT CONNECT ON DATABASE animal TO dev_readonly;
+    GRANT pg_read_all_data TO dev_readonly;
+    ALTER ROLE dev_readonly SET default_transaction_read_only = on;
+    ALTER ROLE dev_readonly SET statement_timeout = '30s';
     EOSQL
