@@ -33,6 +33,8 @@ class ArFloorView(
   private var traversalDebug: TraversalDebugView? = null
   private var showTraversalDebug = false
   private var dogNode: DogModelNode? = null
+  private val dogHeading = DogHeadingSmoother()
+  private var lastDogRotationNanos = 0L
   private var shadowNode: CylinderNode? = null
   private var leash: DogLeash? = null
   private var leashHand: LeashPoint? = null
@@ -152,6 +154,8 @@ class ArFloorView(
     val activity = reactContext.currentActivity as? ComponentActivity ?: return
     // A newly created AR session has a new world coordinate system.
     leader = DogLeader(requiresPlacement = false)
+    dogHeading.reset()
+    lastDogRotationNanos = 0L
     scratch = SessionScratch()
     floorAnalyzer = SegFormerFloorAnalyzer(context)
     wasBlocked = false
@@ -304,14 +308,19 @@ class ArFloorView(
       kotlin.math.abs(clipPoint[0]) <= clipPoint[3] && kotlin.math.abs(clipPoint[1]) <= clipPoint[3]
     val node = dogNode
     val shadow = shadowNode
+    val rotationNow = SystemClock.elapsedRealtimeNanos()
+    val rotationDt = if (lastDogRotationNanos == 0L) 0f else (rotationNow - lastDogRotationNanos) / 1_000_000_000f
+    lastDogRotationNanos = rotationNow
     if (node != null) {
       node.isVisible = shown.dog.visible
       shadow?.isVisible = shown.dog.visible
       if (shown.dog.visible) {
         node.position = Position(shown.dog.x, shown.dog.y + pawLift(node), shown.dog.z)
-        node.rotation = Rotation(y = shown.dog.yawDegrees)
+        node.rotation = Rotation(y = dogHeading.update(shown.dog.yawDegrees, rotationDt))
         shadow?.position = Position(shown.dog.x, shown.dog.y + 0.006f, shown.dog.z)
         node.play(DogAnimation(shown.dog.clip, shown.dog.clipLoop, shown.dog.animationRevision))
+      } else {
+        dogHeading.pause()
       }
     }
     sceneView?.planeRenderer?.isVisible = false
