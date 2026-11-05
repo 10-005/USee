@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
 import java.security.KeyPairGenerator
 import java.util.Base64
+import java.util.Date
 
 @WebMvcTest(ImageController::class)
 @ImportAutoConfiguration(CommonWebAutoConfiguration::class)
@@ -154,7 +155,8 @@ class ImageControllerTest {
 
     companion object {
         private val keyPair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
-        private val BEARER = "Bearer " + Jwts.builder().claim("userSeq", 42).claim("role", "USER")
+        private val BEARER = "Bearer " + Jwts.builder().claim("userSeq", 42).claim("role", "USER").claim("typ", "access")
+            .expiration(Date(System.currentTimeMillis() + 3_600_000))
             .signWith(keyPair.private, Jwts.SIG.RS256).compact()
 
         @JvmStatic
