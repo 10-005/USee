@@ -12,6 +12,7 @@ import type { RootStackParamList } from '../../app/navigation/types';
 import { styles } from './ArWalkScreen.styles';
 import { useWalkVoice } from './useWalkVoice';
 import { VoiceListeningDots } from './components/VoiceListeningDots';
+import { VoiceMicrophone } from './components/VoiceMicrophone';
 import { VoiceGlowText } from './components/VoiceGlowText';
 import {
   ArFloorView,
@@ -169,10 +170,10 @@ export function ArWalkScreen({
             accessibilityLabel="산책 음성 명령"
             accessibilityState={{ checked: voice.enabled }}
             onPress={() => voice.setEnabled(value => !value)}
-            style={styles.areaToggle}
+            style={styles.voiceToggle}
             hitSlop={4}
           >
-            <Text style={styles.areaToggleLabel}>음성 {voice.enabled ? '켜짐' : '꺼짐'}</Text>
+            <VoiceMicrophone enabled={voice.enabled} hearing={voice.isHearing} />
           </Pressable>
           <Pressable
             accessibilityRole="switch"

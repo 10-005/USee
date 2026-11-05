@@ -56,6 +56,7 @@ test('a full utterance requests sit once, ignores unknown text, and stops on scr
     renderer = ReactTestRenderer.create(<Harness active />);
   });
   expect(PermissionsAndroid.request).toHaveBeenCalled();
+  expect(voice.isHearing).toBe(false);
   expect(NativeModules.WalkSpeech.start).toHaveBeenCalledTimes(1);
   const emitter = jest.mocked(NativeEventEmitter).mock.results[0].value;
   const receive = emitter.addListener.mock.calls[0][1];
@@ -75,6 +76,9 @@ test('a full utterance requests sit once, ignores unknown text, and stops on scr
   expect(voice.isRecognizing).toBe(false);
   await ReactTestRenderer.act(() => receive({ status: 'hearing', transcript: '' }));
   expect(voice.isRecognizing).toBe(true);
+  expect(voice.isHearing).toBe(true);
+  await ReactTestRenderer.act(() => receive({ status: 'recognized', transcript: '가자' }));
+  expect(voice.isHearing).toBe(false);
   await ReactTestRenderer.act(() => renderer.update(<Harness active={false} />));
   expect(NativeModules.WalkSpeech.stop).toHaveBeenCalled();
   await ReactTestRenderer.act(() => renderer.unmount());

@@ -16,10 +16,12 @@ export function useWalkVoice(active: boolean, petName = '') {
   const [enabled, setEnabled] = useState(true);
   const [message, setMessage] = useState('음성 명령 준비 중');
   const [isRecognizing, setIsRecognizing] = useState(false);
+  const [isHearing, setIsHearing] = useState(false);
   const [actionRequest, setActionRequest] = useState('');
   const requestId = useRef(0);
   useEffect(() => {
     setIsRecognizing(false);
+    setIsHearing(false);
     if (!active || !enabled) {
       return;
     }
@@ -34,6 +36,7 @@ export function useWalkVoice(active: boolean, petName = '') {
       if (disposed || AppState.currentState !== 'active') {
         return;
       }
+      setIsHearing(status === 'hearing');
       if (status === 'recognized') {
         setIsRecognizing(false);
         setMessage(transcript ? `“${transcript}”` : '앉아 / 멈춰 / 가자 / 돌아');
@@ -94,6 +97,7 @@ export function useWalkVoice(active: boolean, petName = '') {
       if (state === 'active') {
         start();
       } else {
+        setIsHearing(false);
         setIsRecognizing(false);
         lifecycleVersion++;
         speech.stop();
@@ -110,6 +114,7 @@ export function useWalkVoice(active: boolean, petName = '') {
   return {
     enabled,
     setEnabled,
+    isHearing: active && enabled && isHearing,
     message,
     actionRequest,
     isRecognizing: active && enabled && isRecognizing,
