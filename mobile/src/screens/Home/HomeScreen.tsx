@@ -70,9 +70,9 @@ const initialFilters: AdoptionFilters = {
   status: '전체',
 };
 const SEARCH_FILTERS_HEIGHT = 120;
-const HIDE_CONTROLS_OFFSET = 80;
-const HIDE_DIRECTION_DISTANCE = 24;
-const SHOW_DIRECTION_DISTANCE = 12;
+const HIDE_CONTROLS_OFFSET = 120;
+const HIDE_DIRECTION_DISTANCE = 40;
+const SHOW_DIRECTION_DISTANCE = 16;
 const navigationItems = [
   {
     key: 'adoption',
@@ -477,6 +477,7 @@ export function HomeScreen({ navigation }: Props) {
             columnWrapperStyle={styles.column}
             contentContainerStyle={[styles.listContent, { paddingBottom: 104 + insets.bottom }]}
             data={animals}
+            decelerationRate="fast"
             key={listKey}
             keyExtractor={item => item.id}
             numColumns={2}
