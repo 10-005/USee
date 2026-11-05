@@ -133,9 +133,9 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
           <Text style={styles.sectionTitle}>구조정보</Text>
           <InfoRows
             rows={[
-              ['발생장소', '익산시 여산면 호산길 251-68'],
-              ['접수일시', '2026-10-20'],
-              ['기타사항', '없음'],
+              ['구조장소', '익산시 여산면 호산길 251-68'],
+              ['구조일시', '2026-10-20'],
+              ['특이사항', '없음'],
             ]}
           />
         </View>
@@ -155,11 +155,9 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
           </View>
           <InfoRows
             rows={[
-              ['관할기관', '전북특별자치도 익산시'],
-              ['상태', '보호중'],
-              ['보호센터', shelterName],
-              ['연락처', '063-855-1214'],
-              ['보호장소', '전북특별자치도 익산시 삼기면 황금로 342-17'],
+              ['보호센터명', shelterName],
+              ['보호센터연락처', '063-855-1214'],
+              ['보호센터 주소', '전북특별자치도 익산시 삼기면 황금로 342-17'],
             ]}
           />
         </View>
