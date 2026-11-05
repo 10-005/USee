@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/navigation/types';
@@ -10,6 +10,8 @@ import { findProduct, money } from '../../services/shop/catalog';
 import { useShopStore } from '../../stores/shopStore';
 import { useShopSession } from './useShopSession';
 import { shopStyles as s } from '../../components/shop/shopStyles';
+import { colors, typography } from '../../theme';
+import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ShopProductDetail'>;
 export function ProductDetailScreen({ navigation, route }: Props) {
@@ -17,10 +19,20 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   const { pet, status, retry } = useShopSession(petId);
   const p = findProduct(productId);
   const shop = useShopStore();
-  const [quantity, setQuantity] = useState(1);
-  const [notice, setNotice] = useState('');
+  const [quantity, setQuantity] = useState(0);
+  const [toast, setToast] = useState(false);
+  const [basisExpanded, setBasisExpanded] = useState(false);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const adding = useRef(false);
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
+  useEffect(() => {
+    if (quantity === 0) {
+      adding.current = false;
+    }
+  }, [quantity]);
   const max = 10;
   const inCart = shop.cart[productId] ?? 0;
+  const cartCount = Object.values(shop.cart).reduce((sum, count) => sum + count, 0);
   const allowed = pet && p && (p.species === 'all' || pet.category === p.species);
   return (
     <SafeAreaView style={s.screen}>
@@ -30,9 +42,16 @@ export function ProductDetailScreen({ navigation, route }: Props) {
         rightAction={
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel={`장바구니 ${cartCount}개`}
+            style={styles.cartAction}
             onPress={() => navigation.navigate('ShopCart', { petId })}
           >
             <Text style={s.green}>장바구니</Text>
+            {cartCount > 0 ? (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{cartCount}</Text>
+              </View>
+            ) : null}
           </Pressable>
         }
       />
@@ -44,11 +63,13 @@ export function ProductDetailScreen({ navigation, route }: Props) {
         <>
           <ScrollView contentContainerStyle={s.content}>
             <ProductArt product={p} />
-            <Text style={s.green}>
-              {p.category} · {p.essential ? '필수 준비물' : '선택 물품'}
-            </Text>
-            <Text style={s.title}>{p.name}</Text>
-            <Text style={s.price}>{money(p.price)}</Text>
+            <View>
+              <Text style={s.body}>
+                {p.category} · {p.essential ? '필수 준비물' : '선택 물품'}
+              </Text>
+              <Text style={[s.title, styles.productName]}>{p.name}</Text>
+              <Text style={[styles.price, styles.productPrice]}>{money(p.price)}</Text>
+            </View>
             <Text style={s.body}>{p.description}</Text>
             <View style={s.banner}>
               <Text style={s.label}>상품 정보</Text>
@@ -72,49 +93,88 @@ export function ProductDetailScreen({ navigation, route }: Props) {
                 {p.unit}
               </Text>
             </View>
-            <Text style={s.label}>가격 근거</Text>
-            <Text style={s.body}>{p.market.basis}</Text>
-            {p.market.sources.map(source => (
-              <Pressable
-                key={source.url + source.product}
-                accessibilityRole="link"
-                onPress={() => {
-                  Linking.openURL(source.url).catch(() =>
-                    Alert.alert('링크를 열지 못했어요', '잠시 후 다시 시도해주세요.'),
-                  );
-                }}
-              >
-                <Text style={s.green}>
-                  {source.shop} · {source.product} ↗
-                </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="가격 근거"
+              accessibilityState={{ expanded: basisExpanded }}
+              onPress={() => setBasisExpanded(current => !current)}
+              style={styles.basisToggle}
+            >
+              <Text style={s.label}>가격 근거</Text>
+              <FilterArrowIcon width={18} height={18} />
+            </Pressable>
+            {basisExpanded ? (
+              <View style={styles.basisContent}>
+                <Text style={s.body}>{p.market.basis}</Text>
+                {p.market.sources.map(source => (
+                  <Pressable
+                    key={source.url + source.product}
+                    accessibilityRole="link"
+                    onPress={() => {
+                      Linking.openURL(source.url).catch(() =>
+                        Alert.alert('링크를 열지 못했어요', '잠시 후 다시 시도해주세요.'),
+                      );
+                    }}
+                  >
+                    <Text style={s.green}>
+                      {source.shop} · {source.product} ↗
+                    </Text>
+                    <Text style={s.body}>
+                      {source.pack} · {money(source.price)}
+                    </Text>
+                  </Pressable>
+                ))}
                 <Text style={s.body}>
-                  {source.pack} · {money(source.price)}
+                  참고 프로젝트의 2026.10.21 조사 가격이에요. 사용 횟수는 모의 입양의 게임 단위이며
+                  실제 포장량과 달라요.
                 </Text>
-              </Pressable>
-            ))}
-            <Text style={s.body}>
-              참고 프로젝트의 2026.10.21 조사 가격이에요. 사용 횟수는 모의 입양의 게임 단위이며 실제
-              포장량과 달라요.
-            </Text>
+              </View>
+            ) : null}
           </ScrollView>
           <View style={s.footer}>
+            {toast ? (
+              <View pointerEvents="none" style={styles.toast}>
+                <Text
+                  accessibilityRole="alert"
+                  accessibilityLiveRegion="polite"
+                  style={styles.toastText}
+                >
+                  장바구니에 추가되었습니다
+                </Text>
+              </View>
+            ) : null}
             {status === 'error' ? <Button onPress={retry}>쇼핑 정보 다시 불러오기</Button> : null}
             <Text accessibilityLiveRegion="polite" style={s.body}>
               {shop.error ||
-                notice ||
                 (inCart
                   ? `장바구니에 ${inCart}묶음 담겨 있어요.`
                   : '모의 구매에 사용할 수 있어요.')}
             </Text>
             <View style={s.between}>
-              <QuantityControl name={p.name} value={quantity} max={max} onChange={setQuantity} />
-              <Text style={s.price}>{money(p.price * quantity)}</Text>
+              <QuantityControl
+                compact
+                min={0}
+                name={p.name}
+                value={quantity}
+                max={max}
+                onChange={setQuantity}
+              />
+              <Text style={styles.price}>{money(p.price * quantity)}</Text>
             </View>
             <Button
-              disabled={status !== 'ready'}
+              disabled={status !== 'ready' || quantity === 0}
               onPress={() => {
+                if (adding.current || quantity === 0) {
+                  return;
+                }
+                adding.current = true;
                 if (shop.addToCart(p.id, quantity, pet.category)) {
-                  setNotice(`${quantity}묶음을 장바구니에 담았어요.`);
+                  setQuantity(0);
+                  setToast(true);
+                  clearTimeout(toastTimer.current);
+                  toastTimer.current = setTimeout(() => setToast(false), 1500);
+                } else {
+                  adding.current = false;
                 }
               }}
             >
@@ -126,3 +186,40 @@ export function ProductDetailScreen({ navigation, route }: Props) {
     </SafeAreaView>
   );
 }
+const styles = StyleSheet.create({
+  productName: { marginTop: 10 },
+  productPrice: { marginTop: 16 },
+  price: { ...typography.titleBold18, fontSize: 20, lineHeight: 28, color: colors.blue },
+  basisToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+  },
+  basisContent: { gap: 16 },
+  cartAction: { minHeight: 40, justifyContent: 'center', paddingRight: 6 },
+  cartBadge: {
+    position: 'absolute',
+    right: -6,
+    bottom: -2,
+    backgroundColor: colors.danger,
+    borderRadius: 12,
+    minWidth: 22,
+    minHeight: 18,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBadgeText: { ...typography.captionSemiBold12, color: colors.white },
+  toast: {
+    position: 'absolute',
+    bottom: '100%',
+    marginBottom: 12,
+    alignSelf: 'center',
+    backgroundColor: colors.gray800,
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  toastText: { ...typography.bodyRegular14, color: colors.white },
+});

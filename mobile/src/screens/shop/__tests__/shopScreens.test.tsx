@@ -1,11 +1,12 @@
 import renderer, { act } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Alert } from 'react-native';
+import { Alert, FlatList, Keyboard } from 'react-native';
 import { ShopScreen } from '../ShopScreen';
 import { ProductDetailScreen } from '../ProductDetailScreen';
 import { CartScreen } from '../CartScreen';
 import { useShopStore } from '../../../stores/shopStore';
 import { getShopDatabase } from '../../../services/shop/shopDatabase';
+import { findProduct } from '../../../services/shop/catalog';
 
 jest.mock('../useShopSession', () => ({
   useShopSession: () => ({
@@ -40,7 +41,7 @@ beforeEach(() => {
     .open({ petId: 'dog-1', startedAt: 1, expiresAt: Date.now() + 86400000, weeklyBudget: 50000 });
 });
 
-it('searches the list, opens product details and adds an item', () => {
+it('searches the list and opens details without quantity or add controls', () => {
   const navigate = jest.fn();
   let screen!: renderer.ReactTestRenderer;
   act(() => {
@@ -61,33 +62,40 @@ it('searches the list, opens product details and adds an item', () => {
     petId: 'dog-1',
     productId: 'waterBowl',
   });
-  act(() => screen.root.findByProps({ accessibilityLabel: '물그릇 수량 늘리기' }).props.onPress());
-  act(() =>
-    screen.root.findByProps({ accessibilityLabel: '물그릇 장바구니 담기' }).props.onPress(),
+  expect(screen.root.findAllByProps({ accessibilityLabel: '물그릇 수량 늘리기' })).toHaveLength(0);
+  expect(screen.root.findAllByProps({ accessibilityLabel: '물그릇 장바구니 담기' })).toHaveLength(
+    0,
   );
-  expect(useShopStore.getState().cart.waterBowl).toBe(1);
+  expect(screen.root.findByProps({ accessibilityLabel: '장바구니' })).toBeDefined();
   act(() => screen.unmount());
 });
 
-it('starts at zero, caps each selection at 10 and resets after the add toast', () => {
+it('adds from detail, resets to zero, shows toast and updates the cart badge', () => {
   jest.useFakeTimers();
   let screen!: renderer.ReactTestRenderer;
   act(() => {
     screen = renderer.create(
       wrap(
-        <ShopScreen
+        <ProductDetailScreen
           navigation={{ navigate: jest.fn() } as never}
-          route={{ key: 'shop', name: 'PetShop', params: { petId: 'dog-1' } }}
+          route={{
+            key: 'detail',
+            name: 'ShopProductDetail',
+            params: { petId: 'dog-1', productId: 'waterBowl' },
+          }}
         />,
       ),
     );
   });
-  act(() =>
-    screen.root.findByProps({ accessibilityLabel: '상품 검색' }).props.onChangeText('물그릇'),
-  );
   const plus = () => screen.root.findByProps({ accessibilityLabel: '물그릇 수량 늘리기' });
   const minus = () => screen.root.findByProps({ accessibilityLabel: '물그릇 수량 줄이기' });
-  const add = () => screen.root.findByProps({ accessibilityLabel: '물그릇 장바구니 담기' });
+  const add = () =>
+    screen.root.findAll(
+      node =>
+        node.props.accessibilityRole === 'button' &&
+        node.props.onPress &&
+        node.findAllByProps({ children: '장바구니 담기' }).length > 0,
+    )[0];
   expect(minus().props.disabled).toBe(true);
   expect(add().props.disabled).toBe(true);
   for (let i = 0; i < 10; i += 1) {
@@ -96,11 +104,12 @@ it('starts at zero, caps each selection at 10 and resets after the add toast', (
   expect(plus().props.disabled).toBe(true);
   act(() => add().props.onPress());
   expect(useShopStore.getState().cart.waterBowl).toBe(10);
-  expect(screen.root.findByProps({ children: '담기 완료' })).toBeDefined();
+  expect(screen.root.findByProps({ children: '장바구니에 추가되었습니다' })).toBeDefined();
+  expect(screen.root.findByProps({ accessibilityLabel: '장바구니 10개' })).toBeDefined();
   expect(minus().props.disabled).toBe(true);
   expect(add().props.disabled).toBe(true);
   act(() => jest.advanceTimersByTime(1500));
-  expect(screen.root.findAllByProps({ children: '담기 완료' })).toHaveLength(0);
+  expect(screen.root.findAllByProps({ children: '장바구니에 추가되었습니다' })).toHaveLength(0);
   expect(minus().props.disabled).toBe(true);
   expect(add().props.disabled).toBe(true);
   expect(plus().props.disabled).toBe(false);
@@ -111,7 +120,7 @@ it('starts at zero, caps each selection at 10 and resets after the add toast', (
   jest.useRealTimers();
 });
 
-it('uses shared filters and persists added budget from the list', () => {
+it('supports multiple category buttons', () => {
   let screen!: renderer.ReactTestRenderer;
   act(() => {
     screen = renderer.create(
@@ -123,22 +132,51 @@ it('uses shared filters and persists added budget from the list', () => {
       ),
     );
   });
-  act(() => screen.root.findByProps({ accessibilityLabel: '상품 분류 필터' }).props.onPress());
-  act(() => screen.root.findByProps({ accessibilityLabel: '간식' }).props.onPress());
+  act(() => screen.root.findByProps({ accessibilityLabel: '간식 분류' }).props.onPress());
   expect(screen.root.findAllByProps({ accessibilityLabel: '물그릇 상세 보기' })).toHaveLength(0);
-  act(() => screen.root.findByProps({ accessibilityLabel: '예산 추가' }).props.onPress());
-  act(() =>
-    screen.root.findByProps({ accessibilityLabel: '추가할 예산' }).props.onChangeText('10000'),
-  );
-  const confirm = screen.root.findAll(
-    node =>
-      node.props.accessibilityRole === 'button' &&
-      node.props.onPress &&
-      node.findAllByProps({ children: '추가하기' }).length > 0,
-  )[0];
-  act(() => confirm.props.onPress());
-  expect(useShopStore.getState().budget).toBe(60000);
+  act(() => screen.root.findByProps({ accessibilityLabel: '식사 분류' }).props.onPress());
+  expect(
+    screen.root.findByProps({ accessibilityLabel: '간식 분류' }).props.accessibilityState.checked,
+  ).toBe(true);
+  expect(
+    screen.root.findByProps({ accessibilityLabel: '식사 분류' }).props.accessibilityState.checked,
+  ).toBe(true);
+  expect(
+    screen.root.findByType(FlatList).props.data.some((p: { id: string }) => p.id === 'waterBowl'),
+  ).toBe(true);
+  expect(
+    screen.root.findByType(FlatList).props.data.some((p: { id: string }) => p.id === 'treat'),
+  ).toBe(true);
+  act(() => screen.root.findByProps({ accessibilityLabel: '전체 분류' }).props.onPress());
+  expect(
+    screen.root.findByProps({ accessibilityLabel: '간식 분류' }).props.accessibilityState.checked,
+  ).toBe(false);
   act(() => screen.unmount());
+});
+
+it('dismisses the keyboard on list drag or touch and keeps sorting in a bottom sheet', () => {
+  const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => {});
+  let screen!: renderer.ReactTestRenderer;
+  act(() => {
+    screen = renderer.create(
+      wrap(
+        <ShopScreen
+          navigation={{ navigate: jest.fn() } as never}
+          route={{ key: 'shop', name: 'PetShop', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  act(() => screen.root.findByType(FlatList).props.onScrollBeginDrag());
+  act(() => screen.root.findByType(FlatList).props.onTouchStart());
+  expect(dismiss).toHaveBeenCalledTimes(2);
+  act(() => screen.root.findByProps({ accessibilityLabel: '상품 정렬 필터' }).props.onPress());
+  expect(screen.root.findByProps({ accessibilityLabel: '높은 가격순' })).toBeDefined();
+  act(() => screen.root.findByProps({ accessibilityLabel: '높은 가격순' }).props.onPress());
+  const prices = screen.root.findByType(FlatList).props.data.map((p: { price: number }) => p.price);
+  expect(prices).toEqual([...prices].sort((a, b) => b - a));
+  act(() => screen.unmount());
+  dismiss.mockRestore();
 });
 
 it('adds the chosen quantity from detail', () => {
@@ -160,6 +198,15 @@ it('adds the chosen quantity from detail', () => {
   act(() =>
     screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 수량 늘리기' }).props.onPress(),
   );
+  act(() =>
+    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 수량 늘리기' }).props.onPress(),
+  );
+  const basis = findProduct('food')!.market.basis;
+  expect(screen.root.findAllByProps({ children: basis })).toHaveLength(0);
+  act(() => screen.root.findByProps({ accessibilityLabel: '가격 근거' }).props.onPress());
+  expect(screen.root.findByProps({ children: basis })).toBeDefined();
+  act(() => screen.root.findByProps({ accessibilityLabel: '가격 근거' }).props.onPress());
+  expect(screen.root.findAllByProps({ children: basis })).toHaveLength(0);
   const addButton = screen.root.findAll(
     node =>
       node.props.accessibilityRole === 'button' &&
