@@ -24,6 +24,7 @@ import { PetStatsDialog, type PetStats } from './PetStatsDialog';
 import { useShopSession } from '../shop/useShopSession';
 import { useShopStore } from '../../stores/shopStore';
 import { consumeCareSupplies } from '../../services/shop/consumption';
+import { availableProducts } from '../../services/shop/catalog';
 
 // Temporary preview values until the server provides the selected pet's stats.
 const mockPetStats: PetStats = {
@@ -42,9 +43,16 @@ const PREVIOUS_ACTION_HEIGHT = 72;
 type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
 
 export function MockAdoptionActivityScreen({ navigation, route }: Props) {
-  useShopSession(route.params.petId);
+  const { status: shopStatus } = useShopSession(route.params.petId);
+  const shop = useShopStore();
+  const owns = (id: string) => shopStatus === 'ready' && (shop.inventory[id] ?? 0) > 0;
+  const purchased = (id: string) =>
+    shopStatus === 'ready' && shop.ownedItems.some(item => item.productId === id);
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
   const toilet = useToilet(route.params.petId, pet?.category ?? 'dog');
+  const petProducts = availableProducts(pet?.category ?? 'dog');
+  const hasTreat = petProducts.some(p => p.category === '간식' && owns(p.id));
+  const hasToy = petProducts.some(p => p.category === '놀이' && p.kind === 'durable' && owns(p.id));
   const [statsVisible, setStatsVisible] = useState(false);
   const walkPending = useRef(false);
   const [care, setCare] = useState<{
@@ -316,7 +324,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           onHidden={onPetHidden}
         />
       ) : null}
-      {pet && !bathing ? (
+      {pet && !bathing && (pet.category === 'dog' ? purchased('pads') : owns('litterBox')) ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
@@ -466,49 +474,57 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         </View>
         <View style={styles.room} pointerEvents="box-none">
           <View style={styles.bowls}>
-            {(['food', 'water'] as const).map(kind => (
-              <Pressable
-                key={kind}
-                accessibilityRole="button"
-                accessibilityLabel={kind === 'food' ? '사료 그릇' : '물그릇'}
-                accessibilityValue={{ text: fullBowl[kind] ? '가득 찬 그릇' : '빈 그릇' }}
-                disabled={!!care || leaving || busy}
-                onPress={() => provide(kind)}
-                style={styles.bowl}
-              >
-                <View
-                  collapsable={false}
-                  ref={view => {
-                    bowlViews.current[kind] = view;
-                  }}
-                  style={styles.bowlContent}
+            {(['food', 'water'] as const).map(kind =>
+              owns(kind === 'food' ? 'bowl' : 'waterBowl') ? (
+                <Pressable
+                  key={kind}
+                  accessibilityRole="button"
+                  accessibilityLabel={kind === 'food' ? '사료 그릇' : '물그릇'}
+                  accessibilityValue={{ text: fullBowl[kind] ? '가득 찬 그릇' : '빈 그릇' }}
+                  disabled={!!care || leaving || busy}
+                  onPress={() => provide(kind)}
+                  style={styles.bowl}
                 >
-                  <Animated.Image
-                    source={
-                      kind === 'food'
-                        ? fullBowl[kind]
-                          ? require('../../assets/images/mock-adoption/img_full_feetstuff_bowl.png')
-                          : require('../../assets/images/mock-adoption/img_empty_feetstuff_bowl.png')
-                        : fullBowl[kind]
-                        ? require('../../assets/images/mock-adoption/img_full_water_bowl.png')
-                        : require('../../assets/images/mock-adoption/img_empty_water_bowl.png')
-                    }
-                    resizeMode="contain"
-                    style={{
-                      ...styles.bowlImage,
-                      transform: [{ scale: fullBowl[kind] ? fillScale : 1 }],
+                  <View
+                    collapsable={false}
+                    ref={view => {
+                      bowlViews.current[kind] = view;
                     }}
-                  />
-                </View>
-              </Pressable>
-            ))}
+                    style={styles.bowlContent}
+                  >
+                    <Animated.Image
+                      source={
+                        kind === 'food'
+                          ? fullBowl[kind]
+                            ? require('../../assets/images/mock-adoption/img_full_feetstuff_bowl.png')
+                            : require('../../assets/images/mock-adoption/img_empty_feetstuff_bowl.png')
+                          : fullBowl[kind]
+                          ? require('../../assets/images/mock-adoption/img_full_water_bowl.png')
+                          : require('../../assets/images/mock-adoption/img_empty_water_bowl.png')
+                      }
+                      resizeMode="contain"
+                      style={{
+                        ...styles.bowlImage,
+                        transform: [{ scale: fullBowl[kind] ? fillScale : 1 }],
+                      }}
+                    />
+                  </View>
+                </Pressable>
+              ) : (
+                <View key={kind} pointerEvents="none" style={styles.bowl} />
+              ),
+            )}
           </View>
         </View>
       </SafeAreaView>
       {care || treatActive || bathing || bathReturning ? (
         <View style={StyleSheet.absoluteFill} onStartShouldSetResponder={() => true} />
       ) : null}
-      {roomVisible && pet && !leaving && !bathing ? (
+      {roomVisible &&
+      pet &&
+      !leaving &&
+      !bathing &&
+      (hasTreat || treatActive || care?.kind === 'treat') ? (
         <TreatLauncher
           category={pet.category}
           width={roomSize.width}
@@ -533,7 +549,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           }}
         />
       ) : null}
-      {roomVisible && pet?.category === 'dog' && !leaving && !bathing ? (
+      {roomVisible && pet?.category === 'dog' && hasToy && !leaving && !bathing ? (
         <TreatLauncher
           item="toy"
           category="dog"

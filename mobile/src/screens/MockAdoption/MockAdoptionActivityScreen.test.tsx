@@ -153,6 +153,12 @@ test.each([
   ['dog-1', '빈 배변 패드', '빈 고양이 화장실'],
   ['cat-2', '빈 고양이 화장실', '빈 배변 패드'],
 ])('shows the empty toilet for %s', async (petId, expected, absent) => {
+  await AsyncStorage.clear();
+  const session = await startMockAdoption(petId, 35000);
+  const species = petId.startsWith('dog') ? 'dog' : 'cat';
+  useShopStore.getState().open(session);
+  useShopStore.getState().setQuantity(species === 'dog' ? 'pads' : 'litterBox', 1, species);
+  useShopStore.getState().checkout(species);
   const props = {
     navigation: {},
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId } },
@@ -181,6 +187,8 @@ test.each(['food', 'water'] as const)(
     const session = await startMockAdoption('dog-1', 35000);
     useShopStore.getState().open(session);
     useShopStore.getState().setQuantity('food', 1, 'dog');
+    useShopStore.getState().setQuantity('bowl', 1, 'dog');
+    useShopStore.getState().setQuantity('waterBowl', 1, 'dog');
     useShopStore.getState().checkout('dog');
     jest.useFakeTimers();
     const props = {
@@ -224,6 +232,52 @@ test.each(['food', 'water'] as const)(
   },
 );
 
+test('shows purchased room items only and hides depleted consumable controls', async () => {
+  await AsyncStorage.clear();
+  const session = await startMockAdoption('dog-1', 50000);
+  useShopStore.getState().open(session);
+  const props = {
+    navigation: {},
+    route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() =>
+    renderer.root
+      .findAll(node => typeof node.props.onLayout === 'function')[0]
+      .props.onLayout({ nativeEvent: { layout: { width: 390, height: 844 } } }),
+  );
+  const count = (accessibilityLabel: string) =>
+    renderer.root.findAllByProps({ accessibilityLabel }).length;
+  expect(count('사료 그릇')).toBe(0);
+  expect(count('물그릇')).toBe(0);
+  expect(count('잡아서 위로 던져 간식 주기')).toBe(0);
+  expect(count('잡아서 위로 던져 공놀이하기')).toBe(0);
+  await ReactTestRenderer.act(() => {
+    for (const id of ['bowl', 'waterBowl', 'food', 'treat', 'toy']) {
+      useShopStore.getState().setQuantity(id, 1, 'dog');
+    }
+  });
+  expect(count('사료 그릇')).toBe(0);
+  await ReactTestRenderer.act(() => {
+    useShopStore.getState().checkout('dog');
+  });
+  expect(count('사료 그릇')).toBeGreaterThan(0);
+  expect(count('물그릇')).toBeGreaterThan(0);
+  expect(count('잡아서 위로 던져 간식 주기')).toBeGreaterThan(0);
+  expect(count('잡아서 위로 던져 공놀이하기')).toBeGreaterThan(0);
+  await ReactTestRenderer.act(() => {
+    useShopStore.getState().consume({ treat: 5 });
+  });
+  expect(count('잡아서 위로 던져 간식 주기')).toBe(0);
+  expect(count('잡아서 위로 던져 공놀이하기')).toBeGreaterThan(0);
+  expect(count('사료 그릇')).toBeGreaterThan(0);
+  await ReactTestRenderer.act(() => renderer.unmount());
+  await AsyncStorage.clear();
+});
+
 test.each([
   ['dog-1', '가득 찬 배변 패드', '빈 배변 패드'],
   ['cat-2', '가득 찬 고양이 화장실', '빈 고양이 화장실'],
@@ -233,6 +287,9 @@ test.each([
   const species = petId.startsWith('dog') ? 'dog' : 'cat';
   useShopStore.getState().open(session);
   useShopStore.getState().setQuantity('cleaner', 1, species);
+  if (species === 'cat') {
+    useShopStore.getState().setQuantity('litterBox', 1, species);
+  }
   useShopStore.getState().setQuantity(species === 'dog' ? 'pads' : 'litter', 1, species);
   useShopStore.getState().checkout(species);
   await AsyncStorage.setItem(
@@ -274,6 +331,11 @@ test.each([
 });
 
 test('bath fades out and back in for two seconds each while blocking input', async () => {
+  await AsyncStorage.clear();
+  const session = await startMockAdoption('dog-1', 35000);
+  useShopStore.getState().open(session);
+  useShopStore.getState().setQuantity('pads', 1, 'dog');
+  useShopStore.getState().checkout('dog');
   const timing = jest.spyOn(Animated, 'timing').mockImplementation((_value, config) => ({
     start: callback => {
       setTimeout(() => callback?.({ finished: true }), config.duration ?? 0);
