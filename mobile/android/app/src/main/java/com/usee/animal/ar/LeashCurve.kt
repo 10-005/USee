@@ -22,7 +22,7 @@ internal class LeashCurve {
     val sag = 0.025f + (1f - distance / 2.2f).coerceIn(0f, 1f) * 0.32f
     val desired = (collar + hand) * 0.5f + LeashPoint(0f, -2f * sag, 0f)
     val previous = middle
-    val blend = 1f - exp(-dt.coerceIn(0f, 0.1f) / 0.09f)
+    val blend = 1f - exp(-dt.coerceIn(0f, 0.1f) / 0.18f)
     val control = if (previous == null || (desired - previous).length() > 1f) desired
       else previous + (desired - previous) * blend
     middle = control

@@ -11,6 +11,33 @@ class DogLeader(
   private val requiresPlacement: Boolean = false,
   private val animations: DogAnimationController = DogAnimationController(),
 ) {
+  private enum class PoopStage { WALK_RIGHT, POOP, RETURN }
+  private var poopStage: PoopStage? = null
+  private var poopOriginX = 0f
+  private var poopOriginZ = 0f
+  private var poopOriginYaw = 0f
+  private var poopTargetX = 0f
+  private var poopTargetZ = 0f
+  private var poopDeposited = false
+
+  fun beginPoop(rightX: Float, rightZ: Float) {
+    if (!placed || poopStage != null) return
+    val length = hypot(rightX, rightZ)
+    if (length < 0.001f) return
+    poopOriginX = x
+    poopOriginZ = z
+    poopOriginYaw = yaw
+    poopTargetX = x + rightX / length * 0.40f
+    poopTargetZ = z + rightZ / length * 0.40f
+    poopStage = PoopStage.WALK_RIGHT
+    poopDeposited = false
+    returning = false
+    recalling = false
+    placementRequested = false
+    floorPath.clear()
+    animations.pause()
+  }
+
   private var placed = false
   val isPlaced: Boolean get() = placed
   private var placementRequested = false
@@ -43,6 +70,7 @@ class DogLeader(
     trustedSegment(cameraX, cameraZ, targetX, targetZ) || wallAvoidance.isClear(cameraX, cameraZ, targetX, targetZ, floorY)
 
   fun requestPlacement() {
+    if (poopStage != null) return
     placementRequested = true
   }
 
@@ -51,18 +79,18 @@ class DogLeader(
   }
 
   fun requestRecall() {
-    if (placed) recalling = true
+    if (placed && poopStage == null) recalling = true
   }
 
   fun updateLeashLength(meters: Float) {
     if (meters.isFinite() && meters >= 0f) leashLength = meters
   }
 
-  fun needsUnrestrictedReturn(cameraX: Float, cameraZ: Float): Boolean = placed &&
+  fun needsUnrestrictedReturn(cameraX: Float, cameraZ: Float): Boolean = placed && poopStage == null &&
     (recalling || returning || leashLength >= 2f || hypot(cameraX - x, cameraZ - z) >= 2f)
 
   fun requestAction(action: String) {
-    if (placed) animations.request(action)
+    if (placed && poopStage == null) animations.request(action)
   }
 
   fun pauseTracking() {
@@ -70,7 +98,7 @@ class DogLeader(
     velocityX = 0f
     velocityZ = 0f
     speed = 0f
-    animations.pause()
+    if (poopStage != PoopStage.POOP) animations.pause()
     moving = false
     blocked = false
     userMoving = false
@@ -118,6 +146,16 @@ class DogLeader(
     // The renderer may run faster than the camera. Repeated samples are not a
     // tracking pause and must not erase acceleration or the walking animation.
     if (deltaSeconds == 0f && hasCamera) return frame(placed, speed)
+    if (poopStage != null) {
+      previousCameraX = cameraX
+      previousCameraZ = cameraZ
+      velocityX = 0f
+      velocityZ = 0f
+      hasCamera = true
+      userMoving = false
+      blocked = false
+      return updatePoop(deltaSeconds.coerceIn(0f, 0.05f))
+    }
     val length = hypot(lookX, lookZ)
     if (length > 0.15f) {
       headingX = lookX / length
@@ -333,6 +371,53 @@ class DogLeader(
     return frame(true, actualSpeed)
   }
 
+  private fun updatePoop(dt: Float): DogFrame {
+    if (dt <= 0f) return frame(true, speed)
+    if (poopStage == PoopStage.POOP) {
+      speed = 0f
+      moving = false
+      animations.update(dt, 0f, 0f, 0f, 0f, 0f, 0f)
+      // The controller uses the GLB clip duration, so return only after the pose ends.
+      if (animations.current.clip != "Poop") poopStage = PoopStage.RETURN
+      return frame(true, 0f)
+    }
+    val outbound = poopStage == PoopStage.WALK_RIGHT
+    val targetX = if (outbound) poopTargetX else poopOriginX
+    val targetZ = if (outbound) poopTargetZ else poopOriginZ
+    val dx = targetX - x
+    val dz = targetZ - z
+    val distance = hypot(dx, dz)
+    val step = min(distance, 0.4f * dt)
+    if (distance > 0.0001f) {
+      yaw = atan2(dx, dz)
+      x += dx / distance * step
+      z += dz / distance * step
+    }
+    speed = step / dt
+    moving = speed > 0.07f
+    animations.update(dt, 0f, speed, speed, 0f, 0f, 0f)
+    if (distance <= step + 0.0001f) {
+      x = targetX
+      z = targetZ
+      yaw = poopOriginYaw
+      speed = 0f
+      moving = false
+      animations.pause()
+      if (outbound) {
+        poopStage = PoopStage.POOP
+        poopDeposited = true
+        animations.request("poop")
+        animations.update(dt, 0f, 0f, 0f, 0f, 0f, 0f)
+      } else {
+        poopStage = null
+        // Do not interpret the user's movement during the sequence as a velocity jump.
+        hasCamera = false
+        leashLength = 0f
+      }
+    }
+    return frame(true, speed)
+  }
+
   private fun avoidsWalker(
     ux: Float, uz: Float, distance: Float, cameraX: Float, cameraZ: Float,
   ): Boolean {
@@ -367,7 +452,7 @@ class DogLeader(
 
   private fun frame(visible: Boolean, actualSpeed: Float) = DogFrame(
     x, y, z, Math.toDegrees(yaw.toDouble()).toFloat(), visible && placed,
-    animations.current.clip, actualSpeed, animations.current.loop, animations.current.revision, moving, blocked, userMoving, recalling || returning, floorUncertain, stopReason,
+    animations.current.clip, actualSpeed, animations.current.loop, animations.current.revision, moving, blocked, userMoving, recalling || returning, floorUncertain, stopReason, poopDeposited,
   )
 
   private fun wrap(angle: Float): Float {
@@ -405,4 +490,5 @@ data class DogFrame(
   val ignoresObstacles: Boolean = false,
   val cautious: Boolean = false,
   val stopReason: String = "",
+  val poopDeposited: Boolean = false,
 )

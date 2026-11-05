@@ -4,6 +4,36 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LeashCollisionTest {
+  @Test fun rightAngleIsRoundedWithoutMovingEitherAttachment() {
+    val a = LeashPoint(0f,0f,0f)
+    val b = LeashPoint(1f,1f,0f)
+    val farBody = LeashBody(listOf(LeashCapsule(
+      LeashPoint(5f,5f,5f), LeashPoint(6f,5f,5f), 0.1f,
+    )), LeashPoint(-0.1f,0f,0f))
+    val path = listOf(a, LeashPoint(0.02f,0f,0f), LeashPoint(1f,0f,0f), b)
+    val route = LeashCollision().route(path,farBody,64)
+    assertEquals(a,route.first())
+    assertEquals(b,route.last())
+    assertEquals(65,route.size)
+    assertClear(route,farBody.capsules)
+    val maxTurn = route.windowed(3).maxOf { (p,q,r) ->
+      val u = q-p
+      val v = r-q
+      val cosine = (u.x*v.x + u.y*v.y + u.z*v.z) / (u.length()*v.length())
+      kotlin.math.acos(cosine.coerceIn(-1f,1f))
+    }
+    assertTrue("A 90-degree corner should become several small turns",maxTurn < 0.5f)
+  }
+
+  @Test fun roundedDetourStillClearsBodyAtHigherRenderResolution() {
+    val desired = LeashCurve().points(start,hand,0f)
+    val route = LeashCollision().route(desired,body,64)
+    assertEquals(start,route.first())
+    assertEquals(hand,route.last())
+    assertEquals(65,route.size)
+    assertClear(route,body.capsules)
+  }
+
   private val start = LeashPoint(-0.6f,0f,0f)
   private val hand = LeashPoint(0.7f,0f,0f)
   private val capsule = LeashCapsule(LeashPoint(-0.2f,0f,0f),LeashPoint(0.2f,0f,0f),0.15f)

@@ -20,7 +20,7 @@ class ArFloorViewManager : SimpleViewManager<ArFloorView>() {
     view.setActive(active)
   }
 
-  @ReactProp(name = "showTraversalDebug", defaultBoolean = true)
+  @ReactProp(name = "showTraversalDebug", defaultBoolean = false)
   fun setShowTraversalDebug(view: ArFloorView, visible: Boolean) {
     view.setShowTraversalDebug(visible)
   }
