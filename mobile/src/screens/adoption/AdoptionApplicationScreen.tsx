@@ -20,7 +20,7 @@ import AlertCircleIcon from '../../assets/icons/common/alert-circle.svg';
 import CalendarIcon from '../../assets/icons/common/calendar.svg';
 import EditIcon from '../../assets/icons/common/edit.svg';
 import LocationIcon from '../../assets/icons/common/location.svg';
-import PawCheckIcon from '../../assets/icons/common/paw-check.svg';
+import { CheckIndicator } from '../../components/common/CheckIndicator';
 import PhoneIcon from '../../assets/icons/common/phone.svg';
 import { AppHeader, Button, DatePickerModal, StepIndicator } from '../../components/common';
 import {
@@ -318,9 +318,7 @@ function ConsentRow({
       onPress={() => onChange(!value)}
       style={styles.consentRow}
     >
-      <View style={[styles.checkbox, value && styles.checkboxSelected]}>
-        {value ? <PawCheckIcon /> : null}
-      </View>
+      <CheckIndicator checked={value} />
       <Text style={styles.consentText}>{label}</Text>
     </Pressable>
   );

@@ -10,7 +10,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
   type NativeScrollEvent,
@@ -21,10 +20,9 @@ import type { RootStackParamList } from '../../app/navigation/types';
 import DateIcon from '../../assets/icons/common/date.svg';
 import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
-import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import MapButtonIcon from '../../assets/icons/common/map-2.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
-import SearchIcon from '../../assets/icons/common/search.svg';
+import { SearchBar, FilterChip } from '../../components/common';
 import { colors, radius, typography } from '../../theme';
 import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
 import { useLostReportEditStore } from '../../stores/lostReportEditStore';
@@ -416,16 +414,7 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
           ]}
         >
           <View style={styles.searchRow}>
-            <View style={styles.searchBox}>
-              <SearchIcon height={24} width={24} />
-              <TextInput
-                onChangeText={setQuery}
-                placeholder="특징으로 검색해보세요"
-                placeholderTextColor={colors.gray400}
-                style={styles.searchInput}
-                value={query}
-              />
-            </View>
+            <SearchBar onChangeText={setQuery} placeholder="특징으로 검색해보세요" value={query} />
             {activeTab === 'found' ? (
               <Pressable
                 accessibilityLabel="지도로 보기"
@@ -444,21 +433,14 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
             style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
           >
             {filterItems.map(item => (
-              <Pressable
+              <FilterChip
                 accessibilityLabel={`${item.label} 필터`}
+                applied={applied(item.key)}
                 key={item.key}
+                label={labelFor(item.key, item.label)}
                 onPress={() => setActiveFilter(current => (current === item.key ? null : item.key))}
-                style={[
-                  styles.filterChip,
-                  activeFilter === item.key && styles.filterOpen,
-                  applied(item.key) && styles.filterApplied,
-                ]}
-              >
-                <Text style={[styles.filterText, applied(item.key) && styles.filterAppliedText]}>
-                  {labelFor(item.key, item.label)}
-                </Text>
-                <FilterArrowIcon height={14} width={14} />
-              </Pressable>
+                open={activeFilter === item.key}
+              />
             ))}
           </ScrollView>
         </Animated.View>
@@ -496,23 +478,6 @@ const styles = StyleSheet.create({
   },
   searchAndFiltersAboveSheet: { zIndex: 21 },
   searchRow: { flexDirection: 'row', gap: 8, marginHorizontal: 20, marginTop: 16 },
-  searchBox: {
-    alignItems: 'center',
-    borderColor: colors.gray200,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flex: 1,
-    flexDirection: 'row',
-    height: 50,
-    paddingHorizontal: 14,
-  },
-  searchInput: {
-    ...typography.bodyRegular16,
-    color: colors.gray700,
-    flex: 1,
-    marginLeft: 4,
-    paddingVertical: 0,
-  },
   mapButton: {
     alignItems: 'center',
     backgroundColor: '#ECFDF3',
@@ -527,21 +492,6 @@ const styles = StyleSheet.create({
   filterScroll: { flexGrow: 0, height: 54 },
   filterScrollAboveSheet: { position: 'relative', zIndex: 21 },
   filters: { gap: 6, paddingHorizontal: 20, paddingVertical: 14 },
-  filterChip: {
-    alignItems: 'center',
-    borderColor: colors.gray200,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 2,
-    height: 26,
-    paddingLeft: 10,
-    paddingRight: 5,
-  },
-  filterOpen: { backgroundColor: '#EBEAE5', borderColor: colors.gray500 },
-  filterApplied: { backgroundColor: '#ECFDF3', borderColor: colors.green400 },
-  filterText: { ...typography.bodyRegular14, color: colors.gray500 },
-  filterAppliedText: { color: colors.green400 },
   list: { paddingHorizontal: 20 },
   columns: { gap: 12 },
   card: { marginBottom: 18 },

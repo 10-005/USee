@@ -10,3 +10,6 @@ export { StepIndicator } from './StepIndicator';
 export { Switch } from './Switch';
 export { TextInput } from './TextInput';
 export { TimePickerModal } from './TimePickerModal';
+export { SearchBar } from './SearchBar';
+export { FilterChip } from './FilterChip';
+export { CheckIndicator } from './CheckIndicator';

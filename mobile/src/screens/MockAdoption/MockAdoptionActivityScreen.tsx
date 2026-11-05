@@ -370,7 +370,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="AR 산책하기"
-                style={({ pressed }) => [styles.walk, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
                 disabled={busy || leaving}
                 onPress={() => {
                   hideThenNavigate(() => {
@@ -380,29 +380,25 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                 }}
               >
                 <Image
-                  source={require('../../assets/images/mock-adoption/img_dog_walking.png')}
+                  source={require('../../assets/images/mock-adoption/img_dog_paw.png')}
                   resizeMode="contain"
-                  style={styles.walkImage}
+                  style={styles.actionImage}
                 />
+                <Text style={styles.actionCaption}>산책가기</Text>
               </Pressable>
-              <Image
-                accessibilityLabel="동물병원"
-                source={require('../../assets/images/mock-adoption/img_veterinary_hospital.png')}
-                resizeMode="contain"
-                style={styles.hospitalImage}
-              />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="목욕하기"
                 disabled={busy || leaving || !!care || treatActive}
                 onPress={startBath}
-                style={({ pressed }) => [styles.shower, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
               >
                 <Image
                   source={require('../../assets/images/mock-adoption/img_shower.png')}
                   resizeMode="contain"
-                  style={styles.walkImage}
+                  style={styles.actionImage}
                 />
+                <Text style={styles.actionCaption}>목욕하기</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -416,13 +412,46 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
               </Pressable>
             </View>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="알림" style={styles.iconButton}>
-            <Image
-              source={require('../../assets/images/mock-adoption/img_alarm.png')}
-              resizeMode="contain"
-              style={styles.alarm}
-            />
-          </Pressable>
+          <View style={styles.rightActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="알림"
+              style={styles.iconButton}
+            >
+              <Image
+                source={require('../../assets/images/mock-adoption/img_alarm.png')}
+                resizeMode="contain"
+                style={styles.alarm}
+              />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="상점 열기"
+              disabled={busy || leaving}
+              onPress={() =>
+                hideThenNavigate(() =>
+                  navigation.navigate('PetShop', { petId: route.params.petId }),
+                )
+              }
+              style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
+            >
+              <Image
+                source={require('../../assets/images/mock-adoption/img_shop.png')}
+                resizeMode="contain"
+                style={styles.actionImage}
+              />
+              <Text style={styles.actionCaption}>쇼핑하기</Text>
+            </Pressable>
+            <View style={styles.actionButton}>
+              <Image
+                accessibilityLabel="동물병원"
+                source={require('../../assets/images/mock-adoption/img_veterinary_hospital.png')}
+                resizeMode="contain"
+                style={styles.actionImage}
+              />
+              <Text style={styles.actionCaption}>동물병원</Text>
+            </View>
+          </View>
         </View>
         <View style={styles.room} pointerEvents="box-none">
           <View style={styles.bowls}>
@@ -584,7 +613,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: '#000000',
   },
-  shower: { width: 60, height: 60, marginTop: 16 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -610,15 +638,15 @@ const styles = StyleSheet.create({
   quit: { justifyContent: 'center', minHeight: 48, paddingHorizontal: 4 },
   quitLabel: { ...typography.bodyRegular14, color: colors.gray700 },
   topActions: { alignItems: 'flex-start', gap: 4 },
-  walk: { width: 60, height: 60, alignItems: 'center', justifyContent: 'center' },
-  walkImage: { width: '100%', height: '100%' },
-  // The action container's 4dp gap brings the total spacing to 20dp.
-  hospitalImage: { width: 60, height: 60, marginTop: 16 },
+  actionButton: { width: 60, alignItems: 'center', gap: 4 },
+  actionImage: { width: 60, height: 60 },
+  actionCaption: { ...typography.captionRegular10, color: colors.gray700, textAlign: 'center' },
+  rightActions: { width: 60, alignItems: 'center', gap: 16 },
   action: {
     width: 180,
     marginTop: 8,
     alignItems: 'flex-start',
-    gap: 4,
+    gap: 16,
   },
   toastAnchor: {
     position: 'absolute',

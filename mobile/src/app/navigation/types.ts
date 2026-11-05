@@ -2,6 +2,9 @@ import type { ChatPreview } from '../../stores/chatStore';
 import type { AdoptionApplicationStatus } from '../../services/storage/adoptionApplicationStorage';
 
 export type RootStackParamList = {
+  PetShop: { petId: string };
+  ShopProductDetail: { petId: string; productId: string };
+  ShopCart: { petId: string };
   Login: undefined;
   SignupOnboarding: undefined;
   ArWalk: { petName: string } | undefined;

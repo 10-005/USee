@@ -7,13 +7,20 @@ import { colors, spacing, typography } from '../../../theme';
 type AppHeaderProps = {
   onBackPress?: () => void;
   rightAction?: ReactNode;
+  rightActionWidth?: number;
   title: string;
 };
 
-export function AppHeader({ onBackPress, rightAction, title }: AppHeaderProps) {
+export function AppHeader({ onBackPress, rightAction, rightActionWidth, title }: AppHeaderProps) {
   return (
     <View style={styles.container}>
-      <View style={[styles.side, rightAction ? styles.leftWideSide : null]}>
+      <View
+        style={[
+          styles.side,
+          rightAction ? styles.leftWideSide : null,
+          rightAction && rightActionWidth ? { width: rightActionWidth } : null,
+        ]}
+      >
         {onBackPress ? (
           <Pressable
             accessibilityLabel="뒤로 가기"
@@ -29,7 +36,15 @@ export function AppHeader({ onBackPress, rightAction, title }: AppHeaderProps) {
       <Text numberOfLines={1} style={styles.title}>
         {title}
       </Text>
-      <View style={[styles.side, rightAction ? styles.rightWideSide : null]}>{rightAction}</View>
+      <View
+        style={[
+          styles.side,
+          rightAction ? styles.rightWideSide : null,
+          rightAction && rightActionWidth ? { width: rightActionWidth } : null,
+        ]}
+      >
+        {rightAction}
+      </View>
     </View>
   );
 }
