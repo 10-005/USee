@@ -49,7 +49,7 @@ export function RegistrationMenu({
 
 const styles = StyleSheet.create({
   backdrop: {
-    backgroundColor: 'rgba(20, 20, 20, 0.32)',
+    backgroundColor: 'transparent',
     bottom: 0,
     left: 0,
     position: 'absolute',

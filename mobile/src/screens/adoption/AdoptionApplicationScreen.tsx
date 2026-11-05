@@ -1,19 +1,19 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { saveSubmittedAdoptionApplication } from '../../services/storage/adoptionApplicationStorage';
 import {
   Image,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
-import type { ScrollViewInstance, TextInputProps } from 'react-native';
+import type { TextInputProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
@@ -23,7 +23,14 @@ import EditIcon from '../../assets/icons/common/edit.svg';
 import LocationIcon from '../../assets/icons/common/location.svg';
 import { CheckIndicator } from '../../components/common/CheckIndicator';
 import PhoneIcon from '../../assets/icons/common/phone.svg';
-import { AppHeader, Button, StepIndicator } from '../../components/common';
+import {
+  AppHeader,
+  Button,
+  DatePickerModal,
+  KeyboardAwareInputProvider,
+  KeyboardAwareTextInput,
+  StepIndicator,
+} from '../../components/common';
 import {
   type AdoptionApplicationDraft,
   getAdoptionApplicationDraft,
@@ -232,29 +239,38 @@ function ChoiceGroup({
 }
 
 function CalendarField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const parsedValue = value.split('.').map(Number);
+  const selectedValue = value
+    ? new Date(parsedValue[0], parsedValue[1] - 1, parsedValue[2])
+    : new Date();
   const openCalendar = () => {
-    DateTimePickerAndroid.open({
-      value: value ? new Date(value.replaceAll('.', '-')) : new Date(),
-      mode: 'date',
-      minimumDate: new Date(),
-      onChange: (_event, selectedDate) => {
-        if (selectedDate) {
+    Keyboard.dismiss();
+    setCalendarOpen(true);
+  };
+
+  return (
+    <>
+      <Pressable accessibilityRole="button" onPress={openCalendar} style={styles.calendarField}>
+        <Text style={[styles.calendarText, !value && styles.placeholder]}>
+          {value || '날짜를 선택해 주세요'}
+        </Text>
+        <CalendarIcon />
+      </Pressable>
+      <DatePickerModal
+        minimumDate={new Date()}
+        onClose={() => setCalendarOpen(false)}
+        onConfirm={selectedDate => {
           const year = selectedDate.getFullYear();
           const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
           const day = String(selectedDate.getDate()).padStart(2, '0');
           onChange(`${year}.${month}.${day}`);
-        }
-      },
-    });
-  };
-
-  return (
-    <Pressable accessibilityRole="button" onPress={openCalendar} style={styles.calendarField}>
-      <Text style={[styles.calendarText, !value && styles.placeholder]}>
-        {value || '날짜를 선택해 주세요'}
-      </Text>
-      <CalendarIcon />
-    </Pressable>
+          setCalendarOpen(false);
+        }}
+        value={selectedValue}
+        visible={calendarOpen}
+      />
+    </>
   );
 }
 
@@ -278,7 +294,7 @@ function FormInput({
   onChangeText?: (value: string) => void;
 }) {
   return (
-    <TextInput
+    <KeyboardAwareTextInput
       autoCapitalize={autoCapitalize}
       editable={editable}
       keyboardType={keyboardType}
@@ -325,7 +341,7 @@ export function AdoptionApplicationScreen({ navigation, route }: Props) {
   const [draftToResume, setDraftToResume] = useState<AdoptionApplicationDraft<FormState> | null>(
     null,
   );
-  const scrollRef = useRef<ScrollViewInstance>(null);
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const locationSelection = useAdoptionLocationStore(state => state.selection);
   const appliedLocationIdRef = useRef(locationSelection.id);
   const applicantResult = useAdoptionApplicantStore(state => state.result);
@@ -467,15 +483,22 @@ export function AdoptionApplicationScreen({ navigation, route }: Props) {
         <StepIndicator currentStep={Math.min(step, 4)} totalSteps={4} />
         <Text style={styles.progressLabel}>{stepLabels[step - 1]}</Text>
       </View>
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={[styles.content, step === 5 && styles.finalContent]}
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
-        onTouchStart={Keyboard.dismiss}
-        scrollEnabled={step !== 5}
-        showsVerticalScrollIndicator={false}
-      >
+      <KeyboardAwareInputProvider scrollRef={scrollRef}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardArea}
+        >
+          <ScrollView
+          ref={scrollRef}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+          contentContainerStyle={[styles.content, step === 5 && styles.finalContent]}
+          decelerationRate="fast"
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          onTouchStart={Keyboard.dismiss}
+          scrollEnabled={step !== 5}
+          showsVerticalScrollIndicator={false}
+        >
         {step === 1 ? (
           <StepOne
             form={form}
@@ -537,7 +560,9 @@ export function AdoptionApplicationScreen({ navigation, route }: Props) {
             </Button>
           </View>
         )}
-      </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </KeyboardAwareInputProvider>
       <Modal
         animationType="fade"
         onRequestClose={navigation.goBack}
@@ -638,8 +663,7 @@ function StepOne({
       <View style={styles.profileCard}>
         <View style={styles.profileHeader}>
           <Text style={styles.profileName}>
-            {form.applicantName}　
-            <Text style={styles.profileMeta}>{form.applicantBirthDate}</Text>
+            {form.applicantName}　<Text style={styles.profileMeta}>{form.applicantBirthDate}</Text>
           </Text>
           <Pressable
             accessibilityLabel="신청자 정보 수정"
@@ -955,6 +979,7 @@ function StepFour({ form, update }: StepProps) {
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
+  keyboardArea: { flex: 1 },
   headerSaveText: {
     ...typography.bodySemiBold16,
     color: colors.green400,

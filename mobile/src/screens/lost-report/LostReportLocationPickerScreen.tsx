@@ -234,8 +234,8 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
           isAdoptionLocation
             ? '양육 예정 장소 선택'
             : isFoundReportLocation
-              ? '발견 장소 선택'
-              : '실종 장소 선택'
+            ? '발견 장소 선택'
+            : '실종 장소 선택'
         }
       />
       <View style={styles.searchSection}>
@@ -307,7 +307,11 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
         {candidates ? (
           <View style={styles.resultsPanel}>
             {candidates.length ? (
-              <ScrollView keyboardShouldPersistTaps="handled" style={styles.resultsScroll}>
+              <ScrollView
+                decelerationRate="fast"
+                keyboardShouldPersistTaps="handled"
+                style={styles.resultsScroll}
+              >
                 {candidates.map(candidate => (
                   <Pressable
                     key={`${candidate.latitude}-${candidate.longitude}`}

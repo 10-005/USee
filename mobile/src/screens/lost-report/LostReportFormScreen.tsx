@@ -1,7 +1,6 @@
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type ComponentRef } from 'react';
 import {
   BackHandler,
   Keyboard,
@@ -11,7 +10,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +17,15 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { RootStackParamList } from '../../app/navigation/types';
 import CalendarIcon from '../../assets/icons/common/calendar.svg';
 import LocationIcon from '../../assets/icons/common/location.svg';
-import { AppHeader, StepIndicator, Switch } from '../../components/common';
+import {
+  AppHeader,
+  DatePickerModal,
+  KeyboardAwareInputProvider,
+  KeyboardAwareTextInput,
+  StepIndicator,
+  Switch,
+  TimePickerModal,
+} from '../../components/common';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
 import { useLostReportEditStore } from '../../stores/lostReportEditStore';
 import { colors, radius, typography } from '../../theme';
@@ -59,6 +65,7 @@ function formatPhone(value: string) {
 
 export function LostReportFormScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const details = useLostReportDraftStore(state => state.details);
   const resetDraft = useLostReportDraftStore(state => state.resetDraft);
   const updateDetails = useLostReportDraftStore(state => state.updateDetails);
@@ -66,12 +73,11 @@ export function LostReportFormScreen({ navigation, route }: Props) {
   const isEditing = Boolean(route.params?.reportId);
   const [step, setStep] = useState<Step>(3);
   const [error, setError] = useState('');
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [pendingDate, setPendingDate] = useState<Date | null>(null);
 
   const buttonInsetStyle = useMemo(() => ({ bottom: insets.bottom + 16 }), [insets.bottom]);
-  const contentInsetStyle = useMemo(
-    () => ({ paddingBottom: insets.bottom + 92 }),
-    [insets.bottom],
-  );
+  const contentInsetStyle = useMemo(() => ({ paddingBottom: insets.bottom + 92 }), [insets.bottom]);
   const canContinue =
     step === 3
       ? Boolean(details.lostAt && details.location.trim())
@@ -99,32 +105,15 @@ export function LostReportFormScreen({ navigation, route }: Props) {
 
   const openDateTimePicker = () => {
     Keyboard.dismiss();
+    setDatePickerOpen(true);
+  };
+
+  const selectLostDate = (date: Date) => {
     const current = details.lostAt ? new Date(details.lostAt) : new Date();
-    DateTimePickerAndroid.open({
-      maximumDate: new Date(),
-      mode: 'date',
-      value: current,
-      onChange: (event, selectedDate) => {
-        if (event.type !== 'set' || !selectedDate) {
-          return;
-        }
-        const selected = new Date(selectedDate);
-        selected.setHours(current.getHours(), current.getMinutes(), 0, 0);
-        DateTimePickerAndroid.open({
-          is24Hour: false,
-          mode: 'time',
-          value: selected,
-          onChange: (timeEvent, selectedTime) => {
-            if (timeEvent.type !== 'set' || !selectedTime) {
-              return;
-            }
-            selected.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
-            updateDetails({ lostAt: selected.toISOString() });
-            setError('');
-          },
-        });
-      },
-    });
+    const selected = new Date(date);
+    selected.setHours(current.getHours(), current.getMinutes(), 0, 0);
+    setDatePickerOpen(false);
+    setPendingDate(selected);
   };
 
   const openLocationPicker = () => {
@@ -159,7 +148,7 @@ export function LostReportFormScreen({ navigation, route }: Props) {
           : details.location,
         name: animal.name || animal.breed,
         neutered: animal.neutered === true,
-        species: animal.species === '강아지' ? '개' : animal.species as '고양이' | '기타',
+        species: animal.species === '강아지' ? '개' : (animal.species as '고양이' | '기타'),
         weight: animal.weight === null ? '모름' : `${animal.weight}kg`,
       });
       resetDraft();
@@ -176,12 +165,16 @@ export function LostReportFormScreen({ navigation, route }: Props) {
       <View style={styles.indicator}>
         <StepIndicator currentStep={step} totalSteps={4} />
       </View>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}
-      >
-        <ScrollView
+      <KeyboardAwareInputProvider scrollRef={scrollRef}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.flex}
+        >
+          <ScrollView
+            ref={scrollRef}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           contentContainerStyle={[styles.content, contentInsetStyle]}
+          decelerationRate="fast"
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           onTouchStart={Keyboard.dismiss}
@@ -198,8 +191,9 @@ export function LostReportFormScreen({ navigation, route }: Props) {
           ) : (
             <ContactStep details={details} error={error} onUpdate={updateDetails} />
           )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </KeyboardAwareInputProvider>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled: !canContinue }}
@@ -216,6 +210,25 @@ export function LostReportFormScreen({ navigation, route }: Props) {
           {step === 3 ? '다음' : isEditing ? '게시글 수정' : '게시글 등록'}
         </Text>
       </Pressable>
+      <DatePickerModal
+        maximumDate={new Date()}
+        onClose={() => setDatePickerOpen(false)}
+        onConfirm={selectLostDate}
+        title="실종일 선택"
+        value={details.lostAt ? new Date(details.lostAt) : new Date()}
+        visible={datePickerOpen}
+      />
+      <TimePickerModal
+        onClose={() => setPendingDate(null)}
+        onConfirm={selected => {
+          updateDetails({ lostAt: selected.toISOString() });
+          setError('');
+          setPendingDate(null);
+        }}
+        title="실종 시간 선택"
+        value={pendingDate ?? new Date()}
+        visible={pendingDate !== null}
+      />
     </SafeAreaView>
   );
 }
@@ -256,7 +269,7 @@ function LostInformationStep({
       </Pressable>
 
       <Text style={[styles.label, styles.detailAddressLabel]}>상세주소</Text>
-      <TextInput
+      <KeyboardAwareTextInput
         maxLength={100}
         onChangeText={detailAddress => onUpdate({ detailAddress })}
         placeholder="예: 인동도서관 앞"
@@ -293,7 +306,7 @@ function ContactStep({
         />
       </View>
       <Text style={[styles.label, !details.exposeContact && styles.disabledLabel]}>전화번호</Text>
-      <TextInput
+      <KeyboardAwareTextInput
         editable={details.exposeContact}
         keyboardType="phone-pad"
         onChangeText={contact => onUpdate({ contact: formatPhone(contact) })}

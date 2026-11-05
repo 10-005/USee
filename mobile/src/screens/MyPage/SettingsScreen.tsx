@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -20,6 +19,7 @@ import type { RootStackParamList } from '../../app/navigation/types';
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import LeftArrowIcon from '../../assets/icons/common/left-arrow.svg';
 import ChevronRightIcon from '../../assets/icons/mypage/chevron-right.svg';
+import { TimePickerModal } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import {
   type NotificationSettingKey,
@@ -51,6 +51,7 @@ export function SettingsScreen({ navigation }: Props) {
   const resetBookmarks = useAdoptionBookmarkStore(state => state.reset);
   const [notificationsAllowed, setNotificationsAllowed] = useState(true);
   const [accountModal, setAccountModal] = useState<AccountModal>(null);
+  const [activeTimeField, setActiveTimeField] = useState<'start' | 'end' | null>(null);
 
   const readNotificationPermission = useCallback(async () => {
     if (Platform.OS !== 'android' || Number(Platform.Version) < 33) {
@@ -83,31 +84,14 @@ export function SettingsScreen({ navigation }: Props) {
   };
 
   const openTimePicker = (field: 'start' | 'end') => {
-    const savedTime = field === 'start' ? settings.doNotDisturbStart : settings.doNotDisturbEnd;
-    const [hour = 0, minute = 0] = savedTime.split(':').map(Number);
-    const value = new Date();
-    value.setHours(hour, minute, 0, 0);
-
-    DateTimePickerAndroid.open({
-      display: 'spinner',
-      is24Hour: true,
-      mode: 'time',
-      onChange: (_, selectedTime) => {
-        if (!selectedTime) {
-          return;
-        }
-        const formatted = `${String(selectedTime.getHours()).padStart(2, '0')}:${String(
-          selectedTime.getMinutes(),
-        ).padStart(2, '0')}`;
-        if (field === 'start') {
-          settings.setDoNotDisturbStart(formatted);
-        } else {
-          settings.setDoNotDisturbEnd(formatted);
-        }
-      },
-      value,
-    });
+    setActiveTimeField(field);
   };
+
+  const selectedTime = new Date();
+  const savedTime =
+    activeTimeField === 'end' ? settings.doNotDisturbEnd : settings.doNotDisturbStart;
+  const [selectedHour = 0, selectedMinute = 0] = savedTime.split(':').map(Number);
+  selectedTime.setHours(selectedHour, selectedMinute, 0, 0);
 
   const completeLogout = () => {
     resetUserState();
@@ -137,7 +121,11 @@ export function SettingsScreen({ navigation }: Props) {
         <Text style={styles.headerTitle}>환경설정</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        decelerationRate="fast"
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.sectionTitle}>알림 설정</Text>
         <View style={styles.settingsBody}>
           <Pressable
@@ -211,6 +199,23 @@ export function SettingsScreen({ navigation }: Props) {
         onCancel={() => setAccountModal(null)}
         onConfirm={accountModal === 'withdraw' ? completeWithdrawal : completeLogout}
         type={accountModal}
+      />
+      <TimePickerModal
+        onClose={() => setActiveTimeField(null)}
+        onConfirm={time => {
+          const formatted = `${String(time.getHours()).padStart(2, '0')}:${String(
+            time.getMinutes(),
+          ).padStart(2, '0')}`;
+          if (activeTimeField === 'start') {
+            settings.setDoNotDisturbStart(formatted);
+          } else if (activeTimeField === 'end') {
+            settings.setDoNotDisturbEnd(formatted);
+          }
+          setActiveTimeField(null);
+        }}
+        title={activeTimeField === 'end' ? '종료 시간 선택' : '시작 시간 선택'}
+        value={selectedTime}
+        visible={activeTimeField !== null}
       />
     </SafeAreaView>
   );

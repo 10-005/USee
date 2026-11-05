@@ -34,6 +34,7 @@ export function NoticeListScreen({ navigation }: Props) {
       {notices.length ? (
         <FlatList
           data={notices}
+          decelerationRate="fast"
           keyExtractor={item => item.id}
           renderItem={renderNotice}
           showsVerticalScrollIndicator={false}

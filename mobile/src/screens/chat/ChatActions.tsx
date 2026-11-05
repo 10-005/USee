@@ -59,7 +59,11 @@ export function ChatActions({ action, onChoose, onClose, onLeave }: Props) {
         style={[styles.overlay, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
       >
         <View accessibilityViewIsModal style={styles.card}>
-          <ScrollView bounces={false} contentContainerStyle={styles.content}>
+          <ScrollView
+            bounces={false}
+            contentContainerStyle={styles.content}
+            decelerationRate="fast"
+          >
             <Text style={styles.title}>채팅방을 나가시겠습니까?</Text>
             <Text style={styles.body}>삭제된 대화 내역은 복원할 수 없습니다.</Text>
             <View style={styles.actions}>

@@ -1,4 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { FlatList } from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { startMockAdoption } from '../../services/storage/mockAdoptionStorage';
@@ -79,6 +80,37 @@ test('my page resumes an active adoption without asking for the budget again', a
     await renderer.root.findAllByProps({ accessibilityLabel: '모의입양' })[0].props.onPress();
   });
   expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionActivity', { petId: 'dog-3' });
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('returning to adoption resets the hidden search and filter header', async () => {
+  const props = {
+    navigation: { navigate: mockNavigate },
+    route: { key: 'home', name: 'Home' },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'Home'>;
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<HomeScreen {...props} />);
+  });
+
+  await ReactTestRenderer.act(() => {
+    renderer.root.findByType(FlatList).props.onScroll({
+      nativeEvent: { contentOffset: { y: 180 } },
+    });
+  });
+  expect(renderer!.root.findAll(node => node.props.pointerEvents === 'none')).not.toHaveLength(0);
+
+  await ReactTestRenderer.act(() => {
+    renderer.root.findAllByProps({ accessibilityLabel: '찾아요' })[0].props.onPress();
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.root.findAllByProps({ accessibilityLabel: '입양' })[0].props.onPress();
+  });
+
+  expect(renderer!.root.findAll(node => node.props.pointerEvents === 'none')).toHaveLength(0);
+  expect(
+    renderer!.root.findAllByProps({ placeholder: '특징으로 검색해보세요' }).length,
+  ).toBeGreaterThan(0);
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 

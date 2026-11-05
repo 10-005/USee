@@ -1,12 +1,25 @@
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState } from 'react';
-import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useMemo, useRef, useState, type ComponentRef } from 'react';
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import CalendarIcon from '../../assets/icons/common/calendar.svg';
-import { AppHeader } from '../../components/common';
+import {
+  AppHeader,
+  DatePickerModal,
+  KeyboardAwareInputProvider,
+  KeyboardAwareTextInput,
+} from '../../components/common';
 import { useAdoptionApplicantStore } from '../../stores/adoptionApplicantStore';
 import { colors, radius, typography } from '../../theme';
 import {
@@ -21,12 +34,14 @@ type Props = NativeStackScreenProps<RootStackParamList, 'AdoptionApplicantEdit'>
 
 export function AdoptionApplicantEditScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const draft = useAdoptionApplicantStore(state => state.draft);
   const save = useAdoptionApplicantStore(state => state.save);
   const [name, setName] = useState(draft.name);
   const [birthDate, setBirthDate] = useState(draft.birthDate);
   const [phone, setPhone] = useState(draft.phone);
   const [touched, setTouched] = useState({ name: false, phone: false });
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const nameError = getNameError(name);
   const phoneError = isValidPhoneNumber(phone) ? null : '올바른 휴대폰 번호를 입력해주세요.';
@@ -37,12 +52,7 @@ export function AdoptionApplicantEditScreen({ navigation }: Props) {
 
   const openDatePicker = () => {
     Keyboard.dismiss();
-    DateTimePickerAndroid.open({
-      maximumDate: new Date(),
-      mode: 'date',
-      onChange: (_, date) => date && setBirthDate(formatDate(date)),
-      value: parseDate(birthDate),
-    });
+    setDatePickerOpen(true);
   };
 
   const submit = () => {
@@ -56,16 +66,24 @@ export function AdoptionApplicantEditScreen({ navigation }: Props) {
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <AppHeader onBackPress={navigation.goBack} title="신청자 정보 수정" />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
-        onTouchStart={Keyboard.dismiss}
-        showsVerticalScrollIndicator={false}
-      >
+      <KeyboardAwareInputProvider scrollRef={scrollRef}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardArea}
+        >
+          <ScrollView
+            ref={scrollRef}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+          contentContainerStyle={styles.content}
+          decelerationRate="fast"
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          onTouchStart={Keyboard.dismiss}
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.field}>
           <Text style={styles.label}>이름</Text>
-          <TextInput
+          <KeyboardAwareTextInput
             maxLength={20}
             onBlur={() => setTouched(current => ({ ...current, name: true }))}
             onChangeText={setName}
@@ -85,7 +103,7 @@ export function AdoptionApplicantEditScreen({ navigation }: Props) {
 
         <View style={styles.field}>
           <Text style={styles.label}>휴대폰</Text>
-          <TextInput
+          <KeyboardAwareTextInput
             keyboardType="number-pad"
             maxLength={13}
             onBlur={() => setTouched(current => ({ ...current, phone: true }))}
@@ -95,7 +113,9 @@ export function AdoptionApplicantEditScreen({ navigation }: Props) {
           />
           {touched.phone && phoneError ? <Text style={styles.errorText}>{phoneError}</Text> : null}
         </View>
-      </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </KeyboardAwareInputProvider>
 
       <View style={[styles.bottomArea, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <Pressable
@@ -106,12 +126,24 @@ export function AdoptionApplicantEditScreen({ navigation }: Props) {
           <Text style={styles.submitText}>수정하기</Text>
         </Pressable>
       </View>
+      <DatePickerModal
+        maximumDate={new Date()}
+        onClose={() => setDatePickerOpen(false)}
+        onConfirm={date => {
+          setBirthDate(formatDate(date));
+          setDatePickerOpen(false);
+        }}
+        title="생년월일 선택"
+        value={parseDate(birthDate)}
+        visible={datePickerOpen}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
+  keyboardArea: { flex: 1 },
   content: { paddingBottom: 110, paddingHorizontal: 26 },
   field: { marginTop: 18 },
   label: { ...typography.bodySemiBold16, color: colors.black, marginBottom: 10 },

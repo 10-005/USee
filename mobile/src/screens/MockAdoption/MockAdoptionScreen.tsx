@@ -49,7 +49,11 @@ export function MockAdoptionScreen() {
           </Pressable>
         ))}
       </View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.grid}>
+      <ScrollView
+        contentContainerStyle={styles.grid}
+        decelerationRate="fast"
+        showsVerticalScrollIndicator={false}
+      >
         {mockAdoptionPets
           .filter(pet => pet.category === category)
           .map(pet => {

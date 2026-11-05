@@ -47,7 +47,9 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={colors.white} />
       ) : typeof children === 'string' ? (
-        <Text style={[styles.label, styles[`${variant}Label`]]}>{children}</Text>
+        <Text maxFontSizeMultiplier={1.15} style={[styles.label, styles[`${variant}Label`]]}>
+          {children}
+        </Text>
       ) : (
         children
       )}

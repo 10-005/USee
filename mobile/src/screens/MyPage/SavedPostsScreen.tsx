@@ -203,6 +203,7 @@ export function SavedPostsScreen({ navigation }: Props) {
         columnWrapperStyle={posts.length ? styles.columns : undefined}
         contentContainerStyle={[styles.list, !posts.length && styles.emptyList]}
         data={posts}
+        decelerationRate="fast"
         key={activeTab}
         keyExtractor={item => item.id}
         numColumns={2}
