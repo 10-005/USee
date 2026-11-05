@@ -21,7 +21,7 @@ class DogLeader(
   private var poopDeposited = false
 
   fun beginPoop(rightX: Float, rightZ: Float) {
-    if (!placed || poopStage != null) return
+    if (!placed || poopStage != null || commandedHold != null) return
     val length = hypot(rightX, rightZ)
     if (length < 0.001f) return
     poopOriginX = x
@@ -70,7 +70,7 @@ class DogLeader(
     trustedSegment(cameraX, cameraZ, targetX, targetZ) || wallAvoidance.isClear(cameraX, cameraZ, targetX, targetZ, floorY)
 
   fun requestPlacement() {
-    if (poopStage != null) return
+    if (poopStage != null || commandedHold != null) return
     placementRequested = true
   }
 
@@ -79,6 +79,7 @@ class DogLeader(
   }
 
   fun requestRecall() {
+    if (commandedHold != null) return
     if (placed && poopStage == null) recalling = true
   }
 
@@ -86,12 +87,29 @@ class DogLeader(
     if (meters.isFinite() && meters >= 0f) leashLength = meters
   }
 
-  fun needsUnrestrictedReturn(cameraX: Float, cameraZ: Float): Boolean = placed && poopStage == null &&
+  fun needsUnrestrictedReturn(cameraX: Float, cameraZ: Float): Boolean = placed && poopStage == null && commandedHold == null &&
     (recalling || returning || leashLength >= 2f || hypot(cameraX - x, cameraZ - z) >= 2f)
 
   fun requestAction(action: String) {
-    if (placed && poopStage == null) animations.request(action)
+    if (!placed || poopStage != null) return
+    if (action == "sit" || action == "stop" || action == "go") {
+      val next = if (action == "go") null else action
+      if (commandedHold == next) return
+      commandedHold = next
+      animations.pause()
+      recalling = false
+      returning = false
+      placementRequested = false
+      speed = 0f
+      moving = false
+      floorPath.clear()
+      return
+    }
+    if (commandedHold != null) return
+    animations.request(action)
   }
+
+  private var commandedHold: String? = null
 
   fun pauseTracking() {
     hasCamera = false
@@ -186,6 +204,15 @@ class DogLeader(
     previousCameraX = cameraX
     previousCameraZ = cameraZ
     hasCamera = true
+    if (placed && commandedHold != null) {
+      speed = 0f
+      moving = false
+      blocked = false
+      userMoving = hypot(velocityX, velocityZ) > 0.15f
+      stopReason = ""
+      animations.holdPosition(commandedHold == "sit", dt)
+      return frame(true, 0f)
+    }
     val along = velocityX * headingX + velocityZ * headingZ
     if (along < -0.25f) backing = true
     if (along > -0.08f) backing = false
