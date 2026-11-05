@@ -44,6 +44,7 @@ export type Rescue = {
   memo: string;
 };
 export type ShelterAnimalRecord = ShelterAnimal & {
+  breedCode?: string;
   noticeNumber?: string;
   rescueId?: string;
   images?: string[];

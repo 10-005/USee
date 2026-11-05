@@ -14,10 +14,16 @@ import { Button } from '@/shared/ui/Button';
 import { LinkedRescueCard } from '@/pages/animals/LinkedRescueCard';
 import { Modal } from '@/shared/ui/Modal';
 import { animalStatuses } from './animal-statuses';
-import { breedColors } from './breed-options';
+import { breedsFor } from './breed-options';
 import { localDate } from '@/shared/lib/date';
 import { readImageDataUrl } from '@/shared/lib/image';
 import pencil from '@/shared/assets/icons/edit-pencil.svg';
+
+function optionsWithOtherLast(names: string[]) {
+  const options = new Set(names);
+  if (options.delete('기타')) options.add('기타');
+  return [...options];
+}
 
 export function AnimalFormPage() {
   const { id } = useParams();
@@ -43,17 +49,12 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
   );
   const [breed, setBreed] = useState(animal?.name ?? '');
   const [color, setColor] = useState(animal?.color ?? '');
-  const breeds = species ? Object.keys(breedColors[species]) : [];
-  if (animal?.species === species && !breeds.includes(animal.name)) breeds.push(animal.name);
-  const colors =
-    species && breed ? [...(breedColors[species][breed] ?? breedColors[species]['기타']!)] : [];
-  if (
-    animal?.species === species &&
-    animal.name === breed &&
-    animal.color &&
-    !colors.includes(animal.color)
-  )
-    colors.push(animal.color);
+  const breeds = breedsFor(species);
+  const breedNames = optionsWithOtherLast(breeds.map((item) => item.name));
+  const matchingBreeds = breeds.filter((item) => item.name === breed);
+  const colorNames = matchingBreeds.flatMap((item) => item.colors.map((c) => c.name));
+  if (color && animal?.color === color && !colorNames.includes(color)) colorNames.unshift(color);
+  const colors = optionsWithOtherLast(colorNames);
   const [sex, setSex] = useState<ShelterAnimalRecord['sex'] | ''>(animal?.sex ?? '');
   const [neutered, setNeutered] = useState<ShelterAnimalRecord['neutered'] | ''>(
     animal?.neutered ?? '',
@@ -130,12 +131,21 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
     setError('');
     try {
       const images = [...existing, ...(await Promise.all(files.map(readImageDataUrl)))];
+      const colorMatches = matchingBreeds.filter((item) =>
+        item.colors.some((c) => c.name === color),
+      );
+      const savedBreed = matchingBreeds.find((item) => item.code === animal?.breedCode);
+      const sourceBreed =
+        savedBreed && (colorMatches.includes(savedBreed) || !colorMatches.length)
+          ? savedBreed
+          : (colorMatches[0] ?? matchingBreeds[0]);
       const next: ShelterAnimalRecord = {
         ...animal,
         rescueId: rescue?.id ?? animal?.rescueId,
         id: animal?.id ?? `animal-${crypto.randomUUID().slice(0, 8)}`,
         registeredAt: animal?.registeredAt ?? localDate(),
         name: breed,
+        breedCode: sourceBreed?.code,
         species,
         sex,
         neutered,
@@ -255,8 +265,11 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
             <option value="" disabled>
               {species ? '품종 선택' : '동물 종류를 먼저 선택해 주세요'}
             </option>
-            {breeds.map((name) => (
-              <option key={name}>{name}</option>
+            {breed && !breedNames.includes(breed) && <option value={breed}>{breed}</option>}
+            {breedNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
             ))}
           </SelectField>
           <SelectField
