@@ -29,6 +29,7 @@ type ShopState = ShopSnapshot & {
   selectAll: (ids: string[]) => void;
   remove: (ids: string[]) => void;
   checkout: (species: Species) => string | null;
+  consume: (requirements: Record<string, number>, ownedItemId?: string) => boolean;
 };
 export const cartTotal = (cart: Record<string, number>, ids = Object.keys(cart)) =>
   ids.reduce((sum, id) => sum + (findProduct(id)?.price ?? 0) * (cart[id] ?? 0), 0);
@@ -54,6 +55,7 @@ export const useShopStore = create<ShopState>((set, get) => {
     spent: 0,
     cart: {},
     inventory: {},
+    ownedItems: [],
     selectedIds: [],
     ready: false,
     error: null,
@@ -68,6 +70,7 @@ export const useShopStore = create<ShopState>((set, get) => {
         spent: saved?.spent ?? 0,
         cart: saved?.cart ?? {},
         inventory: saved?.inventory ?? {},
+        ownedItems: saved?.ownedItems ?? [],
         selectedIds: saved?.selectedIds ?? [],
       };
       writeShopSnapshot(snapshot);
@@ -161,17 +164,63 @@ export const useShopStore = create<ShopState>((set, get) => {
       }
       const total = cartTotal(state.cart, ids);
       const inventory = { ...state.inventory };
+      const ownedItems = [...state.ownedItems];
       for (const id of ids) {
-        inventory[id] = (inventory[id] ?? 0) + state.cart[id] * findProduct(id)!.qty;
+        const capacity = findProduct(id)!.qty;
+        const previousCount = ownedItems.filter(item => item.productId === id).length;
+        for (let i = 1; i <= state.cart[id]; i += 1) {
+          ownedItems.push({
+            id: `${state.sessionKey}:${id}:${previousCount + i}`,
+            productId: id,
+            capacity,
+            remaining: capacity,
+          });
+        }
+        inventory[id] = (inventory[id] ?? 0) + state.cart[id] * capacity;
       }
       return commit({
         inventory,
+        ownedItems,
         spent: state.spent + total,
         cart: Object.fromEntries(Object.entries(state.cart).filter(([id]) => !ids.includes(id))),
         selectedIds: [],
       })
         ? null
         : storageError;
+    },
+    consume: (requirements, ownedItemId) => {
+      const state = get();
+      if (!state.ready || Date.now() >= state.expiresAt || !Object.keys(requirements).length) {
+        return false;
+      }
+      const ownedItems = state.ownedItems.map(item => ({ ...item }));
+      const inventory = { ...state.inventory };
+      for (const [id, amount] of Object.entries(requirements)) {
+        const product = findProduct(id);
+        if (
+          !product ||
+          product.kind !== 'consumable' ||
+          !Number.isSafeInteger(amount) ||
+          amount < 1
+        ) {
+          return false;
+        }
+        const candidates = ownedItems.filter(
+          item => item.productId === id && (!ownedItemId || item.id === ownedItemId),
+        );
+        if (candidates.reduce((sum, item) => sum + item.remaining, 0) < amount) {
+          set({ error: `${product.name}이 부족해요. 상점에서 구매해주세요.` });
+          return false;
+        }
+        let needed = amount;
+        for (const item of candidates) {
+          const used = Math.min(item.remaining, needed);
+          item.remaining -= used;
+          needed -= used;
+        }
+        inventory[id] = (inventory[id] ?? 0) - amount;
+      }
+      return commit({ ownedItems, inventory });
     },
   };
 });

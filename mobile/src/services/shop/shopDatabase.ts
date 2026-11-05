@@ -2,6 +2,7 @@ import { open, type DB } from '@op-engineering/op-sqlite';
 import seed from './products.json';
 import type { Product } from './catalog';
 
+export type OwnedItem = { id: string; productId: string; capacity: number; remaining: number };
 export type ShopSnapshot = {
   sessionKey: string;
   budget: number;
@@ -9,6 +10,7 @@ export type ShopSnapshot = {
   spent: number;
   cart: Record<string, number>;
   inventory: Record<string, number>;
+  ownedItems: OwnedItem[];
   selectedIds: string[];
 };
 
@@ -61,6 +63,34 @@ export function migrateShopBudgetV3(db: DB): void {
   }
 }
 
+export function migrateShopOwnedItemsV4(db: DB): void {
+  transaction(db, () => {
+    db.executeSync(`CREATE TABLE owned_items (
+      id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES shop_sessions(id) ON DELETE CASCADE,
+      product_id TEXT NOT NULL REFERENCES products(id), capacity INTEGER NOT NULL CHECK(capacity > 0),
+      remaining INTEGER NOT NULL CHECK(remaining >= 0 AND remaining <= capacity))`);
+    const rows = db.executeSync(
+      'SELECT i.*, p.bundle_quantity FROM inventory_items i JOIN products p ON p.id=i.product_id',
+    ).rows;
+    for (const row of rows) {
+      const capacity = Number(row.bundle_quantity);
+      let remaining = Number(row.quantity);
+      for (let index = 1; remaining > 0; index += 1) {
+        const units = Math.min(capacity, remaining);
+        db.executeSync('INSERT INTO owned_items VALUES (?, ?, ?, ?, ?)', [
+          `${row.session_id}:${row.product_id}:${index}`,
+          row.session_id,
+          row.product_id,
+          capacity,
+          units,
+        ]);
+        remaining -= units;
+      }
+    }
+    db.executeSync('PRAGMA user_version = 4');
+  });
+}
+
 // A private on-device SQLite file; the JSON is used only as first-install seed.
 export function getShopDatabase(): DB {
   if (database) {
@@ -71,7 +101,7 @@ export function getShopDatabase(): DB {
     db.executeSync('PRAGMA foreign_keys = ON');
     db.executeSync('PRAGMA journal_mode = WAL');
     const version = Number(db.executeSync('PRAGMA user_version').rows[0].user_version);
-    if (version > 3) {
+    if (version > 4) {
       throw new Error('Unsupported shop database version');
     }
     if (version === 0) {
@@ -117,6 +147,9 @@ export function getShopDatabase(): DB {
     if (version > 0 && version < 3) {
       migrateShopBudgetV3(db);
     }
+    if (version < 4) {
+      migrateShopOwnedItemsV4(db);
+    }
     database = db;
     return db;
   } catch (error) {
@@ -156,6 +189,10 @@ export function readShopSnapshot(sessionKey: string): ShopSnapshot | null {
   const inventoryRows = db.executeSync('SELECT * FROM inventory_items WHERE session_id = ?', [
     sessionKey,
   ]).rows;
+  const ownedRows = db.executeSync(
+    'SELECT * FROM owned_items WHERE session_id = ? ORDER BY rowid',
+    [sessionKey],
+  ).rows;
   return {
     sessionKey,
     budget: Number(row.budget),
@@ -166,6 +203,12 @@ export function readShopSnapshot(sessionKey: string): ShopSnapshot | null {
     inventory: Object.fromEntries(
       inventoryRows.map(r => [String(r.product_id), Number(r.quantity)]),
     ),
+    ownedItems: ownedRows.map(r => ({
+      id: String(r.id),
+      productId: String(r.product_id),
+      capacity: Number(r.capacity),
+      remaining: Number(r.remaining),
+    })),
   };
 }
 
@@ -180,6 +223,7 @@ export function writeShopSnapshot(state: ShopSnapshot): void {
     );
     db.executeSync('DELETE FROM cart_items WHERE session_id = ?', [state.sessionKey]);
     db.executeSync('DELETE FROM inventory_items WHERE session_id = ?', [state.sessionKey]);
+    db.executeSync('DELETE FROM owned_items WHERE session_id = ?', [state.sessionKey]);
     for (const [id, quantity] of Object.entries(state.cart)) {
       db.executeSync('INSERT INTO cart_items VALUES (?, ?, ?, ?)', [
         state.sessionKey,
@@ -189,10 +233,22 @@ export function writeShopSnapshot(state: ShopSnapshot): void {
       ]);
     }
     for (const [id, quantity] of Object.entries(state.inventory)) {
+      if (quantity === 0) {
+        continue;
+      }
       db.executeSync('INSERT INTO inventory_items VALUES (?, ?, ?)', [
         state.sessionKey,
         id,
         quantity,
+      ]);
+    }
+    for (const item of state.ownedItems) {
+      db.executeSync('INSERT INTO owned_items VALUES (?, ?, ?, ?, ?)', [
+        item.id,
+        state.sessionKey,
+        item.productId,
+        item.capacity,
+        item.remaining,
       ]);
     }
   });

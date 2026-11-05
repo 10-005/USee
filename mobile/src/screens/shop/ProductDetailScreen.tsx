@@ -71,27 +71,38 @@ export function ProductDetailScreen({ navigation, route }: Props) {
               <Text style={[styles.price, styles.productPrice]}>{money(p.price)}</Text>
             </View>
             <Text style={s.body}>{p.description}</Text>
-            <View style={s.banner}>
-              <Text style={s.label}>상품 정보</Text>
-              <Text style={s.body}>
-                {p.species === 'all'
-                  ? '강아지·고양이 공용'
-                  : p.species === 'dog'
-                  ? '강아지 전용'
-                  : '고양이 전용'}{' '}
-                · 한 묶음 {p.qty}
-                {p.unit}
-              </Text>
-              <Text style={s.body}>
-                {p.kind === 'durable'
-                  ? '사용 후에도 다시 사용할 수 있는 물품이에요.'
-                  : '사용할 때마다 수량이 줄어드는 소모품이에요.'}
-              </Text>
-              <Text style={s.body}>
-                {p.placement === 'room' ? '방에 설치하는 물품' : '가방에 보관하는 물품'} · 보유{' '}
-                {shop.inventory[p.id] ?? 0}
-                {p.unit}
-              </Text>
+            <View style={styles.infoSection}>
+              <Text style={styles.sectionTitle}>상품 정보</Text>
+              {[
+                [
+                  '사용 대상',
+                  p.species === 'all'
+                    ? '강아지·고양이 공용'
+                    : p.species === 'dog'
+                    ? '강아지 전용'
+                    : '고양이 전용',
+                ],
+                ['상품 구성', `한 묶음 ${p.qty}${p.unit}`],
+                [
+                  '사용 방식',
+                  p.kind === 'durable'
+                    ? '사용 후에도 다시 사용할 수 있는 물품이에요.'
+                    : '사용할 때마다 수량이 줄어드는 소모품이에요.',
+                ],
+                [
+                  '보관 위치',
+                  p.placement === 'room' ? '방에 설치하는 물품' : '가방에 보관하는 물품',
+                ],
+                [
+                  p.kind === 'consumable' ? '남은 사용량' : '보유 수량',
+                  `${shop.inventory[p.id] ?? 0}${p.unit}`,
+                ],
+              ].map(([label, value]) => (
+                <View key={label} style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>{label}</Text>
+                  <Text style={styles.infoValue}>{value}</Text>
+                </View>
+              ))}
             </View>
             <Pressable
               accessibilityRole="button"
@@ -187,6 +198,11 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   );
 }
 const styles = StyleSheet.create({
+  infoSection: { borderTopWidth: 1, borderTopColor: colors.gray200, paddingVertical: 24, gap: 10 },
+  sectionTitle: { ...typography.titleBold18, color: colors.black, marginBottom: 8 },
+  infoRow: { flexDirection: 'row' },
+  infoLabel: { ...typography.bodyRegular14, color: colors.gray400, width: 55 },
+  infoValue: { ...typography.bodyRegular14, color: colors.black, flex: 1 },
   productName: { marginTop: 10 },
   productPrice: { marginTop: 16 },
   price: { ...typography.titleBold18, fontSize: 20, lineHeight: 28, color: colors.blue },

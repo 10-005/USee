@@ -69,19 +69,13 @@ export function ShopScreen({ navigation, route }: Props) {
         rightAction={
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="장바구니"
-            accessibilityValue={{ text: `${cartCount}개` }}
+            accessibilityLabel="보유 목록"
             style={styles.cartAction}
-            onPress={() => navigation.navigate('ShopCart', { petId })}
+            onPress={() => navigation.navigate('ShopInventory', { petId })}
           >
             <Text numberOfLines={1} style={s.green}>
-              장바구니
+              내 물건
             </Text>
-            {cartCount > 0 ? (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{cartCount}</Text>
-              </View>
-            ) : null}
           </Pressable>
         }
       />
@@ -250,17 +244,4 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   cartAction: { minHeight: 40, justifyContent: 'center', paddingRight: 6 },
-  cartBadge: {
-    position: 'absolute',
-    right: -6,
-    bottom: -2,
-    backgroundColor: colors.danger,
-    borderRadius: 12,
-    minWidth: 22,
-    minHeight: 18,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cartBadgeText: { ...typography.captionSemiBold12, color: colors.white },
 });
