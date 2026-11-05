@@ -5,6 +5,8 @@ import { ActivityIndicator, Pressable, Text, View, type NativeSyntheticEvent } f
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCameraPermission } from 'react-native-vision-camera';
 import { useShopStore } from '../../stores/shopStore';
+import { AppDialog } from '../../components/common/AppDialog';
+import { findProduct, money } from '../../services/shop/catalog';
 
 import { styles } from './ArWalkScreen.styles';
 import { useWalkVoice } from './useWalkVoice';
@@ -25,6 +27,28 @@ const STARTUP_ERRORS: Partial<Record<FloorTrackingStatus, string>> = {
 
 export function ArWalkScreen() {
   const shop = useShopStore();
+  const [bagPurchaseVisible, setBagPurchaseVisible] = useState(false);
+  const [bagPurchaseError, setBagPurchaseError] = useState('');
+  const purchasingBags = useRef(false);
+  const bagProduct = findProduct('bags');
+  const openBagPurchase = () => {
+    purchasingBags.current = false;
+    setBagPurchaseError('');
+    setBagPurchaseVisible(true);
+  };
+  const purchaseBags = () => {
+    if (purchasingBags.current) {
+      return;
+    }
+    purchasingBags.current = true;
+    const error = useShopStore.getState().buyWalkBags();
+    if (error) {
+      purchasingBags.current = false;
+      setBagPurchaseError(error);
+    } else {
+      setBagPurchaseVisible(false);
+    }
+  };
   const [cleanupResponse, setCleanupResponse] = useState('');
   const lastCleanupRequest = useRef(0);
   const isFocused = useIsFocused();
@@ -39,7 +63,9 @@ export function ArWalkScreen() {
   const [loadingDots, setLoadingDots] = useState(2);
   const [walkStartedAt, setWalkStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const voice = useWalkVoice(isFocused && hasPermission && status === 'anchored');
+  const voice = useWalkVoice(
+    isFocused && hasPermission && status === 'anchored' && !bagPurchaseVisible,
+  );
 
   useEffect(() => {
     if (walkStartedAt === null) {
@@ -106,6 +132,7 @@ export function ArWalkScreen() {
           onTracking={onTracking}
           bagAvailable={shop.ready && Date.now() < shop.expiresAt && (shop.inventory.bags ?? 0) > 0}
           cleanupResponse={cleanupResponse}
+          onBagPurchase={openBagPurchase}
           actionRequest={voice.actionRequest}
         />
       ) : (
@@ -181,7 +208,27 @@ export function ArWalkScreen() {
           {voice.isRecognizing ? <VoiceListeningDots /> : <VoiceGlowText text={voice.message} />}
         </View>
       )}
-
+      {bagPurchaseVisible && (
+        <AppDialog
+          title="배변봉투 구매"
+          message={[
+            bagProduct
+              ? `${bagProduct.name} 1묶음 (${bagProduct.qty}${bagProduct.unit}) · ${money(
+                  bagProduct.price,
+                )}`
+              : '배변봉투 상품 정보를 불러오지 못했어요.',
+            `남은 예산 ${money(shop.budget - shop.spent)}`,
+            '구매 금액은 모의 입양 예산에서 차감되고 보유 목록에 저장돼요.',
+            bagPurchaseError,
+          ]
+            .filter(Boolean)
+            .join('\n\n')}
+          confirmLabel="구매하기"
+          cancelLabel="취소"
+          onConfirm={purchaseBags}
+          onClose={() => setBagPurchaseVisible(false)}
+        />
+      )}
     </View>
   );
 }

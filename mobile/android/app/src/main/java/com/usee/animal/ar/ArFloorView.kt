@@ -194,7 +194,13 @@ class ArFloorView(
     traversalDebug = debug
     addView(view)
     addView(debug)
-    cleanup = WalkCleanupView(context, view).also {
+    cleanup = WalkCleanupView(context, view) {
+      if (active && !disposed) {
+        UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
+          BagPurchaseEvent(UIManagerHelper.getSurfaceId(this), id),
+        )
+      }
+    }.also {
       it.bagAvailable = bagAvailable
       addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
@@ -441,6 +447,12 @@ class ArFloorView(
       val rotation = display?.rotation ?: return
       session?.setDisplayGeometry(rotation, width, height)
     }
+  }
+
+  private class BagPurchaseEvent(surfaceId: Int, viewId: Int) : Event<BagPurchaseEvent>(surfaceId, viewId) {
+    override fun getEventName() = "topBagPurchase"
+    override fun canCoalesce() = false
+    override fun getEventData() = Arguments.createMap()
   }
 
   private class TrackingEvent(

@@ -33,6 +33,7 @@ type ArFloorNativeProps = ViewProps & {
   bagAvailable?: boolean;
   cleanupResponse?: string;
   onTracking?: (event: NativeSyntheticEvent<FloorTracking>) => void;
+  onBagPurchase?: () => void;
 };
 
 export const ArFloorView = requireNativeComponent<ArFloorNativeProps>('ArFloorView');
