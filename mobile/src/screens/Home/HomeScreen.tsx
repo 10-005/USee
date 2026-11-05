@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   FlatList,
   Alert,
   Image,
@@ -11,6 +12,8 @@ import {
   TextInput,
   useWindowDimensions,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -65,6 +68,10 @@ const initialFilters: AdoptionFilters = {
   species: '전체',
   status: '전체',
 };
+const SEARCH_FILTERS_HEIGHT = 120;
+const HIDE_CONTROLS_OFFSET = 80;
+const HIDE_DIRECTION_DISTANCE = 24;
+const SHOW_DIRECTION_DISTANCE = 12;
 const navigationItems = [
   {
     key: 'adoption',
@@ -110,6 +117,12 @@ export function HomeScreen({ navigation }: Props) {
   const cardWidth = (screenWidth - 52) / 2;
   const [query, setQuery] = useState('');
   const listRef = useRef<FlatList<AdoptionAnimal>>(null);
+  const controlsProgress = useRef(new Animated.Value(1)).current;
+  const controlsVisibleRef = useRef(true);
+  const lastScrollOffset = useRef(0);
+  const scrollDirection = useRef<'down' | 'up' | null>(null);
+  const scrollDirectionDistance = useRef(0);
+  const [controlsVisible, setControlsVisible] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
   const [registrationMenuOpen, setRegistrationMenuOpen] = useState(false);
   const [filterValues, setFilterValues] = useState(initialFilters);
@@ -148,6 +161,69 @@ export function HomeScreen({ navigation }: Props) {
     );
   }, [filterValues, query]);
   const listKey = `${query}-${Object.values(filterValues).join('-')}`;
+
+  const updateControlsVisibility = useCallback(
+    (visible: boolean) => {
+      if (controlsVisibleRef.current === visible) {
+        return;
+      }
+      controlsVisibleRef.current = visible;
+      setControlsVisible(visible);
+      Animated.timing(controlsProgress, {
+        duration: 180,
+        toValue: visible ? 1 : 0,
+        useNativeDriver: false,
+      }).start();
+    },
+    [controlsProgress],
+  );
+
+  const handleListScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const currentOffset = Math.max(0, event.nativeEvent.contentOffset.y);
+    const delta = currentOffset - lastScrollOffset.current;
+    lastScrollOffset.current = currentOffset;
+
+    if (activeFilter) {
+      return;
+    }
+    if (currentOffset <= 20) {
+      scrollDirection.current = null;
+      scrollDirectionDistance.current = 0;
+      updateControlsVisibility(true);
+      return;
+    }
+    if (Math.abs(delta) < 1) {
+      return;
+    }
+
+    const nextDirection = delta > 0 ? 'down' : 'up';
+    if (scrollDirection.current !== nextDirection) {
+      scrollDirection.current = nextDirection;
+      scrollDirectionDistance.current = 0;
+    }
+    scrollDirectionDistance.current += Math.abs(delta);
+
+    if (
+      nextDirection === 'down' &&
+      currentOffset > HIDE_CONTROLS_OFFSET &&
+      scrollDirectionDistance.current >= HIDE_DIRECTION_DISTANCE
+    ) {
+      updateControlsVisibility(false);
+      scrollDirectionDistance.current = 0;
+    } else if (
+      nextDirection === 'up' &&
+      scrollDirectionDistance.current >= SHOW_DIRECTION_DISTANCE
+    ) {
+      updateControlsVisibility(true);
+      scrollDirectionDistance.current = 0;
+    }
+  };
+
+  useEffect(() => {
+    if (activeFilter) {
+      updateControlsVisibility(true);
+    }
+  }, [activeFilter, updateControlsVisibility]);
 
   useEffect(() => {
     listRef.current?.scrollToOffset({ animated: false, offset: 0 });
@@ -313,48 +389,63 @@ export function HomeScreen({ navigation }: Props) {
               <NotificationIcon />
             </Pressable>
           </View>
-          <View style={styles.searchBox}>
-            <SearchInputIcon />
-            <TextInput
-              onChangeText={setQuery}
-              placeholder="특징으로 검색해보세요"
-              placeholderTextColor={colors.gray400}
-              style={styles.searchInput}
-              value={query}
-            />
-          </View>
-          <ScrollView
-            contentContainerStyle={styles.filters}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
+          <Animated.View
+            pointerEvents={controlsVisible ? 'auto' : 'none'}
+            style={[
+              styles.searchAndFilters,
+              activeFilter && styles.searchAndFiltersAboveSheet,
+              {
+                height: controlsProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, SEARCH_FILTERS_HEIGHT],
+                }),
+                opacity: controlsProgress,
+              },
+            ]}
           >
-            {filterItems.map(filter => (
-              <Pressable
-                accessibilityLabel={`${filter.label} 필터`}
-                accessibilityRole="button"
-                key={filter.key}
-                onPress={() =>
-                  setActiveFilter(current => (current === filter.key ? null : filter.key))
-                }
-                style={[
-                  styles.filterChip,
-                  activeFilter === filter.key && styles.filterChipOpen,
-                  isFilterApplied(filter.key) && styles.filterChipApplied,
-                ]}
-              >
-                <Text
+            <View style={styles.searchBox}>
+              <SearchInputIcon />
+              <TextInput
+                onChangeText={setQuery}
+                placeholder="특징으로 검색해보세요"
+                placeholderTextColor={colors.gray400}
+                style={styles.searchInput}
+                value={query}
+              />
+            </View>
+            <ScrollView
+              contentContainerStyle={styles.filters}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
+            >
+              {filterItems.map(filter => (
+                <Pressable
+                  accessibilityLabel={`${filter.label} 필터`}
+                  accessibilityRole="button"
+                  key={filter.key}
+                  onPress={() =>
+                    setActiveFilter(current => (current === filter.key ? null : filter.key))
+                  }
                   style={[
-                    styles.filterText,
-                    isFilterApplied(filter.key) && styles.filterTextApplied,
+                    styles.filterChip,
+                    activeFilter === filter.key && styles.filterChipOpen,
+                    isFilterApplied(filter.key) && styles.filterChipApplied,
                   ]}
                 >
-                  {getFilterLabel(filter.key, filter.label)}
-                </Text>
-                <FilterArrowIcon />
-              </Pressable>
-            ))}
-          </ScrollView>
+                  <Text
+                    style={[
+                      styles.filterText,
+                      isFilterApplied(filter.key) && styles.filterTextApplied,
+                    ]}
+                  >
+                    {getFilterLabel(filter.key, filter.label)}
+                  </Text>
+                  <FilterArrowIcon />
+                </Pressable>
+              ))}
+            </ScrollView>
+          </Animated.View>
           <FlatList
             columnWrapperStyle={styles.column}
             contentContainerStyle={[styles.listContent, { paddingBottom: 104 + insets.bottom }]}
@@ -362,9 +453,11 @@ export function HomeScreen({ navigation }: Props) {
             key={listKey}
             keyExtractor={item => item.id}
             numColumns={2}
+            onScroll={handleListScroll}
             ref={listRef}
             renderItem={renderAnimal}
             showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
           />
         </>
       )}
@@ -401,6 +494,8 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', flexDirection: 'row', height: 56, justifyContent: 'center' },
   logo: { height: 34, width: 88 },
   headerIcon: { position: 'absolute', right: 20 },
+  searchAndFilters: { overflow: 'hidden' },
+  searchAndFiltersAboveSheet: { zIndex: 21 },
   searchBox: {
     alignItems: 'center',
     borderColor: colors.gray200,
