@@ -1,11 +1,16 @@
 import { MAX_IMAGE_SIZE_BYTES } from '../../../constants/upload';
-import { PET_OPTIONS, validatePetImage } from '../petRegistration';
+import { petOptions, validatePetImage } from '../petRegistration';
 
 describe('pet registration helpers', () => {
   it('provides dependent breed and color options by species', () => {
-    expect(PET_OPTIONS.강아지.breeds).toContain('푸들');
-    expect(PET_OPTIONS.고양이.colors).toContain('치즈색');
-    expect(PET_OPTIONS.기타.breeds).toContain('기타');
+    const dog = petOptions('강아지', '도고 아르젠티노', '');
+    expect(dog.breeds.filter(name => name === '도고 아르젠티노')).toHaveLength(1);
+    expect(dog.breeds[dog.breeds.length - 1]).toBe('기타');
+    expect(dog.colors).toEqual(['은색&흰색', '흰색', '밝은 금색', '살구색', '크림색', '기타']);
+    const cat = petOptions('고양이', '러시안 블루', '');
+    expect(cat.breeds[cat.breeds.length - 1]).toBe('기타');
+    expect(cat.colors).toEqual(['파란색', '푸른 회색', '기타']);
+    expect(petOptions('기타', '', '').breeds).toEqual(['기타축종']);
   });
 
   it('accepts jpg and png images up to 10MB', () => {
