@@ -29,6 +29,7 @@ type ShopState = ShopSnapshot & {
   selectAll: (ids: string[]) => void;
   remove: (ids: string[]) => void;
   checkout: (species: Species) => string | null;
+  buyWalkBags: () => string | null;
   consume: (requirements: Record<string, number>, ownedItemId?: string) => boolean;
 };
 export const cartTotal = (cart: Record<string, number>, ids = Object.keys(cart)) =>
@@ -184,6 +185,38 @@ export const useShopStore = create<ShopState>((set, get) => {
         spent: state.spent + total,
         cart: Object.fromEntries(Object.entries(state.cart).filter(([id]) => !ids.includes(id))),
         selectedIds: [],
+      })
+        ? null
+        : storageError;
+    },
+    buyWalkBags: () => {
+      const state = get();
+      if (!state.ready) {
+        return '쇼핑 정보를 불러오는 중이에요.';
+      }
+      if (Date.now() >= state.expiresAt) {
+        return '모의 입양 기간이 종료되었어요.';
+      }
+      const product = availableProducts('dog').find(item => item.id === 'bags');
+      if (!product) {
+        return '배변봉투 상품 정보를 불러오지 못했어요.';
+      }
+      if (state.budget - state.spent < product.price) {
+        return '남은 예산이 부족해요.';
+      }
+      const count = state.ownedItems.filter(item => item.productId === product.id).length;
+      return commit({
+        spent: state.spent + product.price,
+        inventory: { ...state.inventory, bags: (state.inventory.bags ?? 0) + product.qty },
+        ownedItems: [
+          ...state.ownedItems,
+          {
+            id: `${state.sessionKey}:bags:${count + 1}`,
+            productId: 'bags',
+            capacity: product.qty,
+            remaining: product.qty,
+          },
+        ],
       })
         ? null
         : storageError;
