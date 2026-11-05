@@ -1,4 +1,5 @@
 import type { ReactNode, SelectHTMLAttributes } from 'react';
+import { LoadStateMessage, type LoadState } from './LoadState';
 import './shelter-ui.css';
 
 export function FilterSelect({
@@ -44,6 +45,7 @@ export function ListPanel({
   sort,
   children,
   emptyMessage = '검색 결과가 없습니다.',
+  loadState = { status: 'ready' },
 }: {
   header?: ReactNode;
   filters?: ReactNode;
@@ -53,6 +55,7 @@ export function ListPanel({
   sort?: ReactNode;
   children: ReactNode;
   emptyMessage?: ReactNode;
+  loadState?: LoadState;
 }) {
   return (
     <section className="shelter-list" aria-label="조회 결과">
@@ -61,20 +64,24 @@ export function ListPanel({
         <div className="shelter-list__filters">{filters}</div>
         <div className="shelter-list__actions">{actions}</div>
       </div>
-      <div className="shelter-list__summary">
-        <span role="status">
-          총 <strong>{total}</strong>
-          {unit}
-        </span>
-        {sort}
-      </div>
-      {total === 0 ? (
-        <p className="shelter-empty" role="status">
-          {emptyMessage}
-        </p>
-      ) : (
-        <div className="shelter-list__grid">{children}</div>
+      {loadState.status === 'ready' && (
+        <div className="shelter-list__summary">
+          <span role="status">
+            총 <strong>{total}</strong>
+            {unit}
+          </span>
+          {sort}
+        </div>
       )}
+      <LoadStateMessage state={loadState}>
+        {total === 0 ? (
+          <p className="shelter-empty" role="status">
+            {emptyMessage}
+          </p>
+        ) : (
+          <div className="shelter-list__grid">{children}</div>
+        )}
+      </LoadStateMessage>
     </section>
   );
 }

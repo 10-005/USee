@@ -1,5 +1,5 @@
 import animalImage from '@/shared/assets/figma/animal-example.png';
-import type { ShelterAnimal } from './model';
+import type { ShelterAnimal } from '@/entities/shelter/model';
 
 // Fixed reference date keeps sample date filters reproducible until API integration.
 export const sampleReferenceDate = '2026-11-01';

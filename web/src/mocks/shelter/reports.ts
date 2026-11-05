@@ -1,7 +1,8 @@
 import dog from '@/shared/assets/figma/animal-example.png';
 import cat from '@/shared/assets/figma/demo-cat.png';
 import poodle from '@/shared/assets/figma/demo-poodle.png';
-export const initialReports = Array.from({ length: 23 }, (_, i) => ({
+import type { Report } from '@/entities/shelter/report';
+export const initialReports: Report[] = Array.from({ length: 23 }, (_, i) => ({
   id: `F-${123 + i}`,
   name: i % 2 ? '[개] 푸들' : '[고양이] 코리안숏헤어',
   species: i % 2 ? 'dog' : 'cat',

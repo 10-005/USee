@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import { ShelterPageLayout } from '@/app/layouts/ShelterPageLayout';
-import { useDemoChat } from '@/shared/model/demo-chat';
+import { useDemoChat } from '@/mocks/chat/store';
 import { App } from '@/app/App';
 import { AppProviders } from '@/app/providers/AppProviders';
 

@@ -1,30 +1,33 @@
+import { LinkButton } from '@/shared/ui/LinkButton';
 import { useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
-import { DemoPage, InfoRows, MissingRecord, RecordBadge } from '@/features/shelter-demo/Page';
-import { useShelterDemo } from '@/features/shelter-demo/store';
+import { WorkPage, InfoRows, MissingRecord, RecordBadge } from '@/shared/ui/WorkPage';
+import { useAnimal, useAdoptions, useRescue } from '@/entities/shelter/data';
+import { LinkedRescueCard } from '@/pages/animals/LinkedRescueCard';
 import { Button } from '@/shared/ui/Button';
-import pencil from '@/shared/assets/figma/edit-pencil.svg';
+import pencil from '@/shared/assets/icons/edit-pencil.svg';
 
 import { animalStatuses } from './animal-statuses';
 export function AnimalDetailPage() {
   const { id } = useParams();
   const { search } = useLocation();
   const listUrl = '/animals' + search;
-  const animal = useShelterDemo((s) => s.animals.find((a) => a.id === id));
-  const applications = useShelterDemo((s) => s.adoptions);
+  const animal = useAnimal(id);
+  const rescue = useRescue(animal?.rescueId);
+  const applications = useAdoptions();
   const [photo, setPhoto] = useState(0);
   if (!animal) return <MissingRecord back={listUrl} />;
   const images = animal.images?.length ? animal.images : [animal.imageSrc];
   const current = Math.min(photo, images.length - 1);
   return (
-    <DemoPage
+    <WorkPage
       title="보호동물 상세"
       back={listUrl}
       titleAction={
-        <Link className="page-link" to={`/animals/${animal.id}/edit`}>
+        <LinkButton to={`/animals/${animal.id}/edit`}>
           <img src={pencil} alt="" />
           수정하기
-        </Link>
+        </LinkButton>
       }
     >
       <div className="animal-gallery">
@@ -110,14 +113,15 @@ export function AnimalDetailPage() {
             <h2>구조정보</h2>
             <InfoRows
               rows={[
-                ['발생장소', animal.location],
-                ['등록일', animal.registeredAt],
-                ['공고기간', animal.period],
+                ['구조장소', rescue?.location ?? animal.location],
+                ['구조일시', rescue?.date.replace('T', ' ')],
+                ['특이사항', rescue?.memo],
                 ...(animal.status === 'returned' && animal.closingReason
                   ? [['기타사항', animal.closingReason] as [string, string]]
                   : []),
               ]}
             />
+            {rescue && <LinkedRescueCard rescue={rescue} compact />}
           </section>
         </div>
         <div>
@@ -164,6 +168,6 @@ export function AnimalDetailPage() {
           </section>
         </div>
       </div>
-    </DemoPage>
+    </WorkPage>
   );
 }

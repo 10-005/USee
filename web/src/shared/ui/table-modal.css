@@ -76,11 +76,11 @@
   overflow-wrap: anywhere;
 }
 .ui-table thead tr {
-  background: url('../assets/figma/table-header-line.svg') bottom / 100% 1px no-repeat;
+  background: url('../assets/icons/table-header-line.svg') bottom / 100% 1px no-repeat;
 }
 .ui-table tbody tr {
   height: 80px;
-  background: url('../assets/figma/table-row-line.svg') bottom / 100% 1px no-repeat;
+  background: url('../assets/icons/table-row-line.svg') bottom / 100% 1px no-repeat;
 }
 .ui-table__empty {
   text-align: center;

@@ -2,18 +2,19 @@ import { Link, useNavigate } from 'react-router';
 import { ShelterPageLayout } from '@/app/layouts/ShelterPageLayout';
 import { ActivityCard } from '@/shared/ui/ActivityCard';
 import { StatCard } from '@/shared/ui/StatCard';
-import { RecordBadge } from '@/features/shelter-demo/Page';
-import { useShelterDemo } from '@/features/shelter-demo/store';
-import { initialReports } from '@/pages/records/reports-data';
+import { RecordBadge } from '@/shared/ui/WorkPage';
+import { useAnimals, useAdoptions, useRescues } from '@/entities/shelter/data';
+import { useReports } from '@/entities/shelter/data';
 import './home.css';
 
 export function HomePage() {
   const navigate = useNavigate();
-  const protectedAnimalCount = useShelterDemo(
-    (s) => s.animals.filter((animal) => animal.status === 'protected').length,
-  );
-  const adoptions = useShelterDemo((s) => s.adoptions);
-  const rescues = useShelterDemo((s) => s.rescues);
+  const reports = useReports();
+  const protectedAnimalCount = useAnimals().filter(
+    (animal) => animal.status === 'protected',
+  ).length;
+  const adoptions = useAdoptions();
+  const rescues = useRescues();
   const activeRescues = rescues.filter((r) => r.status === '진행 중');
   const sections = [
     {
@@ -48,7 +49,7 @@ export function HomePage() {
     {
       title: '발견 신고',
       href: '/reports',
-      items: [...initialReports]
+      items: [...reports]
         .sort((a, b) => b.foundAt.localeCompare(a.foundAt))
         .slice(0, 3)
         .map((r) => ({
@@ -64,7 +65,6 @@ export function HomePage() {
       <ShelterPageLayout>
         <div className="home-page__dashboard">
           <h1 className="shelter-sr-only">보호소 홈</h1>
-          {/* <p className="home-page__sample">예시 데이터로 표시하고 있습니다.</p> */}
           <div className="home-page__stats">
             <Link
               className="home-stat--adoption"

@@ -1,3 +1,4 @@
+import { demoMode } from '@/shared/config/demo';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router';
 import { AppLayout } from '@/app/layouts/AppLayout';
 import { HomePage } from '@/pages/home/HomePage';
@@ -33,7 +34,7 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route
         element={
-          sessionStorage.getItem('usee-demo-login') === 'true' ? (
+          demoMode && sessionStorage.getItem('usee-demo-login') === 'true' ? (
             <Outlet />
           ) : (
             <Navigate to="/login" replace />

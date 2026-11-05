@@ -1,5 +1,5 @@
-import locationIcon from '@/shared/assets/figma/location.svg';
-import calendarIcon from '@/shared/assets/figma/calendar-check.svg';
+import locationIcon from '@/shared/assets/icons/location.svg';
+import calendarIcon from '@/shared/assets/icons/calendar-check.svg';
 import './shelter-ui.css';
 
 export type AnimalCardProps = {

@@ -1,22 +1,29 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
-import { useShelterDemo } from '@/features/shelter-demo/store';
+import { useProfile } from '@/entities/shelter/data';
 import { ShelterLayout } from '@/shared/ui/ShelterLayout';
 import { ShelterHeader } from '@/shared/ui/ShelterHeader';
 import { ChatSidebar } from '@/shared/ui/ChatSidebar';
 import shelterAvatar from '@/shared/assets/figma/shelter-avatar.png';
-import { useDemoChat } from '@/shared/model/demo-chat';
+import {
+  useChatOpen,
+  useSetChatOpen,
+  useSelectedChatId,
+  useShowChatList,
+  useConversations,
+  useOpenConversation,
+} from '@/entities/chat/data';
 import './shelter-page.css';
 
 export function ShelterPageLayout({ children }: { children: ReactNode }) {
-  const profile = useShelterDemo((s) => s.profile);
+  const profile = useProfile();
   const navigate = useNavigate();
-  const chatOpen = useDemoChat((s) => s.sidebarOpen);
-  const setChatOpen = useDemoChat((s) => s.setSidebarOpen);
-  const selectedChat = useDemoChat((s) => s.selectedId);
-  const showChatList = useDemoChat((s) => s.showList);
-  const conversations = useDemoChat((s) => s.conversations);
-  const openConversation = useDemoChat((s) => s.open);
+  const chatOpen = useChatOpen();
+  const setChatOpen = useSetChatOpen();
+  const selectedChat = useSelectedChatId();
+  const showChatList = useShowChatList();
+  const conversations = useConversations();
+  const openConversation = useOpenConversation();
   const [showBackToTop, setShowBackToTop] = useState(false);
   useEffect(() => {
     const updateVisibility = () => setShowBackToTop(window.scrollY > 80);
@@ -59,7 +66,7 @@ export function ShelterPageLayout({ children }: { children: ReactNode }) {
               }
               profile={
                 <Link to="/profile" className="profile-identity" aria-label="마이페이지">
-                  <img src={shelterAvatar} alt="" width="36" height="36" />
+                  <img src={profile.profileImage ?? shelterAvatar} alt="" width="36" height="36" />
                   <span>{profile.name}</span>
                 </Link>
               }

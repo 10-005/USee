@@ -1,12 +1,5 @@
-import type { AnimalCardProps } from '@/shared/ui/AnimalCard';
-
-export type ShelterAnimal = Omit<AnimalCardProps, 'onClick'> & {
-  id: string;
-  registeredAt: string;
-  species: 'dog' | 'cat' | 'other';
-  sex: 'female' | 'male' | 'unknown';
-  neutered: 'yes' | 'no' | 'unknown';
-};
+import type { ShelterAnimal } from '@/entities/shelter/model';
+export type { ShelterAnimal } from '@/entities/shelter/model';
 
 export const animalFilters = [
   {

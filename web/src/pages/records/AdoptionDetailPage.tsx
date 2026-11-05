@@ -1,21 +1,25 @@
+import { LinkButton } from '@/shared/ui/LinkButton';
 import { useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router';
-import { DemoPage, InfoRows, MissingRecord, RecordBadge } from '@/features/shelter-demo/Page';
-import { useShelterDemo, type AdoptionStatus } from '@/features/shelter-demo/store';
+import { useLocation, useParams } from 'react-router';
+import { WorkPage, InfoRows, MissingRecord, RecordBadge } from '@/shared/ui/WorkPage';
+import { useAnimal, useAdoption, useReviewAdoption } from '@/entities/shelter/data';
+import type { AdoptionStatus } from '@/entities/shelter/model';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
-import clock from '@/shared/assets/figma/review-clock.svg';
+import clock from '@/shared/assets/icons/review-clock.svg';
 
 export function AdoptionDetailPage() {
   const { id } = useParams();
   const listUrl = '/adoptions' + useLocation().search;
-  const record = useShelterDemo((s) => s.adoptions.find((r) => r.id === id));
-  const animal = useShelterDemo((s) => s.animals.find((a) => a.id === record?.animalId));
-  const review = useShelterDemo((s) => s.reviewAdoption);
+  const record = useAdoption(id);
+  const animal = useAnimal(record?.animalId);
+  const review = useReviewAdoption();
   const [action, setAction] = useState<AdoptionStatus>();
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [openSections, setOpenSections] = useState<number[]>([0]);
   if (!record) return <MissingRecord back={listUrl} />;
   const questions: { title: string; rows: [string, string][] }[] = [
@@ -71,15 +75,11 @@ export function AdoptionDetailPage() {
     setReason('');
   };
   return (
-    <DemoPage
+    <WorkPage
       title="입양 신청 상세"
       narrow
       back={listUrl}
-      titleAction={
-        <Link className="page-link" to={`/animals/${record.animalId}`}>
-          보호동물 정보 보기
-        </Link>
-      }
+      titleAction={<LinkButton to={`/animals/${record.animalId}`}>보호동물 정보 보기</LinkButton>}
     >
       <section className="detail-box application-overview">
         <div className="application-animal">
@@ -177,14 +177,17 @@ export function AdoptionDetailPage() {
       <Modal
         open={!!action}
         title={`${action ?? ''} 확인`}
-        onClose={() => setAction(undefined)}
+        onClose={() => {
+          if (!saving) setAction(undefined);
+        }}
         actions={
           <>
-            <Button variant="secondary" onClick={() => setAction(undefined)}>
+            <Button variant="secondary" disabled={saving} onClick={() => setAction(undefined)}>
               취소
             </Button>
             <Button
-              onClick={() => {
+              disabled={saving}
+              onClick={async () => {
                 if ((action === '거절' || action === '최종 승인') && !reason.trim()) {
                   setError(
                     action === '거절'
@@ -193,8 +196,17 @@ export function AdoptionDetailPage() {
                   );
                   return;
                 }
-                if (action) review(record.id, action, reason.trim());
-                setAction(undefined);
+                if (!action || saving) return;
+                setSaving(true);
+                setSaveError('');
+                try {
+                  await review(record.id, action, reason.trim());
+                  setAction(undefined);
+                } catch {
+                  setSaveError('저장하지 못했습니다. 다시 시도해 주세요.');
+                } finally {
+                  setSaving(false);
+                }
               }}
             >
               확인
@@ -202,6 +214,7 @@ export function AdoptionDetailPage() {
           </>
         }
       >
+        {saveError && <p role="alert">{saveError}</p>}
         {(action === '거절' || action === '최종 승인') && (
           <TextAreaField
             label={action === '거절' ? '거절 사유' : '최종 승인 사유'}
@@ -213,6 +226,6 @@ export function AdoptionDetailPage() {
           />
         )}
       </Modal>
-    </DemoPage>
+    </WorkPage>
   );
 }

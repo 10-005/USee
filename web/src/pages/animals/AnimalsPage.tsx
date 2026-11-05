@@ -4,10 +4,10 @@ import { AnimalCard } from '@/shared/ui/AnimalCard';
 import { Button } from '@/shared/ui/Button';
 import { Pagination } from '@/shared/ui/DataTable';
 import { FilterSelect, ListPanel } from '@/shared/ui/ListPanel';
-import { useShelterDemo } from '@/features/shelter-demo/store';
-import { RecordBadge } from '@/features/shelter-demo/Page';
+import { useAnimalsResult } from '@/entities/shelter/data';
+import { RecordBadge } from '@/shared/ui/WorkPage';
 import { animalFilters, readAnimalFilters, selectAnimals } from './model';
-import { sampleReferenceDate } from './sample-data';
+import { referenceDate } from '@/entities/shelter/data';
 import { animalStatuses } from './animal-statuses';
 import './animals.css';
 
@@ -16,14 +16,14 @@ const PAGE_SIZE = 12;
 export function AnimalsPage() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const animals = useShelterDemo((s) => s.animals);
+  const { data: animals, loadState } = useAnimalsResult();
   const filters = readAnimalFilters(params);
   const statusTabs = [['', '전체'], ...Object.entries(animalStatuses)] as const;
   const activeTab = Math.max(
     0,
     statusTabs.findIndex(([value]) => value === filters.status),
   );
-  const visible = selectAnimals(animals, params, sampleReferenceDate);
+  const visible = selectAnimals(animals, params, referenceDate);
   const pageCount = Math.ceil(visible.length / PAGE_SIZE);
   const page = Math.max(1, Math.min(pageCount, Math.floor(Number(params.get('page'))) || 1));
   const updateFilter = (key: string, value: string) => {
@@ -39,8 +39,8 @@ export function AnimalsPage() {
     <div className="animals-page">
       <ShelterPageLayout>
         <h1 className="shelter-sr-only">보호동물 목록</h1>
-        {/* <p className="animals-page__sample">예시 데이터로 표시하고 있습니다.</p> */}
         <ListPanel
+          loadState={loadState}
           header={
             <div className="record-status-filters" role="group" aria-label="상태 필터">
               {statusTabs.map(([value, label]) => (

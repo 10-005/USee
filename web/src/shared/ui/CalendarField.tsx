@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react';
-import calendarIcon from '@/shared/assets/figma/calendar-check.svg';
+import calendarIcon from '@/shared/assets/icons/calendar-check.svg';
 
 const pad = (value: number) => String(value).padStart(2, '0');
 
