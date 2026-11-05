@@ -1,5 +1,12 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentRef,
+  type ReactNode,
+} from 'react';
 import {
   Image,
   Keyboard,
@@ -9,7 +16,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +29,8 @@ import XCircleIcon from '../../assets/icons/common/x-circle.svg';
 import {
   AppHeader,
   DatePickerModal,
+  KeyboardAwareInputProvider,
+  KeyboardAwareTextInput,
   StepIndicator,
   Switch,
   TimePickerModal,
@@ -67,6 +75,7 @@ export const formatFoundDateTime = (value: string) => {
 
 export function FoundReportFormScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const draft = useFoundReportDraftStore(state => state.draft);
   const resetDraft = useFoundReportDraftStore(state => state.resetDraft);
   const updateDraft = useFoundReportDraftStore(state => state.updateDraft);
@@ -148,11 +157,14 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
       <View style={styles.indicator}>
         <StepIndicator currentStep={step} totalSteps={3} />
       </View>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}
-      >
-        <ScrollView
+      <KeyboardAwareInputProvider scrollRef={scrollRef}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.flex}
+        >
+          <ScrollView
+            ref={scrollRef}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 96 }]}
           decelerationRate="fast"
           keyboardDismissMode="on-drag"
@@ -172,8 +184,9 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
           ) : null}
           {step === 3 ? <ContactStep draft={draft} onUpdate={updateDraft} /> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </KeyboardAwareInputProvider>
       <Pressable
         disabled={!canContinue}
         onPress={submit}
@@ -458,7 +471,7 @@ function FormInput({
   value: string;
 }) {
   return (
-    <TextInput
+    <KeyboardAwareTextInput
       editable={editable}
       keyboardType={keyboardType}
       multiline={multiline}

@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type ComponentRef } from 'react';
 import {
   BackHandler,
   Keyboard,
@@ -10,7 +10,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +20,8 @@ import LocationIcon from '../../assets/icons/common/location.svg';
 import {
   AppHeader,
   DatePickerModal,
+  KeyboardAwareInputProvider,
+  KeyboardAwareTextInput,
   StepIndicator,
   Switch,
   TimePickerModal,
@@ -64,6 +65,7 @@ function formatPhone(value: string) {
 
 export function LostReportFormScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const details = useLostReportDraftStore(state => state.details);
   const resetDraft = useLostReportDraftStore(state => state.resetDraft);
   const updateDetails = useLostReportDraftStore(state => state.updateDetails);
@@ -163,11 +165,14 @@ export function LostReportFormScreen({ navigation, route }: Props) {
       <View style={styles.indicator}>
         <StepIndicator currentStep={step} totalSteps={4} />
       </View>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}
-      >
-        <ScrollView
+      <KeyboardAwareInputProvider scrollRef={scrollRef}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.flex}
+        >
+          <ScrollView
+            ref={scrollRef}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           contentContainerStyle={[styles.content, contentInsetStyle]}
           decelerationRate="fast"
           keyboardDismissMode="on-drag"
@@ -186,8 +191,9 @@ export function LostReportFormScreen({ navigation, route }: Props) {
           ) : (
             <ContactStep details={details} error={error} onUpdate={updateDetails} />
           )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </KeyboardAwareInputProvider>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled: !canContinue }}
@@ -263,7 +269,7 @@ function LostInformationStep({
       </Pressable>
 
       <Text style={[styles.label, styles.detailAddressLabel]}>상세주소</Text>
-      <TextInput
+      <KeyboardAwareTextInput
         maxLength={100}
         onChangeText={detailAddress => onUpdate({ detailAddress })}
         placeholder="예: 인동도서관 앞"
@@ -300,7 +306,7 @@ function ContactStep({
         />
       </View>
       <Text style={[styles.label, !details.exposeContact && styles.disabledLabel]}>전화번호</Text>
-      <TextInput
+      <KeyboardAwareTextInput
         editable={details.exposeContact}
         keyboardType="phone-pad"
         onChangeText={contact => onUpdate({ contact: formatPhone(contact) })}

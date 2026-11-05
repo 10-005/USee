@@ -2,12 +2,13 @@ import { forwardRef, type ComponentRef } from 'react';
 import {
   StyleSheet,
   Text,
-  TextInput as NativeTextInput,
+  type TextInput as NativeTextInput,
   type TextInputProps as NativeTextInputProps,
   View,
 } from 'react-native';
 
 import { colors, radius, spacing, typography } from '../../../theme';
+import { KeyboardAwareTextInput } from '../KeyboardAwareInput';
 
 type TextInputProps = NativeTextInputProps & {
   errorMessage?: string;
@@ -18,7 +19,7 @@ export const TextInput = forwardRef<ComponentRef<typeof NativeTextInput>, TextIn
   ({ errorMessage, label, style, ...inputProps }, ref) => (
     <View style={styles.container}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <NativeTextInput
+      <KeyboardAwareTextInput
         ref={ref}
         accessibilityLabel={inputProps.accessibilityLabel ?? label}
         aria-invalid={Boolean(errorMessage)}

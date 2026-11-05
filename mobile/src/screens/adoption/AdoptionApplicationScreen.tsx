@@ -1,18 +1,19 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { saveSubmittedAdoptionApplication } from '../../services/storage/adoptionApplicationStorage';
 import {
   Image,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
-import type { ScrollViewInstance, TextInputProps } from 'react-native';
+import type { TextInputProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
@@ -22,7 +23,14 @@ import EditIcon from '../../assets/icons/common/edit.svg';
 import LocationIcon from '../../assets/icons/common/location.svg';
 import { CheckIndicator } from '../../components/common/CheckIndicator';
 import PhoneIcon from '../../assets/icons/common/phone.svg';
-import { AppHeader, Button, DatePickerModal, StepIndicator } from '../../components/common';
+import {
+  AppHeader,
+  Button,
+  DatePickerModal,
+  KeyboardAwareInputProvider,
+  KeyboardAwareTextInput,
+  StepIndicator,
+} from '../../components/common';
 import {
   type AdoptionApplicationDraft,
   getAdoptionApplicationDraft,
@@ -286,7 +294,7 @@ function FormInput({
   onChangeText?: (value: string) => void;
 }) {
   return (
-    <TextInput
+    <KeyboardAwareTextInput
       autoCapitalize={autoCapitalize}
       editable={editable}
       keyboardType={keyboardType}
@@ -333,7 +341,7 @@ export function AdoptionApplicationScreen({ navigation, route }: Props) {
   const [draftToResume, setDraftToResume] = useState<AdoptionApplicationDraft<FormState> | null>(
     null,
   );
-  const scrollRef = useRef<ScrollViewInstance>(null);
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const locationSelection = useAdoptionLocationStore(state => state.selection);
   const appliedLocationIdRef = useRef(locationSelection.id);
   const applicantResult = useAdoptionApplicantStore(state => state.result);
@@ -475,16 +483,22 @@ export function AdoptionApplicationScreen({ navigation, route }: Props) {
         <StepIndicator currentStep={Math.min(step, 4)} totalSteps={4} />
         <Text style={styles.progressLabel}>{stepLabels[step - 1]}</Text>
       </View>
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={[styles.content, step === 5 && styles.finalContent]}
-        decelerationRate="fast"
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
-        onTouchStart={Keyboard.dismiss}
-        scrollEnabled={step !== 5}
-        showsVerticalScrollIndicator={false}
-      >
+      <KeyboardAwareInputProvider scrollRef={scrollRef}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardArea}
+        >
+          <ScrollView
+          ref={scrollRef}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+          contentContainerStyle={[styles.content, step === 5 && styles.finalContent]}
+          decelerationRate="fast"
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          onTouchStart={Keyboard.dismiss}
+          scrollEnabled={step !== 5}
+          showsVerticalScrollIndicator={false}
+        >
         {step === 1 ? (
           <StepOne
             form={form}
@@ -546,7 +560,9 @@ export function AdoptionApplicationScreen({ navigation, route }: Props) {
             </Button>
           </View>
         )}
-      </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </KeyboardAwareInputProvider>
       <Modal
         animationType="fade"
         onRequestClose={navigation.goBack}
@@ -963,6 +979,7 @@ function StepFour({ form, update }: StepProps) {
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
+  keyboardArea: { flex: 1 },
   headerSaveText: {
     ...typography.bodySemiBold16,
     color: colors.green400,

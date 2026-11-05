@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState, type ComponentRef } from 'react';
 import {
   Alert,
   BackHandler,
@@ -14,7 +14,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { launchCamera, launchImageLibrary, type Asset } from 'react-native-image-picker';
@@ -27,7 +26,11 @@ import PlusIcon from '../../assets/icons/common/plus.svg';
 import XCircleIcon from '../../assets/icons/common/x-circle.svg';
 import CameraIcon from '../../assets/icons/common/photo-camera.svg';
 import LibraryIcon from '../../assets/icons/common/photo-library.svg';
-import { StepIndicator } from '../../components/common';
+import {
+  KeyboardAwareInputProvider,
+  KeyboardAwareTextInput,
+  StepIndicator,
+} from '../../components/common';
 import { MAX_IMAGE_SIZE_MB } from '../../constants/upload';
 import { useFoundReportDraftStore } from '../../stores/foundReportDraftStore';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
@@ -42,6 +45,7 @@ type Neutered = '완료' | '미완료' | '모름';
 type Microchip = '완료' | '미완료' | '모름';
 
 export function PetRegistrationScreen({ navigation, route }: Props) {
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const isLostReportFlow = route.params?.flow === 'lost-report';
   const isFoundReportFlow = route.params?.flow === 'found-report';
   const isReportFlow = isLostReportFlow || isFoundReportFlow;
@@ -364,11 +368,14 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
           />
         </View>
       ) : null}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}
-      >
-        <ScrollView
+      <KeyboardAwareInputProvider scrollRef={scrollRef}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.flex}
+        >
+          <ScrollView
+            ref={scrollRef}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           contentContainerStyle={styles.content}
           decelerationRate="fast"
           keyboardDismissMode="on-drag"
@@ -531,8 +538,9 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
               {isReportFlow ? '다음' : isEditing ? '수정하기' : '등록하기'}
             </Text>
           </Pressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </KeyboardAwareInputProvider>
       <Modal
         animationType="fade"
         onRequestClose={() => setCancelModalOpen(false)}
@@ -580,11 +588,11 @@ function InputField({
   required,
   multiline,
   ...props
-}: React.ComponentProps<typeof TextInput> & { label: string; required?: boolean }) {
+}: React.ComponentProps<typeof KeyboardAwareTextInput> & { label: string; required?: boolean }) {
   return (
     <View style={styles.field}>
       <FieldLabel required={required}>{label}</FieldLabel>
-      <TextInput
+      <KeyboardAwareTextInput
         placeholderTextColor={colors.gray400}
         style={[styles.input, multiline && styles.textArea]}
         {...props}

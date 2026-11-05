@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useRef, useState } from 'react';
+import { useRef, useState, type ComponentRef } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
@@ -13,7 +13,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../app/navigation/types';
 import DownArrowIcon from '../../assets/icons/common/filter-arrow.svg';
-import { AppHeader, Button, TextInput } from '../../components/common';
+import {
+  AppHeader,
+  Button,
+  KeyboardAwareInputProvider,
+  TextInput,
+} from '../../components/common';
 import { startMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { colors, radius, typography } from '../../theme';
 import { getBudgetError } from './budget';
@@ -29,6 +34,7 @@ const budgetIncrements = [
 ];
 
 export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
   const [value, setValue] = useState('');
   const [touched, setTouched] = useState(false);
@@ -67,11 +73,14 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <AppHeader title="모의 입양" onBackPress={() => navigation.goBack()} />
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
+      <KeyboardAwareInputProvider scrollRef={scrollRef}>
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <ScrollView
+            ref={scrollRef}
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           contentContainerStyle={styles.content}
           decelerationRate="fast"
           keyboardShouldPersistTaps="handled"
@@ -207,8 +216,8 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
             </View>
           ) : null}
           <Text style={styles.helper}>시작하면 선택한 동물과 예산이 7일간 저장돼요.</Text>
-        </ScrollView>
-        <View style={styles.footer}>
+          </ScrollView>
+          <View style={styles.footer}>
           {saveError ? (
             <Text accessibilityLiveRegion="polite" style={styles.error}>
               {saveError}
@@ -217,8 +226,9 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
           <Button disabled={Boolean(error) || !pet} loading={saving} onPress={start}>
             모의입양 시작하기
           </Button>
-        </View>
-      </KeyboardAvoidingView>
+          </View>
+        </KeyboardAvoidingView>
+      </KeyboardAwareInputProvider>
     </SafeAreaView>
   );
 }

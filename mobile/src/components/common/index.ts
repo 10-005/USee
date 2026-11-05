@@ -13,3 +13,4 @@ export { TimePickerModal } from './TimePickerModal';
 export { SearchBar } from './SearchBar';
 export { FilterChip } from './FilterChip';
 export { CheckIndicator } from './CheckIndicator';
+export { KeyboardAwareInputProvider, KeyboardAwareTextInput } from './KeyboardAwareInput';
