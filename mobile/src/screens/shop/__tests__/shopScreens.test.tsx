@@ -8,6 +8,7 @@ import { InventoryScreen } from '../InventoryScreen';
 import { useShopStore } from '../../../stores/shopStore';
 import { getShopDatabase } from '../../../services/shop/shopDatabase';
 import { findProduct } from '../../../services/shop/catalog';
+import { StackRouter, StackActions } from '@react-navigation/routers';
 
 jest.mock('../useShopSession', () => ({
   useShopSession: () => ({
@@ -255,13 +256,14 @@ it('adds the chosen quantity from detail', () => {
 });
 
 it('changes cart quantity and completes a confirmed mock purchase', () => {
+  const popTo = jest.fn();
   useShopStore.getState().setQuantity('food', 1, 'dog');
   let screen!: renderer.ReactTestRenderer;
   act(() => {
     screen = renderer.create(
       wrap(
         <CartScreen
-          navigation={{ navigate: jest.fn() } as never}
+          navigation={{ popTo } as never}
           route={{ key: 'cart', name: 'ShopCart', params: { petId: 'dog-1' } }}
         />,
       ),
@@ -281,8 +283,8 @@ it('changes cart quantity and completes a confirmed mock purchase', () => {
   expect(useShopStore.getState().spent).toBe(21200);
   expect(useShopStore.getState().inventory.food).toBe(24);
   expect(useShopStore.getState().cart).toEqual({});
-  expect(screen.root.findByProps({ children: '구매 완료' })).toBeDefined();
-  act(() => screen.root.findByProps({ accessibilityLabel: '확인' }).props.onPress());
+  expect(popTo).toHaveBeenCalledWith('ShopInventory', { petId: 'dog-1' });
+  expect(popTo).toHaveBeenCalledTimes(1);
   expect(screen.root.findAllByProps({ children: '구매 완료' })).toHaveLength(0);
   act(() => screen.unmount());
 });
@@ -321,5 +323,60 @@ it('cancels purchase without changes and shows a custom error dialog on expiry',
   expect(useShopStore.getState().spent).toBe(0);
   expect(useShopStore.getState().cart.food).toBe(1);
   act(() => screen.root.findByProps({ accessibilityLabel: '확인' }).props.onPress());
+  act(() => screen.unmount());
+});
+
+it('reuses existing destinations when leaving cart instead of growing the stack', () => {
+  const router = StackRouter({ initialRouteName: 'PetShop' });
+  const options = {
+    routeNames: ['PetShop', 'ShopProductDetail', 'ShopCart', 'ShopInventory'],
+    routeParamList: {},
+    routeGetIdList: {},
+  };
+  let state = router.getInitialState(options);
+  const dispatch = (action: ReturnType<typeof StackActions.push>) => {
+    const next = router.getStateForAction(state, action, options);
+    if (!next || next.stale !== false) {
+      throw new Error('Expected a resolved stack');
+    }
+    state = next;
+  };
+  dispatch(StackActions.push('ShopProductDetail', { petId: 'dog-1', productId: 'food' }));
+  dispatch(StackActions.push('ShopCart', { petId: 'dog-1' }));
+  const popTo = (name: string, params: object) => {
+    const next = router.getStateForAction(state, StackActions.popTo(name, params), options);
+    if (!next || next.stale !== false) {
+      throw new Error('Expected a resolved stack');
+    }
+    state = next;
+  };
+  useShopStore.getState().setQuantity('food', 1, 'dog');
+  let screen!: renderer.ReactTestRenderer;
+  act(() => {
+    screen = renderer.create(
+      wrap(
+        <CartScreen
+          navigation={{ popTo } as never}
+          route={{ key: 'cart', name: 'ShopCart', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  for (let i = 0; i < 3; i += 1) {
+    act(() =>
+      screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 상세 보기' }).props.onPress(),
+    );
+    expect(state.routes.map(r => r.name)).toEqual(['PetShop', 'ShopProductDetail']);
+    dispatch(StackActions.push('ShopCart', { petId: 'dog-1' }));
+  }
+  act(() => useShopStore.getState().remove(['food']));
+  const browse = screen.root.findAll(
+    node =>
+      node.props.accessibilityRole === 'button' &&
+      node.props.onPress &&
+      node.findAllByProps({ children: '상품 둘러보기' }).length > 0,
+  )[0];
+  act(() => browse.props.onPress());
+  expect(state.routes.map(r => r.name)).toEqual(['PetShop']);
   act(() => screen.unmount());
 });
