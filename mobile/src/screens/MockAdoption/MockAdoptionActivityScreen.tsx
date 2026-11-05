@@ -369,6 +369,23 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
             <View style={styles.action}>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel="상점 열기"
+                disabled={busy || leaving}
+                onPress={() =>
+                  hideThenNavigate(() =>
+                    navigation.navigate('PetShop', { petId: route.params.petId }),
+                  )
+                }
+                style={({ pressed }) => [styles.walk, pressed && styles.pressed]}
+              >
+                <Image
+                  source={require('../../assets/images/mock-adoption/img_shop.png')}
+                  resizeMode="contain"
+                  style={styles.walkImage}
+                />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
                 accessibilityLabel="AR 산책하기"
                 style={({ pressed }) => [styles.walk, pressed && styles.pressed]}
                 disabled={busy || leaving}
