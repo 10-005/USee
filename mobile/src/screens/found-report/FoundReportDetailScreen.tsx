@@ -93,6 +93,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const [statusSheetVisible, setStatusSheetVisible] = useState(false);
   const listRef = useRef<FlatList>(null);
   const scrollRef = useRef<ScrollViewInstance>(null);
+  const focusedCommentInputRef = useRef<number | null>(null);
   const bookmarked = useAdoptionBookmarkStore(state => state.bookmarkedIds.includes(report.id));
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
   const storedStatus = useReportStatusStore(state => state.statusById[report.id]);
@@ -129,12 +130,21 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   };
 
   useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () =>
-      setKeyboardVisible(true),
-    );
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () =>
-      setKeyboardVisible(false),
-    );
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+      const inputHandle = focusedCommentInputRef.current;
+      if (inputHandle !== null) {
+        setTimeout(() => {
+          scrollRef.current
+            ?.getScrollResponder()
+            ?.scrollResponderScrollNativeHandleToKeyboard(inputHandle, 120, true);
+        }, 50);
+      }
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+      focusedCommentInputRef.current = null;
+    });
 
     return () => {
       showSubscription.remove();
@@ -143,10 +153,11 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   }, []);
 
   const revealCommentInput = (inputHandle: number) => {
+    focusedCommentInputRef.current = inputHandle;
     setTimeout(() => {
       scrollRef.current
         ?.getScrollResponder()
-        ?.scrollResponderScrollNativeHandleToKeyboard(inputHandle, 100, true);
+        ?.scrollResponderScrollNativeHandleToKeyboard(inputHandle, 120, true);
     }, 100);
   };
 

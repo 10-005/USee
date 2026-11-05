@@ -46,6 +46,7 @@ type ComposerProps = {
   compact?: boolean;
   onCancel?: () => void;
   onDismissMenus: () => void;
+  onFocus?: (inputHandle: number) => void;
   onPhotoMenuChange: (open: boolean) => void;
   onStartWriting?: () => void;
   onSubmit: (content: string, imageUri?: string) => void;
@@ -56,6 +57,7 @@ function CommentComposer({
   compact = false,
   onCancel,
   onDismissMenus,
+  onFocus,
   onPhotoMenuChange,
   onStartWriting,
   onSubmit,
@@ -158,10 +160,11 @@ function CommentComposer({
           multiline
           onBlur={() => setFocused(false)}
           onChangeText={setContent}
-          onFocus={() => {
+          onFocus={event => {
             setFocused(true);
             onStartWriting?.();
             onDismissMenus();
+            onFocus?.(event.nativeEvent.target);
           }}
           placeholder="메시지를 입력하세요"
           placeholderTextColor={colors.gray300}
@@ -522,6 +525,7 @@ function CommentThread({
           compact
           onCancel={() => onReply(null)}
           onDismissMenus={() => onPhotoMenuChange(null)}
+          onFocus={onEditFocus}
           onPhotoMenuChange={open => onPhotoMenuChange(open ? `reply-${comment.id}` : null)}
           onStartWriting={() => onReply(comment.id)}
           onSubmit={(content, imageUri) => onAddReply(comment.id, content, imageUri)}
@@ -644,6 +648,7 @@ export function FoundReportCommentList({
       <Text style={styles.title}>{getCommentCount(comments)}개의 댓글</Text>
       <CommentComposer
         onDismissMenus={dismissMenus}
+        onFocus={onEditFocus}
         onPhotoMenuChange={open => changePhotoMenu(open ? 'root' : null)}
         onStartWriting={() => {
           setEditingId(null);
