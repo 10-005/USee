@@ -34,6 +34,9 @@ import type { RootStackParamList } from './types';
 import { LoginScreen } from '../../screens/auth/LoginScreen';
 import { SignupOnboardingScreen } from '../../screens/auth/SignupOnboardingScreen';
 import { NotificationListScreen } from '../../screens/notification/NotificationListScreen';
+import { ShopScreen } from '../../screens/shop/ShopScreen';
+import { ProductDetailScreen } from '../../screens/shop/ProductDetailScreen';
+import { CartScreen } from '../../screens/shop/CartScreen';
 
 const styles = StyleSheet.create({
   walkExitTitle: {
@@ -56,6 +59,9 @@ export function RootNavigator() {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="SignupOnboarding" component={SignupOnboardingScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="PetShop" component={ShopScreen} />
+        <Stack.Screen name="ShopProductDetail" component={ProductDetailScreen} />
+        <Stack.Screen name="ShopCart" component={CartScreen} />
         <Stack.Screen name="FoundReportDetail" component={FoundReportDetailScreen} />
         <Stack.Screen name="FoundReportForm" component={FoundReportFormScreen} />
         <Stack.Screen name="FoundReportMap" component={FoundReportMapScreen} />
