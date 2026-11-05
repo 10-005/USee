@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LeftArrowIcon from '../../assets/icons/common/left-arrow.svg';
 import RightArrowIcon from '../../assets/icons/common/right-arrow.svg';
@@ -26,6 +27,7 @@ export function DatePickerModal({
   value,
   visible,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(startOfDay(value));
   const [visibleDate, setVisibleDate] = useState(
     new Date(value.getFullYear(), value.getMonth(), 1),
@@ -74,7 +76,7 @@ export function DatePickerModal({
     >
       <View style={styles.overlay}>
         <Pressable accessibilityLabel="날짜 선택 닫기" onPress={onClose} style={StyleSheet.absoluteFill} />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
           <Text style={styles.title}>{title}</Text>
           <View style={styles.divider} />
           <View style={styles.calendarHeader}>
@@ -164,7 +166,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
-    paddingBottom: 28,
     paddingHorizontal: 20,
     paddingTop: 18,
   },
