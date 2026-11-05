@@ -8,7 +8,7 @@ spring:
     default: local
   config:
     # backend/.env (bootRun은 모듈 폴더, IDE는 backend 폴더에서 실행될 수 있어 둘 다 시도)
-    import: optional:file:.env[.properties],optional:file:../.env[.properties],classpath:springdoc-common.yml
+    import: optional:file:.env[.properties],optional:file:../.env[.properties],classpath:common.yml
   jpa:
     open-in-view: false
     properties:
