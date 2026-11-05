@@ -16,7 +16,7 @@ export type RootStackParamList = {
   AdoptionApplicationReview: { animalId: string };
   AdoptionDetail: { animalId: string };
   Home: undefined;
-  FoundReportDetail: { reportId: string };
+  FoundReportDetail: { highlightCommentId?: string; reportId: string };
   FoundReportForm: { reportId?: string } | undefined;
   FoundReportMap: undefined;
   LostReportDetail: { reportId: string };
@@ -27,6 +27,7 @@ export type RootStackParamList = {
   MockAdoptionActivity: { petId: string };
   NoticeDetail: { noticeId: string };
   NoticeList: undefined;
+  Notifications: undefined;
   MockAdoptionSelection: undefined;
   PetList: undefined;
   PetRegistration:

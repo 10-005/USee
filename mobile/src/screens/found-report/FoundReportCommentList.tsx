@@ -1,4 +1,4 @@
-import { useReducer, useState } from 'react';
+import { useRef, useReducer, useState } from 'react';
 import {
   Alert,
   Image,
@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   View,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { launchCamera, launchImageLibrary, type Asset } from 'react-native-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -233,6 +234,7 @@ type CommentItemProps = {
   onMenu: () => void;
   onReport: () => void;
   onReply: () => void;
+  onTargetLayout?: (event: LayoutChangeEvent) => void;
   reply?: boolean;
 };
 
@@ -250,6 +252,7 @@ function CommentItem({
   onMenu,
   onReport,
   onReply,
+  onTargetLayout,
   reply = false,
 }: CommentItemProps) {
   const deleted = Boolean(comment.deleted);
@@ -257,7 +260,10 @@ function CommentItem({
   const [draft, setDraft] = useState(comment.content);
 
   return (
-    <View style={[styles.comment, reply && styles.reply, deleted && styles.deletedComment]}>
+    <View
+      onLayout={onTargetLayout}
+      style={[styles.comment, reply && styles.reply, deleted && styles.deletedComment]}
+    >
       {deleted ? (
         <View style={styles.deletedAvatar} />
       ) : (
@@ -265,10 +271,16 @@ function CommentItem({
           accessibilityRole="button"
           accessibilityLabel={`${comment.nickname} 프로필`}
           disabled={!comment.authorId || comment.isMine}
-          onPress={event => { event.stopPropagation(); onAuthor(); }}
+          onPress={event => {
+            event.stopPropagation();
+            onAuthor();
+          }}
           accessibilityState={{ expanded: authorMenuOpen }}
         >
-          <Image source={require('../../assets/images/found-report/reporter-profile.png')} style={styles.avatar} />
+          <Image
+            source={require('../../assets/images/found-report/reporter-profile.png')}
+            style={styles.avatar}
+          />
         </Pressable>
       )}
       <View style={[styles.commentBody, deleted && styles.deletedCommentBody]}>
@@ -276,8 +288,17 @@ function CommentItem({
           <View style={styles.commentMeta}>
             <Text
               accessibilityRole={comment.authorId && !comment.isMine ? 'button' : undefined}
-              onPress={comment.authorId && !comment.isMine ? event => { event.stopPropagation(); onAuthor(); } : undefined}
-              numberOfLines={1} style={[styles.nickname, comment.isMine && styles.myNickname]}>
+              onPress={
+                comment.authorId && !comment.isMine
+                  ? event => {
+                      event.stopPropagation();
+                      onAuthor();
+                    }
+                  : undefined
+              }
+              numberOfLines={1}
+              style={[styles.nickname, comment.isMine && styles.myNickname]}
+            >
               {comment.nickname}
             </Text>
             <Text style={styles.createdAt}>{comment.createdAt}</Text>
@@ -368,11 +389,19 @@ function CommentItem({
           <Pressable
             onPress={event => {
               event.stopPropagation();
-              if (authorMenuOpen) { onChat(); } else { onReport(); }
+              if (authorMenuOpen) {
+                onChat();
+              } else {
+                onReport();
+              }
             }}
             style={styles.myCommentMenuItem}
           >
-             {authorMenuOpen ? <ChatIcon height={20} width={20} /> : <ReportIcon height={20} width={20} />}
+            {authorMenuOpen ? (
+              <ChatIcon height={20} width={20} />
+            ) : (
+              <ReportIcon height={20} width={20} />
+            )}
             <Text style={authorMenuOpen ? styles.myCommentMenuText : styles.reportMenuText}>
               {authorMenuOpen ? '채팅하기' : '신고하기'}
             </Text>
@@ -400,6 +429,8 @@ type CommentThreadProps = {
   onReply: (commentId: string | null) => void;
   photoMenuId: string | null;
   replyTargetId: string | null;
+  targetCommentId?: string;
+  onTargetLayout?: (y: number) => void;
 };
 
 function CommentThread({
@@ -419,7 +450,21 @@ function CommentThread({
   onReply,
   replyTargetId,
   photoMenuId,
+  targetCommentId,
+  onTargetLayout,
 }: CommentThreadProps) {
+  const threadYRef = useRef<number | null>(null);
+  const targetYRef = useRef<number | null>(null);
+  const targetReportedRef = useRef(false);
+
+  const reportTargetLayout = () => {
+    if (threadYRef.current === null || targetYRef.current === null || targetReportedRef.current) {
+      return;
+    }
+    targetReportedRef.current = true;
+    onTargetLayout?.(threadYRef.current + targetYRef.current);
+  };
+
   const item = (reply: FoundReportReply, isReply = false) => (
     <CommentItem
       onAuthor={() => onAuthor(reply)}
@@ -436,12 +481,25 @@ function CommentThread({
       onMenu={() => onMenu(reply, isReply)}
       onReport={() => onReport(reply, isReply)}
       onReply={() => onReply(comment.id)}
+      onTargetLayout={
+        reply.id === targetCommentId
+          ? event => {
+              targetYRef.current = event.nativeEvent.layout.y;
+              requestAnimationFrame(reportTargetLayout);
+            }
+          : undefined
+      }
       reply={isReply}
     />
   );
 
   return (
-    <View>
+    <View
+      onLayout={event => {
+        threadYRef.current = event.nativeEvent.layout.y;
+        requestAnimationFrame(reportTargetLayout);
+      }}
+    >
       {item(comment)}
       {replyTargetId === comment.id ? (
         <CommentComposer
@@ -462,10 +520,21 @@ function CommentThread({
 type FoundReportCommentListProps = {
   onChat: (name: string, authorId: string) => void;
   onEditFocus?: (inputHandle: number) => void;
+  onTargetLayout?: (y: number) => void;
   reportId: string;
+  targetCommentId?: string;
 };
 
-export function FoundReportCommentList({ onChat, onEditFocus, reportId }: FoundReportCommentListProps) {
+export function FoundReportCommentList({
+  onChat,
+  onEditFocus,
+  onTargetLayout,
+  reportId,
+  targetCommentId,
+}: FoundReportCommentListProps) {
+  const listYRef = useRef<number | null>(null);
+  const targetRelativeYRef = useRef<number | null>(null);
+  const targetReportedRef = useRef(false);
   const insets = useSafeAreaInsets();
   const [comments, dispatch] = useReducer(commentReducer, foundReportComments);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -477,6 +546,18 @@ export function FoundReportCommentList({ onChat, onEditFocus, reportId }: FoundR
   const [viewerImageUri, setViewerImageUri] = useState<string | null>(null);
   const contentReports = useContentReportStore(state => state.reports);
   const addContentReport = useContentReportStore(state => state.addReport);
+
+  const reportTargetPosition = () => {
+    if (
+      listYRef.current === null ||
+      targetRelativeYRef.current === null ||
+      targetReportedRef.current
+    ) {
+      return;
+    }
+    targetReportedRef.current = true;
+    onTargetLayout?.(listYRef.current + targetRelativeYRef.current);
+  };
 
   const addComment = (content: string, imageUri?: string) => {
     dispatch({
@@ -535,7 +616,15 @@ export function FoundReportCommentList({ onChat, onEditFocus, reportId }: FoundR
   };
 
   return (
-    <Pressable accessible={false} onPress={dismissMenus} style={styles.container}>
+    <Pressable
+      accessible={false}
+      onLayout={event => {
+        listYRef.current = event.nativeEvent.layout.y;
+        requestAnimationFrame(reportTargetPosition);
+      }}
+      onPress={dismissMenus}
+      style={styles.container}
+    >
       <Text style={styles.title}>{getCommentCount(comments)}개의 댓글</Text>
       <CommentComposer
         onDismissMenus={dismissMenus}
@@ -552,11 +641,13 @@ export function FoundReportCommentList({ onChat, onEditFocus, reportId }: FoundR
           onAuthor={author => {
             setPhotoMenuId(null);
             const id = `author:${author.id}`;
-            setMenuId(current => current === id ? null : id);
+            setMenuId(current => (current === id ? null : id));
           }}
           onChat={author => {
             dismissMenus();
-            if (author.authorId) { onChat(author.nickname, author.authorId); }
+            if (author.authorId) {
+              onChat(author.nickname, author.authorId);
+            }
           }}
           comment={comment}
           editingId={editingId}
@@ -588,6 +679,11 @@ export function FoundReportCommentList({ onChat, onEditFocus, reportId }: FoundR
           }}
           photoMenuId={photoMenuId}
           replyTargetId={replyTargetId}
+          targetCommentId={targetCommentId}
+          onTargetLayout={y => {
+            targetRelativeYRef.current = y;
+            requestAnimationFrame(reportTargetPosition);
+          }}
         />
       ))}
       <ContentReportModal

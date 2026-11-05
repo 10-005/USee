@@ -33,6 +33,7 @@ import { LostReportLocationPickerScreen } from '../../screens/lost-report/LostRe
 import type { RootStackParamList } from './types';
 import { LoginScreen } from '../../screens/auth/LoginScreen';
 import { SignupOnboardingScreen } from '../../screens/auth/SignupOnboardingScreen';
+import { NotificationListScreen } from '../../screens/notification/NotificationListScreen';
 
 const styles = StyleSheet.create({
   walkExitTitle: {
@@ -60,10 +61,7 @@ export function RootNavigator() {
         <Stack.Screen name="FoundReportMap" component={FoundReportMapScreen} />
         <Stack.Screen name="LostReportDetail" component={FoundReportDetailScreen} />
         <Stack.Screen name="LostReportForm" component={LostReportFormScreen} />
-        <Stack.Screen
-          name="LostReportLocationPicker"
-          component={LostReportLocationPickerScreen}
-        />
+        <Stack.Screen name="LostReportLocationPicker" component={LostReportLocationPickerScreen} />
         <Stack.Screen name="LostReportPetSelection" component={LostReportPetSelectionScreen} />
         <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
         <Stack.Screen name="MockAdoptionActivity" component={MockAdoptionActivityScreen} />
@@ -76,6 +74,7 @@ export function RootNavigator() {
         <Stack.Screen name="SavedPosts" component={SavedPostsScreen} />
         <Stack.Screen name="MyPosts" component={MyPostsScreen} />
         <Stack.Screen name="NoticeList" component={NoticeListScreen} />
+        <Stack.Screen name="Notifications" component={NotificationListScreen} />
         <Stack.Screen name="NoticeDetail" component={NoticeDetailScreen} />
         <Stack.Screen name="MockAdoptionBudget" component={MockAdoptionBudgetScreen} />
         <Stack.Screen
