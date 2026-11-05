@@ -180,6 +180,16 @@ export function HomeScreen({ navigation }: Props) {
     [controlsProgress],
   );
 
+  const resetAdoptionListHeader = useCallback(() => {
+    controlsProgress.stopAnimation();
+    controlsProgress.setValue(1);
+    controlsVisibleRef.current = true;
+    lastScrollOffset.current = 0;
+    scrollDirection.current = null;
+    scrollDirectionDistance.current = 0;
+    setControlsVisible(true);
+  }, [controlsProgress]);
+
   const handleListScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const currentOffset = Math.max(0, event.nativeEvent.contentOffset.y);
     const delta = currentOffset - lastScrollOffset.current;
@@ -337,6 +347,9 @@ export function HomeScreen({ navigation }: Props) {
         items={navigationItems}
         onSelect={key => {
           setRegistrationMenuOpen(false);
+          if (key === 'adoption') {
+            resetAdoptionListHeader();
+          }
           setSelectedTab(key);
         }}
         selectedKey={selectedTab}
