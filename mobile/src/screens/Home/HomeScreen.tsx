@@ -2,6 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
   FlatList,
   Alert,
   Image,
@@ -170,7 +171,8 @@ export function HomeScreen({ navigation }: Props) {
       controlsVisibleRef.current = visible;
       setControlsVisible(visible);
       Animated.timing(controlsProgress, {
-        duration: 180,
+        duration: 300,
+        easing: Easing.bezier(0.22, 1, 0.36, 1),
         toValue: visible ? 1 : 0,
         useNativeDriver: false,
       }).start();
@@ -395,11 +397,36 @@ export function HomeScreen({ navigation }: Props) {
               styles.searchAndFilters,
               activeFilter && styles.searchAndFiltersAboveSheet,
               {
+                filter: [
+                  {
+                    blur: controlsProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [3, 0],
+                    }),
+                  },
+                ],
                 height: controlsProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, SEARCH_FILTERS_HEIGHT],
+                  inputRange: [0, 0.55, 1],
+                  outputRange: [0, SEARCH_FILTERS_HEIGHT, SEARCH_FILTERS_HEIGHT],
                 }),
-                opacity: controlsProgress,
+                opacity: controlsProgress.interpolate({
+                  inputRange: [0, 0.35, 1],
+                  outputRange: [0, 0, 1],
+                }),
+                transform: [
+                  {
+                    translateY: controlsProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-10, 0],
+                    }),
+                  },
+                  {
+                    scale: controlsProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.985, 1],
+                    }),
+                  },
+                ],
               },
             ]}
           >
