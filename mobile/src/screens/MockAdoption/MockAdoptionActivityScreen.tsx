@@ -375,7 +375,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                 onPress={() => {
                   hideThenNavigate(() => {
                     walkPending.current = true;
-                    navigation.navigate('ArWalk');
+                    navigation.navigate('ArWalk', { petName: pet?.name ?? '강아지' });
                   });
                 }}
               >

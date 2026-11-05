@@ -1,3 +1,4 @@
+import { StyleSheet, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -34,6 +35,18 @@ import { LoginScreen } from '../../screens/auth/LoginScreen';
 import { SignupOnboardingScreen } from '../../screens/auth/SignupOnboardingScreen';
 import { NotificationListScreen } from '../../screens/notification/NotificationListScreen';
 
+const styles = StyleSheet.create({
+  walkExitTitle: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    transform: [{ translateX: -20 }],
+  },
+});
+
+function WalkExitTitle() {
+  return <Text style={styles.walkExitTitle}>산책 그만하기</Text>;
+}
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
@@ -69,12 +82,14 @@ export function RootNavigator() {
           component={ArWalkScreen}
           options={{
             headerShown: true,
-            title: 'AR 산책',
+            title: '산책 그만하기',
+            headerTitle: WalkExitTitle,
+            headerTitleAlign: 'left',
             headerTransparent: true,
             headerShadowVisible: false,
             headerTintColor: '#FFFFFF',
             headerStyle: { backgroundColor: 'transparent' },
-            headerTitleStyle: { color: '#FFFFFF' },
+            headerTitleStyle: { color: '#FFFFFF', fontSize: 10 },
           }}
         />
         <Stack.Screen name="AdoptionDetail" component={AdoptionDetailScreen} />

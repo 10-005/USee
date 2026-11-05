@@ -12,7 +12,7 @@ internal class DogLeash(private val view: ARSceneView) : AutoCloseable {
     colorOf(r = 0.025f, g = 0.18f, b = 0.65f, a = 1f),
     metallic = 0f, roughness = 0.7f, reflectance = 0.25f,
   )
-  private val segments = List(24) {
+  private val segments = List(64) {
     CylinderNode(view.engine, radius = 0.004f, height = 1f, sideCount = 8, materialInstance = material).apply {
       isVisible = false
       isShadowCaster = false
@@ -34,7 +34,8 @@ internal class DogLeash(private val view: ARSceneView) : AutoCloseable {
   fun update(collar: LeashPoint, hand: LeashPoint, time: Long, body: LeashBody?): Float {
     val dt = if (previousTime == 0L) 0f else (time - previousTime) / 1_000_000_000f
     previousTime = time
-    val desired = curve.points(collar, hand, dt, segments.size)
+    // Keep routing input small; reserve rendered segments for rounded detour bends.
+    val desired = curve.points(collar, hand, dt)
     val points = if (body != null) collision.route(desired,body,segments.size) else desired
     latestPoints = points
     segments.forEachIndexed { index, segment ->

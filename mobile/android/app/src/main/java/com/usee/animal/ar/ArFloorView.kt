@@ -28,9 +28,13 @@ class ArFloorView(
   private val reactContext: ReactContext,
 ) : FrameLayout(reactContext) {
   private var sceneView: ARSceneView? = null
+  private var cleanup: WalkCleanupView? = null
+
   private var traversalDebug: TraversalDebugView? = null
-  private var showTraversalDebug = true
+  private var showTraversalDebug = false
   private var dogNode: DogModelNode? = null
+  private val dogHeading = DogHeadingSmoother()
+  private var lastDogRotationNanos = 0L
   private var shadowNode: CylinderNode? = null
   private var leash: DogLeash? = null
   private var leashHand: LeashPoint? = null
@@ -66,11 +70,12 @@ class ArFloorView(
 
   fun setShowTraversalDebug(visible: Boolean) {
     showTraversalDebug = visible
-    traversalDebug?.visibility = if (visible) VISIBLE else GONE
+    traversalDebug?.setDisplay(showTraversalDebug)
   }
 
   override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
     if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+      if (cleanup?.hitBag(event.x, event.y) == true) return false
       leashGesture = active && dogNode?.isVisible == true && leash?.hitTest(
         event.x, event.y, viewMatrix, projectionMatrix, width, height, 24f * resources.displayMetrics.density,
       ) == true
@@ -149,6 +154,8 @@ class ArFloorView(
     val activity = reactContext.currentActivity as? ComponentActivity ?: return
     // A newly created AR session has a new world coordinate system.
     leader = DogLeader(requiresPlacement = false)
+    dogHeading.reset()
+    lastDogRotationNanos = 0L
     scratch = SessionScratch()
     floorAnalyzer = SegFormerFloorAnalyzer(context)
     wasBlocked = false
@@ -170,11 +177,14 @@ class ArFloorView(
     sceneView = view
     val debug = TraversalDebugView(context).apply {
       layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-      visibility = if (showTraversalDebug) VISIBLE else GONE
+      setDisplay(showTraversalDebug)
     }
     traversalDebug = debug
     addView(view)
     addView(debug)
+    cleanup = WalkCleanupView(context, view).also {
+      addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+    }
     view.modelLoader.loadModelInstanceAsync("models/dog.glb") { instance ->
       if (instance == null || disposed || sceneView !== view) {
         return@loadModelInstanceAsync
@@ -225,6 +235,8 @@ class ArFloorView(
   }
 
   private fun stop() {
+    cleanup?.let { it.release(); removeView(it) }
+    cleanup = null
     dogNode?.onPoseUpdated = null
     leash?.close()
     leash = null
@@ -296,20 +308,44 @@ class ArFloorView(
       kotlin.math.abs(clipPoint[0]) <= clipPoint[3] && kotlin.math.abs(clipPoint[1]) <= clipPoint[3]
     val node = dogNode
     val shadow = shadowNode
+    val rotationNow = SystemClock.elapsedRealtimeNanos()
+    val rotationDt = if (lastDogRotationNanos == 0L) 0f else (rotationNow - lastDogRotationNanos) / 1_000_000_000f
+    lastDogRotationNanos = rotationNow
     if (node != null) {
       node.isVisible = shown.dog.visible
       shadow?.isVisible = shown.dog.visible
       if (shown.dog.visible) {
         node.position = Position(shown.dog.x, shown.dog.y + pawLift(node), shown.dog.z)
-        node.rotation = Rotation(y = shown.dog.yawDegrees)
+        node.rotation = Rotation(y = dogHeading.update(shown.dog.yawDegrees, rotationDt))
         shadow?.position = Position(shown.dog.x, shown.dog.y + 0.006f, shown.dog.z)
         node.play(DogAnimation(shown.dog.clip, shown.dog.clipLoop, shown.dog.animationRevision))
+      } else {
+        dogHeading.pause()
       }
     }
     sceneView?.planeRenderer?.isVisible = false
     if (showTraversalDebug) {
-      traversalDebug?.update(frame, floorAnalyzer?.latest, scratch.planes, scratch.walls, shown.dog, scratch.stops.summary(), scratch.userGround, scratch.depth)
+      traversalDebug?.update(frame, floorAnalyzer?.latest, scratch.planes, scratch.walls, shown.dog, scratch.userGround, scratch.depth)
     }
+    if (camera.trackingState == com.google.ar.core.TrackingState.TRACKING && shown.dog.visible) {
+      val dog = shown.dog
+      val rightX = screenRight[0]
+      val rightZ = screenRight[2]
+      val now = SystemClock.elapsedRealtimeNanos()
+      val obstacle = listOf(0.4f, 0.7f, 1f).any { distance ->
+        val x = dog.x + rightX * distance
+        val z = dog.z + rightZ * distance
+        android.opengl.Matrix.multiplyMV(cameraPoint, 0, viewMatrix, 0, floatArrayOf(x, dog.y, z, 1f), 0)
+        android.opengl.Matrix.multiplyMV(clipPoint, 0, projectionMatrix, 0, cameraPoint, 0)
+        val onRight = clipPoint[3] > 0f && clipPoint[0] > 0f && clipPoint[0] <= clipPoint[3] &&
+          kotlin.math.abs(clipPoint[1]) <= clipPoint[3]
+        onRight && (scratch.depth.latest?.evidence(x, dog.y, z, now) == FloorEvidence.OBSTACLE ||
+          floorAnalyzer?.latest?.let { it.isFresh(now) && it.evidenceAt(x, dog.y, z, now) == FloorEvidence.OBSTACLE } == true)
+      }
+      cleanup?.update(dog, camera.pose.tx(), camera.pose.tz(), viewMatrix, projectionMatrix, obstacle) {
+        leader.beginPoop(rightX, rightZ)
+      }
+    } else cleanup?.pause()
     emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen, shown.dog.userMoving)
   }
 
