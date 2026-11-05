@@ -1,6 +1,7 @@
 package com.ssafy.animal.common.config
 
 import com.fasterxml.jackson.annotation.JsonInclude
+import com.ssafy.animal.common.auth.AuthUser
 import com.ssafy.animal.common.auth.JwtAuthenticationFilter
 import com.ssafy.animal.common.auth.JwtVerifier
 import com.ssafy.animal.common.auth.SecurityErrorResponder
@@ -14,6 +15,7 @@ import io.swagger.v3.oas.models.Components
 import io.swagger.v3.oas.models.OpenAPI
 import io.swagger.v3.oas.models.security.SecurityRequirement
 import io.swagger.v3.oas.models.security.SecurityScheme
+import org.springdoc.core.utils.SpringDocUtils
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
@@ -144,6 +146,11 @@ class CommonWebAutoConfiguration {
     }
 
     companion object {
+        init {
+            // default-flat-param-object가 @AuthenticationPrincipal AuthUser까지 쿼리 파라미터로 펼치므로 문서에서 뺀다
+            SpringDocUtils.getConfig().addRequestWrapperToIgnore(AuthUser::class.java)
+        }
+
         private const val BEARER_AUTH = "bearerAuth"
         private val PUBLIC_PATHS = arrayOf(
             // 문서 경로: /api/{서비스}/v3/api-docs(swagger-config 포함), /swagger-ui(화면·정적 리소스)

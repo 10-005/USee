@@ -6,6 +6,14 @@ springdoc:
     path: ${api.prefix}/v3/api-docs
   swagger-ui:
     path: /swagger-ui
+  # Pageable·검색 조건 객체를 page·size·sort 같은 개별 쿼리 파라미터로 문서화(@ParameterObject 불필요)
+  default-flat-param-object: true
+
+spring:
+  data:
+    web:
+      pageable:
+        max-page-size: 100   # 명세 Q417. 100 초과 요청은 100으로 잘린다
 
 server:
   # Traefik이 보내는 X-Forwarded-Proto(https)를 반영해 문서의 servers 주소를 https로 만든다

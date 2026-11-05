@@ -1,10 +1,13 @@
 package com.ssafy.animal.core
 
+import com.ssafy.animal.common.auth.AuthUser
 import com.ssafy.animal.common.config.CommonWebAutoConfiguration
 import com.ssafy.animal.core.sample.application.port.`in`.SampleUseCase
 import org.hamcrest.Matchers.containsInAnyOrder
+import org.hamcrest.Matchers.empty
 import org.junit.jupiter.api.Test
 import org.springdoc.core.configuration.SpringDocConfiguration
+import org.springdoc.core.configuration.SpringDocPageableConfiguration
 import org.springdoc.core.properties.SpringDocConfigProperties
 import org.springdoc.core.properties.SwaggerUiConfigProperties
 import org.springdoc.core.properties.SwaggerUiOAuthProperties
@@ -13,12 +16,16 @@ import org.springdoc.webmvc.ui.SwaggerConfig
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
+import org.springframework.data.domain.Pageable
+import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.RestController
 import java.security.KeyPairGenerator
 import java.util.Base64
 
@@ -26,6 +33,7 @@ import java.util.Base64
 @ImportAutoConfiguration(
     CommonWebAutoConfiguration::class,
     SpringDocConfiguration::class,
+    SpringDocPageableConfiguration::class,
     SpringDocConfigProperties::class,
     SpringDocWebMvcConfiguration::class,
     SwaggerConfig::class,
@@ -89,6 +97,37 @@ class SwaggerDocsDevHubTest : SwaggerDocsTestBase() {
             jsonPath("$.security[0].bearerAuth") { isArray() }
         }
     }
+
+    @Test
+    fun `목록 API의 Pageable은 page·size·sort 개별 쿼리 파라미터로 문서화된다`() {
+        val params = "$.paths['/api/core/v1/samples'].get.parameters"
+        mockMvc.get("/api/core/v3/api-docs").andExpect {
+            status { isOk() }
+            jsonPath("$params[*].name") { value(containsInAnyOrder("page", "size", "sort")) }
+            jsonPath("$params[*].in") { value(containsInAnyOrder("query", "query", "query")) }
+            jsonPath("$params[?(@.name == 'pageable')]") { value(empty<Any>()) }
+            jsonPath("$.components.schemas.Pageable") { doesNotExist() }
+        }
+    }
+
+    @Test
+    fun `AuthenticationPrincipal AuthUser는 쿼리 파라미터로 문서화되지 않는다`() {
+        val params = "$.paths['$AUTH_USER_DOCS_PATH'].get.parameters"
+        mockMvc.get("/api/core/v3/api-docs").andExpect {
+            status { isOk() }
+            jsonPath("$params[*].name") { value(containsInAnyOrder("page", "size", "sort")) }
+            jsonPath("$params[?(@.name in ['userSeq', 'role', 'shelterSeq'])]") { value(empty<Any>()) }
+        }
+    }
+}
+
+private const val AUTH_USER_DOCS_PATH = "/api/core/v1/test-docs/auth-user"
+
+/** 문서 검증 전용. AuthUser와 Pageable을 함께 받는 목록 API 모양을 흉내 낸다. */
+@RestController
+class AuthUserDocsTestController {
+    @GetMapping(AUTH_USER_DOCS_PATH)
+    fun list(@AuthenticationPrincipal user: AuthUser, pageable: Pageable) = Unit
 }
 
 /** core-api 외 서비스(chat 등)는 api.docs-hub가 없으므로 같은 설정에서 이렇게 동작한다. */
