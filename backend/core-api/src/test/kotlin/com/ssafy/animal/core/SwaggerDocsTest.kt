@@ -3,8 +3,10 @@ package com.ssafy.animal.core
 import com.ssafy.animal.common.config.CommonWebAutoConfiguration
 import com.ssafy.animal.core.sample.application.port.`in`.SampleUseCase
 import org.hamcrest.Matchers.containsInAnyOrder
+import org.hamcrest.Matchers.empty
 import org.junit.jupiter.api.Test
 import org.springdoc.core.configuration.SpringDocConfiguration
+import org.springdoc.core.configuration.SpringDocPageableConfiguration
 import org.springdoc.core.properties.SpringDocConfigProperties
 import org.springdoc.core.properties.SwaggerUiConfigProperties
 import org.springdoc.core.properties.SwaggerUiOAuthProperties
@@ -26,6 +28,7 @@ import java.util.Base64
 @ImportAutoConfiguration(
     CommonWebAutoConfiguration::class,
     SpringDocConfiguration::class,
+    SpringDocPageableConfiguration::class,
     SpringDocConfigProperties::class,
     SpringDocWebMvcConfiguration::class,
     SwaggerConfig::class,
@@ -87,6 +90,18 @@ class SwaggerDocsDevHubTest : SwaggerDocsTestBase() {
             jsonPath("$.components.securitySchemes.bearerAuth.scheme") { value("bearer") }
             jsonPath("$.components.securitySchemes.bearerAuth.bearerFormat") { value("JWT") }
             jsonPath("$.security[0].bearerAuth") { isArray() }
+        }
+    }
+
+    @Test
+    fun `목록 API의 Pageable은 page·size·sort 개별 쿼리 파라미터로 문서화된다`() {
+        val params = "$.paths['/api/core/v1/samples'].get.parameters"
+        mockMvc.get("/api/core/v3/api-docs").andExpect {
+            status { isOk() }
+            jsonPath("$params[*].name") { value(containsInAnyOrder("page", "size", "sort")) }
+            jsonPath("$params[*].in") { value(containsInAnyOrder("query", "query", "query")) }
+            jsonPath("$params[?(@.name == 'pageable')]") { value(empty<Any>()) }
+            jsonPath("$.components.schemas.Pageable") { doesNotExist() }
         }
     }
 }
