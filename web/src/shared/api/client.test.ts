@@ -1,9 +1,98 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, requestJson } from './client';
+import { ApiError, requestApi, requestJson } from './client';
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe('JSON API 클라이언트', () => {
+  it('공통 성공 봉투의 null 데이터와 추적 ID를 유지한다', async () => {
+    const body = {
+      status: 200,
+      code: 'SUCCESS',
+      message: '성공',
+      data: null,
+      errors: [],
+      traceId: 'body-trace',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify(body), { headers: { 'X-Trace-Id': 'header-trace' } }),
+        ),
+    );
+    await expect(requestApi('/core/v1/items')).resolves.toEqual({
+      status: 200,
+      data: null,
+      traceId: 'header-trace',
+      response: body,
+    });
+  });
+
+  it('204 응답의 헤더 추적 ID를 반환한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(null, { status: 204, headers: { 'X-Trace-Id': 'no-content-trace' } }),
+        ),
+    );
+    await expect(requestApi('/core/v1/items/1', { method: 'DELETE' })).resolves.toEqual({
+      status: 204,
+      data: undefined,
+      traceId: 'no-content-trace',
+    });
+  });
+
+  it('검증 오류의 코드, 메시지, 필드 오류와 추적 ID를 보존한다', async () => {
+    const body = {
+      status: 400,
+      code: 'COMMON_INVALID_INPUT',
+      message: '입력값이 올바르지 않습니다.',
+      data: null,
+      errors: [{ field: 'phone', reason: '형식이 아닙니다.' }],
+      traceId: 'body-trace',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 400 })),
+    );
+    await expect(requestApi('/core/v1/items')).rejects.toMatchObject({
+      status: 400,
+      code: body.code,
+      message: body.message,
+      errors: body.errors,
+      traceId: 'body-trace',
+      body,
+    });
+  });
+
+  it('공통 응답이 아닌 성공 본문과 성공 상태의 오류 코드를 구분한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response(JSON.stringify({ data: [] })))
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              status: 200,
+              code: 'COMMON_INVALID_INPUT',
+              message: '오류',
+              data: null,
+              errors: [],
+              traceId: 'trace',
+            }),
+          ),
+        ),
+    );
+    await expect(requestApi('/core/v1/items')).rejects.toThrow('공통 응답 형식');
+    await expect(requestApi('/core/v1/items')).rejects.toMatchObject({
+      name: 'ApiError',
+      code: 'COMMON_INVALID_INPUT',
+    });
+  });
   it('요청 본문과 헤더를 전달하고 응답 원문을 보존한다', async () => {
     const fetchMock = vi
       .fn()
