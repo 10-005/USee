@@ -10,6 +10,10 @@ import com.ssafy.animal.common.event.LoggingEventAdapter
 import com.ssafy.animal.common.exception.GlobalExceptionHandler
 import com.ssafy.animal.common.response.ApiResponseBodyAdvice
 import com.ssafy.animal.common.web.TraceIdFilter
+import io.swagger.v3.oas.models.Components
+import io.swagger.v3.oas.models.OpenAPI
+import io.swagger.v3.oas.models.security.SecurityRequirement
+import io.swagger.v3.oas.models.security.SecurityScheme
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
@@ -97,6 +101,18 @@ class CommonWebAutoConfiguration {
     @ConditionalOnMissingBean
     fun eventPublisher(): EventPublisher = LoggingEventAdapter()
 
+    // Swagger 화면의 Authorize 버튼으로 JWT를 넣어 인증이 필요한 API를 호출할 수 있게 한다
+    @Bean
+    @ConditionalOnMissingBean
+    fun openApi(): OpenAPI = OpenAPI()
+        .components(
+            Components().addSecuritySchemes(
+                BEARER_AUTH,
+                SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT"),
+            ),
+        )
+        .addSecurityItem(SecurityRequirement().addList(BEARER_AUTH))
+
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnClass(name = ["org.springframework.messaging.support.ChannelInterceptor"])
     class StompConfiguration {
@@ -105,8 +121,10 @@ class CommonWebAutoConfiguration {
     }
 
     companion object {
+        private const val BEARER_AUTH = "bearerAuth"
         private val PUBLIC_PATHS = arrayOf(
-            "/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/error",
+            // 문서 경로: /api/{서비스}/v3/api-docs(swagger-config 포함), /swagger-ui(화면·정적 리소스)
+            "/actuator/health/**", "/api/*/v3/api-docs/**", "/swagger-ui/**", "/error",
         )
     }
 }

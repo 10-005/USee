@@ -1,0 +1,41 @@
+# 서비스 application.yml의 spring.config.import로 불러온다. 서비스는 api.prefix(/api/core 등)만 정한다.
+# import한 파일이 서비스 yml보다 우선하므로, 서비스별로 달라야 하는 값은 api.* 프로퍼티로 받는다.
+springdoc:
+  api-docs:
+    enabled: false   # 기본 꺼짐(prod 등). local·dev에서만 켠다
+    path: ${api.prefix}/v3/api-docs
+  swagger-ui:
+    path: /swagger-ui
+
+server:
+  # Traefik이 보내는 X-Forwarded-Proto(https)를 반영해 문서의 servers 주소를 https로 만든다
+  forward-headers-strategy: native
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local | dev
+springdoc:
+  api-docs:
+    enabled: true
+
+---
+# dev: 같은 도메인에서 /swagger-ui를 하나만 둘 수 있으므로 api.docs-hub=true인 서비스(core-api)만 통합 화면을 띄운다
+spring:
+  config:
+    activate:
+      on-profile: dev
+springdoc:
+  swagger-ui:
+    enabled: ${api.docs-hub:false}
+    urls-primary-name: core-api   # 드롭다운이 이름순 정렬이라 지정하지 않으면 chat이 먼저 열린다
+    urls:
+      - name: core-api
+        url: /api/core/v3/api-docs
+      - name: chat
+        url: /api/chat/v3/api-docs
+      - name: notification
+        url: /api/notification/v3/api-docs
+      - name: simulation
+        url: /api/simulation/v3/api-docs
