@@ -31,7 +31,7 @@ internal fun segmentDistanceSquared(p: LeashPoint, q: LeashPoint, a: LeashPoint,
   return dot(delta,delta).coerceAtLeast(0f)
 }
 
-/** Collision-free polyline routing. No post-smoothing that can cut back through the body. */
+/** Collision-free routing with rounded bends validated against every body capsule. */
 internal class LeashCollision {
   private var previousBends = emptyList<LeashPoint>()
   private var previousNeck: LeashPoint? = null
@@ -55,12 +55,12 @@ internal class LeashCollision {
     clearFrames = if (directClear) clearFrames + 1 else 0
     if (directClear && (previousBends.isEmpty() || clearFrames >= 8)) {
       previousBends = emptyList()
-      return subdivide(guided, segments)
+      return rounded(guided, body, segments)
     }
     // Keep a still-valid detour rather than flipping around the body every frame.
     if (previousBends.isNotEmpty()) {
       val previous = listOf(start,guide) + previousBends + hand
-      if (previous.zipWithNext().all { clear(it.first,it.second) }) return subdivide(previous,segments)
+      if (previous.zipWithNext().all { clear(it.first,it.second) }) return rounded(previous,body,segments)
     }
     val nodes = arrayListOf(guide,hand)
     // Cube-corner offsets sit outside each capsule; a bounded visibility graph joins them.
@@ -95,7 +95,46 @@ internal class LeashCollision {
     while (index >= 0) { path.add(nodes[index]); index = parent[index] }
     path.reverse()
     previousBends = path.drop(1).dropLast(1)
-    return subdivide(listOf(start) + path,segments)
+    return rounded(listOf(start) + path,body,segments)
+  }
+
+  private fun rounded(path: List<LeashPoint>, body: LeashBody, budget: Int): List<LeashPoint> {
+    fun clear(a: LeashPoint, b: LeashPoint) = body.capsules.none { it.intersects(a,b) }
+    val result = arrayListOf(path.first())
+    for (i in 1 until path.lastIndex) {
+      val corner = path[i]
+      val incoming = corner - path[i - 1]
+      val outgoing = path[i + 1] - corner
+      val before = incoming.length()
+      val after = outgoing.length()
+      if (before < 0.0001f || after < 0.0001f || dot(incoming,outgoing) / (before * after) > 0.98f) {
+        result.add(corner)
+        continue
+      }
+      var trim = minOf(0.12f, before * 0.35f, after * 0.35f)
+      var accepted = false
+      // A rounded corner cuts inside the old route. Shrink the radius until every
+      // rendered chord is clear; retain the original corner if no safe arc fits.
+      for (attempt in 0..5) {
+        val entry = corner - incoming * (trim / before)
+        val exit = corner + outgoing * (trim / after)
+        val arc = List(7) { index ->
+          val t = index / 6f
+          entry * ((1f - t) * (1f - t)) + corner * (2f * t * (1f - t)) + exit * (t * t)
+        }
+        if (clear(result.last(),entry) && clear(exit,path[i + 1]) &&
+          arc.zipWithNext().all { clear(it.first,it.second) }) {
+          result.addAll(arc)
+          accepted = true
+          break
+        }
+        trim *= 0.5f
+      }
+      if (!accepted) result.add(corner)
+    }
+    result.add(path.last())
+    // Never drop an unrounded corner or an arc sample to satisfy the mesh budget.
+    return subdivide(if (result.size - 1 <= budget) result else path, budget)
   }
 
   /** Preserve every corner. Uniform arc resampling would cut corners through colliders. */
