@@ -1,5 +1,7 @@
 /* global jest */
 
+jest.mock('@op-engineering/op-sqlite', () => require('./__mocks__/opSqliteMock'));
+
 jest.mock('@dr.pogodin/react-native-fs', () => ({
   DocumentDirectoryPath: '/documents',
   copyFile: jest.fn(),
@@ -89,4 +91,7 @@ jest.mock('@react-native-community/geolocation', () => ({
   },
 }));
 
-jest.mock('@mj-studio/react-native-naver-map', () => ({ NaverMapView: 'NaverMapView', NaverMapMarkerOverlay: 'NaverMapMarkerOverlay' }));
+jest.mock('@mj-studio/react-native-naver-map', () => ({
+  NaverMapView: 'NaverMapView',
+  NaverMapMarkerOverlay: 'NaverMapMarkerOverlay',
+}));

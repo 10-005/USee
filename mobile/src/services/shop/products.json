@@ -1,0 +1,1057 @@
+[
+  {
+    "id": "food",
+    "name": "균형 잡힌 사료",
+    "qty": 12,
+    "unit": "끼",
+    "species": "all",
+    "kind": "consumable",
+    "category": "식사",
+    "icon": "◒",
+    "description": "정량 급여 12회분. 일주일에 21회분이 필요해요.",
+    "essential": true,
+    "sprite": 0,
+    "atlas": "items-extra-v2",
+    "tint": "none",
+    "room": [71, 47, 8],
+    "market": {
+      "gamePrice": 10600,
+      "basis": "개·고양이 소포장 사료 2종의 포장가 중간값 (9,610 + 11,590) ÷ 2. 시장 평균이 아닌 게임 공통 기준. 종과 개체에 맞는 사료를 준비하는 것으로 가정해요.",
+      "sources": [
+        {
+          "shop": "멍뭉이마트",
+          "product": "시저 연어와 쇠고기",
+          "pack": "1kg",
+          "price": 9610,
+          "url": "https://mmemart.com/product/시저-연어와-쇠고기-1kg/871/",
+          "note": "개 사료 · 기간 할인 제외"
+        },
+        {
+          "shop": "펫천국",
+          "product": "캐츠랑 어덜트 웨이트케어",
+          "pack": "1.5kg",
+          "price": 11590,
+          "url": "https://jspet.co.kr/product/무료배송-캐츠랑-어덜트-웨이트케어-15kg-고양이사료/3159/",
+          "note": "고양이 사료 · 특정 제품 급여를 권하는 뜻은 아님"
+        }
+      ]
+    },
+    "price": 10600,
+    "placement": "inventory"
+  },
+  {
+    "id": "bowl",
+    "name": "밥그릇",
+    "qty": 1,
+    "unit": "개",
+    "species": "all",
+    "kind": "durable",
+    "category": "식사",
+    "icon": "◡",
+    "description": "한 번 준비하면 매 끼니 다시 사용할 수 있어요.",
+    "essential": true,
+    "sprite": 0,
+    "room": [25, 85, 12],
+    "market": {
+      "gamePrice": 10000,
+      "basis": "식기 1개 가격",
+      "sources": [
+        {
+          "shop": "냥멍",
+          "product": "펫킷 프레쉬 나노 식기 1구",
+          "pack": "1개",
+          "price": 10000,
+          "url": "https://nyangmeong.com/",
+          "note": "판매처 상품 목록에서 확인 · 상세 열기 제한"
+        }
+      ]
+    },
+    "price": 10000,
+    "placement": "room"
+  },
+  {
+    "id": "waterBowl",
+    "name": "물그릇",
+    "qty": 1,
+    "unit": "개",
+    "species": "all",
+    "kind": "durable",
+    "category": "식사",
+    "icon": "◡",
+    "description": "물은 무료. 깨끗한 물로 매일 갈아 주세요.",
+    "essential": true,
+    "sprite": 1,
+    "room": [11, 82, 11],
+    "market": {
+      "gamePrice": 10000,
+      "basis": "물그릇으로 사용할 별도 식기 1개 가격",
+      "sources": [
+        {
+          "shop": "냥멍",
+          "product": "펫킷 프레쉬 나노 식기 1구",
+          "pack": "1개",
+          "price": 10000,
+          "url": "https://nyangmeong.com/",
+          "note": "판매처 상품 목록에서 확인 · 상세 열기 제한"
+        }
+      ]
+    },
+    "price": 10000,
+    "placement": "room"
+  },
+  {
+    "id": "carrier",
+    "name": "안전한 이동장",
+    "qty": 1,
+    "unit": "개",
+    "species": "all",
+    "kind": "durable",
+    "category": "가구",
+    "icon": "▣",
+    "description": "집으로 오는 길과 병원 이동에 필요해요.",
+    "essential": true,
+    "sprite": 3,
+    "room": [10, 62, 17],
+    "market": {
+      "gamePrice": 16200,
+      "basis": "소형 이동장 1개 참고. 실제 크기는 개체에 맞게 선택해야 해요.",
+      "sources": [
+        {
+          "shop": "냥멍",
+          "product": "푸르미 하드캐리어 FC2000",
+          "pack": "1개",
+          "price": 16200,
+          "url": "https://nyangmeong.com/category/하드-캐리어-이동장/497/",
+          "note": "판매처 상품 목록에서 확인 · 상세 열기 제한"
+        }
+      ]
+    },
+    "price": 16200,
+    "placement": "inventory"
+  },
+  {
+    "id": "bed",
+    "name": "포근한 쉼터",
+    "qty": 1,
+    "unit": "개",
+    "species": "all",
+    "kind": "durable",
+    "category": "가구",
+    "icon": "▱",
+    "description": "안전하게 숨고 쉴 수 있는 개인 공간이에요.",
+    "essential": true,
+    "sprite": 2,
+    "room": [24, 62, 23],
+    "use": "rest",
+    "market": {
+      "gamePrice": 19900,
+      "basis": "쿠션형 방석 1개 가격",
+      "sources": [
+        {
+          "shop": "오늘의집",
+          "product": "반려동물 털 안붙는 통세탁 인견 방석",
+          "pack": "1개",
+          "price": 19900,
+          "url": "https://store.ohou.se/goods/3588290",
+          "note": "판매처 검색 색인의 판매가 · 상세 열기 제한"
+        }
+      ]
+    },
+    "price": 19900,
+    "placement": "room"
+  },
+  {
+    "id": "toy",
+    "name": "탐색 장난감",
+    "qty": 1,
+    "unit": "개",
+    "species": "all",
+    "kind": "durable",
+    "category": "놀이",
+    "icon": "◉",
+    "description": "개의 탐색 놀이와 고양이의 공놀이에 사용해요.",
+    "essential": false,
+    "sprite": 15,
+    "atlas": "items-extra-v2",
+    "tint": "none",
+    "room": [39, 87, 8],
+    "use": "play",
+    "playPower": 0.75,
+    "market": {
+      "gamePrice": 4100,
+      "basis": "탐색용 간식볼 1개 가격",
+      "sources": [
+        {
+          "shop": "CJ온스타일",
+          "product": "오렌지 실리콘 노즈워크 간식볼",
+          "pack": "1개",
+          "price": 4100,
+          "url": "https://item.cjonstyle.com/nfront/item/2051551194?channelCode=30002002",
+          "note": "혜택가 3,900원 제외"
+        }
+      ]
+    },
+    "price": 4100,
+    "placement": "inventory",
+    "toyKind": "sniff"
+  },
+  {
+    "id": "treat",
+    "name": "바삭한 미니 비스킷",
+    "qty": 5,
+    "unit": "회",
+    "species": "all",
+    "kind": "consumable",
+    "category": "간식",
+    "icon": "✦",
+    "description": "작게 나눠 주는 기본 간식. 주식을 대신하지 않아요.",
+    "essential": false,
+    "sprite": 14,
+    "atlas": "items-extra-v2",
+    "tint": "none",
+    "room": [77, 47, 6],
+    "use": "treat",
+    "effects": {
+      "bond": 4,
+      "stress": -4
+    },
+    "market": {
+      "gamePrice": 4500,
+      "basis": "비스킷 1봉 포장가",
+      "sources": [
+        {
+          "shop": "더주스",
+          "product": "비스코티 단호박·당근·시금치 비스켓",
+          "pack": "160g",
+          "price": 4500,
+          "url": "https://thezoos.kr/product/비스코티-단호박당근시금치-비스켓-160g/233/category/53/display/1/",
+          "note": "판매처 검색 색인에서 확인 · 상세 열기 제한"
+        }
+      ]
+    },
+    "price": 4500,
+    "placement": "inventory"
+  },
+  {
+    "id": "hygiene",
+    "name": "위생 관리 키트",
+    "qty": 1,
+    "unit": "세트",
+    "species": "all",
+    "kind": "durable",
+    "category": "위생",
+    "icon": "▤",
+    "description": "빗·칫솔 등 기본 관리 도구. 일주일 3회 관리 목표.",
+    "essential": true,
+    "sprite": 15,
+    "room": [62, 48, 7],
+    "market": {
+      "gamePrice": 13800,
+      "basis": "브러쉬 5,900원 + 칫솔 7,900원 합산. 실제 묶음 상품은 아니에요.",
+      "sources": [
+        {
+          "shop": "핏펫",
+          "product": "크레용펫 미니 그루밍 브러쉬",
+          "pack": "1개",
+          "price": 5900,
+          "url": "https://www.fitpetmall.com/mall/products/1000037146",
+          "note": "판매 상세의 표시 판매가"
+        },
+        {
+          "shop": "핏펫",
+          "product": "오늘멍냥 360도 칫솔",
+          "pack": "1개",
+          "price": 7900,
+          "url": "https://www.fitpetmall.com/mall/products/1000041216",
+          "note": "판매 상세의 표시 판매가"
+        }
+      ]
+    },
+    "price": 13800,
+    "placement": "inventory"
+  },
+  {
+    "id": "cleaner",
+    "name": "배변 청소용품",
+    "qty": 10,
+    "unit": "회",
+    "species": "all",
+    "kind": "consumable",
+    "category": "위생",
+    "icon": "▥",
+    "description": "배변 처리·화장실 청소를 할 때 1회분을 사용해요.",
+    "essential": true,
+    "sprite": 3,
+    "atlas": "items-extra-v2",
+    "tint": "none",
+    "room": [67, 48, 7],
+    "market": {
+      "gamePrice": 5500,
+      "basis": "청소용품 1병 포장가",
+      "sources": [
+        {
+          "shop": "펫디랩",
+          "product": "퓨어핏 탈취제",
+          "pack": "500ml",
+          "price": 5500,
+          "url": "https://petdilab.com/product/반려동물-살균·탈취제-펫디랩-퓨어핏-살균-탈취제-500ml/22/category/1/display/2/",
+          "note": "웰컴 쿠폰가 4,500원 제외 · 청소용품 가격 참고"
+        }
+      ]
+    },
+    "price": 5500,
+    "placement": "inventory"
+  },
+  {
+    "id": "harness",
+    "name": "하네스와 리드줄",
+    "qty": 1,
+    "unit": "세트",
+    "species": "dog",
+    "kind": "durable",
+    "category": "생활",
+    "icon": "∞",
+    "description": "안전한 산책에 필요해요. 사용해도 사라지지 않아요.",
+    "essential": true,
+    "sprite": 4,
+    "atlas": "items-extra-v2",
+    "tint": "none",
+    "room": [8, 46, 9],
+    "market": {
+      "gamePrice": 14900,
+      "basis": "하네스와 리드줄 1세트 가격",
+      "sources": [
+        {
+          "shop": "유앤펫",
+          "product": "쥬뗌므 하네스 리드줄 세트",
+          "pack": "S~XL 세트",
+          "price": 14900,
+          "url": "https://u-n-pet.com/category/목줄하네스/116/",
+          "note": "판매처 상품 목록의 판매가"
+        }
+      ]
+    },
+    "price": 14900,
+    "placement": "inventory"
+  },
+  {
+    "id": "bags",
+    "name": "배변봉투",
+    "qty": 10,
+    "unit": "장",
+    "species": "dog",
+    "kind": "consumable",
+    "category": "위생",
+    "icon": "▧",
+    "description": "산책할 때 1장씩 사용해요.",
+    "essential": true,
+    "sprite": 1,
+    "atlas": "items-extra-v2",
+    "tint": "none",
+    "room": [16, 46, 5],
+    "market": {
+      "gamePrice": 500,
+      "basis": "270매 12,900원 ÷ 270 × 10 = 약 478원 → 게임 10장 500원",
+      "sources": [
+        {
+          "shop": "강아지대통령",
+          "product": "크레용펫 THE그린 배변봉투",
+          "pack": "270매",
+          "price": 12900,
+          "url": "https://prod-view.dogpre.com/product/106054",
+          "note": "판매처 공개 상품 페이지 · 즉시할인 반영, 별도 쿠폰 제외"
+        }
+      ]
+    },
+    "price": 500,
+    "placement": "inventory"
+  },
+  {
+    "id": "pads",
+    "name": "배변패드",
+    "qty": 10,
+    "unit": "장",
+    "species": "dog",
+    "kind": "consumable",
+    "category": "위생",
+    "icon": "▦",
+    "description": "이 게임의 실내 배변 처리에 1장씩 사용해요.",
+    "essential": true,
+    "sprite": 2,
+    "atlas": "items-extra-v2",
+    "tint": "none",
+    "room": [11, 94, 12],
+    "market": {
+      "gamePrice": 2600,
+      "basis": "50매 12,900원 ÷ 50 × 10 = 2,580원 → 게임 10장 2,600원",
+      "sources": [
+        {
+          "shop": "강아지대통령",
+          "product": "흡수혁명 배변패드 소형",
+          "pack": "50매",
+          "price": 12900,
+          "url": "https://dogpre.com/product/26150",
+          "note": "표시 즉시할인 반영 · 쿠폰 제외"
+        }
+      ]
+    },
+    "price": 2600,
+    "placement": "inventory"
+  },
+  {
+    "id": "litterBox",
+    "name": "고양이 화장실",
+    "qty": 1,
+    "unit": "개",
+    "species": "cat",
+    "kind": "durable",
+    "category": "위생",
+    "icon": "▰",
+    "description": "편하게 배변할 수 있는 화장실이에요.",
+    "essential": true,
+    "sprite": 6,
+    "room": [90, 91, 20],
+    "market": {
+      "gamePrice": 17400,
+      "basis": "모래삽을 포함한 화장실 1개 가격",
+      "sources": [
+        {
+          "shop": "냥멍",
+          "product": "네이처펫 냥냥이 탐나는 2단높이 화장실",
+          "pack": "모래삽 포함 1개",
+          "price": 17400,
+          "url": "https://nyangmeong.com/category/화장실/327/",
+          "note": "판매처 상품 목록에서 확인 · 상세 열기 제한"
+        }
+      ]
+    },
+    "price": 17400,
+    "placement": "room"
+  },
+  {
+    "id": "litter",
+    "name": "화장실 모래",
+    "qty": 10,
+    "unit": "회",
+    "species": "cat",
+    "kind": "consumable",
+    "category": "위생",
+    "icon": "⠿",
+    "description": "화장실을 청소하고 보충할 때 1회분을 사용해요.",
+    "essential": true,
+    "sprite": 5,
+    "atlas": "items-extra-v2",
+    "tint": "none",
+    "room": [96, 53, 7],
+    "market": {
+      "gamePrice": 7200,
+      "basis": "모래 1봉 포장가",
+      "sources": [
+        {
+          "shop": "고양이대통령",
+          "product": "네꼬모리 두부국시 극세입자 오리지널",
+          "pack": "2.8kg",
+          "price": 7200,
+          "url": "https://catpre.com/product/25179",
+          "note": "표시 즉시할인 반영 · 품절 표시 상품의 참고가격"
+        }
+      ]
+    },
+    "price": 7200,
+    "placement": "inventory"
+  },
+  {
+    "id": "scratch",
+    "name": "스크래처",
+    "qty": 1,
+    "unit": "개",
+    "species": "cat",
+    "kind": "durable",
+    "category": "놀이",
+    "icon": "▨",
+    "description": "발톱 긁기는 자연스러운 행동. 매일 스트레스를 줄여요.",
+    "essential": true,
+    "sprite": 5,
+    "room": [60, 61, 12],
+    "market": {
+      "gamePrice": 10000,
+      "basis": "수직 스크래처 가격을 100원 단위로 반올림",
+      "sources": [
+        {
+          "shop": "모넬로",
+          "product": "수직 벽부착 스크래쳐 GO2093",
+          "pack": "1개",
+          "price": 9990,
+          "url": "https://monello.co.kr/",
+          "note": "판매처 상품 목록에서 확인 · 게임 그림과 설치 형태는 다를 수 있음"
+        }
+      ]
+    },
+    "price": 10000,
+    "placement": "room"
+  },
+  {
+    "id": "wand",
+    "name": "낚싯대 장난감",
+    "qty": 1,
+    "unit": "개",
+    "species": "cat",
+    "kind": "durable",
+    "category": "놀이",
+    "icon": "⌁",
+    "description": "거리를 두고 사냥놀이를 할 수 있어요.",
+    "essential": true,
+    "sprite": 9,
+    "room": [35, 74, 15],
+    "use": "play",
+    "playPower": 1,
+    "market": {
+      "gamePrice": 2200,
+      "basis": "낚싯대 장난감 1개 가격",
+      "sources": [
+        {
+          "shop": "냥멍",
+          "product": "펫모닝 PMC-320 팔락팔락 리본 낚시대",
+          "pack": "1개",
+          "price": 2200,
+          "url": "https://nyangmeong.com/",
+          "note": "판매처 상품 목록에서 확인 · 상세 열기 제한"
+        }
+      ]
+    },
+    "price": 2200,
+    "placement": "inventory",
+    "toyKind": "wand"
+  },
+  {
+    "id": "freezeChicken",
+    "name": "동결건조 닭고기",
+    "qty": 6,
+    "unit": "회",
+    "species": "all",
+    "kind": "consumable",
+    "category": "간식",
+    "description": "고소한 닭고기 간식. 맛에 대한 반응을 관찰해요.",
+    "use": "treat",
+    "effects": {
+      "bond": 5,
+      "stress": -4
+    },
+    "sprite": 9,
+    "tint": "none",
+    "icon": "✦",
+    "atlas": "items-extra-v2",
+    "room": [82, 47, 6],
+    "market": {
+      "gamePrice": 6900,
+      "basis": "동결건조 간식 1봉 포장가",
+      "sources": [
+        {
+          "shop": "해피팡팡",
+          "product": "동결건조 닭가슴살",
+          "pack": "50g",
+          "price": 6900,
+          "url": "https://m.happypangpang.net/product/동결건조-닭가슴살-50g/564/",
+          "note": "판매 상세의 표시 판매가"
+        }
+      ]
+    },
+    "price": 6900,
+    "placement": "inventory"
+  },
+  {
+    "id": "freezeFish",
+    "name": "동결건조 흰살생선",
+    "qty": 6,
+    "unit": "회",
+    "species": "cat",
+    "kind": "consumable",
+    "category": "간식",
+    "description": "바삭한 생선 간식. 맛에 대한 반응을 관찰해요.",
+    "use": "treat",
+    "effects": {
+      "bond": 5,
+      "stress": -4
+    },
+    "sprite": 10,
+    "tint": "none",
+    "icon": "✦",
+    "atlas": "items-extra-v2",
+    "room": [87, 47, 6],
+    "market": {
+      "gamePrice": 13000,
+      "basis": "동결건조 북어 1통 포장가",
+      "sources": [
+        {
+          "shop": "고양이대통령",
+          "product": "츄통령 바삭츄 동결건조 북어",
+          "pack": "75g",
+          "price": 13000,
+          "url": "https://catpre.com/product/41910",
+          "note": "캐시된 판매 상세 · 가격 변동 가능"
+        }
+      ]
+    },
+    "price": 13000,
+    "placement": "inventory"
+  },
+  {
+    "id": "creamTreat",
+    "name": "촉촉한 스틱 간식",
+    "qty": 5,
+    "unit": "회",
+    "species": "cat",
+    "kind": "consumable",
+    "category": "간식",
+    "description": "조금씩 짜 주는 간식. 식사와 물 마시기를 대신하지 않아요.",
+    "use": "treat",
+    "effects": {
+      "bond": 4,
+      "stress": -4
+    },
+    "sprite": 11,
+    "tint": "none",
+    "icon": "✦",
+    "atlas": "items-extra-v2",
+    "room": [92, 47, 6],
+    "market": {
+      "gamePrice": 1900,
+      "basis": "스틱 4개입 포장가를 반올림. 게임 5회는 실제 스틱 5개가 아니에요.",
+      "sources": [
+        {
+          "shop": "냥멍",
+          "product": "이나바 챠오 츄르 참치 SC-71",
+          "pack": "14g × 4개",
+          "price": 1890,
+          "url": "https://m.nyangmeong.com/product/이나바-챠오-츄르-참치14gx4개입sc-71-고양이-마약간식차오추르츄루추르/4188/",
+          "note": "판매 상세의 표시 판매가"
+        }
+      ]
+    },
+    "price": 1900,
+    "placement": "inventory"
+  },
+  {
+    "id": "trainingBites",
+    "name": "한입 훈련 간식",
+    "qty": 8,
+    "unit": "회",
+    "species": "dog",
+    "kind": "consumable",
+    "category": "간식",
+    "description": "짧은 교감에 쓰는 작은 간식. 맛에 대한 반응을 관찰해요.",
+    "use": "treat",
+    "effects": {
+      "bond": 5,
+      "stress": -3
+    },
+    "sprite": 12,
+    "tint": "none",
+    "icon": "✦",
+    "atlas": "items-extra-v2",
+    "room": [87, 47, 6],
+    "market": {
+      "gamePrice": 9000,
+      "basis": "훈련 간식 1봉 포장가",
+      "sources": [
+        {
+          "shop": "플로트",
+          "product": "릴리스키친 트레이닝 트릿",
+          "pack": "80g",
+          "price": 9000,
+          "url": "https://flotshop.com/product/릴리스키친-트레이닝-트릿-80g-강아지간식/1213/",
+          "note": "회원가 8,100원 제외"
+        }
+      ]
+    },
+    "price": 9000,
+    "placement": "inventory"
+  },
+  {
+    "id": "dentalChew",
+    "name": "씹는 간식",
+    "qty": 4,
+    "unit": "회",
+    "species": "dog",
+    "kind": "consumable",
+    "category": "간식",
+    "description": "씹는 시간을 즐겨요. 양치나 정규 식사를 대신하지 않아요.",
+    "use": "treat",
+    "effects": {
+      "bond": 3,
+      "stress": -6
+    },
+    "sprite": 13,
+    "tint": "none",
+    "icon": "✦",
+    "atlas": "items-extra-v2",
+    "room": [92, 47, 6],
+    "market": {
+      "gamePrice": 2000,
+      "basis": "덴탈껌 1봉 포장가를 반올림. 게임 4회는 실제 4개와 달라요.",
+      "sources": [
+        {
+          "shop": "강아지대통령",
+          "product": "카리에스 덴탈껌",
+          "pack": "6개입 / 100g",
+          "price": 1950,
+          "url": "https://dogpre.com/product/3510",
+          "note": "표시 즉시할인 반영 · 쿠폰 제외"
+        }
+      ]
+    },
+    "price": 2000,
+    "placement": "inventory"
+  },
+  {
+    "id": "ball",
+    "name": "통통 놀이공",
+    "qty": 1,
+    "unit": "개",
+    "species": "all",
+    "kind": "durable",
+    "category": "놀이",
+    "description": "굴러가는 공을 따라 짧게 움직여요. 반응을 살펴보세요.",
+    "use": "play",
+    "playPower": 1,
+    "sprite": 8,
+    "icon": "✦",
+    "room": [47, 93, 7],
+    "market": {
+      "gamePrice": 8900,
+      "basis": "놀이공 단품 가격",
+      "sources": [
+        {
+          "shop": "핏펫",
+          "product": "딩동펫 테라조 TPU 공 S/M",
+          "pack": "1개",
+          "price": 8900,
+          "url": "https://www.fitpetmall.com/mall/products/1000022256",
+          "note": "판매 상세의 표시 판매가"
+        }
+      ]
+    },
+    "price": 8900,
+    "placement": "inventory",
+    "toyKind": "ball"
+  },
+  {
+    "id": "mouse",
+    "name": "꼬마 쥐 장난감",
+    "qty": 1,
+    "unit": "개",
+    "species": "cat",
+    "kind": "durable",
+    "category": "놀이",
+    "description": "발로 톡톡 건드리는 조용한 사냥놀이.",
+    "use": "play",
+    "playPower": 1,
+    "sprite": 10,
+    "icon": "✦",
+    "room": [54, 84, 8],
+    "market": {
+      "gamePrice": 2000,
+      "basis": "쥐돌이 장난감 1개 가격을 반올림",
+      "sources": [
+        {
+          "shop": "냥멍",
+          "product": "펫모닝 PMC-363 바스락 쥐돌이",
+          "pack": "1개",
+          "price": 1950,
+          "url": "https://nyangmeong.com/",
+          "note": "판매처 상품 목록에서 확인 · 상세 열기 제한"
+        }
+      ]
+    },
+    "price": 2000,
+    "placement": "inventory",
+    "toyKind": "mouse"
+  },
+  {
+    "id": "tunnel",
+    "name": "바스락 숨숨 터널",
+    "qty": 1,
+    "unit": "개",
+    "species": "cat",
+    "kind": "durable",
+    "category": "놀이",
+    "description": "탐색하며 숨을 수 있어요. 새 공간에 대한 반응을 살펴요.",
+    "use": "play",
+    "playPower": 0.9,
+    "sprite": 7,
+    "icon": "✦",
+    "room": [69, 84, 22],
+    "market": {
+      "gamePrice": 15000,
+      "basis": "고양이 터널 1개 가격",
+      "sources": [
+        {
+          "shop": "핏펫",
+          "product": "아서아리 터널 동굴 스프링 장난감",
+          "pack": "1개",
+          "price": 15000,
+          "url": "https://www.fitpetmall.com/mall/products/1000037734",
+          "note": "쿠폰가 13,350원 제외"
+        }
+      ]
+    },
+    "price": 15000,
+    "placement": "inventory",
+    "toyKind": "tunnel"
+  },
+  {
+    "id": "snuffle",
+    "name": "킁킁 노즈워크 매트",
+    "qty": 1,
+    "unit": "개",
+    "species": "dog",
+    "kind": "durable",
+    "category": "놀이",
+    "description": "코를 사용해 냄새를 탐색해요. 개체마다 탐색 방식이 달라요.",
+    "use": "play",
+    "playPower": 1.1,
+    "sprite": 6,
+    "tint": "none",
+    "icon": "✦",
+    "atlas": "items-extra-v2",
+    "room": [30, 72, 19],
+    "market": {
+      "gamePrice": 39000,
+      "basis": "노즈워크 매트 1개 가격",
+      "sources": [
+        {
+          "shop": "비마이펫 스토어",
+          "product": "세이오앙 놀다지쳐 꿀잠 매트",
+          "pack": "1개",
+          "price": 39000,
+          "url": "https://store.bemypet.kr/product/세이오앙-놀다지쳐-꿀잠-강아지-노즈워크-매트/",
+          "note": "일반 할인 판매가 · 정가 49,000원"
+        }
+      ]
+    },
+    "price": 39000,
+    "placement": "inventory",
+    "toyKind": "sniff"
+  },
+  {
+    "id": "tug",
+    "name": "매듭 터그 로프",
+    "qty": 1,
+    "unit": "개",
+    "species": "dog",
+    "kind": "durable",
+    "category": "놀이",
+    "description": "무리하게 잡아당기지 않고 짧게 교감해요.",
+    "use": "play",
+    "playPower": 0.9,
+    "sprite": 11,
+    "icon": "✦",
+    "room": [38, 94, 12],
+    "market": {
+      "gamePrice": 2700,
+      "basis": "터그 로프 1개 가격",
+      "sources": [
+        {
+          "shop": "핏펫",
+          "product": "펫모닝 로프토이 매듭",
+          "pack": "1개",
+          "price": 2700,
+          "url": "https://www.fitpetmall.com/mall/products/1000004084",
+          "note": "판매처 검색 색인 확인 · 상세 열기 제한 · 쿠폰가 제외"
+        }
+      ]
+    },
+    "price": 2700,
+    "placement": "inventory",
+    "toyKind": "tug"
+  },
+  {
+    "id": "puzzle",
+    "name": "탐색 퍼즐 장난감",
+    "qty": 1,
+    "unit": "개",
+    "species": "all",
+    "kind": "durable",
+    "category": "놀이",
+    "description": "호기심을 자극하는 탐색 놀이. 어려우면 쉬운 단계부터.",
+    "use": "play",
+    "playPower": 0.9,
+    "sprite": 7,
+    "tint": "none",
+    "icon": "✦",
+    "atlas": "items-extra-v2",
+    "room": [56, 94, 11],
+    "market": {
+      "gamePrice": 15400,
+      "basis": "퍼즐 먹이통 단품 가격",
+      "sources": [
+        {
+          "shop": "핏펫",
+          "product": "쏘울펫 노즈워크 퍼즐 먹이통",
+          "pack": "1개",
+          "price": 15400,
+          "url": "https://www.fitpetmall.com/mall/products/1000011496",
+          "note": "원형/발바닥 옵션 · 쿠폰가 제외"
+        }
+      ]
+    },
+    "price": 15400,
+    "placement": "inventory",
+    "toyKind": "puzzle"
+  },
+  {
+    "id": "catTower",
+    "name": "구름 캣타워",
+    "qty": 1,
+    "unit": "개",
+    "species": "cat",
+    "kind": "durable",
+    "category": "가구",
+    "description": "높은 자리에서 관찰하고 오르내려요. 하루 시작 스트레스 −3.",
+    "use": "play",
+    "playPower": 0.85,
+    "sprite": 4,
+    "icon": "✦",
+    "room": [85, 65, 26],
+    "market": {
+      "gamePrice": 64800,
+      "basis": "중형 캣타워 1개 가격",
+      "sources": [
+        {
+          "shop": "롯데홈쇼핑",
+          "product": "헬로망치 프리미엄 중형 캣타워 D400",
+          "pack": "1개",
+          "price": 64800,
+          "url": "https://www.lotteimall.com/planshop/viewPlanShopDetail.lotte?dispAdutCd=ec_P1001_2&llog=P1001_2&spdp_no=5437224",
+          "note": "판매처 기획전의 검색 색인 확인 · 상세 열기 제한"
+        }
+      ]
+    },
+    "price": 64800,
+    "placement": "room",
+    "toyKind": "climb"
+  },
+  {
+    "id": "catnip",
+    "name": "향긋한 캣닢",
+    "qty": 4,
+    "unit": "회",
+    "species": "cat",
+    "kind": "consumable",
+    "category": "놀이",
+    "description": "냄새에 대한 반응이 개체마다 달라요. 관찰하며 짧게 사용해요.",
+    "use": "catnip",
+    "sprite": 14,
+    "icon": "✦",
+    "room": [97, 47, 5],
+    "market": {
+      "gamePrice": 9900,
+      "basis": "캣닢 1통 포장가. 4회는 게임의 사용 단위예요.",
+      "sources": [
+        {
+          "shop": "핏펫",
+          "product": "고냥냥 국내산 캣닢가루",
+          "pack": "10g",
+          "price": 9900,
+          "url": "https://www.fitpetmall.com/mall/products/1000037569",
+          "note": "판매 상세의 표시 판매가"
+        }
+      ]
+    },
+    "price": 9900,
+    "placement": "inventory"
+  },
+  {
+    "id": "hideout",
+    "name": "아늑한 숨숨 하우스",
+    "qty": 1,
+    "unit": "개",
+    "species": "all",
+    "kind": "durable",
+    "category": "가구",
+    "description": "조용히 숨을 공간. 쉼터가 없을 때도 편안히 쉬어요.",
+    "use": "rest",
+    "sprite": 8,
+    "tint": "none",
+    "icon": "✦",
+    "atlas": "items-extra-v2",
+    "room": [49, 60, 19],
+    "market": {
+      "gamePrice": 36000,
+      "basis": "숨숨집 1개 가격",
+      "sources": [
+        {
+          "shop": "모넬로",
+          "product": "박스냥 스크래쳐 숨숨집 GO26335",
+          "pack": "1개",
+          "price": 36000,
+          "url": "https://monello.co.kr/",
+          "note": "판매처 상품 목록에서 확인"
+        }
+      ]
+    },
+    "price": 36000,
+    "placement": "room"
+  },
+  {
+    "id": "squeaker",
+    "name": "삑삑이 장난감",
+    "qty": 1,
+    "unit": "개",
+    "species": "all",
+    "kind": "durable",
+    "category": "놀이",
+    "description": "작은 소리를 내요. 소리에 대한 반응을 먼저 살피고 짧게 시도해요.",
+    "use": "play",
+    "toyKind": "squeak",
+    "sprite": 15,
+    "atlas": "items-extra-v2",
+    "room": [58, 90, 9],
+    "market": {
+      "gamePrice": 6900,
+      "basis": "소리 나는 장난감 1개 가격",
+      "sources": [
+        {
+          "shop": "핏펫",
+          "product": "펫베오 곰도리 도넛 라텍스 장난감",
+          "pack": "1개",
+          "price": 6900,
+          "url": "https://www.fitpetmall.com/mall/products/1000041349",
+          "note": "쿠폰가 제외"
+        }
+      ]
+    },
+    "price": 6900,
+    "placement": "inventory"
+  },
+  {
+    "id": "plush",
+    "name": "포옹 인형",
+    "qty": 1,
+    "unit": "개",
+    "species": "all",
+    "kind": "durable",
+    "category": "놀이",
+    "description": "안거나 가볍게 건드리는 부드러운 인형이에요.",
+    "use": "play",
+    "toyKind": "plush",
+    "sprite": 10,
+    "room": [34, 63, 11],
+    "market": {
+      "gamePrice": 7500,
+      "basis": "봉제 장난감 1개 가격",
+      "sources": [
+        {
+          "shop": "핏펫",
+          "product": "크레용펫 공룡 봉제 장난감",
+          "pack": "1개",
+          "price": 7500,
+          "url": "https://www.fitpetmall.com/mall/products/1000037107",
+          "note": "쿠폰가 제외"
+        }
+      ]
+    },
+    "price": 7500,
+    "placement": "inventory"
+  }
+]
