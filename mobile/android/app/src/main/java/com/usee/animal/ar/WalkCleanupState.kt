@@ -18,5 +18,8 @@ internal class WalkCleanupState(private val triggerSeconds: Float = 30f) {
 
   fun canCollect(distanceMeters: Float) = pending && distanceMeters < 2f
 
+  fun shouldShowPoop(collecting: Boolean, throwElapsedMillis: Long, awaitingConfirmation: Boolean): Boolean =
+    pending && !awaitingConfirmation && (!collecting || throwElapsedMillis < 350L)
+
   fun collect() { pending = false }
 }

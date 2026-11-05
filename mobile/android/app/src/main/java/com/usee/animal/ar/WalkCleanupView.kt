@@ -88,7 +88,10 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
 
   fun confirmCollection(requestId: Long, accepted: Boolean) {
     if (requestId != collectionRequestId || requestId == 0L) return
-    if (accepted) state.collect()
+    if (accepted) {
+      state.collect()
+      poopNode.isVisible = false
+    }
     collectionRequestId = 0L
     invalidate()
   }
@@ -127,20 +130,11 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
       onPoop()
     }
     if (state.pending && appearedAt == 0L && dog.poopDeposited) {
-      poopX = dog.x
-      poopY = dog.y + DOG_MODEL_UNITS / 2f
-      poopZ = dog.z
-      // Move along the camera ray to preserve the model-center projection while
-      // keeping the sprite behind the dog in the scene's depth buffer.
-      if (Matrix.invertM(inverseView, 0, view, 0)) {
-        val dx = poopX - inverseView[12]
-        val dy = poopY - inverseView[13]
-        val dz = poopZ - inverseView[14]
-        val distance = kotlin.math.sqrt(dx * dx + dy * dy + dz * dz).coerceAtLeast(0.01f)
-        poopX += dx / distance * 0.30f
-        poopY += dy / distance * 0.30f
-        poopZ += dz / distance * 0.30f
-      }
+      // Deposit on the ground beside the rear legs, independent of camera angle.
+      val yaw = Math.toRadians(dog.yawDegrees.toDouble()).toFloat()
+      poopX = dog.x - kotlin.math.sin(yaw) * 0.18f
+      poopY = dog.y + 0.01f
+      poopZ = dog.z - kotlin.math.cos(yaw) * 0.18f
       appearedAt = now
       val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
       val pattern = longArrayOf(0, 160, 140, 160, 140, 160)
@@ -159,14 +153,17 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
       screenX = (clip[0] / clip[3] + 1f) * width / 2f
       screenY = (1f - clip[1] / clip[3]) * height / 2f
     }
-    poopNode.isVisible = appearedAt != 0L && state.pending && visiblePoop && (!collecting || now - thrownAt < 350L)
+    poopNode.isVisible = appearedAt != 0L && visiblePoop &&
+      state.shouldShowPoop(collecting, now - thrownAt, collectionRequestId != 0L)
     if (poopNode.isVisible && height > 0 && Matrix.invertM(inverseView, 0, view, 0)) {
       val worldPerPixel = 2f * clip[3] / (projection[5] * height)
       val spriteWidth = poopOptions.outWidth * imageScale * worldPerPixel
       val spriteHeight = poopOptions.outHeight * imageScale * worldPerPixel
       val drop = (1f - ((now - appearedAt) / 450f).coerceIn(0f, 1f))
       val lift = 16f * density * drop * drop * worldPerPixel
-      val verticalOffset = lift - 36f * density * worldPerPixel
+      // The visible bottom of img_poop.png is at y≈330/400 (70px transparent padding).
+      // Align that contact point with the ground anchor instead of lowering the whole image.
+      val verticalOffset = lift + spriteHeight * 0.325f
       // Keep the projected image at 200x200px, independent of camera distance.
       inverseView.copyInto(spriteTransform)
       for (row in 0..2) {
