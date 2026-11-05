@@ -1,13 +1,13 @@
 # 유실·발견동물·보호소·입양 플랫폼 API 명세서 — v11
 
 > **작성일:** 2026-11-05  
-> **근거:** `animal_service_db_spec_v17.md`(DB 통합 명세 v17, 현행 44개 테이블, 스키마 2개) + v10까지의 확정 사항(Q406·Q413~Q453·R1~R16·S1~S8·v6의 Q454~Q461·Q462~Q475) + **Q476~Q479(2026-11-05 보호동물 상세 보호소 블록·보호동물 댓글 제거·보호소 전용 상세·상태/공고기간 관리 API, 20.1)** + 백엔드 스켈레톤 코드(`backend/common` 응답·예외·인증 규약). 이전 버전 `animal_service_api_spec_v10.md`는 보존합니다.  
-> **버전 계보 주의:** v6은 v5가 아닌 v4에서 분기되어 v5의 Q454(경로 접두어 = 도메인 패키지)가 빠져 있었고, Q454~Q461 번호를 별개 결정(채팅·댓글·입양 신청서·구조일지)에 다시 썼습니다. v7은 v6 위에 v5의 Q454를 복원했으며, **v6의 Q454~Q461은 번호를 유지**합니다. 아래에서 "Q454"는 문맥에 따라 v5의 경로 결정(Q454 경로)과 v6의 채팅 결정(Q454 채팅)으로 구분해 표기합니다. v8은 v7 위에 Q468~Q469를, v9는 v8 위에 Q470~Q472를, v10은 v9 위에 Q473~Q475를, v11은 v10 위에 Q476~Q479를 반영했습니다. 새 안건은 Q480부터 번호를 붙입니다.  
+> **근거:** `animal_service_db_spec_v17.md`(DB 통합 명세 v17, 현행 44개 테이블, 스키마 2개) + v10까지의 확정 사항(Q406·Q413~Q453·R1~R16·S1~S8·v6의 Q454~Q461·Q462~Q475) + **Q476~Q480(2026-11-05 보호동물 상세 보호소 블록·보호동물 댓글 제거·보호소 전용 상세·상태/공고기간 관리 API·댓글/답글 전량 조회, 20.1)** + 백엔드 스켈레톤 코드(`backend/common` 응답·예외·인증 규약). 이전 버전 `animal_service_api_spec_v10.md`는 보존합니다.  
+> **버전 계보 주의:** v6은 v5가 아닌 v4에서 분기되어 v5의 Q454(경로 접두어 = 도메인 패키지)가 빠져 있었고, Q454~Q461 번호를 별개 결정(채팅·댓글·입양 신청서·구조일지)에 다시 썼습니다. v7은 v6 위에 v5의 Q454를 복원했으며, **v6의 Q454~Q461은 번호를 유지**합니다. 아래에서 "Q454"는 문맥에 따라 v5의 경로 결정(Q454 경로)과 v6의 채팅 결정(Q454 채팅)으로 구분해 표기합니다. v8은 v7 위에 Q468~Q469를, v9는 v8 위에 Q470~Q472를, v10은 v9 위에 Q473~Q475를, v11은 v10 위에 Q476~Q480을 반영했습니다. 새 안건은 Q481부터 번호를 붙입니다.  
 > **문서 목적:** Android·BE·AI·보호소 화면이 공유하는 REST API 계약. 공통 규약(1장)은 코드와 일치하며, 각 엔드포인트의 DTO는 구현 중 조정될 수 있는 [초안]입니다.  
 > **백엔드 스택 [확정]:** JDK 21, Spring Boot 4.1.2, Kotlin 2.3.21, JPA + QueryDSL, PostgreSQL 17, Redis 7.4, RabbitMQ(STOMP relay + 서비스 간 이벤트), AWS S3(presigned PUT), 네이버 지도 역지오코딩. OpenSearch는 도입하지 않습니다(S7). 서비스 4개: core-api(8080) / chat(8081) / notification(8082) / simulation(8083).
 
 **표기 규칙**
-- **[확정 정책]**: DB v17에서 확인되는 기능·권한·상태·제약, 또는 Q406~Q479·S1~S8 질의응답으로 확정한 사항. **[가안]**: 추천안을 채택했고 수치는 코드 설정값으로 둔 사항(플레이 테스트·운영 후 조정). **[초안]**: DTO 필드 이름·예시 값·세부 검증 등 구현 중 조정 가능한 제안. 확정 정책과 초안이 충돌하면 DB v17과 1장 공통 규약이 우선합니다. **v11에는 [미정] 항목이 없습니다.** 팀 논의 대기 항목(11장 발생장소·공고번호 등)은 20.3에 따로 모았습니다.
+- **[확정 정책]**: DB v17에서 확인되는 기능·권한·상태·제약, 또는 Q406~Q480·S1~S8 질의응답으로 확정한 사항. **[가안]**: 추천안을 채택했고 수치는 코드 설정값으로 둔 사항(플레이 테스트·운영 후 조정). **[초안]**: DTO 필드 이름·예시 값·세부 검증 등 구현 중 조정 가능한 제안. 확정 정책과 초안이 충돌하면 DB v17과 1장 공통 규약이 우선합니다. **v11에는 [미정] 항목이 없습니다.** 팀 논의 대기 항목(11장 발생장소·공고번호 등)은 20.3에 따로 모았습니다.
 - 표의 `/...` 경로는 **해당 장의 서비스 접두어**를 앞에 붙인 상대 경로입니다. core-api `/api/core/v1`(2~13·15·16장), chat `/api/chat/v1`(14장), notification `/api/notification/v1`(17장), simulation `/api/simulation/v1`(18장). **[비인증]** 표시 외에는 로그인 필수입니다.
 - 이 문서는 **클라이언트·보호소 업무 API**를 다룹니다. **ADMIN API는 이번 프로젝트 구현 범위 외**(Q410·Q411)이며 별도 장을 두지 않습니다. 내부 AI 워커 및 공공데이터 ETL 전용 API는 다루지 않습니다.
 
@@ -19,6 +19,7 @@
 | Q477 | **보호동물 댓글 제거.** 댓글은 실종·발견 신고 2종에만 붙습니다. 13장 타입 매핑에서 `SHELTER_ANIMAL`/`SHELTER_ANIMAL_COMMENT` 행 삭제, 11.2 `commentCount` 삭제, 15장 신고 대상 6종→**5종**, `COMMENT`/`COMMENT_REPLY` 알림 대상에서 `SHELTER_ANIMAL` 제외. DB `shelter_animal_comments` 테이블 삭제(44개) | 0.2·1.5·11.2·13장·15.1·17.1·17.8·19장·22장 |
 | Q478 | **보호소 전용 보호동물 상세(11.10) 신설.** 앱(USER)용 11.2와 웹(SHELTER)용 `GET /shelter-animals/me/{animalSeq}`를 분리합니다. 11.2는 USER 전용이 되고 `isBookmarked`·`simulation` 블록을 유지, 11.10은 그 대신 관리 정보(`adoptionStatus`·공고기간·`returnInfo`·`adoptionInfo`·`applicationCounts`)를 내립니다. 토큰 보호소 소속이 아니면 404 | 11장 표·11.2·11.10·12.16 |
 | Q479 | **보호동물 상태·공고기간 관리 API(11.6) 신설.** `PATCH /shelter-animals/{animalSeq}/management` 하나로 `noticeStartDate`·`noticeEndDate`·`status`(PROTECTING/RETURNED/ADOPTED/ENDED)와 상태별 추가 입력(PROTECTING→`adoptionStatus`, ENDED→`endReason`, RETURNED→`recipientName`·`recipientPhone`, ADOPTED→`reason`·`memo`)을 받습니다. **상태 전환은 어느 상태에서든 허용**(PROTECTING 복귀 포함). 11.6 입양 상태 전환·11.7 반환·11.8 보호 종료·12.12 외부 입양은 이 API로 흡수(삭제). 11.4 등록 요청에 `noticeStartDate`·`noticeEndDate`·`adoptionStatus` 선택 입력 추가, 11.5의 `noticeEndDate`는 11.6으로 이동. 신청서 채택(`completed_application_seq`)은 12.11 전용이며 이 API는 그 값을 건드리지 않음. DB `shelter_animals.adoption_reason`·`adoption_memo` 추가, `animal_returns` 행 덮어쓰기 허용, 오류 코드 `ANIMAL_ALREADY_RETURNED`·`ANIMAL_NOT_PROTECTING` 삭제 | 0.2·1.5·11장 표·11.4·11.5·11.6·12장 표·12.11·12.12·12.14·19장·20.1·20.3·21.3·22장 |
+| Q480 | **댓글·답글 전량 조회.** 13.1 루트 댓글과 13.2 답글을 **페이징 없는 배열 응답**으로 바꿉니다. `beforeCommentSeq` 커서·`page`/`size`를 받지 않고 대상 게시물(또는 루트)의 댓글 전량을 내립니다. 정렬은 그대로(루트 `commentSeq desc`, 답글 `regDttm asc`). 1.1 커서 예외에서 13.1을 빼고 7.3·8.3과 같은 배열 예외로 옮김. DB 변경 없음 | 1.1·13.1·13.2·20.1 |
 
 ## v10 변경 요약 (v9 → v10)
 
@@ -64,7 +65,7 @@
 |---|---|---|
 | Q454 (채팅) | 채팅 목록 **커서**(`beforeLastMessageSeq`, 마지막 메시지 seq 내림차순), `unreadOnly`, 숨김 이후 메시지 있는 방만 노출, `counterpart.profileImage`, 미리보기 문구는 앱. **14.8 전체 미읽음 수 신설.** `/user/queue/room-updates`(MESSAGE/READ/LEFT) 실시간 갱신, STOMP 연결 생명주기·토큰 만료 처리. 미읽음은 조회 시 계산(본인 발신 제외) | 1.1·14장·21.4 |
 | Q455 | STOMP 목적지 `.` 구분자 전환 **미반영**(현행 이름 유지, 연동 시 테스트) | - |
-| Q456 | 댓글 `author.profileImage`, `commentCount`=루트+답글·삭제 제외, **루트 최신순 + 커서**(`beforeCommentSeq`)·답글 오래된 순 offset, 깊이 1 유지, 이미지 업로드 순서(4.2는 전송 직전) | 1.1·4.1·13장·11.2 |
+| Q456 | 댓글 `author.profileImage`, `commentCount`=루트+답글·삭제 제외, **루트 최신순 + 커서**(`beforeCommentSeq`)·답글 오래된 순 offset(**페이징은 Q480으로 폐기, 정렬만 유지**), 깊이 1 유지, 이미지 업로드 순서(4.2는 전송 직전) | 1.1·4.1·13장·11.2 |
 | Q457 | 업로드 설계를 인프라 티켓에 맞추기 **보류** | 20.2 |
 | Q458 | 보호동물 `weight`·`registrationNumber`, 공통 `AnimalSummary`, 입양 문항 20개·`DATE`·`questionSeq` 1~20 고정(섹션·placeholder는 프론트), 신청서 고정 필드 4개, **12.6 `POST /adoption-applications/submit`(animalSeq 기준 저장+제출 한 트랜잭션)**, 저장은 임시저장·프로필 편집에서만 | 11·12장 |
 | Q459 | 신청 내역 `displayDttm`(정렬 고정), `AnimalSummary.shelterAddress`, 상세 화면 동작 | 12.2·12.3 |
@@ -166,8 +167,8 @@
 | 권한 | `USER` 일반회원 / `SHELTER` 소속 보호소 담당자. 역할은 메서드 단위 `@PreAuthorize`, 소유·소속은 서비스 코드에서 검증. `ADMIN`은 DB `users.role` CHECK에 예약값으로만 남고 **이번 범위에서 계정·권한·API 없음**(Q410·Q411). 즉시 차단 없음: 탈퇴·정지 뒤에도 access 토큰은 자연 만료(최대 1시간)까지 유효. 대신 **모든 쓰기 요청(POST·PATCH·DELETE·STOMP SEND)**은 처리 전에 `users.is_deleted`·`account_status`를 재확인하고 탈퇴 계정이면 401 `AUTH_TOKEN_INVALID`, 정지면 403 `AUTH_ACCOUNT_UNAVAILABLE`. 조회(GET·SUBSCRIBE)는 재확인 없이 만료까지 허용(Q433). 별도 "민감 API" 목록은 두지 않음 | [확정 정책] Q433 |
 | 시간 | `OffsetDateTime` → ISO-8601 `+09:00`, 예: `2026-10-29T17:50:00+09:00` | [확정 정책] Q416 A |
 | 날짜 | `YYYY-MM-DD`, 예: `2026-10-29` | [확정 정책] DATE 의미 |
-| 페이지네이션 | `page=0&size=20`(0-base, size 기본 20·최대 100). 응답은 1.4의 `Page<T>`. **예외:** 8.8 담당 발견 신고 목록·10.1 구조 목록·11.3 우리 보호소 보호동물 목록은 size 기본 8(Q464·Q471·Q475). 7.3·8.3 내 신고 목록은 페이지 없이 배열(Q464). 10.1·11.3은 `Page<T>`를 `statusCounts`와 함께 한 겹 감싼 전용 DTO(1.4, Q471·Q475) | [확정 정책] Q417·Q464·Q471·Q475 |
-| 정렬 | `sort=필드,asc\|desc`. 엔드포인트마다 **허용 필드 화이트리스트**를 명시하고 기본값은 `regDttm,desc`(동률은 PK desc). 화이트리스트 밖 필드·방향은 400 `COMMON_INVALID_INPUT`. **커서 예외:** 14.4 채팅 메시지, 14.1 채팅방 목록(Q454), 13.1 루트 댓글(Q456). 실시간으로 앞쪽에 항목이 끼어드는 목록이라 offset 중복을 막기 위함 | [확정 정책] Q417 |
+| 페이지네이션 | `page=0&size=20`(0-base, size 기본 20·최대 100). 응답은 1.4의 `Page<T>`. **예외:** 8.8 담당 발견 신고 목록·10.1 구조 목록·11.3 우리 보호소 보호동물 목록은 size 기본 8(Q464·Q471·Q475). 7.3·8.3 내 신고 목록(Q464)과 13.1 루트 댓글·13.2 답글(Q480)은 페이지 없이 배열. 10.1·11.3은 `Page<T>`를 `statusCounts`와 함께 한 겹 감싼 전용 DTO(1.4, Q471·Q475) | [확정 정책] Q417·Q464·Q471·Q475 |
+| 정렬 | `sort=필드,asc\|desc`. 엔드포인트마다 **허용 필드 화이트리스트**를 명시하고 기본값은 `regDttm,desc`(동률은 PK desc). 화이트리스트 밖 필드·방향은 400 `COMMON_INVALID_INPUT`. **커서 예외:** 14.4 채팅 메시지, 14.1 채팅방 목록(Q454). 실시간으로 앞쪽에 항목이 끼어드는 목록이라 offset 중복을 막기 위함. 13.1 루트 댓글·13.2 답글은 v11부터 페이징 없이 전량 배열(Q480, 커서 예외에서 제외) | [확정 정책] Q417·Q480 |
 | 필드 필터 | 목록마다 허용 필터 파라미터를 명시(상태·종·행정구역·기간 등). 명시되지 않은 파라미터는 무시. **포함 매칭(Q463):** 값이 "모름"일 수 있는 속성(성별 `UNKNOWN`, 중성화 NULL)은 필터 시 모름을 **포함**한다(확실히 아닌 것만 거름). 7.1·8.1 참조 | [확정 정책] Q417·Q463 |
 | 경로 구조 | **URL 첫 세그먼트 = 도메인 패키지**(19장). "내 것만" 모아 보는 목록도 해당 도메인 경로 아래에 둔다. **빈 컬렉션 경로는 호출자가 볼 수 있는 전부**를 돌려주며(예: 10.1 `GET /rescues` = 내 보호소 구조 기록), 그 경로가 이미 공개 목록이거나 두 역할이 다른 형태를 볼 때만 세그먼트를 붙인다(`/me` 내 것, `/assigned` 담당 보호소 배정분, `/received` 보호소 수신분, `/shelter` 보호소 열람분). 건수 API는 그 목록 경로 아래 `/status-counts`(12.16. 구조의 10.7은 Q471로 삭제되어 10.1 응답에 `statusCounts`로 포함). 소유자 밖에서 의미가 없는 부속 자원(반려동물·북마크)만 `/users/me/...`, 소유자 자신의 자원은 `/users/me`·`/shelters/me` | [확정 정책] Q454 경로 (v5, v7에서 복원) |
 | 멱등성 | 중복 등록은 409(도메인 코드). 예외로 디바이스 토큰 등록(17.6)만 upsert 200. `Idempotency-Key` 헤더는 쓰지 않음 | [확정 정책] Q415 |
@@ -1615,9 +1616,11 @@ v8까지의 `GET /rescues/status-counts`는 **삭제**합니다. 목록 상단 �
 
 ### 13.1 GET /comments · 13.2 GET /.../replies
 
-**루트 댓글 요청 [확정 정책]** `GET /comments?targetType=MISSING&targetSeq=101&beforeCommentSeq=880&size=20`. **최신순(`commentSeq desc`) 커서 방식**(Q456, Q417 커서 예외): 최초는 `beforeCommentSeq` 생략, 응답 `{ "content":[댓글 DTO], "nextBeforeCommentSeq":861, "hasNext":true }`. 최신순에서는 새 댓글이 맨 앞에 들어와 offset이 밀리므로 커서를 씁니다. 입력창이 목록 위에 있는 디자인과 목격 제보의 최신성에 맞춘 결정입니다.
+**루트 댓글 요청 [확정 정책]** `GET /comments?targetType=MISSING&targetSeq=101`. **페이징 없이 전량 반환**(Q480): 파라미터는 `targetType`·`targetSeq` 둘뿐이고 `page`·`size`·커서는 받지 않습니다(명시되지 않은 파라미터는 1.1 규칙대로 무시). **성공 200 `data`** = 댓글 DTO **배열**, **최신순(`commentSeq desc`) 고정**(입력창이 목록 위에 있는 디자인과 목격 제보의 최신성에 맞춤). 삭제된 루트도 `isDeleted:true`로 포함합니다(자식 답글 자리 유지). 게시물당 댓글 수가 적어 7.3·8.3과 같은 배열 응답으로 단순화했고, v10까지의 `beforeCommentSeq` 커서(Q456)는 폐기합니다.
 
-**답글 요청 [확정 정책]** `GET /comments/MISSING_COMMENT/44/replies?page=0&size=20`. **오래된 순(`regDttm asc`) 고정, offset 유지**(대화 순서대로 읽히고 새 답글은 끝에 붙어 밀림이 없음). 공통 `Page` 응답.
+**답글 요청 [확정 정책]** `GET /comments/MISSING_COMMENT/44/replies`. 파라미터 없음. **성공 200 `data`** = 댓글 DTO **배열**, **오래된 순(`regDttm asc`, 동률 `commentSeq asc`) 고정**(대화 순서대로 읽힘). 루트 하나의 답글 전량이며 v10까지의 `page`/`size` offset `Page` 응답(Q456)은 폐기합니다(Q480).
+
+- **오류 [초안]** 400 `COMMON_INVALID_INPUT`(`targetType`·`targetSeq` 누락 또는 2종 밖, `commentType` 2종 밖); 404 `COMMENT_TARGET_NOT_FOUND`(게시물 없음·비노출); 404 `COMMENT_NOT_FOUND`(13.2의 루트가 없거나 답글을 루트로 지정).
 
 **댓글 DTO [초안]**
 ```json
@@ -1640,7 +1643,7 @@ v8까지의 `GET /rescues/status-counts`는 **삭제**합니다. 목록 상단 �
 - **[가안]** 삭제된 댓글은 `body:null`·`image:null`·`isDeleted:true`로 반환합니다.
 - **[확정 정책] 개수(Q456):** 게시물 상세(7.2·8.2)의 `commentCount`(화면 "N개의 댓글")는 **루트 + 답글 중 비삭제 행 수**, `replyCount`(화면 "답글 N개 더 보기")는 비삭제 답글 수입니다(11.2의 `commentCount`는 Q477로 삭제).
 - **[확정 정책] 작성자 프로필(Q456):** `author.profileImage`는 회원이면 `users.profile_image_seq`, 보호소 담당자 댓글이면 보호소 프로필 사진, 탈퇴 작성자는 `null`(`displayName`은 `(탈퇴한 사용자)`).
-- **[확정 정책] 앱 처리(Q456):** 깊이 1이므로 답글 아래에는 "답글달기"를 표시하지 않습니다. 내가 쓴 루트 댓글은 13.3 응답을 목록 맨 위에, 내가 쓴 답글은 펼친 답글 목록 맨 끝에 붙입니다(펼치지 않았으면 `replyCount`만 +1). 알림에서 들어와 13.6으로 맨 위에 고정한 댓글과 목록이 겹치면 `commentSeq`로 중복을 제거합니다. 사진 첨부는 4.1의 업로드 순서(보내기 시 4.2)를 따릅니다.
+- **[확정 정책] 앱 처리(Q456·Q480):** 깊이 1이므로 답글 아래에는 "답글달기"를 표시하지 않습니다. 목록이 전량 응답이므로 "더 보기" 요청은 없고, 내가 쓴 루트 댓글은 13.3 응답을 목록 맨 위에, 내가 쓴 답글은 펼친 답글 목록 맨 끝에 붙이거나(펼치지 않았으면 `replyCount`만 +1) 13.1·13.2를 다시 호출해 갱신합니다. 알림에서 들어와 13.6으로 맨 위에 고정한 댓글과 목록이 겹치면 `commentSeq`로 중복을 제거합니다. 사진 첨부는 4.1의 업로드 순서(보내기 시 4.2)를 따릅니다.
 
 ### 13.3 POST /comments
 
@@ -1668,7 +1671,7 @@ v8까지의 `GET /rescues/status-counts`는 **삭제**합니다. 목록 상단 �
 
 ### 13.6 GET /comments/{commentType}/{commentSeq}
 
-**[확정 정책] 용도(Q446):** `COMMENT`·`COMMENT_REPLY` 알림(17.1)을 탭했을 때 게시물 상세를 열면서 해당 댓글을 댓글 영역 **최상단에 고정**해 보여주기 위한 단건 조회입니다. 알림에 게시물(`targetType`/`targetSeq`)과 `commentSeq`·`parentCommentSeq`가 있으므로 앱은 게시물 상세(7.2·8.2)와 이 API를 **동시에** 호출할 수 있습니다. 고정 아래의 일반 목록은 13.1을 그대로 씁니다.
+**[확정 정책] 용도(Q446):** `COMMENT`·`COMMENT_REPLY` 알림(17.1)을 탭했을 때 게시물 상세를 열면서 해당 댓글을 댓글 영역 **최상단에 고정**해 보여주기 위한 단건 조회입니다. 알림에 게시물(`targetType`/`targetSeq`)과 `commentSeq`·`parentCommentSeq`가 있으므로 앱은 게시물 상세(7.2·8.2)와 이 API를 **동시에** 호출할 수 있습니다. 고정 아래의 일반 목록은 13.1(전량 배열)을 그대로 씁니다.
 
 **요청 [초안]** `GET /comments/MISSING_COMMENT/45`. `commentType`은 알림의 `targetType`에서 정합니다(`MISSING`→`MISSING_COMMENT` 등, 13장 타입 매핑 표).
 
@@ -2552,7 +2555,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | Q454 경로 접두어 = 도메인 (2026-11-03, v5; v7에서 복원) | "내 것만" 목록을 `/users/me/...`·`/shelters/me/...`에서 각 도메인 경로 아래로 이동. 빈 컬렉션 경로 = 호출자가 볼 수 있는 전부, 세그먼트(`/me`·`/assigned`·`/received`·`/shelter`)는 공개 목록과 겹치거나 역할별 형태가 다를 때만. 건수는 목록 경로 아래 `/status-counts`. 반려동물·북마크·`/users/me`·`/shelters/me`·18.2·18.3 유지. **v6의 Q454(채팅)와 번호가 겹치나 별개 결정** | 1.1·7.3·8.3·8.8·10.1·10.7(Q471로 삭제)·11.3·12.2·12.9·12.16·18.19·18.20·19장 |
 | Q454 채팅 목록·실시간 (2026-11-04) | 14.1 커서·`unreadOnly`·노출 기준·`profileImage`, 14.8 신설, `/user/queue/room-updates`(MESSAGE/READ/LEFT), 연결 생명주기·토큰 만료, 미읽음 조회 시 계산(카운터 미채택), DB 참여자 인덱스 2개 | 1.1·14장·21.4 |
 | Q455 STOMP 목적지 표기 | `.` 구분자 전환 미반영. RabbitMQ relay에서 `/` 동작은 연동 시 테스트 | - |
-| Q456 댓글 | `author.profileImage`, `commentCount`=루트+답글·삭제 제외(11.2 추가), 루트 최신순+커서·답글 오래된 순, 깊이 1 유지, 업로드 순서(4.2는 전송 직전) | 1.1·4.1·11.2·13장 |
+| Q456 댓글 | `author.profileImage`, `commentCount`=루트+답글·삭제 제외(11.2 추가), 루트 최신순+커서·답글 오래된 순(페이징은 Q480으로 폐기), 깊이 1 유지, 업로드 순서(4.2는 전송 직전) | 1.1·4.1·11.2·13장 |
 | Q457 업로드 설계 정리 | 보류(인프라 티켓 296·297과 정렬) | 20.2 |
 | Q458 입양 신청서 | `weight`·`registrationNumber`, `AnimalSummary`, 문항 20개·`DATE`·`questionSeq` 1~20 고정, 고정 필드 4개, 12.6 animalSeq 기준 제출, 12.4·12.5 분리 유지, 저장은 임시저장·프로필 편집만 | 11·12장 |
 | Q459 신청 내역 | `displayDttm` 정렬 고정, `shelterAddress`, 상세 화면 동작, "제출 전 취소" 화면 없음 | 12.2·12.3·12.8 |
@@ -2576,10 +2579,11 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | Q477 보호동물 댓글 제거 | 댓글은 실종·발견 2종만. 13장 `SHELTER_ANIMAL`/`SHELTER_ANIMAL_COMMENT` 삭제, 11.2 `commentCount` 삭제, 신고 대상 5종, `COMMENT`/`COMMENT_REPLY` 알림 대상 `MISSING`/`FOUND`만. DB `shelter_animal_comments` 삭제(44개 테이블) | 0.2·1.5·11.2·13장·15.1·17.1·17.8·19장·22장·DB v17 |
 | Q478 보호소 전용 상세 분리 | 11.2 USER 전용(앱, `isBookmarked`·`simulation`), 11.10 `GET /shelter-animals/me/{animalSeq}` SHELTER 전용(웹, `returnInfo`·`adoptionInfo`·`applicationCounts`, `shelter` 블록 없음). 토큰 분기 대신 경로 분리. 타 보호소 404 | 1.5·11장 표·11.2·11.10·12.16 |
 | Q479 상태·공고기간 관리 API | 11.6 `PATCH /shelter-animals/{animalSeq}/management`: `noticeStartDate`·`noticeEndDate`·`status`(PROTECTING/RETURNED/ADOPTED/ENDED) + 상태별 입력(`adoptionStatus` / `endReason` / `recipientName`·`recipientPhone` / `reason`·`memo`). **어느 상태에서든 전환 허용**, 복귀 시 종료 컬럼 NULL·FK·반환 행 유지, 반환 행 덮어쓰기, ADOPTED는 `completed_application_seq` 불변(채택은 12.11 전용). 11.7·11.8·12.12 삭제, 11.4에 공고기간·`adoptionStatus` 선택 입력, 11.5에서 `noticeEndDate` 제거, R5·R6 대체. DB `adoption_reason`·`adoption_memo` 추가 | 0.2·1.5·11장·12장·19장·21.3·DB v17 |
+| Q480 댓글·답글 전량 조회 (2026-11-05) | 13.1 `GET /comments?targetType&targetSeq`·13.2 `GET /comments/{type}/{seq}/replies`를 **페이징 없는 배열 응답**으로 변경. Q456의 `beforeCommentSeq` 커서·`page`/`size` offset 폐기, 정렬(루트 `commentSeq desc`, 답글 `regDttm asc`)은 유지. 1.1 커서 예외에서 13.1 제거, 배열 예외에 13.1·13.2 추가. 앱의 "더 보기" 없음 | 1.1·13.1·13.2 |
 
 ### 20.2 미결 안건
 
-**없음.** 남은 조정 항목은 [가안]으로 표시한 수치뿐입니다: 토큰 수명(1시간/14일), 업로드 컨텍스트 TTL(10분)·고아 객체 정리(24시간), 모의 입양 튜닝값(18.0 표), 채팅 구독 목적지 이름, STOMP 백그라운드 유예 시간(10~30초), 주소 검색 프록시 타임아웃·후보 수(5.6). 모두 코드 설정값이며 명세 버전을 올리지 않고 조정합니다. 시드 적재의 세부 절차(Q431)는 적재 시점에 별도 논의합니다. 새 안건은 Q480부터 번호를 붙입니다.
+**없음.** 남은 조정 항목은 [가안]으로 표시한 수치뿐입니다: 토큰 수명(1시간/14일), 업로드 컨텍스트 TTL(10분)·고아 객체 정리(24시간), 모의 입양 튜닝값(18.0 표), 채팅 구독 목적지 이름, STOMP 백그라운드 유예 시간(10~30초), 주소 검색 프록시 타임아웃·후보 수(5.6). 모두 코드 설정값이며 명세 버전을 올리지 않고 조정합니다. 시드 적재의 세부 절차(Q431)는 적재 시점에 별도 논의합니다. 새 안건은 Q481부터 번호를 붙입니다.
 
 ### 20.3 팀 논의 대기 (v6 시점, 다음 버전에서 결정)
 
