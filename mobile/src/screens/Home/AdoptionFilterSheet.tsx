@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
@@ -386,76 +386,70 @@ export function AdoptionFilterSheet({
   statusOptions,
 }: Props) {
   const insets = useSafeAreaInsets();
-  useEffect(() => {
-    if (!activeFilter) {
-      return;
-    }
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      onClose();
-      return true;
-    });
-    return () => subscription.remove();
-  }, [activeFilter, onClose]);
 
   if (!activeFilter) {
     return null;
   }
   return (
-    <View accessibilityViewIsModal style={styles.overlay}>
-      <Pressable
-        accessibilityLabel="필터 닫기"
-        accessibilityRole="button"
-        onPress={onClose}
-        style={styles.backdrop}
-      />
-      <View
-        style={[
-          styles.sheet,
-          { paddingBottom: 28 + insets.bottom },
-          activeFilter === 'period' && [styles.calendarSheet, { height: 600 + insets.bottom }],
-          (activeFilter === 'region' || activeFilter === 'species') && [
-            styles.twoColumnSheet,
-            { height: 333 + insets.bottom },
-          ],
-        ]}
-      >
-        <Text style={styles.title}>{titles[activeFilter]}</Text>
-        <View style={styles.divider} />
-        {activeFilter === 'period' ? (
-          <CalendarFilter
-            onApply={value => onChange('period', value)}
-            onClose={onClose}
-            value={filters.period}
-          />
-        ) : null}
-        {activeFilter === 'region' || activeFilter === 'species' ? (
-          <TwoColumnFilter
-            kind={activeFilter}
-            onChange={value => onChange(activeFilter, value)}
-            value={filters[activeFilter]}
-          />
-        ) : null}
-        {simpleOptions[activeFilter] ? (
-          <SimpleFilter
-            filterKey={activeFilter}
-            options={activeFilter === 'status' ? statusOptions : undefined}
-            onChange={value => onChange(activeFilter, value)}
-            value={filters[activeFilter]}
-          />
-        ) : null}
+    <Modal
+      animationType="fade"
+      onRequestClose={onClose}
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      transparent
+      visible
+    >
+      <View accessibilityViewIsModal style={styles.overlay}>
+        <Pressable
+          accessibilityLabel="필터 닫기"
+          accessibilityRole="button"
+          onPress={onClose}
+          style={styles.backdrop}
+        />
+        <View
+          style={[
+            styles.sheet,
+            { paddingBottom: 28 + insets.bottom },
+            activeFilter === 'period' && [styles.calendarSheet, { height: 600 + insets.bottom }],
+            (activeFilter === 'region' || activeFilter === 'species') && [
+              styles.twoColumnSheet,
+              { height: 333 + insets.bottom },
+            ],
+          ]}
+        >
+          <Text style={styles.title}>{titles[activeFilter]}</Text>
+          <View style={styles.divider} />
+          {activeFilter === 'period' ? (
+            <CalendarFilter
+              onApply={value => onChange('period', value)}
+              onClose={onClose}
+              value={filters.period}
+            />
+          ) : null}
+          {activeFilter === 'region' || activeFilter === 'species' ? (
+            <TwoColumnFilter
+              kind={activeFilter}
+              onChange={value => onChange(activeFilter, value)}
+              value={filters[activeFilter]}
+            />
+          ) : null}
+          {simpleOptions[activeFilter] ? (
+            <SimpleFilter
+              filterKey={activeFilter}
+              options={activeFilter === 'status' ? statusOptions : undefined}
+              onChange={value => onChange(activeFilter, value)}
+              value={filters[activeFilter]}
+            />
+          ) : null}
+        </View>
       </View>
-    </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    zIndex: 20,
+    flex: 1,
   },
   backdrop: {
     bottom: 0,

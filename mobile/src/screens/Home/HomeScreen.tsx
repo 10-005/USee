@@ -327,7 +327,7 @@ export function HomeScreen({ navigation }: Props) {
             contentContainerStyle={styles.filters}
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
+            style={styles.filterScroll}
           >
             {filterItems.map(filter => (
               <Pressable
@@ -420,7 +420,6 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   filterScroll: { flexGrow: 0, height: 54 },
-  filterScrollAboveSheet: { position: 'relative', zIndex: 21 },
   filters: { gap: 6, paddingHorizontal: 20, paddingVertical: 14 },
   filterChip: {
     alignItems: 'center',
