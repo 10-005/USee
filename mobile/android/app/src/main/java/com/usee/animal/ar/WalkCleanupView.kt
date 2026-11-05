@@ -2,6 +2,9 @@ package com.usee.animal.ar
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.RectF
 import android.graphics.Color
 import android.graphics.Paint
 import android.opengl.Matrix
@@ -10,15 +13,41 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.MotionEvent
 import android.view.View
+import com.usee.animal.R
+import io.github.sceneview.ar.ARSceneView
+import io.github.sceneview.math.Direction
+import io.github.sceneview.math.Size
+import io.github.sceneview.node.ImageNode
 import kotlin.math.hypot
 
 /** Owns one cleanup event in the current AR session's world coordinate system. */
-internal class WalkCleanupView(context: Context) : View(context) {
+internal class WalkCleanupView(context: Context, private val scene: ARSceneView) : View(context) {
   var showNotices = false
     set(value) { field = value; invalidate() }
   var petName = "강아지"
   private val density = resources.displayMetrics.density
   private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+  private val bag = BitmapFactory.decodeResource(resources, R.drawable.img_poop_bag)
+  private val filledBag = BitmapFactory.decodeResource(resources, R.drawable.img_poop_in_bag)
+  private val poopOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }.also {
+    context.assets.open("models/img_poop.png").use { stream -> BitmapFactory.decodeStream(stream, null, it) }
+  }
+  private val imageBounds = RectF()
+  // A scene sprite uses the same depth buffer as the dog instead of covering it as an overlay.
+  private val poopNode = ImageNode(
+    materialLoader = scene.materialLoader,
+    imageFileLocation = "models/img_poop.png",
+    size = Size(1f, 1f, 0f),
+    normal = Direction(0f, 0f, 1f),
+  ).apply {
+    isShadowCaster = false
+    isShadowReceiver = false
+    isVisible = false
+    scene.addChildNode(this)
+  }
+  private val inverseView = FloatArray(16)
+  private val spriteTransform = FloatArray(16)
+  private var appearedAt = 0L
   private val state = WalkCleanupState()
   private var lastFrame = 0L
   private var tracking = false
@@ -44,7 +73,8 @@ internal class WalkCleanupView(context: Context) : View(context) {
   private var collecting = false
   private val bagX get() = width / 2f
   private val bagY get() = height - 104f * density
-  private val size get() = 24f * density
+  private val bagHitWidth get() = maxOf(bag.width / 2f, 32f * density)
+  private val bagHitHeight get() = maxOf(bag.height / 2f, 32f * density)
 
   init {
     setWillNotDraw(false)
@@ -52,11 +82,12 @@ internal class WalkCleanupView(context: Context) : View(context) {
   }
 
   fun hitBag(x: Float, y: Float): Boolean = tracking && near && thrownAt == 0L &&
-    hypot(x - bagX, y - bagY) <= 32 * density
+    kotlin.math.abs(x - bagX) <= bagHitWidth && kotlin.math.abs(y - bagY) <= bagHitHeight
 
   fun pause() {
     lastFrame = 0L
     tracking = false
+    poopNode.isVisible = false
     dragging = false
     parent?.requestDisallowInterceptTouchEvent(false)
     invalidate()
@@ -69,9 +100,12 @@ internal class WalkCleanupView(context: Context) : View(context) {
     lastFrame = now
     tracking = true
     if (state.update(dt, rightObstacle)) {
-      poopX = dog.x
+      // Place the sprite on the far side of the dog from the user.
+      val distance = hypot(dog.x - userX, dog.z - userZ).coerceAtLeast(0.01f)
+      poopX = dog.x + (dog.x - userX) / distance * 0.30f
       poopY = dog.y + 0.02f
-      poopZ = dog.z
+      poopZ = dog.z + (dog.z - userZ) / distance * 0.30f
+      appearedAt = now
       onPoop()
       val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
       val pattern = longArrayOf(0, 160, 140, 160, 140, 160)
@@ -90,6 +124,25 @@ internal class WalkCleanupView(context: Context) : View(context) {
       screenX = (clip[0] / clip[3] + 1f) * width / 2f
       screenY = (1f - clip[1] / clip[3]) * height / 2f
     }
+    poopNode.isVisible = state.pending && visiblePoop && (!collecting || now - thrownAt < 350L)
+    if (poopNode.isVisible && height > 0 && Matrix.invertM(inverseView, 0, view, 0)) {
+      val worldPerPixel = 2f * clip[3] / (projection[5] * height)
+      val spriteWidth = poopOptions.outWidth * worldPerPixel
+      val spriteHeight = poopOptions.outHeight * worldPerPixel
+      val drop = (1f - ((now - appearedAt) / 450f).coerceIn(0f, 1f))
+      val lift = 16f * density * drop * drop * worldPerPixel
+      // Keep the source image's pixel dimensions, independent of camera distance.
+      inverseView.copyInto(spriteTransform)
+      for (row in 0..2) {
+        spriteTransform[row] *= spriteWidth
+        spriteTransform[4 + row] *= spriteHeight
+      }
+      spriteTransform[12] = poopX + inverseView[4] * (spriteHeight / 2f + lift)
+      spriteTransform[13] = poopY + inverseView[5] * (spriteHeight / 2f + lift)
+      spriteTransform[14] = poopZ + inverseView[6] * (spriteHeight / 2f + lift)
+      poopNode.transformManager.setTransform(poopNode.transformInstance, spriteTransform)
+      screenY -= poopOptions.outHeight / 2f + lift / worldPerPixel
+    }
     if (!near && dragging) {
       dragging = false
       parent?.requestDisallowInterceptTouchEvent(false)
@@ -97,10 +150,20 @@ internal class WalkCleanupView(context: Context) : View(context) {
     invalidate()
   }
 
-  private fun square(canvas: Canvas, x: Float, y: Float, color: Int, alpha: Int = 255) {
-    paint.color = color
+  fun release() {
+    scene.removeChildNode(poopNode)
+    poopNode.destroy()
+    bag.recycle()
+    filledBag.recycle()
+  }
+
+  private fun image(canvas: Canvas, bitmap: Bitmap, x: Float, y: Float, alpha: Int = 255) {
     paint.alpha = alpha
-    canvas.drawRect(x - size / 2, y - size / 2, x + size / 2, y + size / 2, paint)
+    paint.isFilterBitmap = true
+    imageBounds.set(x - bitmap.width / 2f, y - bitmap.height / 2f,
+      x + bitmap.width / 2f, y + bitmap.height / 2f)
+    canvas.drawBitmap(bitmap, null, imageBounds, paint)
+    paint.alpha = 255
   }
 
   override fun onDraw(canvas: Canvas) {
@@ -115,15 +178,15 @@ internal class WalkCleanupView(context: Context) : View(context) {
       paint.textAlign = Paint.Align.CENTER
       canvas.drawText("${petName}의 배변을 치워주세요", width / 2f, 364 * density, paint)
     }
-    if (visiblePoop && (!collecting || now - thrownAt < 350L)) square(canvas, screenX, screenY, Color.rgb(123, 76, 43))
     if (thrownAt != 0L) {
       val elapsed = now - thrownAt
       if (elapsed < 350L) {
         val t = elapsed / 350f
-        square(canvas, throwX + (targetX - throwX) * t,
-          throwY + (targetY - throwY) * t - 48 * density * 4 * t * (1 - t), Color.rgb(74, 163, 113))
+        image(canvas, bag, throwX + (targetX - throwX) * t,
+          throwY + (targetY - throwY) * t - 48 * density * 4 * t * (1 - t))
       } else if (collecting && elapsed < 850L) {
-        square(canvas, targetX, targetY - (elapsed - 350) / 500f * 48 * density, Color.rgb(45, 100, 70),
+        poopNode.isVisible = false
+        image(canvas, filledBag, targetX, targetY - (elapsed - 350) / 500f * 48 * density,
           ((1 - (elapsed - 350) / 500f) * 255).toInt())
         paint.alpha = 255
       } else {
@@ -133,14 +196,14 @@ internal class WalkCleanupView(context: Context) : View(context) {
       }
       postInvalidateOnAnimation()
     } else if (near) {
-      square(canvas, if (dragging) dragX else bagX, if (dragging) dragY else bagY, Color.rgb(74, 163, 113))
+      image(canvas, bag, if (dragging) dragX else bagX, if (dragging) dragY else bagY)
     }
   }
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
-        if (!tracking || !near || thrownAt != 0L || hypot(event.x - bagX, event.y - bagY) > 32 * density) return false
+        if (!hitBag(event.x, event.y)) return false
         dragging = true
         downX = event.x
         downY = event.y

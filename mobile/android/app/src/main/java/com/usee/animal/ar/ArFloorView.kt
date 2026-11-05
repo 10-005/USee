@@ -191,7 +191,7 @@ class ArFloorView(
     traversalDebug = debug
     addView(view)
     addView(debug)
-    cleanup = WalkCleanupView(context).also {
+    cleanup = WalkCleanupView(context, view).also {
       it.petName = petName
       it.showNotices = showWalkNotices
       addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -246,7 +246,7 @@ class ArFloorView(
   }
 
   private fun stop() {
-    cleanup?.let { removeView(it) }
+    cleanup?.let { it.release(); removeView(it) }
     cleanup = null
     dogNode?.onPoseUpdated = null
     leash?.close()
