@@ -1,5 +1,25 @@
 import { parseWalkVoiceCommand } from './voiceCommand';
 
+test.each(['초코', '초코야', '초코야!'])('recognizes the saved name %s as attention', text => {
+  expect(parseWalkVoiceCommand(text, '초코')).toBe('look');
+});
+test('only matches the saved name and gives action commands precedence', () => {
+  expect(parseWalkVoiceCommand('초코야')).toBeNull();
+  expect(parseWalkVoiceCommand('초코야', '보리')).toBeNull();
+  expect(parseWalkVoiceCommand('초코야 뭐해', '초코')).toBeNull();
+  expect(parseWalkVoiceCommand('별아', '별')).toBe('look');
+  expect(parseWalkVoiceCommand('초코야 앉아', '초코')).toBe('sit');
+  expect(parseWalkVoiceCommand('초코야 멈춰', '초코')).toBe('stop');
+  expect(parseWalkVoiceCommand('초코야 가자', '초코')).toBe('go');
+});
+
+test('valid names ending in a command word can still be called', () => {
+  expect(parseWalkVoiceCommand('가자', '가자')).toBe('look');
+  expect(parseWalkVoiceCommand('가자야 멈춰', '가자')).toBe('stop');
+  expect(parseWalkVoiceCommand('앉아', '앉아')).toBe('look');
+  expect(parseWalkVoiceCommand('앉아야 앉아', '앉아')).toBe('sit');
+});
+
 test.each([
   ['멈춰', 'stop'],
   ['초코야 멈춰!', 'stop'],

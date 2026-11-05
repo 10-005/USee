@@ -12,7 +12,7 @@ import { getWalkSpeechErrorMessage } from './speechFeedback';
 type SpeechResult = { status: string; transcript: string; reason?: string };
 const speech = NativeModules.WalkSpeech;
 
-export function useWalkVoice(active: boolean) {
+export function useWalkVoice(active: boolean, petName = '') {
   const [enabled, setEnabled] = useState(true);
   const [message, setMessage] = useState('음성 명령 준비 중');
   const [isRecognizing, setIsRecognizing] = useState(false);
@@ -37,7 +37,7 @@ export function useWalkVoice(active: boolean) {
       if (status === 'recognized') {
         setIsRecognizing(false);
         setMessage(transcript ? `“${transcript}”` : '앉아 / 멈춰 / 가자라고 말해 주세요');
-        const command = parseWalkVoiceCommand(transcript);
+        const command = parseWalkVoiceCommand(transcript, petName);
         if (command) {
           setActionRequest(`${++requestId.current}:${command}`);
         }
@@ -106,7 +106,7 @@ export function useWalkVoice(active: boolean) {
       appState.remove();
       speech.stop();
     };
-  }, [active, enabled]);
+  }, [active, enabled, petName]);
   return {
     enabled,
     setEnabled,

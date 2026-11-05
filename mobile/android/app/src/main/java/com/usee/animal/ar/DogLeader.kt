@@ -21,7 +21,7 @@ class DogLeader(
   private var poopDeposited = false
 
   fun beginPoop(rightX: Float, rightZ: Float) {
-    if (!placed || poopStage != null || commandedHold != null) return
+    if (!placed || poopStage != null || commandedHold != null || attentionSeconds > 0f) return
     val length = hypot(rightX, rightZ)
     if (length < 0.001f) return
     poopOriginX = x
@@ -70,7 +70,7 @@ class DogLeader(
     trustedSegment(cameraX, cameraZ, targetX, targetZ) || wallAvoidance.isClear(cameraX, cameraZ, targetX, targetZ, floorY)
 
   fun requestPlacement() {
-    if (poopStage != null || commandedHold != null) return
+    if (poopStage != null || commandedHold != null || attentionSeconds > 0f) return
     placementRequested = true
   }
 
@@ -79,6 +79,7 @@ class DogLeader(
   }
 
   fun requestRecall() {
+    if (attentionSeconds > 0f) return
     if (commandedHold != null) return
     if (placed && poopStage == null) recalling = true
   }
@@ -87,11 +88,12 @@ class DogLeader(
     if (meters.isFinite() && meters >= 0f) leashLength = meters
   }
 
-  fun needsUnrestrictedReturn(cameraX: Float, cameraZ: Float): Boolean = placed && poopStage == null && commandedHold == null &&
+  fun needsUnrestrictedReturn(cameraX: Float, cameraZ: Float): Boolean = placed && poopStage == null && commandedHold == null && attentionSeconds <= 0f &&
     (recalling || returning || leashLength >= 2f || hypot(cameraX - x, cameraZ - z) >= 2f)
 
   fun requestAction(action: String) {
     if (!placed || poopStage != null) return
+    attentionSeconds = 0f
     if (action == "sit" || action == "stop" || action == "go") {
       val next = if (action == "go") null else action
       if (commandedHold == next) return
@@ -110,8 +112,22 @@ class DogLeader(
   }
 
   private var commandedHold: String? = null
+  private var attentionSeconds = 0f
+
+  fun requestAttention(): Boolean {
+    if (!placed || poopStage != null) return false
+    attentionSeconds = 3f
+    speed = 0f
+    moving = false
+    recalling = false
+    returning = false
+    placementRequested = false
+    floorPath.clear()
+    return true
+  }
 
   fun pauseTracking() {
+    attentionSeconds = 0f
     hasCamera = false
     velocityX = 0f
     velocityZ = 0f
@@ -204,13 +220,14 @@ class DogLeader(
     previousCameraX = cameraX
     previousCameraZ = cameraZ
     hasCamera = true
-    if (placed && commandedHold != null) {
+    if (placed && (commandedHold != null || attentionSeconds > 0f)) {
       speed = 0f
       moving = false
       blocked = false
       userMoving = hypot(velocityX, velocityZ) > 0.15f
       stopReason = ""
       animations.holdPosition(commandedHold == "sit", dt)
+      attentionSeconds = (attentionSeconds - deltaSeconds.coerceIn(0f, 0.25f)).coerceAtLeast(0f)
       return frame(true, 0f)
     }
     val along = velocityX * headingX + velocityZ * headingZ

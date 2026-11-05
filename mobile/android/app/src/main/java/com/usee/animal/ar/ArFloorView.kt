@@ -122,7 +122,13 @@ class ArFloorView(
   fun requestAction(request: String) {
     if (request.isNotEmpty() && request != lastActionRequest) {
       lastActionRequest = request
-      leader.requestAction(request.substringAfter(':'))
+      val action = request.substringAfter(':')
+      if (action == "look") {
+        if (leader.requestAttention()) dogNode?.startAttention()
+      } else {
+        dogNode?.cancelAttention()
+        leader.requestAction(action)
+      }
     }
   }
 
@@ -226,6 +232,7 @@ class ArFloorView(
             dogLeash.hide()
           }
         }
+        node.attentionTarget = { leashCamera?.let { Position(it.x, it.y, it.z) } }
         leader = DogLeader(requiresPlacement = false, animations = DogAnimationController(node.durations))
         node.isShadowCaster = true
         node.isVisible = false
@@ -364,7 +371,10 @@ class ArFloorView(
       cleanup?.update(dog, camera.pose.tx(), camera.pose.tz(), viewMatrix, projectionMatrix, obstacle) {
         leader.beginPoop(rightX, rightZ)
       }
-    } else cleanup?.pause()
+    } else {
+      dogNode?.cancelAttention()
+      cleanup?.pause()
+    }
     emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen, shown.dog.userMoving)
   }
 

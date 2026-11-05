@@ -5,6 +5,51 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun attentionTimerUsesElapsedTimeEvenWithSlowFrames() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.requestAttention()
+    var dog = initial
+    for (i in 1..16) dog = leader.update(0.2f, 0f, -3f, 0f, -1f, floor)
+    assertTrue(dog.z < initial.z)
+  }
+  @Test fun nameCallStopsPositionAndBodyHeadingForThreeSecondsThenResumes() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    assertTrue(leader.requestAttention())
+    var dog = initial
+    for (i in 1..149) {
+      leader.requestRecall()
+      leader.requestPlacement()
+      leader.beginPoop(1f, 0f)
+      leader.updateLeashLength(5f)
+      dog = leader.update(0.02f, i * 0.01f, -i * 0.02f, 1f, 0f, floor)
+      assertEquals(initial.x, dog.x, 0.0001f)
+      assertEquals(initial.z, dog.z, 0.0001f)
+      assertEquals(initial.yawDegrees, dog.yawDegrees, 0.0001f)
+      assertFalse(dog.moving)
+    }
+    for (i in 1..150) dog = leader.update(0.02f, 1.5f, -3f, 1f, 0f, floor)
+    assertTrue(kotlin.math.hypot(dog.x - initial.x, dog.z - initial.z) > 0.1f)
+  }
+
+  @Test fun nameCallPreservesSitAndStopButExplicitGoOverridesAttention() {
+    for (hold in listOf("sit", "stop")) {
+      val leader = DogLeader()
+      val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+      leader.requestAction(hold)
+      assertTrue(leader.requestAttention())
+      var dog = initial
+      for (i in 1..250) dog = leader.update(0.02f, 0f, -3f, 0f, -1f, floor)
+      assertEquals(initial.z, dog.z, 0.0001f)
+      assertEquals(if (hold == "sit") "SitIdle" else "Idle", dog.clip)
+      assertTrue(leader.requestAttention())
+      leader.requestAction("go")
+      for (i in 1..50) dog = leader.update(0.02f, 0f, -3f, 0f, -1f, floor)
+      assertTrue(dog.z < initial.z - 0.1f)
+    }
+  }
+
   @Test fun sitCommandHoldsUntilGoEvenWhenWalkerMovesAndLeashIsStretched() {
     val leader = DogLeader()
     leader.update(0f, 0f, 0f, 0f, -1f, floor)

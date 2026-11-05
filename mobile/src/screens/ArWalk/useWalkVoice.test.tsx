@@ -21,8 +21,8 @@ jest.mock('react-native', () => ({
 }));
 
 let voice: ReturnType<typeof useWalkVoice>;
-function Harness({ active }: { active: boolean }) {
-  voice = useWalkVoice(active);
+function Harness({ active, name = '' }: { active: boolean; name?: string }) {
+  voice = useWalkVoice(active, name);
   return null;
 }
 
@@ -30,6 +30,22 @@ beforeEach(() => {
   jest.clearAllMocks();
   Platform.OS = 'android';
   AppState.currentState = 'active';
+});
+
+test('saved-name call requests attention while name plus command requests only the command', async () => {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<Harness active name="초코" />);
+  });
+  const emitter = jest.mocked(NativeEventEmitter).mock.results[0].value;
+  const receive = emitter.addListener.mock.calls[0][1];
+  await ReactTestRenderer.act(() => receive({ status: 'recognized', transcript: '초코야' }));
+  expect(voice.actionRequest).toBe('1:look');
+  await ReactTestRenderer.act(() => receive({ status: 'recognized', transcript: '초코야 앉아' }));
+  expect(voice.actionRequest).toBe('2:sit');
+  await ReactTestRenderer.act(() => receive({ status: 'recognized', transcript: '보리야' }));
+  expect(voice.actionRequest).toBe('2:sit');
+  await ReactTestRenderer.act(() => renderer.unmount());
 });
 
 test('a full utterance requests sit once, ignores unknown text, and stops on screen exit', async () => {

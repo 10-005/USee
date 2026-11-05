@@ -7,6 +7,7 @@ import { useCameraPermission } from 'react-native-vision-camera';
 import { useShopStore } from '../../stores/shopStore';
 import { AppDialog } from '../../components/common/AppDialog';
 import { findProduct, money } from '../../services/shop/catalog';
+import type { RootStackParamList } from '../../app/navigation/types';
 
 import { styles } from './ArWalkScreen.styles';
 import { useWalkVoice } from './useWalkVoice';
@@ -25,7 +26,9 @@ const STARTUP_ERRORS: Partial<Record<FloorTrackingStatus, string>> = {
   error: 'AR 산책을 시작하지 못했습니다. 카메라 권한을 확인해 주세요.',
 };
 
-export function ArWalkScreen() {
+export function ArWalkScreen({
+  route,
+}: { route?: { params?: RootStackParamList['ArWalk'] } } = {}) {
   const shop = useShopStore();
   const [bagPurchaseVisible, setBagPurchaseVisible] = useState(false);
   const [bagPurchaseError, setBagPurchaseError] = useState('');
@@ -65,6 +68,7 @@ export function ArWalkScreen() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const voice = useWalkVoice(
     isFocused && hasPermission && status === 'anchored' && !bagPurchaseVisible,
+    route?.params?.petName ?? '',
   );
 
   useEffect(() => {

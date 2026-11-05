@@ -1,5 +1,8 @@
 package com.usee.animal.ar
 
+import android.opengl.Matrix
+import io.github.sceneview.node.Node
+import kotlin.math.*
 import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.math.Position
 import io.github.sceneview.node.ModelNode
@@ -18,6 +21,93 @@ internal class DogModelNode(
   private val bodyFront = emptyNodes.firstOrNull { it.name == "Spine_05" }
   private val head = emptyNodes.firstOrNull { it.name == "head" }
   private val nose = emptyNodes.firstOrNull { it.name == "nose" }
+  private val tail = emptyNodes.firstOrNull { it.name == "Tail_01" }
+  private class AttentionBone(val node: Node) {
+    val original = FloatArray(16)
+    var applied = false
+  }
+  private val attentionBones = listOfNotNull(neck, head, tail).map { AttentionBone(it) }
+  private val attentionWorld = FloatArray(16)
+  private val attentionParent = FloatArray(16)
+  private val attentionInverse = FloatArray(16)
+  private val attentionYawRotation = FloatArray(16)
+  private val attentionPitchRotation = FloatArray(16)
+  private val attentionRotation = FloatArray(16)
+  private val attentionRotated = FloatArray(16)
+  private val attentionLocal = FloatArray(16)
+  private var attentionStartedAt = 0L
+  private var attentionLastPose = 0L
+  private var attentionYawDegrees = 0f
+  var attentionTarget: (() -> Position?)? = null
+
+  fun startAttention() {
+    if (neck != null && head != null && tail != null) {
+      attentionStartedAt = System.nanoTime()
+      attentionLastPose = 0L
+    }
+  }
+
+  fun cancelAttention() {
+    attentionStartedAt = 0L
+    restoreAttentionBones()
+  }
+
+  private fun restoreAttentionBones() {
+    attentionBones.filter { it.applied }.forEach {
+      transformManager.setTransform(it.node.transformInstance, it.original)
+      it.applied = false
+    }
+  }
+
+  private fun applyAttention(now: Long): Boolean {
+    if (attentionStartedAt == 0L) return false
+    val seconds = ((now - attentionStartedAt) / 1_000_000_000f).coerceAtLeast(0f)
+    if (seconds >= 3f) { attentionStartedAt = 0L; return false }
+    val target = attentionTarget?.invoke() ?: return false
+    val h = head?.worldPosition ?: return false
+    val n = nose?.worldPosition ?: return false
+    val dx = target.x - h.x
+    val dz = target.z - h.z
+    val targetYaw = attentionYaw(n.x - h.x, n.z - h.z, dx, dz) * 180f / PI.toFloat()
+    attentionYawDegrees = if (attentionLastPose == 0L) targetYaw else
+      smoothAttentionYaw(attentionYawDegrees, targetYaw, (now - attentionLastPose) / 1_000_000_000f)
+    attentionLastPose = now
+    val yaw = attentionYawDegrees
+    val pitch = ((atan2(target.y - h.y, hypot(dx, dz)) -
+      atan2(n.y - h.y, hypot(n.x - h.x, n.z - h.z))) * 180f / PI.toFloat()).coerceIn(-25f, 25f)
+    val weight = attentionWeight(seconds, 3f)
+    val cameraYaw = atan2(dx, dz)
+    // Capture the animated pose first. Restore it before the next animation update,
+    // so these offsets never accumulate or overwrite another animation's baseline.
+    attentionBones.forEach { transformManager.getTransform(it.node.transformInstance, it.original) }
+    attentionBones.forEach { bone ->
+      when (bone.node) {
+        neck -> rotateAttentionBone(bone, yaw * 0.67f * weight, pitch * 0.5f * weight, cameraYaw)
+        head -> rotateAttentionBone(bone, yaw * 0.33f * weight, pitch * 0.5f * weight, cameraYaw)
+        tail -> rotateAttentionBone(bone, attentionTailDegrees(seconds), 0f, cameraYaw)
+      }
+    }
+    return true
+  }
+
+  /** Rotate just the joint basis in world axes, keeping its origin and every body joint fixed. */
+  private fun rotateAttentionBone(bone: AttentionBone, yaw: Float, pitch: Float, cameraYaw: Float) {
+    val instance = bone.node.transformInstance
+    transformManager.getWorldTransform(instance, attentionWorld)
+    Matrix.setRotateM(attentionYawRotation, 0, yaw, 0f, 1f, 0f)
+    Matrix.setRotateM(attentionPitchRotation, 0, -pitch, cos(cameraYaw), 0f, -sin(cameraYaw))
+    Matrix.multiplyMM(attentionRotation, 0, attentionPitchRotation, 0, attentionYawRotation, 0)
+    Matrix.multiplyMM(attentionRotated, 0, attentionRotation, 0, attentionWorld, 0)
+    for (index in 12..15) attentionRotated[index] = attentionWorld[index]
+    val parent = transformManager.getParent(instance)
+    if (parent != 0) {
+      transformManager.getWorldTransform(transformManager.getInstance(parent), attentionParent)
+      if (!Matrix.invertM(attentionInverse, 0, attentionParent, 0)) return
+      Matrix.multiplyMM(attentionLocal, 0, attentionInverse, 0, attentionRotated, 0)
+      transformManager.setTransform(instance, attentionLocal)
+    } else transformManager.setTransform(instance, attentionRotated)
+    bone.applied = true
+  }
   private val leftSocket = emptyNodes.firstOrNull { it.name == "LeashAttachmentLeft" }
   private val rightSocket = emptyNodes.firstOrNull { it.name == "LeashAttachmentRight" }
   private var frontLeash = false
@@ -85,13 +175,16 @@ internal class DogModelNode(
   }
 
   override fun onFrame(frameTimeNanos: Long) {
+    restoreAttentionBones()
     super.onFrame(frameTimeNanos)
     if (manualPlayback) {
       applyPose(frameTimeNanos)
+      if (applyAttention(frameTimeNanos)) animator.updateBoneMatrices()
       onPoseUpdated?.invoke(this, frameTimeNanos)
       return
     }
-    if (blendPrevious(frameTimeNanos)) animator.updateBoneMatrices()
+    val blended = blendPrevious(frameTimeNanos)
+    if (applyAttention(frameTimeNanos) || blended) animator.updateBoneMatrices()
     onPoseUpdated?.invoke(this, frameTimeNanos)
   }
 
