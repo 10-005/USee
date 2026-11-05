@@ -15,11 +15,6 @@ class ArFloorViewManager : SimpleViewManager<ArFloorView>() {
     super.onDropViewInstance(view)
   }
 
-  @ReactProp(name = "petName")
-  fun setPetName(view: ArFloorView, name: String?) {
-    view.setPetName(name.orEmpty())
-  }
-
   @ReactProp(name = "active", defaultBoolean = true)
   fun setActive(view: ArFloorView, active: Boolean) {
     view.setActive(active)
@@ -28,11 +23,6 @@ class ArFloorViewManager : SimpleViewManager<ArFloorView>() {
   @ReactProp(name = "showTraversalDebug", defaultBoolean = false)
   fun setShowTraversalDebug(view: ArFloorView, visible: Boolean) {
     view.setShowTraversalDebug(visible)
-  }
-
-  @ReactProp(name = "showWalkNotices", defaultBoolean = false)
-  fun setShowWalkNotices(view: ArFloorView, visible: Boolean) {
-    view.setShowWalkNotices(visible)
   }
 
   @ReactProp(name = "placementRequest", defaultInt = 0)

@@ -29,16 +29,9 @@ class ArFloorView(
 ) : FrameLayout(reactContext) {
   private var sceneView: ARSceneView? = null
   private var cleanup: WalkCleanupView? = null
-  private var petName = "강아지"
-
-  fun setPetName(value: String) {
-    petName = value.ifBlank { "강아지" }
-    cleanup?.petName = petName
-  }
 
   private var traversalDebug: TraversalDebugView? = null
   private var showTraversalDebug = false
-  private var showWalkNotices = false
   private var dogNode: DogModelNode? = null
   private var shadowNode: CylinderNode? = null
   private var leash: DogLeash? = null
@@ -75,13 +68,7 @@ class ArFloorView(
 
   fun setShowTraversalDebug(visible: Boolean) {
     showTraversalDebug = visible
-    traversalDebug?.setDisplay(showTraversalDebug, showWalkNotices)
-  }
-
-  fun setShowWalkNotices(visible: Boolean) {
-    showWalkNotices = visible
-    traversalDebug?.setDisplay(showTraversalDebug, showWalkNotices)
-    cleanup?.showNotices = visible
+    traversalDebug?.setDisplay(showTraversalDebug)
   }
 
   override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
@@ -186,14 +173,12 @@ class ArFloorView(
     sceneView = view
     val debug = TraversalDebugView(context).apply {
       layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-      setDisplay(showTraversalDebug, showWalkNotices)
+      setDisplay(showTraversalDebug)
     }
     traversalDebug = debug
     addView(view)
     addView(debug)
     cleanup = WalkCleanupView(context, view).also {
-      it.petName = petName
-      it.showNotices = showWalkNotices
       addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
     view.modelLoader.loadModelInstanceAsync("models/dog.glb") { instance ->
@@ -330,8 +315,8 @@ class ArFloorView(
       }
     }
     sceneView?.planeRenderer?.isVisible = false
-    if (showTraversalDebug || showWalkNotices) {
-      traversalDebug?.update(frame, floorAnalyzer?.latest, scratch.planes, scratch.walls, shown.dog, scratch.stops.summary(), scratch.userGround, scratch.depth)
+    if (showTraversalDebug) {
+      traversalDebug?.update(frame, floorAnalyzer?.latest, scratch.planes, scratch.walls, shown.dog, scratch.userGround, scratch.depth)
     }
     if (camera.trackingState == com.google.ar.core.TrackingState.TRACKING && shown.dog.visible) {
       val dog = shown.dog
