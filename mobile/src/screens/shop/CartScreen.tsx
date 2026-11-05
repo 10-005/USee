@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View, StyleSheet } from 'react-native';
+import { Pressable, ScrollView, Text, View, StyleSheet } from 'react-native';
+import { AppDialog } from '../../components/common/AppDialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/navigation/types';
@@ -19,6 +20,11 @@ export function CartScreen({ navigation, route }: Props) {
   const { pet, status, retry } = useShopSession(petId);
   const shop = useShopStore();
   const confirming = useRef(false);
+  const [purchaseDialog, setPurchaseDialog] = useState<{
+    kind: 'confirm' | 'result';
+    title: string;
+    message: string;
+  } | null>(null);
   const [guideVisible, setGuideVisible] = useState(false);
   const ids = Object.keys(shop.cart);
   const selected = ids.filter(id => shop.selectedIds.includes(id));
@@ -65,36 +71,27 @@ export function CartScreen({ navigation, route }: Props) {
       return;
     }
     confirming.current = true;
-    Alert.alert(
-      '모의 구매',
-      `${selected.length}종 · ${money(total)}을 예산에서 사용할까요?`,
-      [
-        {
-          text: '취소',
-          style: 'cancel',
-          onPress: () => {
-            confirming.current = false;
-          },
-        },
-        {
-          text: '구매하기',
-          onPress: () => {
-            confirming.current = false;
-            const error = useShopStore.getState().checkout(pet.category);
-            Alert.alert(
-              error ? '구매 확인' : '구매 완료',
-              error ?? '예산을 차감하고 보유 물품에 추가했어요.',
-            );
-          },
-        },
-      ],
-      {
-        cancelable: true,
-        onDismiss: () => {
-          confirming.current = false;
-        },
-      },
-    );
+    setPurchaseDialog({
+      kind: 'confirm',
+      title: '모의 구매',
+      message: `${selected.length}종 · ${money(total)}을 예산에서 사용할까요?`,
+    });
+  };
+  const closePurchaseDialog = () => {
+    confirming.current = false;
+    setPurchaseDialog(null);
+  };
+  const confirmPurchase = () => {
+    if (!confirming.current || !pet) {
+      return;
+    }
+    confirming.current = false;
+    const error = useShopStore.getState().checkout(pet.category);
+    setPurchaseDialog({
+      kind: 'result',
+      title: error ? '구매 확인' : '구매 완료',
+      message: error ?? '예산을 차감하고 보유 물품에 추가했어요.',
+    });
   };
   return (
     <SafeAreaView style={s.screen}>
@@ -222,6 +219,16 @@ export function CartScreen({ navigation, route }: Props) {
           </View>
         </>
       )}
+      {purchaseDialog ? (
+        <AppDialog
+          title={purchaseDialog.title}
+          message={purchaseDialog.message}
+          confirmLabel={purchaseDialog.kind === 'confirm' ? '구매하기' : '확인'}
+          cancelLabel={purchaseDialog.kind === 'confirm' ? '취소' : undefined}
+          onClose={closePurchaseDialog}
+          onConfirm={purchaseDialog.kind === 'confirm' ? confirmPurchase : closePurchaseDialog}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

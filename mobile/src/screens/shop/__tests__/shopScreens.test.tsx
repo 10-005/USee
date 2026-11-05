@@ -1,6 +1,6 @@
 import renderer, { act } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Alert, FlatList, Keyboard } from 'react-native';
+import { FlatList, Keyboard } from 'react-native';
 import { ShopScreen } from '../ShopScreen';
 import { ProductDetailScreen } from '../ProductDetailScreen';
 import { CartScreen } from '../CartScreen';
@@ -241,10 +241,49 @@ it('changes cart quantity and completes a confirmed mock purchase', () => {
       node.findAllByProps({ children: '1종 모의 구매하기' }).length > 0,
   )[0];
   act(() => buyButton.props.onPress());
-  const buttons = jest.mocked(Alert.alert).mock.calls[0][2]!;
-  act(() => buttons.find(button => button.text === '구매하기')!.onPress!());
+  act(() => screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress());
   expect(useShopStore.getState().spent).toBe(21200);
   expect(useShopStore.getState().inventory.food).toBe(24);
   expect(useShopStore.getState().cart).toEqual({});
+  expect(screen.root.findByProps({ children: '구매 완료' })).toBeDefined();
+  act(() => screen.root.findByProps({ accessibilityLabel: '확인' }).props.onPress());
+  expect(screen.root.findAllByProps({ children: '구매 완료' })).toHaveLength(0);
+  act(() => screen.unmount());
+});
+
+it('cancels purchase without changes and shows a custom error dialog on expiry', () => {
+  useShopStore.getState().setQuantity('food', 1, 'dog');
+  let screen!: renderer.ReactTestRenderer;
+  act(() => {
+    screen = renderer.create(
+      wrap(
+        <CartScreen
+          navigation={{ navigate: jest.fn() } as never}
+          route={{ key: 'cart', name: 'ShopCart', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  const purchase = () =>
+    screen.root
+      .findAll(
+        node =>
+          node.props.accessibilityRole === 'button' &&
+          node.props.onPress &&
+          node.findAllByProps({ children: '1종 모의 구매하기' }).length > 0,
+      )[0]
+      .props.onPress();
+  act(purchase);
+  act(() => screen.root.findByProps({ accessibilityLabel: '취소' }).props.onPress());
+  expect(useShopStore.getState().spent).toBe(0);
+  expect(useShopStore.getState().cart.food).toBe(1);
+  act(purchase);
+  act(() => useShopStore.setState({ expiresAt: Date.now() - 1 }));
+  act(() => screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress());
+  expect(screen.root.findByProps({ children: '구매 확인' })).toBeDefined();
+  expect(screen.root.findByProps({ children: '모의 입양 기간이 종료되었어요.' })).toBeDefined();
+  expect(useShopStore.getState().spent).toBe(0);
+  expect(useShopStore.getState().cart.food).toBe(1);
+  act(() => screen.root.findByProps({ accessibilityLabel: '확인' }).props.onPress());
   act(() => screen.unmount());
 });
