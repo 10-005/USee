@@ -25,12 +25,16 @@ import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSec
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
+import org.springframework.http.HttpHeaders
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.core.userdetails.UsernameNotFoundException
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
+import org.springframework.web.cors.CorsConfiguration
+import org.springframework.web.cors.CorsConfigurationSource
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 import tools.jackson.databind.cfg.DateTimeFeature
 import tools.jackson.databind.json.JsonMapper
 import java.util.TimeZone
@@ -79,6 +83,7 @@ class CommonWebAutoConfiguration {
         .formLogin { it.disable() }
         .httpBasic { it.disable() }
         .logout { it.disable() }
+        .cors { } // corsConfigurationSource 빈 사용. 인증보다 먼저 처리되어 preflight는 토큰 없이 통과
         .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
         .exceptionHandling {
             it.authenticationEntryPoint(securityErrorResponder).accessDeniedHandler(securityErrorResponder)
@@ -91,6 +96,24 @@ class CommonWebAutoConfiguration {
         }
         .addFilterBefore(JwtAuthenticationFilter(jwtVerifier), UsernamePasswordAuthenticationFilter::class.java)
         .build()
+
+    // 웹 개발 서버 등 다른 출처의 브라우저 호출 허용. 토큰은 Authorization 헤더로만 오가므로 쿠키(credentials)는 쓰지 않는다
+    // MVC의 HandlerMappingIntrospector도 CorsConfigurationSource 타입이므로 타입이 아닌 이름으로 조건을 건다
+    @Bean
+    @ConditionalOnMissingBean(name = ["corsConfigurationSource"])
+    fun corsConfigurationSource(@Value("\${cors.allowed-origins:}") allowedOrigins: Array<String>): CorsConfigurationSource {
+        val origins = allowedOrigins.map(String::trim).filter(String::isNotEmpty)
+        require(origins.none { "*" in it }) { "cors.allowed-origins에 와일드카드(*)를 쓸 수 없습니다: $origins" }
+        val config = CorsConfiguration().apply {
+            this.allowedOrigins = origins
+            allowedMethods = listOf("GET", "POST", "PATCH", "DELETE")
+            allowedHeaders = listOf(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE, TraceIdFilter.HEADER)
+            exposedHeaders = listOf(TraceIdFilter.HEADER)
+            allowCredentials = false
+            maxAge = 3600
+        }
+        return UrlBasedCorsConfigurationSource().apply { registerCorsConfiguration("/**", config) }
+    }
 
     // 기본 인메모리 사용자(생성 비밀번호) 등록 방지
     @Bean
