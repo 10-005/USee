@@ -1,9 +1,10 @@
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useIsFocused } from '@react-navigation/native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCameraPermission } from 'react-native-vision-camera';
+import { useShopStore } from '../../stores/shopStore';
 
 import { styles } from './ArWalkScreen.styles';
 import {
@@ -20,6 +21,9 @@ const STARTUP_ERRORS: Partial<Record<FloorTrackingStatus, string>> = {
 };
 
 export function ArWalkScreen() {
+  const shop = useShopStore();
+  const [cleanupResponse, setCleanupResponse] = useState('');
+  const lastCleanupRequest = useRef(0);
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -63,6 +67,11 @@ export function ArWalkScreen() {
 
   const onTracking = (event: NativeSyntheticEvent<FloorTracking>) => {
     const next = event.nativeEvent;
+    if (next.cleanupRequestId && next.cleanupRequestId !== lastCleanupRequest.current) {
+      lastCleanupRequest.current = next.cleanupRequestId;
+      const consumed = useShopStore.getState().consume({ bags: 1 });
+      setCleanupResponse(`${next.cleanupRequestId}:${consumed ? 1 : 0}`);
+    }
     if (next.visible && next.onScreen) {
       setHasSeenDog(true);
     }
@@ -91,6 +100,8 @@ export function ArWalkScreen() {
           collapsable={false}
           style={styles.camera}
           onTracking={onTracking}
+          bagAvailable={shop.ready && Date.now() < shop.expiresAt && (shop.inventory.bags ?? 0) > 0}
+          cleanupResponse={cleanupResponse}
         />
       ) : (
         <View style={styles.message}>

@@ -1,6 +1,7 @@
 import ReactTestRenderer from 'react-test-renderer';
 
 import { ArWalkScreen } from './ArWalkScreen';
+import { useShopStore } from '../../stores/shopStore';
 import { ArFloorView, type FloorTracking } from './components/ArFloorView';
 
 jest.mock('@react-navigation/elements', () => ({ useHeaderHeight: () => 80 }));
@@ -12,6 +13,39 @@ jest.mock('react-native-vision-camera', () => ({
   useCameraPermission: () => ({ hasPermission: true, canRequestPermission: false }),
 }));
 jest.mock('./components/ArFloorView', () => ({ ArFloorView: 'ArFloorView' }));
+
+test('deducts a bag once per cleanup request and acknowledges only a saved deduction', async () => {
+  const session = {
+    petId: 'dog-1',
+    startedAt: Date.now(),
+    expiresAt: Date.now() + 86400000,
+    weeklyBudget: 50000,
+  };
+  useShopStore.getState().open(session);
+  useShopStore.getState().setQuantity('bags', 1, 'dog');
+  useShopStore.getState().checkout('dog');
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<ArWalkScreen />);
+  });
+  const tracking = () => renderer.root.findByType(ArFloorView);
+  const event = {
+    nativeEvent: { status: 'anchored', visible: true, onScreen: true, cleanupRequestId: 1234 },
+  };
+  await ReactTestRenderer.act(() => tracking().props.onTracking(event));
+  await ReactTestRenderer.act(() => tracking().props.onTracking(event));
+  expect(useShopStore.getState().inventory.bags).toBe(9);
+  expect(tracking().props.cleanupResponse).toBe('1234:1');
+  await ReactTestRenderer.act(() => {
+    useShopStore.getState().consume({ bags: 9 });
+  });
+  await ReactTestRenderer.act(() =>
+    tracking().props.onTracking({ nativeEvent: { ...event.nativeEvent, cleanupRequestId: 5678 } }),
+  );
+  expect(tracking().props.cleanupResponse).toBe('5678:0');
+  expect(useShopStore.getState().inventory.bags).toBe(0);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
 
 test('walk timer starts on user movement and keeps elapsed time through stops', async () => {
   jest.useFakeTimers();
@@ -74,7 +108,8 @@ test('area toggle remains available without a notices toggle', async () => {
     renderer = ReactTestRenderer.create(<ArWalkScreen />);
   });
   const native = () => renderer.root.findByType(ArFloorView).props;
-  const toggle = () => renderer.root.findAllByProps({ accessibilityLabel: '이동 가능 영역 표시' })[0];
+  const toggle = () =>
+    renderer.root.findAllByProps({ accessibilityLabel: '이동 가능 영역 표시' })[0];
   expect(native().showTraversalDebug).toBe(false);
   expect(renderer!.root.findAllByProps({ accessibilityLabel: '상단 안내 표시' })).toHaveLength(0);
   await ReactTestRenderer.act(() => toggle().props.onPress());

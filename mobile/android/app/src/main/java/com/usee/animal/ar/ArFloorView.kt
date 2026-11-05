@@ -47,6 +47,18 @@ class ArFloorView(
   private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
   private var modelReady = false
   private var active = false
+  private var bagAvailable = false
+
+  fun setBagAvailable(available: Boolean) {
+    bagAvailable = available
+    cleanup?.bagAvailable = available
+  }
+
+  fun confirmCleanup(response: String) {
+    val parts = response.split(':')
+    val requestId = parts.firstOrNull()?.toLongOrNull() ?: return
+    cleanup?.confirmCollection(requestId, parts.getOrNull(1) == "1")
+  }
   private var disposed = false
   private var lastEventKey = ""
   private var pendingEventKey = ""
@@ -183,6 +195,7 @@ class ArFloorView(
     addView(view)
     addView(debug)
     cleanup = WalkCleanupView(context, view).also {
+      it.bagAvailable = bagAvailable
       addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
     view.modelLoader.loadModelInstanceAsync("models/dog.glb") { instance ->
@@ -358,7 +371,8 @@ class ArFloorView(
     if (disposed) {
       return
     }
-    val key = "$status|$visible|$moving|$onScreen|$userMoving"
+    val cleanupRequestId = cleanup?.collectionRequestId ?: 0L
+    val key = "$status|$visible|$moving|$onScreen|$userMoving|$cleanupRequestId"
     val now = SystemClock.elapsedRealtime()
     if (pendingEventKey != key) {
       pendingEventKey = key
@@ -389,6 +403,7 @@ class ArFloorView(
           moving = moving,
           onScreen = onScreen,
           userMoving = userMoving,
+          cleanupRequestId = cleanupRequestId,
         ),
       )
     }
@@ -437,6 +452,7 @@ class ArFloorView(
     private val moving: Boolean,
     private val onScreen: Boolean,
     private val userMoving: Boolean,
+    private val cleanupRequestId: Long,
   ) : Event<TrackingEvent>(surfaceId, viewId) {
     override fun getEventName(): String = "topTracking"
 
@@ -453,6 +469,7 @@ class ArFloorView(
       putBoolean("moving", moving)
       putBoolean("onScreen", onScreen)
       putBoolean("userMoving", userMoving)
+      putDouble("cleanupRequestId", cleanupRequestId.toDouble())
     }
   }
 }

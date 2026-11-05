@@ -35,6 +35,12 @@ class ArFloorViewManager : SimpleViewManager<ArFloorView>() {
     view.requestAction(request.orEmpty())
   }
 
+  @ReactProp(name = "bagAvailable", defaultBoolean = false)
+  fun setBagAvailable(view: ArFloorView, available: Boolean) { view.setBagAvailable(available) }
+
+  @ReactProp(name = "cleanupResponse")
+  fun setCleanupResponse(view: ArFloorView, response: String?) { view.confirmCleanup(response.orEmpty()) }
+
   override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> =
     mutableMapOf("topTracking" to mutableMapOf("registrationName" to "onTracking"))
 
