@@ -70,6 +70,19 @@ export function ArWalkScreen({
   const [canReposition, setCanReposition] = useState(true);
   const [showTraversalDebug, setShowTraversalDebug] = useState(false);
   const [showWalkNotices, setShowWalkNotices] = useState(false);
+  const [walkStartedAt, setWalkStartedAt] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (walkStartedAt === null) {
+      return;
+    }
+    const updateElapsed = () => {
+      setElapsedSeconds(Math.floor((Date.now() - walkStartedAt) / 1000));
+    };
+    const interval = setInterval(updateElapsed, 1000);
+    return () => clearInterval(interval);
+  }, [walkStartedAt]);
 
   useEffect(() => {
     if (!hasPermission && canRequestPermission) {
@@ -79,6 +92,9 @@ export function ArWalkScreen({
 
   const onTracking = (event: NativeSyntheticEvent<FloorTracking>) => {
     const next = event.nativeEvent;
+    if (isFocused && next.status === 'anchored' && next.userMoving) {
+      setWalkStartedAt(current => current ?? Date.now());
+    }
     setCanReposition(
       ['analyzing', 'searching', 'ready', 'anchored'].includes(next.status) &&
         !next.onScreen &&
@@ -89,6 +105,9 @@ export function ArWalkScreen({
   };
 
   const copy = STATUS_COPY[status];
+  const walkTime = `${Math.floor(elapsedSeconds / 60)
+    .toString()
+    .padStart(2, '0')}:${(elapsedSeconds % 60).toString().padStart(2, '0')}`;
 
   return (
     <View style={styles.screen}>
@@ -108,6 +127,11 @@ export function ArWalkScreen({
           <Text style={styles.messageText}>강아지와 산책하려면 카메라 권한이 필요합니다.</Text>
         </View>
       )}
+      <View pointerEvents="none" style={[styles.walkTimer, { top: insets.top + 16 }]}>
+        <Text accessibilityLabel={`산책 시간 ${walkTime}`} style={styles.walkTimerText}>
+          {walkTime}
+        </Text>
+      </View>
       {showWalkNotices && (
         <View pointerEvents="none" style={styles.overlay}>
           <View style={[styles.status, { top: headerHeight + 64 }]}>

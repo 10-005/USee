@@ -13,6 +13,38 @@ jest.mock('react-native-vision-camera', () => ({
 }));
 jest.mock('./components/ArFloorView', () => ({ ArFloorView: 'ArFloorView' }));
 
+test('walk timer starts on user movement and keeps elapsed time through stops', async () => {
+  jest.useFakeTimers();
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+  try {
+    await ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(<ArWalkScreen />);
+    });
+    const time = (label: string) =>
+      renderer!.root.findAllByProps({ accessibilityLabel: `산책 시간 ${label}` });
+    const tracking = async (userMoving: boolean) => {
+      await ReactTestRenderer.act(() => {
+        renderer!.root.findByType(ArFloorView).props.onTracking({
+          nativeEvent: { status: 'anchored', visible: true, onScreen: true, userMoving },
+        });
+      });
+    };
+    await tracking(false);
+    await ReactTestRenderer.act(() => jest.advanceTimersByTime(5000));
+    expect(time('00:00').length).toBeGreaterThan(0);
+    await tracking(true);
+    await ReactTestRenderer.act(() => jest.advanceTimersByTime(61000));
+    expect(time('01:01').length).toBeGreaterThan(0);
+    await tracking(false);
+    await tracking(true);
+    await ReactTestRenderer.act(() => jest.advanceTimersByTime(2000));
+    expect(time('01:03').length).toBeGreaterThan(0);
+  } finally {
+    await ReactTestRenderer.act(() => renderer?.unmount());
+    jest.useRealTimers();
+  }
+});
+
 test('placement remains visible during analysis and hides only for visible dogs or moving users', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {

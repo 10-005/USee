@@ -11,6 +11,18 @@ export const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFill,
   },
+  walkTimer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  walkTimerText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
   message: {
     alignItems: 'center',
     flex: 1,
