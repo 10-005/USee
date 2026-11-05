@@ -29,12 +29,14 @@ class WalkSpeechModule(private val context: ReactApplicationContext) :
   @ReactMethod fun addListener(eventName: String) = Unit
   @ReactMethod fun removeListeners(count: Double) = Unit
 
-  private fun emit(status: String, transcript: String = "") {
+  private fun emit(status: String, transcript: String = "", reason: String? = null, errorCode: Int? = null) {
     if (!context.hasActiveReactInstance()) return
     context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
       .emit("WalkSpeechResult", Arguments.createMap().apply {
         putString("status", status)
         putString("transcript", transcript)
+        reason?.let { putString("reason", it) }
+        errorCode?.let { putInt("errorCode", it) }
       })
   }
 
@@ -75,7 +77,7 @@ class WalkSpeechModule(private val context: ReactApplicationContext) :
           if (Build.VERSION.SDK_INT >= 31 && preferOnDevice &&
             (error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED || error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)) {
             preferOnDevice = false
-            emit("retrying")
+            emit("retrying", reason = "language", errorCode = error)
             schedule(500)
             return
           }
@@ -83,8 +85,17 @@ class WalkSpeechModule(private val context: ReactApplicationContext) :
             shutdown(); emit("permissionDenied"); return
           }
           val idle = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
-          if (!idle && ++failures >= 3) { shutdown(); emit("error"); return }
-          emit(if (idle) "waiting" else "retrying")
+          val reason = when (error) {
+            SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "network"
+            SpeechRecognizer.ERROR_AUDIO -> "audio"
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "busy"
+            SpeechRecognizer.ERROR_TOO_MANY_REQUESTS -> "rateLimit"
+            SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "language"
+            SpeechRecognizer.ERROR_SERVER, SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> "service"
+            else -> "unknown"
+          }
+          if (!idle && ++failures >= 3) { shutdown(); emit("error", reason = reason, errorCode = error); return }
+          emit(if (idle) "waiting" else "retrying", reason = reason, errorCode = error)
           schedule(if (idle) 500 else (1000L * failures).coerceAtMost(5000))
         }
         override fun onBeginningOfSpeech() {

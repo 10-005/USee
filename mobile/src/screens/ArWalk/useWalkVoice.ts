@@ -7,8 +7,9 @@ import {
   Platform,
 } from 'react-native';
 import { parseWalkVoiceCommand } from './voiceCommand';
+import { getWalkSpeechErrorMessage } from './speechFeedback';
 
-type SpeechResult = { status: string; transcript: string };
+type SpeechResult = { status: string; transcript: string; reason?: string };
 const speech = NativeModules.WalkSpeech;
 
 export function useWalkVoice(active: boolean) {
@@ -29,7 +30,7 @@ export function useWalkVoice(active: boolean) {
     let disposed = false;
     let lifecycleVersion = 0;
     const subscription = new NativeEventEmitter(speech).addListener('WalkSpeechResult', event => {
-      const { status, transcript } = event as SpeechResult;
+      const { status, transcript, reason } = event as SpeechResult;
       if (disposed || AppState.currentState !== 'active') {
         return;
       }
@@ -44,16 +45,16 @@ export function useWalkVoice(active: boolean) {
         setIsRecognizing(true);
       } else if (status === 'permissionDenied') {
         setIsRecognizing(false);
-        setMessage('음성 명령을 사용하려면 설정에서 마이크 권한을 허용해 주세요.');
+        setMessage('설정에서 마이크 권한을 허용해주세요');
       } else if (status === 'unavailable') {
         setIsRecognizing(false);
-        setMessage('사용 가능한 음성 인식 서비스가 없습니다.');
+        setMessage('음성 인식 서비스 설정을 확인해주세요');
       } else if (status === 'error') {
         setIsRecognizing(false);
-        setMessage('음성 인식이 중단되었습니다. 음성을 껐다 켜서 재시도해 주세요.');
+        setMessage(getWalkSpeechErrorMessage(reason));
       } else if (status === 'retrying') {
         setIsRecognizing(false);
-        setMessage('음성 인식에 다시 연결 중');
+        setMessage(getWalkSpeechErrorMessage(reason, true));
       }
     });
     const start = async () => {
@@ -63,7 +64,8 @@ export function useWalkVoice(active: boolean) {
           PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
           {
             title: '산책 음성 명령',
-            message: '강아지에게 “앉아”, “멈춰”, “가자”라고 말하려면 마이크 권한이 필요합니다.',
+            message:
+              '강아지에게 “앉아”, “멈춰”, “가자”라고 말하려면 마이크 권한이 필요합니다.',
             buttonPositive: '확인',
           },
         );
@@ -76,12 +78,12 @@ export function useWalkVoice(active: boolean) {
           speech.start();
         } else {
           setIsRecognizing(false);
-          setMessage('마이크 권한이 없어 음성 명령을 사용할 수 없습니다.');
+          setMessage('설정에서 마이크 권한을 허용해주세요');
         }
       } catch {
         if (!disposed) {
           setIsRecognizing(false);
-          setMessage('마이크 권한을 확인하지 못했습니다. 음성을 껐다 켜 주세요.');
+          setMessage('마이크 권한 확인 실패 · 다시 켜주세요');
         }
       }
     };
