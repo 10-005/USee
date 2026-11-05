@@ -87,6 +87,7 @@ export function TimePickerModal({
           </View>
           <View style={styles.selectorLabels}>
             <Text style={styles.selectorLabel}>시</Text>
+            <Text style={[styles.colon, styles.hiddenColon]}>:</Text>
             <Text style={styles.selectorLabel}>분</Text>
           </View>
           <View style={styles.selectors}>
@@ -184,7 +185,7 @@ const styles = StyleSheet.create({
   selectedPeriodButton: { backgroundColor: '#ECFDF3', borderColor: colors.green400 },
   periodText: { ...typography.bodySemiBold16, color: colors.gray500 },
   selectedText: { color: colors.green400 },
-  selectorLabels: { flexDirection: 'row', gap: 42, marginTop: 16, paddingHorizontal: 28 },
+  selectorLabels: { flexDirection: 'row', gap: 16, marginTop: 16 },
   selectorLabel: {
     ...typography.captionSemiBold12,
     color: colors.gray500,
@@ -200,6 +201,7 @@ const styles = StyleSheet.create({
   },
   selectorContent: { padding: 8 },
   colon: { ...typography.titleSemiBold18, color: colors.gray600 },
+  hiddenColon: { opacity: 0 },
   timeOption: {
     alignItems: 'center',
     borderRadius: radius.md,
