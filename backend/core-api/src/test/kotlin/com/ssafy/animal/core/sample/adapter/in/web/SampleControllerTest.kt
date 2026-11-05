@@ -3,6 +3,7 @@ package com.ssafy.animal.core.sample.adapter.`in`.web
 import com.ssafy.animal.common.config.CommonWebAutoConfiguration
 import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.core.sample.application.port.`in`.CreateSampleCommand
+import com.ssafy.animal.core.sample.adapter.out.persistence.SamplePersistenceAdapter
 import com.ssafy.animal.core.sample.application.port.`in`.SampleUseCase
 import com.ssafy.animal.core.sample.domain.Sample
 import com.ssafy.animal.core.sample.domain.SampleErrorCode
@@ -10,10 +11,14 @@ import io.jsonwebtoken.Jwts
 import org.hamcrest.Matchers.nullValue
 import org.junit.jupiter.api.Test
 import org.mockito.BDDMockito.given
+import org.mockito.ArgumentMatchers.any
+import org.mockito.BDDMockito.willAnswer
 import org.mockito.BDDMockito.willThrow
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
+import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -138,6 +143,30 @@ class SampleControllerTest {
         }.andExpect {
             status { isMethodNotAllowed() }
             jsonPath("$.code") { value("COMMON_METHOD_NOT_ALLOWED") }
+        }
+    }
+
+    @Test
+    fun `목록 sort는 샘플 SortPolicy를 거쳐 허용 필드는 200, 허용 안 된 필드와 잘못된 방향은 400`() {
+        // DB 없이 요청 sort → Pageable → SortPolicy 경로만 확인한다
+        willAnswer {
+            SamplePersistenceAdapter.SORT_POLICY.toOrderSpecifiers(it.getArgument<Pageable>(0).sort)
+            PageImpl(emptyList<Sample>())
+        }.given(sampleUseCase).getPage(any(Pageable::class.java) ?: Pageable.unpaged())
+
+        listOf("", "?sort=regDttm,asc", "?sort=name,desc&sort=regDttm,asc").forEach { query ->
+            mockMvc.get("/api/core/v1/samples$query") {
+                header(HttpHeaders.AUTHORIZATION, bearer())
+            }.andExpect { status { isOk() } }
+        }
+        listOf("?sort=sampleSeq,desc", "?sort=regDttm,sideways").forEach { query ->
+            mockMvc.get("/api/core/v1/samples$query") {
+                header(HttpHeaders.AUTHORIZATION, bearer())
+            }.andExpect {
+                status { isBadRequest() }
+                jsonPath("$.code") { value("COMMON_INVALID_INPUT") }
+                jsonPath("$.errors[0].field") { value("sort") }
+            }
         }
     }
 
