@@ -2,6 +2,7 @@ package com.ssafy.animal.core
 
 import com.ssafy.animal.common.auth.AuthUser
 import com.ssafy.animal.common.config.CommonWebAutoConfiguration
+import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
 import com.ssafy.animal.core.sample.application.port.`in`.SampleUseCase
 import org.hamcrest.Matchers.containsInAnyOrder
 import org.hamcrest.Matchers.empty
@@ -48,6 +49,9 @@ abstract class SwaggerDocsTestBase {
     // 문서에 실제 컨트롤러가 잡히도록 컨트롤러는 띄우고 유스케이스만 목으로 둔다
     @MockitoBean
     lateinit var sampleUseCase: SampleUseCase
+
+    @MockitoBean
+    lateinit var imageUseCase: ImageUseCase
 
     companion object {
         @JvmStatic
