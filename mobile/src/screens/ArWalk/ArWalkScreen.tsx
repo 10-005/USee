@@ -134,7 +134,7 @@ export function ArWalkScreen({
       </View>
       {showWalkNotices && (
         <View pointerEvents="none" style={styles.overlay}>
-          <View style={[styles.status, { top: headerHeight + 64 }]}>
+          <View style={[styles.status, { top: headerHeight + 112 }]}>
             <Text style={styles.statusLabel}>{copy.label}</Text>
             <Text style={styles.statusHint}>{copy.hint}</Text>
           </View>

@@ -66,12 +66,13 @@ export function RootNavigator() {
           component={ArWalkScreen}
           options={{
             headerShown: true,
-            title: 'AR 산책',
+            title: '산책 그만하기',
+            headerTitleAlign: 'left',
             headerTransparent: true,
             headerShadowVisible: false,
             headerTintColor: '#FFFFFF',
             headerStyle: { backgroundColor: 'transparent' },
-            headerTitleStyle: { color: '#FFFFFF' },
+            headerTitleStyle: { color: '#FFFFFF', fontSize: 10 },
           }}
         />
         <Stack.Screen name="AdoptionDetail" component={AdoptionDetailScreen} />
