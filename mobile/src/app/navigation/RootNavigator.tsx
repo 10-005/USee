@@ -31,6 +31,8 @@ import { LostReportPetSelectionScreen } from '../../screens/lost-report/LostRepo
 import { LostReportFormScreen } from '../../screens/lost-report/LostReportFormScreen';
 import { LostReportLocationPickerScreen } from '../../screens/lost-report/LostReportLocationPickerScreen';
 import type { RootStackParamList } from './types';
+import { LoginScreen } from '../../screens/auth/LoginScreen';
+import { SignupOnboardingScreen } from '../../screens/auth/SignupOnboardingScreen';
 
 const styles = StyleSheet.create({
   walkExitTitle: {
@@ -49,7 +51,9 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export function RootNavigator() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
+      <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="SignupOnboarding" component={SignupOnboardingScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="FoundReportDetail" component={FoundReportDetailScreen} />
         <Stack.Screen name="FoundReportForm" component={FoundReportFormScreen} />

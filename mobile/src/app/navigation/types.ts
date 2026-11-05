@@ -2,6 +2,8 @@ import type { ChatPreview } from '../../stores/chatStore';
 import type { AdoptionApplicationStatus } from '../../services/storage/adoptionApplicationStorage';
 
 export type RootStackParamList = {
+  Login: undefined;
+  SignupOnboarding: undefined;
   ArWalk: { petName: string } | undefined;
   AdoptionApplication: { animalId: string };
   AdoptionApplicantEdit: undefined;

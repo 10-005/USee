@@ -1,0 +1,59 @@
+# 주의: MR 을 Squash 또는 Fast-forward 로 머지하면 머지 커밋이 없어 알림이 가지 않음
+# 모바일 CI: develop-mobile 에 MR 이 머지되면 Mattermost 채널에 알림
+# 필요한 CI 변수: MM_WEBHOOK_MOBILE (Masked and hidden)
+
+notify-mobile-merge:
+  stage: deploy               # .post 작업만 있는 파이프라인은 GitLab 이 실행하지 않음
+  needs: []                   # 앞 단계 작업 결과와 상관없이 바로 실행
+  image: alpine:3.22
+  variables:
+    GIT_STRATEGY: none        # 저장소 체크아웃 불필요
+  rules:
+    # 머지 커밋에만 들어 있는 "See merge request" 문구로 직접 push 와 구분
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop-mobile" && $CI_COMMIT_MESSAGE =~ /See merge request/
+  allow_failure: true         # 알림이 실패해도 파이프라인은 성공으로 둠
+  script:
+    - apk add --no-cache curl jq
+    - |
+      MR_IID=$(printf '%s\n' "$CI_COMMIT_MESSAGE" | sed -n 's/^See merge request .*[^0-9]\([0-9][0-9]*\)$/\1/p')
+      curl -sS --fail-with-body -H "PRIVATE-TOKEN: $GITLAB_MR_READ_TOKEN" \
+        "$CI_API_V4_URL/projects/$CI_PROJECT_ID/merge_requests/$MR_IID" > /tmp/mr.json
+
+      # 커스텀 이모지 중 서로 다른 n개를 무작위로 고른다 (개수는 -v n=3 에서 변경)
+      EMOJIS=$(printf '%s\n' \
+        :d106_hellohyun_v_shape: :d106_hj_spinning5x: :d106_sh_uncle_sam: \
+        :d109_justin_samsung: :d109_sj_satoshi: :sj_sleeping: \
+        :d106_victory_jh: :d106_cr_mirror: :d106_joker_hj: \
+        :d106_hl_victory: :d109_tw_yaho: :d110_hooooni_molba: :d110_sexy_hooooni: \
+        :park_bum_wow: :park_bum_bald: :park_bum_cute: :park_bum_alpha_male: \
+        :jihyun_singing: :jh_yaong: :mk_singing: :mk_smile: :sanghyun_fruity: \
+        | awk -v n=3 'BEGIN { srand() } { e[NR] = $0 }
+               END {
+                 out = ""
+                 for (k = 1; k <= n && k <= NR; k++) {
+                   r = k + int(rand() * (NR - k + 1))
+                   t = e[k]; e[k] = e[r]; e[r] = t
+                   out = out (k > 1 ? " " : "") e[k]
+                 }
+                 print out
+               }')
+      jq --arg commit "[$CI_COMMIT_SHORT_SHA]($CI_PROJECT_URL/-/commit/$CI_COMMIT_SHA)" --arg emojis "$EMOJIS" '
+        ([.source_branch | scan("S15P31D106-[0-9]+")] | .[0]) as $key
+        | ((.description // "") | gsub("\r"; "")) as $d
+        | {
+            attachments: [{
+              fallback: "develop-mobile 머지: MR \(.iid) · \(.title)",
+              color: "#2EB67D",
+              pretext: "# \((.merge_user // .merged_by).name) 님이 develop-mobile에 머지했습니다. \($emojis)",
+              title: "MR \(.iid) · \(.title)",
+              title_link: .web_url,
+              text: (if $d == "" then "_설명 없음_" elif ($d | length) > 500 then $d[0:500] + " …" else $d end),
+              fields: [
+                {short: true, title: "브랜치", value: "`\(.source_branch)` → `develop-mobile`"},
+                {short: true, title: "작성자", value: .author.name},
+                {short: true, title: "Jira", value: (if $key then "[\($key)](https://ssafy.atlassian.net/browse/\($key))" else "-" end)},
+                {short: true, title: "커밋", value: $commit}
+              ]
+            }]
+          }' /tmp/mr.json \
+        | curl -sS --fail-with-body -X POST -H 'Content-Type: application/json' --data @- "$MM_WEBHOOK_MOBILE"

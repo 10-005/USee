@@ -112,7 +112,7 @@ export function SettingsScreen({ navigation }: Props) {
   const completeLogout = () => {
     resetUserState();
     setAccountModal(null);
-    navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 
   const completeWithdrawal = async () => {
@@ -120,7 +120,7 @@ export function SettingsScreen({ navigation }: Props) {
     resetUserState();
     settings.resetSettings();
     setAccountModal(null);
-    navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 
   return (
