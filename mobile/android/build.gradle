@@ -3,6 +3,8 @@ buildscript {
         buildToolsVersion = "37.0.0"
         minSdkVersion = 24
         compileSdkVersion = 37
+        // Resolve native dependencies without relying on Android Studio's Node PATH.
+        REACT_NATIVE_NODE_MODULES_DIR = file("../node_modules/react-native")
         targetSdkVersion = 36
         ndkVersion = "27.1.12297006"
         kotlinVersion = "2.2.0"
