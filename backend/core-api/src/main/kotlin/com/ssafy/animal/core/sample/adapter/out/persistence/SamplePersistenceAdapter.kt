@@ -1,6 +1,7 @@
 package com.ssafy.animal.core.sample.adapter.out.persistence
 
 import com.querydsl.jpa.impl.JPAQueryFactory
+import com.ssafy.animal.common.persistence.SortPolicy
 import com.ssafy.animal.core.sample.application.port.out.SampleRepository
 import com.ssafy.animal.core.sample.domain.QSample.Companion.sample
 import com.ssafy.animal.core.sample.domain.Sample
@@ -23,7 +24,7 @@ class SamplePersistenceAdapter(
 
     override fun findPage(pageable: Pageable): Page<Sample> {
         val content = queryFactory.selectFrom(sample)
-            .orderBy(sample.sampleSeq.desc())
+            .orderBy(*SORT_POLICY.toOrderSpecifiers(pageable.sort))
             .offset(pageable.offset)
             .limit(pageable.pageSize.toLong())
             .fetch()
@@ -32,4 +33,14 @@ class SamplePersistenceAdapter(
     }
 
     override fun delete(sample: Sample) = sampleJpaRepository.delete(sample)
+
+    companion object {
+        // 명세에 화이트리스트가 따로 없으면 SortPolicy.regDttmOnly(sample.regDttm, sample.sampleSeq) 한 줄이면 된다.
+        // 샘플은 직접 선언 예시: API 이름 → Q경로, 기본 정렬, 동률 처리(PK desc)
+        val SORT_POLICY = SortPolicy(
+            fields = mapOf("regDttm" to sample.regDttm, "name" to sample.name),
+            default = listOf(sample.regDttm.desc()),
+            tieBreaker = sample.sampleSeq.desc(),
+        )
+    }
 }

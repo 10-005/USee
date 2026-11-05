@@ -24,7 +24,7 @@ class GlobalExceptionHandler {
     private val log = LoggerFactory.getLogger(javaClass)
 
     @ExceptionHandler(BusinessException::class)
-    fun handleBusiness(e: BusinessException) = respond(e.errorCode, e.message)
+    fun handleBusiness(e: BusinessException) = respond(e.errorCode, e.message, e.errors)
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleMethodArgumentNotValid(e: MethodArgumentNotValidException) = respond(

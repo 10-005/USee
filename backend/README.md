@@ -89,6 +89,11 @@ com.ssafy.animal.core.{도메인}
 - 성공 메시지를 바꿀 때만 `@SuccessMessage("...")`를 붙인다.
 - 반환값이 없는 API(`Unit`)는 `200` + `data: null`. 204는 쓰지 않는다.
 - 목록은 `PageResponse.of(page)`로 변환한다: `{ content, page, size, totalElements, totalPages, hasNext }`
+- 정렬은 `SortPolicy`로 처리한다(명세 Q417). 엔티티 필드명을 그대로 정렬에 쓰지 않는다.
+  1. 기본: 명세에 화이트리스트가 따로 없으면 `regDttm`만 허용이므로 도우미 한 줄로 끝낸다.
+     `private val sortPolicy = SortPolicy.regDttmOnly(entity.regDttm, entity.entitySeq)`
+  2. 명세에 화이트리스트가 있으면 직접 선언한다(`SamplePersistenceAdapter` 참고). API 필드 이름 → Q경로, 기본 정렬, 동률 처리(PK desc).
+  3. QueryDSL에서 `.orderBy(*sortPolicy.toOrderSpecifiers(pageable.sort))`. 허용 안 된 필드는 400 `COMMON_INVALID_INPUT`(`errors[].field = "sort"`), sort가 없으면 기본 정렬
 
 ### 예외
 
