@@ -67,12 +67,14 @@ it('accumulates repeated additions beyond 99 and restores added budget on reopen
   expect(shop().addBudget(100_000_000)).toBe(false);
 });
 
-it('does not change budget or cart when funds are insufficient', () => {
+it('allows purchases beyond the budget and restores the negative balance', () => {
   shop().setQuantity('food', 5, 'dog');
-  expect(shop().checkout('dog')).toContain('예산');
-  expect(shop().spent).toBe(0);
-  expect(shop().cart.food).toBe(5);
-  expect(shop().inventory).toEqual({});
+  expect(shop().checkout('dog')).toBeNull();
+  expect(shop().budget - shop().spent).toBe(-3000);
+  expect(shop().cart).toEqual({});
+  expect(shop().inventory.food).toBe(60);
+  shop().open(session);
+  expect(shop().budget - shop().spent).toBe(-3000);
 });
 
 it('rejects checkout after the adoption expires', () => {

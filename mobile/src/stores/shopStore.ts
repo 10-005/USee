@@ -160,9 +160,6 @@ export const useShopStore = create<ShopState>((set, get) => {
         return '구매할 수 없는 상품이 있어요.';
       }
       const total = cartTotal(state.cart, ids);
-      if (total > state.budget - state.spent) {
-        return '남은 예산이 부족해요. 수량을 조절해주세요.';
-      }
       const inventory = { ...state.inventory };
       for (const id of ids) {
         inventory[id] = (inventory[id] ?? 0) + state.cart[id] * findProduct(id)!.qty;

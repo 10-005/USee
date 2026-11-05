@@ -40,6 +40,27 @@ export function migrateShopCartV2(db: DB): void {
   });
 }
 
+export function migrateShopBudgetV3(db: DB): void {
+  // Rebuild the referenced parent table without cascading deletion of cart or inventory.
+  db.executeSync('PRAGMA foreign_keys = OFF');
+  try {
+    transaction(db, () => {
+      db.executeSync(`CREATE TABLE shop_sessions_v3 (
+        id TEXT PRIMARY KEY, budget INTEGER NOT NULL CHECK(budget >= 0),
+        spent INTEGER NOT NULL CHECK(spent >= 0), expires_at INTEGER NOT NULL)`);
+      db.executeSync('INSERT INTO shop_sessions_v3 SELECT * FROM shop_sessions');
+      db.executeSync('DROP TABLE shop_sessions');
+      db.executeSync('ALTER TABLE shop_sessions_v3 RENAME TO shop_sessions');
+      if (db.executeSync('PRAGMA foreign_key_check').rows.length) {
+        throw new Error('Invalid shop references');
+      }
+      db.executeSync('PRAGMA user_version = 3');
+    });
+  } finally {
+    db.executeSync('PRAGMA foreign_keys = ON');
+  }
+}
+
 // A private on-device SQLite file; the JSON is used only as first-install seed.
 export function getShopDatabase(): DB {
   if (database) {
@@ -50,7 +71,7 @@ export function getShopDatabase(): DB {
     db.executeSync('PRAGMA foreign_keys = ON');
     db.executeSync('PRAGMA journal_mode = WAL');
     const version = Number(db.executeSync('PRAGMA user_version').rows[0].user_version);
-    if (version > 2) {
+    if (version > 3) {
       throw new Error('Unsupported shop database version');
     }
     if (version === 0) {
@@ -63,7 +84,7 @@ export function getShopDatabase(): DB {
           essential INTEGER NOT NULL, display_order INTEGER NOT NULL, metadata TEXT NOT NULL)`);
         db.executeSync(`CREATE TABLE shop_sessions (
           id TEXT PRIMARY KEY, budget INTEGER NOT NULL CHECK(budget >= 0),
-          spent INTEGER NOT NULL CHECK(spent >= 0 AND spent <= budget), expires_at INTEGER NOT NULL)`);
+          spent INTEGER NOT NULL CHECK(spent >= 0), expires_at INTEGER NOT NULL)`);
         db.executeSync(`CREATE TABLE cart_items (
           session_id TEXT NOT NULL REFERENCES shop_sessions(id) ON DELETE CASCADE,
           product_id TEXT NOT NULL REFERENCES products(id),
@@ -87,11 +108,14 @@ export function getShopDatabase(): DB {
             JSON.stringify(p),
           ]),
         );
-        db.executeSync('PRAGMA user_version = 2');
+        db.executeSync('PRAGMA user_version = 3');
       });
     }
     if (version === 1) {
       migrateShopCartV2(db);
+    }
+    if (version > 0 && version < 3) {
+      migrateShopBudgetV3(db);
     }
     database = db;
     return db;

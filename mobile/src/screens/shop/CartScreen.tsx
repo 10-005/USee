@@ -208,11 +208,9 @@ export function CartScreen({ navigation, route }: Props) {
               <Text style={s.price}>{money(total)}</Text>
             </View>
             <Text style={s.body}>
-              {total > remaining
-                ? '예산이 부족해요. 수량을 조절해주세요.'
-                : `구매 후 남은 예산 ${money(remaining - total)}`}
+              {`구매 후 남은 예산 ${money(remaining - total)}`}
             </Text>
-            <Button disabled={!selected.length || total > remaining} onPress={purchase}>
+            <Button disabled={!selected.length} onPress={purchase}>
               {`${selected.length}종 모의 구매하기`}
             </Button>
           </View>

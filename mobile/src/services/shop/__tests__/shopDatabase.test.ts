@@ -5,6 +5,7 @@ import {
   writeShopSnapshot,
   type ShopSnapshot,
   migrateShopCartV2,
+  migrateShopBudgetV3,
 } from '../shopDatabase';
 import { open } from '@op-engineering/op-sqlite';
 
@@ -29,7 +30,7 @@ it('seeds 32 distinct products once and reads the SQL columns', () => {
   db.executeSync('UPDATE products SET price=1234 WHERE id=?', ['food']);
   expect(readShopProducts().find(p => p.id === 'food')!.price).toBe(1234);
   db.executeSync('UPDATE products SET price=10600 WHERE id=?', ['food']);
-  expect(db.executeSync('PRAGMA user_version').rows[0].user_version).toBe(2);
+  expect(db.executeSync('PRAGMA user_version').rows[0].user_version).toBe(3);
 });
 
 it('restores selection, bundle quantities, budget and inventory', () => {
@@ -80,5 +81,39 @@ it('migrates v1 cart rows without losing quantities or selection', () => {
   db.executeSync('UPDATE cart_items SET quantity=120');
   expect(db.executeSync('SELECT quantity FROM cart_items').rows[0].quantity).toBe(120);
   expect(db.executeSync('PRAGMA user_version').rows[0].user_version).toBe(2);
+  db.close();
+});
+
+it('migrates budget constraints while preserving session, basket and inventory references', () => {
+  const db = open({ name: 'budget-migration-test.sqlite' });
+  db.executeSync('PRAGMA foreign_keys=ON');
+  db.executeSync('CREATE TABLE products (id TEXT PRIMARY KEY)');
+  db.executeSync(
+    'CREATE TABLE shop_sessions (id TEXT PRIMARY KEY, budget INTEGER, spent INTEGER CHECK(spent <= budget), expires_at INTEGER)',
+  );
+  db.executeSync(
+    'CREATE TABLE cart_items (session_id TEXT REFERENCES shop_sessions(id) ON DELETE CASCADE, product_id TEXT REFERENCES products(id), quantity INTEGER, selected INTEGER)',
+  );
+  db.executeSync(
+    'CREATE TABLE inventory_items (session_id TEXT REFERENCES shop_sessions(id) ON DELETE CASCADE, product_id TEXT REFERENCES products(id), quantity INTEGER)',
+  );
+  db.executeSync("INSERT INTO products VALUES ('food')");
+  db.executeSync("INSERT INTO shop_sessions VALUES ('test',1000,500,12345)");
+  db.executeSync("INSERT INTO cart_items VALUES ('test','food',2,1)");
+  db.executeSync("INSERT INTO inventory_items VALUES ('test','food',12)");
+  db.executeSync('PRAGMA user_version=2');
+  migrateShopBudgetV3(db);
+  expect(db.executeSync('SELECT quantity,selected FROM cart_items').rows[0]).toEqual({
+    quantity: 2,
+    selected: 1,
+  });
+  expect(db.executeSync('SELECT quantity FROM inventory_items').rows[0].quantity).toBe(12);
+  db.executeSync('UPDATE shop_sessions SET spent=2000');
+  expect(db.executeSync('SELECT budget-spent AS balance FROM shop_sessions').rows[0].balance).toBe(
+    -1000,
+  );
+  expect(db.executeSync('PRAGMA foreign_key_check').rows).toEqual([]);
+  expect(db.executeSync('PRAGMA foreign_keys').rows[0].foreign_keys).toBe(1);
+  expect(db.executeSync('PRAGMA user_version').rows[0].user_version).toBe(3);
   db.close();
 });
