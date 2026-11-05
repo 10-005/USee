@@ -69,6 +69,16 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
   private var targetX = 0f
   private var targetY = 0f
   private var collecting = false
+  var bagAvailable = false
+  var collectionRequestId = 0L
+    private set
+
+  fun confirmCollection(requestId: Long, accepted: Boolean) {
+    if (requestId != collectionRequestId || requestId == 0L) return
+    if (accepted) state.collect()
+    collectionRequestId = 0L
+    invalidate()
+  }
   private val bagX get() = width / 2f
   private val bagY get() = height - maxOf(104f * density, bag.height * imageScale / 2f)
   private val bagHitWidth get() = maxOf(bag.width * imageScale / 2f, 32f * density)
@@ -79,7 +89,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
     contentDescription = "배변봉투를 배변 쪽으로 밀어 던져주세요"
   }
 
-  fun hitBag(x: Float, y: Float): Boolean = tracking && near && thrownAt == 0L &&
+  fun hitBag(x: Float, y: Float): Boolean = bagAvailable && collectionRequestId == 0L && tracking && near && thrownAt == 0L &&
     kotlin.math.abs(x - bagX) <= bagHitWidth && kotlin.math.abs(y - bagY) <= bagHitHeight
 
   fun pause() {
@@ -193,11 +203,11 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
         paint.alpha = 255
       } else {
         thrownAt = 0L
-        if (collecting) state.collect()
+        if (collecting) collectionRequestId = SystemClock.elapsedRealtime()
         collecting = false
       }
       postInvalidateOnAnimation()
-    } else if (near) {
+    } else if (near && bagAvailable && collectionRequestId == 0L) {
       image(canvas, bag, if (dragging) dragX else bagX, if (dragging) dragY else bagY)
     }
   }

@@ -61,22 +61,36 @@ export function useToilet(petId: string, category: PetCategory) {
     };
   }, [petId, category]);
 
-  const clean = async () => {
+  const cleaning = useRef(false);
+  const clean = async (consumeSupplies?: () => boolean) => {
     const current = state.current;
-    if (!current || !isToiletFull(current.events, current.cleanedAt, Date.now())) {
+    if (
+      cleaning.current ||
+      !current ||
+      !isToiletFull(current.events, current.cleanedAt, Date.now())
+    ) {
       return false;
     }
-    const next = { ...current, cleanedAt: Date.now() };
-    const write = writes.current
-      .catch(() => {})
-      .then(() => setStoredValue(STORAGE_KEYS.MOCK_ADOPTION_TOILET, next));
-    writes.current = write;
-    await write;
-    if (state.current === current) {
-      state.current = next;
-      setFull(false);
+    cleaning.current = true;
+    try {
+      const next = { ...current, cleanedAt: Date.now() };
+      const write = writes.current
+        .catch(() => {})
+        .then(() => setStoredValue(STORAGE_KEYS.MOCK_ADOPTION_TOILET, next));
+      writes.current = write;
+      await write;
+      if (consumeSupplies && !consumeSupplies()) {
+        await setStoredValue(STORAGE_KEYS.MOCK_ADOPTION_TOILET, current);
+        return false;
+      }
+      if (state.current === current) {
+        state.current = next;
+        setFull(false);
+      }
+      return true;
+    } finally {
+      cleaning.current = false;
     }
-    return true;
   };
   return { full, clean };
 }

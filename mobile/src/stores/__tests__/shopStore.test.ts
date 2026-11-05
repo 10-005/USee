@@ -1,6 +1,7 @@
 import { getShopDatabase, readShopSnapshot } from '../../services/shop/shopDatabase';
 import { useShopStore, cartTotal } from '../shopStore';
 import { filterProducts, products } from '../../services/shop/catalog';
+import { consumeCareSupplies } from '../../services/shop/consumption';
 
 const session = {
   petId: 'dog-poodle',
@@ -122,4 +123,60 @@ it('keeps the UI and saved state unchanged when the purchase transaction fails',
   } finally {
     db.executeSync('DROP TRIGGER fail_purchase');
   }
+});
+
+it('tracks each purchased package independently and restores remaining uses', () => {
+  shop().setQuantity('food', 2, 'dog');
+  expect(shop().checkout('dog')).toBeNull();
+  expect(
+    shop()
+      .ownedItems.filter(i => i.productId === 'food')
+      .map(i => i.remaining),
+  ).toEqual([12, 12]);
+  expect(shop().consume({ food: 13 })).toBe(true);
+  expect(
+    shop()
+      .ownedItems.filter(i => i.productId === 'food')
+      .map(i => i.remaining),
+  ).toEqual([0, 11]);
+  expect(shop().inventory.food).toBe(11);
+  shop().open(session);
+  expect(
+    shop()
+      .ownedItems.filter(i => i.productId === 'food')
+      .map(i => i.remaining),
+  ).toEqual([0, 11]);
+  expect(shop().consume({ food: 12 })).toBe(false);
+  expect(shop().inventory.food).toBe(11);
+});
+
+it('uses the requested item and atomically rejects incomplete cleaning supplies', () => {
+  shop().setQuantity('food', 2, 'dog');
+  shop().setQuantity('cleaner', 1, 'dog');
+  shop().setQuantity('bowl', 1, 'dog');
+  shop().checkout('dog');
+  const packs = shop().ownedItems.filter(i => i.productId === 'food');
+  expect(shop().consume({ food: 1 }, packs[1].id)).toBe(true);
+  expect(
+    shop()
+      .ownedItems.filter(i => i.productId === 'food')
+      .map(i => i.remaining),
+  ).toEqual([12, 11]);
+  expect(shop().consume({ cleaner: 1, pads: 1 })).toBe(false);
+  expect(shop().inventory.cleaner).toBe(10);
+  expect(shop().consume({ bowl: 1 })).toBe(false);
+});
+
+it('deducts snacks and cleaning supplies from the active pet inventory', () => {
+  shop().setQuantity('treat', 1, 'dog');
+  shop().setQuantity('cleaner', 1, 'dog');
+  shop().setQuantity('pads', 1, 'dog');
+  shop().checkout('dog');
+  expect(consumeCareSupplies(session.petId, 'dog', 'treat')).toBe(true);
+  expect(shop().inventory.treat).toBe(4);
+  expect(consumeCareSupplies(session.petId, 'dog', 'clean')).toBe(true);
+  expect(shop().inventory.cleaner).toBe(9);
+  expect(shop().inventory.pads).toBe(9);
+  expect(consumeCareSupplies('other-pet', 'dog', 'clean')).toBe(false);
+  expect(shop().inventory.cleaner).toBe(9);
 });

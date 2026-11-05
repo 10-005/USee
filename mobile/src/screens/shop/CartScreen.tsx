@@ -87,11 +87,12 @@ export function CartScreen({ navigation, route }: Props) {
     }
     confirming.current = false;
     const error = useShopStore.getState().checkout(pet.category);
-    setPurchaseDialog({
-      kind: 'result',
-      title: error ? '구매 확인' : '구매 완료',
-      message: error ?? '예산을 차감하고 보유 물품에 추가했어요.',
-    });
+    if (error) {
+      setPurchaseDialog({ kind: 'result', title: '구매 확인', message: error });
+      return;
+    }
+    setPurchaseDialog(null);
+    navigation.popTo('ShopInventory', { petId });
   };
   return (
     <SafeAreaView style={s.screen}>
@@ -111,7 +112,7 @@ export function CartScreen({ navigation, route }: Props) {
           <Text style={s.body}>함께할 일상에 필요한 물품을 골라보세요.</Text>
           <Text style={s.green}>남은 예산 {money(remaining)}</Text>
           {preparationGuide}
-          <Button onPress={() => navigation.navigate('PetShop', { petId })}>상품 둘러보기</Button>
+          <Button onPress={() => navigation.popTo('PetShop', { petId })}>상품 둘러보기</Button>
         </View>
       ) : (
         <>
@@ -158,9 +159,7 @@ export function CartScreen({ navigation, route }: Props) {
                     accessibilityRole="button"
                     accessibilityLabel={`${p.name} 상세 보기`}
                     style={styles.image}
-                    onPress={() =>
-                      navigation.navigate('ShopProductDetail', { petId, productId: id })
-                    }
+                    onPress={() => navigation.popTo('ShopProductDetail', { petId, productId: id })}
                   >
                     <ProductArt product={p} />
                   </Pressable>

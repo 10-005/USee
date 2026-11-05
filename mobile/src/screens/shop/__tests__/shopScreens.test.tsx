@@ -4,9 +4,11 @@ import { FlatList, Keyboard } from 'react-native';
 import { ShopScreen } from '../ShopScreen';
 import { ProductDetailScreen } from '../ProductDetailScreen';
 import { CartScreen } from '../CartScreen';
+import { InventoryScreen } from '../InventoryScreen';
 import { useShopStore } from '../../../stores/shopStore';
 import { getShopDatabase } from '../../../services/shop/shopDatabase';
 import { findProduct } from '../../../services/shop/catalog';
+import { StackRouter, StackActions } from '@react-navigation/routers';
 
 jest.mock('../useShopSession', () => ({
   useShopSession: () => ({
@@ -66,7 +68,8 @@ it('searches the list and opens details without quantity or add controls', () =>
   expect(screen.root.findAllByProps({ accessibilityLabel: '물그릇 장바구니 담기' })).toHaveLength(
     0,
   );
-  expect(screen.root.findByProps({ accessibilityLabel: '장바구니' })).toBeDefined();
+  act(() => screen.root.findByProps({ accessibilityLabel: '보유 목록' }).props.onPress());
+  expect(navigate).toHaveBeenCalledWith('ShopInventory', { petId: 'dog-1' });
   act(() => screen.unmount());
 });
 
@@ -154,6 +157,40 @@ it('supports multiple category buttons', () => {
   act(() => screen.unmount());
 });
 
+it('shows paid items, remaining money and individual usage counters', () => {
+  useShopStore.getState().setQuantity('food', 2, 'dog');
+  useShopStore.getState().checkout('dog');
+  useShopStore.getState().consume({ food: 1 });
+  let screen!: renderer.ReactTestRenderer;
+  act(() => {
+    screen = renderer.create(
+      wrap(
+        <InventoryScreen
+          navigation={{ navigate: jest.fn() } as never}
+          route={{ key: 'inventory', name: 'ShopInventory', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  expect(screen.root.findByProps({ children: '28,800원' })).toBeDefined();
+  expect(
+    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 1번째 남은 수량 11끼' }),
+  ).toBeDefined();
+  expect(
+    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 2번째 남은 수량 12끼' }),
+  ).toBeDefined();
+  act(() => {
+    useShopStore.getState().consume({ food: 12 });
+  });
+  expect(
+    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 1번째 남은 수량 0끼' }),
+  ).toBeDefined();
+  expect(
+    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 2번째 남은 수량 11끼' }),
+  ).toBeDefined();
+  act(() => screen.unmount());
+});
+
 it('dismisses the keyboard on list drag or touch and keeps sorting in a bottom sheet', () => {
   const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => {});
   let screen!: renderer.ReactTestRenderer;
@@ -219,13 +256,14 @@ it('adds the chosen quantity from detail', () => {
 });
 
 it('changes cart quantity and completes a confirmed mock purchase', () => {
+  const popTo = jest.fn();
   useShopStore.getState().setQuantity('food', 1, 'dog');
   let screen!: renderer.ReactTestRenderer;
   act(() => {
     screen = renderer.create(
       wrap(
         <CartScreen
-          navigation={{ navigate: jest.fn() } as never}
+          navigation={{ popTo } as never}
           route={{ key: 'cart', name: 'ShopCart', params: { petId: 'dog-1' } }}
         />,
       ),
@@ -245,8 +283,8 @@ it('changes cart quantity and completes a confirmed mock purchase', () => {
   expect(useShopStore.getState().spent).toBe(21200);
   expect(useShopStore.getState().inventory.food).toBe(24);
   expect(useShopStore.getState().cart).toEqual({});
-  expect(screen.root.findByProps({ children: '구매 완료' })).toBeDefined();
-  act(() => screen.root.findByProps({ accessibilityLabel: '확인' }).props.onPress());
+  expect(popTo).toHaveBeenCalledWith('ShopInventory', { petId: 'dog-1' });
+  expect(popTo).toHaveBeenCalledTimes(1);
   expect(screen.root.findAllByProps({ children: '구매 완료' })).toHaveLength(0);
   act(() => screen.unmount());
 });
@@ -285,5 +323,60 @@ it('cancels purchase without changes and shows a custom error dialog on expiry',
   expect(useShopStore.getState().spent).toBe(0);
   expect(useShopStore.getState().cart.food).toBe(1);
   act(() => screen.root.findByProps({ accessibilityLabel: '확인' }).props.onPress());
+  act(() => screen.unmount());
+});
+
+it('reuses existing destinations when leaving cart instead of growing the stack', () => {
+  const router = StackRouter({ initialRouteName: 'PetShop' });
+  const options = {
+    routeNames: ['PetShop', 'ShopProductDetail', 'ShopCart', 'ShopInventory'],
+    routeParamList: {},
+    routeGetIdList: {},
+  };
+  let state = router.getInitialState(options);
+  const dispatch = (action: ReturnType<typeof StackActions.push>) => {
+    const next = router.getStateForAction(state, action, options);
+    if (!next || next.stale !== false) {
+      throw new Error('Expected a resolved stack');
+    }
+    state = next;
+  };
+  dispatch(StackActions.push('ShopProductDetail', { petId: 'dog-1', productId: 'food' }));
+  dispatch(StackActions.push('ShopCart', { petId: 'dog-1' }));
+  const popTo = (name: string, params: object) => {
+    const next = router.getStateForAction(state, StackActions.popTo(name, params), options);
+    if (!next || next.stale !== false) {
+      throw new Error('Expected a resolved stack');
+    }
+    state = next;
+  };
+  useShopStore.getState().setQuantity('food', 1, 'dog');
+  let screen!: renderer.ReactTestRenderer;
+  act(() => {
+    screen = renderer.create(
+      wrap(
+        <CartScreen
+          navigation={{ popTo } as never}
+          route={{ key: 'cart', name: 'ShopCart', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  for (let i = 0; i < 3; i += 1) {
+    act(() =>
+      screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 상세 보기' }).props.onPress(),
+    );
+    expect(state.routes.map(r => r.name)).toEqual(['PetShop', 'ShopProductDetail']);
+    dispatch(StackActions.push('ShopCart', { petId: 'dog-1' }));
+  }
+  act(() => useShopStore.getState().remove(['food']));
+  const browse = screen.root.findAll(
+    node =>
+      node.props.accessibilityRole === 'button' &&
+      node.props.onPress &&
+      node.findAllByProps({ children: '상품 둘러보기' }).length > 0,
+  )[0];
+  act(() => browse.props.onPress());
+  expect(state.routes.map(r => r.name)).toEqual(['PetShop']);
   act(() => screen.unmount());
 });
