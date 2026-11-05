@@ -21,7 +21,7 @@ export interface ShelterRepository {
   deleteAnimal(id: string): Promise<void>;
   saveRescue(rescue: Rescue): Promise<Rescue>;
   saveProfile(profile: ShelterProfile): Promise<ShelterProfile>;
-  reviewAdoption(id: string, status: AdoptionStatus, reason: string): Promise<void>;
+  reviewAdoption(id: string, status: AdoptionStatus, reason?: string): Promise<void>;
 }
 
 export type ReadOptions = { signal?: AbortSignal };
