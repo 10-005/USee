@@ -72,6 +72,13 @@ spec:
               value: ap-northeast-2
             - name: STORAGE_PUBLIC_BASE_URL
               value: https://s15p31d106-media-887324111755.s3.ap-northeast-2.amazonaws.com
+            # IAM 사용자 core-api-media 키(scripts/gen-core-api-s3-secrets.sh). SDK는 이 두 환경 변수로만 자격 증명을 읽는다
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef: { name: core-api-s3, key: AWS_ACCESS_KEY_ID }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: { name: core-api-s3, key: AWS_SECRET_ACCESS_KEY }
           # JVM 기동이 느리므로 startupProbe로 최대 150초까지 기다린 뒤 liveness/readiness 시작
           startupProbe:
             httpGet: { path: /actuator/health/liveness, port: http }
