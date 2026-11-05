@@ -334,7 +334,7 @@ class ArFloorView(
           floorAnalyzer?.latest?.let { it.isFresh(now) && it.evidenceAt(x, dog.y, z, now) == FloorEvidence.OBSTACLE } == true)
       }
       cleanup?.update(dog, camera.pose.tx(), camera.pose.tz(), viewMatrix, projectionMatrix, obstacle) {
-        leader.beginPoop()
+        leader.beginPoop(rightX, rightZ)
       }
     } else cleanup?.pause()
     emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen, shown.dog.userMoving)

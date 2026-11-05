@@ -5,16 +5,59 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
-  @Test fun poopPoseStopsDogEvenWhenUserKeepsWalking() {
-    val leader = DogLeader()
+  @Test fun poopWalksRightStaysFixedAndReturnsBeforeFollowingUser() {
+    val leader = DogLeader(animations = DogAnimationController(mapOf("Poop" to 2f)))
     val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
-    leader.beginPoop()
+    leader.beginPoop(1f, 0f)
     var dog = initial
-    for (i in 1..25) dog = leader.update(0.02f, 0f, -i * 0.01f, 0f, -1f, floor)
-    assertEquals(initial.x, dog.x, 0.001f)
+    // Move and turn the user far away; recall must not interrupt the fixed route.
+    for (i in 1..25) {
+      leader.requestRecall()
+      dog = leader.update(0.02f, 3f, -3f, 1f, 0f, floor)
+    }
+    assertEquals(initial.x + 0.20f, dog.x, 0.001f)
+    assertEquals(initial.z, dog.z, 0.001f)
+    assertFalse(dog.poopDeposited)
+    assertTrue(dog.moving)
+    for (i in 1..30) dog = leader.update(0.02f, 3f, -3f, 1f, 0f, floor)
+    assertEquals(initial.x + 0.40f, dog.x, 0.001f)
     assertEquals(initial.z, dog.z, 0.001f)
     assertEquals("Poop", dog.clip)
+    assertTrue(dog.poopDeposited)
     assertFalse(dog.moving)
+    for (i in 1..60) dog = leader.update(0.02f, -3f, 3f, -1f, 0f, floor)
+    assertEquals("Poop", dog.clip)
+    assertEquals(initial.x + 0.40f, dog.x, 0.001f)
+    // Wait for the actual two-second clip, then the return to the saved origin.
+    var returned = false
+    for (i in 1..150) {
+      dog = leader.update(0.02f, 3f, -3f, 1f, 0f, floor)
+      if (abs(dog.x - initial.x) < 0.001f && abs(dog.z - initial.z) < 0.001f) {
+        returned = true
+        break
+      }
+      assertTrue(dog.x >= initial.x - 0.001f && dog.x <= initial.x + 0.401f)
+      assertEquals(initial.z, dog.z, 0.001f)
+    }
+    assertTrue("Must return to the saved world position", returned)
+    assertEquals(initial.yawDegrees, dog.yawDegrees, 0.001f)
+    for (i in 1..100) dog = leader.update(0.02f, 3f, -3f, 1f, 0f, floor)
+    assertTrue(hypot(dog.x - initial.x, dog.z - initial.z) > 0.1f)
+  }
+
+  @Test fun poopUsesCapturedScreenRightAndTrackingPauseDoesNotSkipSequence() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.beginPoop(0f, 2f)
+    var dog = leader.update(0.05f, 0f, 0f, 0f, -1f, floor)
+    val beforePause = dog.z
+    leader.pauseTracking()
+    dog = leader.update(0f, 2f, 2f, -1f, 0f, floor)
+    assertEquals(beforePause, dog.z, 0.001f)
+    for (i in 1..25) dog = leader.update(0.02f, 2f, 2f, -1f, 0f, floor)
+    assertEquals(initial.x, dog.x, 0.001f)
+    assertEquals(initial.z + 0.22f, dog.z, 0.001f)
+    assertFalse(dog.poopDeposited)
   }
 
   @Test fun userActuallyCrossingBlockedGroundReopensNormalWalk() {

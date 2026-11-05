@@ -5,7 +5,6 @@ import android.graphics.Canvas
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.RectF
-import android.graphics.Color
 import android.graphics.Paint
 import android.opengl.Matrix
 import android.os.SystemClock
@@ -22,9 +21,8 @@ import kotlin.math.hypot
 
 /** Owns one cleanup event in the current AR session's world coordinate system. */
 internal class WalkCleanupView(context: Context, private val scene: ARSceneView) : View(context) {
-  var showNotices = false
-    set(value) { field = value; invalidate() }
-  var petName = "강아지"
+  // All three source images are 400x400px; display them at 200x200px.
+  private val imageScale = 0.5f
   private val density = resources.displayMetrics.density
   private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val bag = BitmapFactory.decodeResource(resources, R.drawable.img_poop_bag)
@@ -72,9 +70,9 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
   private var targetY = 0f
   private var collecting = false
   private val bagX get() = width / 2f
-  private val bagY get() = height - 104f * density
-  private val bagHitWidth get() = maxOf(bag.width / 2f, 32f * density)
-  private val bagHitHeight get() = maxOf(bag.height / 2f, 32f * density)
+  private val bagY get() = height - maxOf(104f * density, bag.height * imageScale / 2f)
+  private val bagHitWidth get() = maxOf(bag.width * imageScale / 2f, 32f * density)
+  private val bagHitHeight get() = maxOf(bag.height * imageScale / 2f, 32f * density)
 
   init {
     setWillNotDraw(false)
@@ -100,13 +98,15 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
     lastFrame = now
     tracking = true
     if (state.update(dt, rightObstacle)) {
+      onPoop()
+    }
+    if (state.pending && appearedAt == 0L && dog.poopDeposited) {
       // Place the sprite on the far side of the dog from the user.
       val distance = hypot(dog.x - userX, dog.z - userZ).coerceAtLeast(0.01f)
       poopX = dog.x + (dog.x - userX) / distance * 0.30f
       poopY = dog.y + 0.02f
       poopZ = dog.z + (dog.z - userZ) / distance * 0.30f
       appearedAt = now
-      onPoop()
       val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
       val pattern = longArrayOf(0, 160, 140, 160, 140, 160)
       if (android.os.Build.VERSION.SDK_INT >= 26) {
@@ -116,7 +116,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
         vibrator?.vibrate(pattern, -1)
       }
     }
-    near = state.canCollect(hypot(userX - poopX, userZ - poopZ))
+    near = appearedAt != 0L && state.canCollect(hypot(userX - poopX, userZ - poopZ))
     Matrix.multiplyMV(cameraPoint, 0, view, 0, floatArrayOf(poopX, poopY, poopZ, 1f), 0)
     Matrix.multiplyMV(clip, 0, projection, 0, cameraPoint, 0)
     visiblePoop = clip[3] > 0f && kotlin.math.abs(clip[0]) <= clip[3] && kotlin.math.abs(clip[1]) <= clip[3]
@@ -124,14 +124,14 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
       screenX = (clip[0] / clip[3] + 1f) * width / 2f
       screenY = (1f - clip[1] / clip[3]) * height / 2f
     }
-    poopNode.isVisible = state.pending && visiblePoop && (!collecting || now - thrownAt < 350L)
+    poopNode.isVisible = appearedAt != 0L && state.pending && visiblePoop && (!collecting || now - thrownAt < 350L)
     if (poopNode.isVisible && height > 0 && Matrix.invertM(inverseView, 0, view, 0)) {
       val worldPerPixel = 2f * clip[3] / (projection[5] * height)
-      val spriteWidth = poopOptions.outWidth * worldPerPixel
-      val spriteHeight = poopOptions.outHeight * worldPerPixel
+      val spriteWidth = poopOptions.outWidth * imageScale * worldPerPixel
+      val spriteHeight = poopOptions.outHeight * imageScale * worldPerPixel
       val drop = (1f - ((now - appearedAt) / 450f).coerceIn(0f, 1f))
       val lift = 16f * density * drop * drop * worldPerPixel
-      // Keep the source image's pixel dimensions, independent of camera distance.
+      // Keep the projected image at 200x200px, independent of camera distance.
       inverseView.copyInto(spriteTransform)
       for (row in 0..2) {
         spriteTransform[row] *= spriteWidth
@@ -141,7 +141,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
       spriteTransform[13] = poopY + inverseView[5] * (spriteHeight / 2f + lift)
       spriteTransform[14] = poopZ + inverseView[6] * (spriteHeight / 2f + lift)
       poopNode.transformManager.setTransform(poopNode.transformInstance, spriteTransform)
-      screenY -= poopOptions.outHeight / 2f + lift / worldPerPixel
+      screenY -= poopOptions.outHeight * imageScale / 2f + lift / worldPerPixel
     }
     if (!near && dragging) {
       dragging = false
@@ -160,8 +160,8 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
   private fun image(canvas: Canvas, bitmap: Bitmap, x: Float, y: Float, alpha: Int = 255) {
     paint.alpha = alpha
     paint.isFilterBitmap = true
-    imageBounds.set(x - bitmap.width / 2f, y - bitmap.height / 2f,
-      x + bitmap.width / 2f, y + bitmap.height / 2f)
+    imageBounds.set(x - bitmap.width * imageScale / 2f, y - bitmap.height * imageScale / 2f,
+      x + bitmap.width * imageScale / 2f, y + bitmap.height * imageScale / 2f)
     canvas.drawBitmap(bitmap, null, imageBounds, paint)
     paint.alpha = 255
   }
@@ -170,14 +170,6 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
     super.onDraw(canvas)
     if (!tracking || !state.pending) return
     val now = SystemClock.elapsedRealtime()
-    if (showNotices) {
-      paint.color = Color.argb(210, 17, 17, 17)
-      canvas.drawRoundRect(20 * density, 332 * density, width - 20 * density, 384 * density, 12 * density, 12 * density, paint)
-      paint.color = Color.WHITE
-      paint.textSize = 16 * resources.displayMetrics.scaledDensity
-      paint.textAlign = Paint.Align.CENTER
-      canvas.drawText("${petName}의 배변을 치워주세요", width / 2f, 364 * density, paint)
-    }
     if (thrownAt != 0L) {
       val elapsed = now - thrownAt
       if (elapsed < 350L) {
