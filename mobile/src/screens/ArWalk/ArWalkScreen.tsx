@@ -7,6 +7,7 @@ import { useCameraPermission } from 'react-native-vision-camera';
 import { useShopStore } from '../../stores/shopStore';
 
 import { styles } from './ArWalkScreen.styles';
+import { useWalkVoice } from './useWalkVoice';
 import {
   ArFloorView,
   type FloorTracking,
@@ -36,6 +37,7 @@ export function ArWalkScreen() {
   const [loadingDots, setLoadingDots] = useState(2);
   const [walkStartedAt, setWalkStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const voice = useWalkVoice(isFocused && hasPermission && status === 'anchored');
 
   useEffect(() => {
     if (walkStartedAt === null) {
@@ -102,6 +104,7 @@ export function ArWalkScreen() {
           onTracking={onTracking}
           bagAvailable={shop.ready && Date.now() < shop.expiresAt && (shop.inventory.bags ?? 0) > 0}
           cleanupResponse={cleanupResponse}
+          actionRequest={voice.actionRequest}
         />
       ) : (
         <View style={styles.message}>
@@ -128,6 +131,15 @@ export function ArWalkScreen() {
       )}
       {hasPermission && (
         <View pointerEvents="box-none" style={[styles.displayControls, { top: headerHeight + 8 }]}>
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityLabel="산책 음성 명령"
+            accessibilityState={{ checked: voice.enabled }}
+            onPress={() => voice.setEnabled(value => !value)}
+            style={styles.areaToggle}
+          >
+            <Text style={styles.areaToggleLabel}>음성 {voice.enabled ? '켜짐' : '꺼짐'}</Text>
+          </Pressable>
           <Pressable
             accessibilityRole="switch"
             accessibilityLabel="이동 가능 영역 표시"
@@ -159,6 +171,11 @@ export function ArWalkScreen() {
         >
           <Text style={styles.placeButtonText}>강아지 배치하기</Text>
         </Pressable>
+      )}
+      {hasSeenDog && voice.enabled && (
+        <View pointerEvents="none" style={[styles.voiceStatus, { bottom: insets.bottom + 90 }]}>
+          <Text style={styles.messageText}>{voice.message}</Text>
+        </View>
       )}
     </View>
   );

@@ -8,6 +8,14 @@ export const styles = StyleSheet.create({
   camera: {
     ...StyleSheet.absoluteFill,
   },
+  voiceStatus: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    borderRadius: 12,
+    padding: 12,
+  },
   loadingOverlay: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
