@@ -101,11 +101,20 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
       onPoop()
     }
     if (state.pending && appearedAt == 0L && dog.poopDeposited) {
-      // Place the sprite on the far side of the dog from the user.
-      val distance = hypot(dog.x - userX, dog.z - userZ).coerceAtLeast(0.01f)
-      poopX = dog.x + (dog.x - userX) / distance * 0.30f
-      poopY = dog.y + 0.02f
-      poopZ = dog.z + (dog.z - userZ) / distance * 0.30f
+      poopX = dog.x
+      poopY = dog.y + DOG_MODEL_UNITS / 2f
+      poopZ = dog.z
+      // Move along the camera ray to preserve the model-center projection while
+      // keeping the sprite behind the dog in the scene's depth buffer.
+      if (Matrix.invertM(inverseView, 0, view, 0)) {
+        val dx = poopX - inverseView[12]
+        val dy = poopY - inverseView[13]
+        val dz = poopZ - inverseView[14]
+        val distance = kotlin.math.sqrt(dx * dx + dy * dy + dz * dz).coerceAtLeast(0.01f)
+        poopX += dx / distance * 0.30f
+        poopY += dy / distance * 0.30f
+        poopZ += dz / distance * 0.30f
+      }
       appearedAt = now
       val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
       val pattern = longArrayOf(0, 160, 140, 160, 140, 160)
@@ -131,17 +140,18 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
       val spriteHeight = poopOptions.outHeight * imageScale * worldPerPixel
       val drop = (1f - ((now - appearedAt) / 450f).coerceIn(0f, 1f))
       val lift = 16f * density * drop * drop * worldPerPixel
+      val verticalOffset = lift - 36f * density * worldPerPixel
       // Keep the projected image at 200x200px, independent of camera distance.
       inverseView.copyInto(spriteTransform)
       for (row in 0..2) {
         spriteTransform[row] *= spriteWidth
         spriteTransform[4 + row] *= spriteHeight
       }
-      spriteTransform[12] = poopX + inverseView[4] * (spriteHeight / 2f + lift)
-      spriteTransform[13] = poopY + inverseView[5] * (spriteHeight / 2f + lift)
-      spriteTransform[14] = poopZ + inverseView[6] * (spriteHeight / 2f + lift)
+      spriteTransform[12] = poopX + inverseView[4] * verticalOffset
+      spriteTransform[13] = poopY + inverseView[5] * verticalOffset
+      spriteTransform[14] = poopZ + inverseView[6] * verticalOffset
       poopNode.transformManager.setTransform(poopNode.transformInstance, spriteTransform)
-      screenY -= poopOptions.outHeight * imageScale / 2f + lift / worldPerPixel
+      screenY -= verticalOffset / worldPerPixel
     }
     if (!near && dragging) {
       dragging = false
