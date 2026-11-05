@@ -24,6 +24,12 @@ api:
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
 
+# 이미지 저장소(S3). 비어 있어도 앱은 뜨고 이미지 API만 실패한다. 자격 증명은 AWS_ACCESS_KEY_ID·AWS_SECRET_ACCESS_KEY 환경 변수
+storage:
+  bucket: ${STORAGE_BUCKET:}
+  region: ${STORAGE_REGION:ap-northeast-2}
+  public-base-url: ${STORAGE_PUBLIC_BASE_URL:}
+
 management:
   endpoints:
     web:
