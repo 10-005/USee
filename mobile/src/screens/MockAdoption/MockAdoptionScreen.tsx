@@ -93,7 +93,7 @@ export function MockAdoptionScreen() {
           disabled={!selectedPet}
           onPress={() => {
             if (selectedPet) {
-              navigation.navigate('MockAdoptionBudget', { petId: selectedPet.id });
+              navigation.navigate('MockAdoptionName', { petId: selectedPet.id });
             }
           }}
         >

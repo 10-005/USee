@@ -117,6 +117,6 @@ test('selection keeps one pet across categories and opens budget', async () => {
   });
   expect(options().every(node => !node.props.accessibilityState.checked)).toBe(true);
   await ReactTestRenderer.act(() => startButton().props.onPress());
-  expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionBudget', { petId: 'cat-2' });
+  expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionName', { petId: 'cat-2' });
   await ReactTestRenderer.act(() => renderer.unmount());
 });

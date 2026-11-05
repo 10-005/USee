@@ -34,6 +34,27 @@ describe('mock adoption weekly session', () => {
     expect(await AsyncStorage.getItem(STORAGE_KEYS.MOCK_ADOPTION_SESSION)).toBeNull();
   });
 
+  it('persists a selected name across restarts without overwriting the active session', async () => {
+    await startMockAdoption('dog-5', 35000, '초코');
+    await expect(getActiveMockAdoption()).resolves.toMatchObject({
+      petId: 'dog-5',
+      petName: '초코',
+    });
+    await startMockAdoption('cat-1', 40000, '나비');
+    await expect(getActiveMockAdoption()).resolves.toMatchObject({
+      petId: 'dog-5',
+      petName: '초코',
+    });
+  });
+
+  it.each(['ㄱ', '초코1', '초 코', '초코야잘지내렴'])(
+    'does not store an invalid name %s',
+    async name => {
+      await expect(startMockAdoption('dog-1', 35000, name)).rejects.toThrow('Invalid pet name');
+      expect(await AsyncStorage.getItem(STORAGE_KEYS.MOCK_ADOPTION_SESSION)).toBeNull();
+    },
+  );
+
   it('does not return an invalid stored session', async () => {
     await AsyncStorage.setItem(
       STORAGE_KEYS.MOCK_ADOPTION_SESSION,
