@@ -28,6 +28,9 @@ class JwtVerifier(publicKey: String) {
         if (jws.header.algorithm != "RS256") throw BusinessException(CommonErrorCode.AUTH_TOKEN_INVALID)
 
         val claims = jws.payload
+        if (claims.expiration == null) throw BusinessException(CommonErrorCode.AUTH_TOKEN_INVALID)
+        // refresh(typ=refresh)도 같은 키로 서명되므로 API 인증에는 access만 받는다
+        if (claims["typ"] != "access") throw BusinessException(CommonErrorCode.AUTH_TOKEN_INVALID)
         val user = try {
             AuthUser(
                 userSeq = (claims["userSeq"] as Number).toLong(),

@@ -211,6 +211,7 @@ class SampleControllerTest {
         val token = Jwts.builder()
             .claim("userSeq", 1)
             .claim("role", "USER")
+            .claim("typ", "access")
             .expiration(Date(System.currentTimeMillis() + expiresInMillis))
             .signWith(keyPair.private, Jwts.SIG.RS256)
             .compact()

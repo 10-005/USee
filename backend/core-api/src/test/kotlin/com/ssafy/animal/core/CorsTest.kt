@@ -80,7 +80,7 @@ class CorsDevTest : CorsTestBase() {
         given(sampleUseCase.get(1L)).willReturn(
             Sample("이름", null).also { ReflectionTestUtils.setField(it, "sampleSeq", 1L) },
         )
-        val token = Jwts.builder().claim("userSeq", 1).claim("role", "USER")
+        val token = Jwts.builder().claim("userSeq", 1).claim("role", "USER").claim("typ", "access")
             .expiration(Date(System.currentTimeMillis() + 60_000))
             .signWith(keyPair.private, Jwts.SIG.RS256).compact()
 
