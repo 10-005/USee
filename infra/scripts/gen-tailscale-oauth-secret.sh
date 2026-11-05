@@ -23,8 +23,8 @@ read -rsp "client_secret (입력 내용은 보이지 않음): " CLIENT_SECRET; e
 CLIENT_ID=$(clean "$CLIENT_ID")
 CLIENT_SECRET=$(clean "$CLIENT_SECRET")
 
-[[ "$CLIENT_ID" =~ ^[A-Za-z0-9]+$ ]] || { echo "client_id 형식이 아닙니다(영문·숫자만)"; exit 1; }
-[[ "$CLIENT_SECRET" =~ ^tskey-client-[A-Za-z0-9-]+$ ]] || { echo "client_secret 형식이 아닙니다(tskey-client-로 시작)"; exit 1; }
+[[ -n "$CLIENT_ID" && "$CLIENT_ID" != *"'"* ]] || { echo "client_id가 비었거나 작은따옴표가 들어 있습니다"; exit 1; }
+[[ "$CLIENT_SECRET" == tskey-* && "$CLIENT_SECRET" != *"'"* ]] || { echo "client_secret 형식이 아닙니다(tskey-로 시작, 작은따옴표 없음)"; exit 1; }
 
 # 봉인에 성공했을 때만 결과 파일로 옮김 (실패 시 빈 파일이 남지 않게)
 TMP=$(mktemp "${OUT}.XXXXXX")
