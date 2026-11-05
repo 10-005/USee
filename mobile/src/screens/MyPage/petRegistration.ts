@@ -1,23 +1,28 @@
 import type { Asset } from 'react-native-image-picker';
 
+import catalog from '../../constants/animal-options.json';
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE_BYTES } from '../../constants/upload';
 
-export const PET_OPTIONS = {
-  강아지: {
-    breeds: ['말티즈', '푸들', '비숑 프리제', '시츄', '골든 리트리버', '믹스견'],
-    colors: ['흰색', '검은색', '갈색', '회색', '크림색', '혼합색'],
-  },
-  고양이: {
-    breeds: ['코리안 숏헤어', '러시안 블루', '페르시안', '샴', '랙돌', '믹스묘'],
-    colors: ['흰색', '검은색', '갈색', '회색', '치즈색', '삼색', '혼합색'],
-  },
-  기타: {
-    breeds: ['기타'],
-    colors: ['흰색', '검은색', '갈색', '회색', '혼합색', '기타'],
-  },
-} as const;
+export const SPECIES_CODES = { 강아지: '417000', 고양이: '422400', 기타: '429900' };
+export type PetSpecies = keyof typeof SPECIES_CODES;
 
-export type PetSpecies = keyof typeof PET_OPTIONS;
+function optionsWithOtherLast(names: string[], current: string) {
+  const options = new Set(names);
+  if (current) {options.add(current);}
+  if (options.delete('기타')) {options.add('기타');}
+  return [...options];
+}
+
+export function petOptions(species: PetSpecies | '', breed: string, color: string) {
+  const breeds = species
+    ? catalog.species.find(item => item.code === SPECIES_CODES[species])?.breeds ?? []
+    : [];
+  const matchingColors = breeds.filter(item => item.name === breed).flatMap(item => item.colors);
+  return {
+    breeds: optionsWithOtherLast(breeds.map(item => item.name), breed),
+    colors: optionsWithOtherLast(matchingColors.map(item => item.name), color),
+  };
+}
 
 export function validatePetImage(asset: Asset): string | null {
   if (!asset.uri) {

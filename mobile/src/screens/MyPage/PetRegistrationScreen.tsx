@@ -36,7 +36,7 @@ import { useFoundReportDraftStore } from '../../stores/foundReportDraftStore';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
 import { usePetStore } from '../../stores/petStore';
 import { colors, radius, typography } from '../../theme';
-import { PET_OPTIONS, type PetSpecies, validatePetImage } from './petRegistration';
+import { petOptions, SPECIES_CODES, type PetSpecies, validatePetImage } from './petRegistration';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PetRegistration'>;
 type SelectKey = 'species' | 'breed' | 'color' | null;
@@ -78,7 +78,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   const [name, setName] = useState(initialAnimal?.name ?? '');
   const initialSpecies = isFoundReportFlow ? foundReportDraft.species : initialAnimal?.species;
   const [species, setSpecies] = useState<PetSpecies | ''>(
-    initialSpecies && initialSpecies in PET_OPTIONS ? (initialSpecies as PetSpecies) : '',
+    initialSpecies && initialSpecies in SPECIES_CODES ? (initialSpecies as PetSpecies) : '',
   );
   const [breed, setBreed] = useState(
     isFoundReportFlow ? foundReportDraft.breed : initialAnimal?.breed ?? '',
@@ -262,12 +262,14 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
     }
   };
 
+  const options = petOptions(species, breed, color);
+
   const selectOption = (value: string) => {
-    if (selectKey === 'species') {
+    if (selectKey === 'species' && species !== value) {
       setSpecies(value as PetSpecies);
       setBreed('');
       setColor('');
-    } else if (selectKey === 'breed') {
+    } else if (selectKey === 'breed' && breed !== value) {
       setBreed(value);
       setColor('');
     } else if (selectKey === 'color') {
@@ -438,7 +440,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
             label="동물 종류"
             onPress={() => setSelectKey(current => (current === 'species' ? null : 'species'))}
             onSelect={selectOption}
-            options={Object.keys(PET_OPTIONS)}
+            options={Object.keys(SPECIES_CODES)}
             required
             value={species}
           />
@@ -449,7 +451,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
               label="품종"
               onPress={() => setSelectKey(current => (current === 'breed' ? null : 'breed'))}
               onSelect={selectOption}
-              options={[...PET_OPTIONS[species].breeds]}
+              options={options.breeds}
               required
               value={breed}
             />
@@ -461,7 +463,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
               label="색상"
               onPress={() => setSelectKey(current => (current === 'color' ? null : 'color'))}
               onSelect={selectOption}
-              options={[...PET_OPTIONS[species as PetSpecies].colors]}
+              options={options.colors}
               required
               value={color}
             />
@@ -633,7 +635,7 @@ function SelectField({
         <FilterArrowIcon height={20} width={20} />
       </Pressable>
       {isOpen && (
-        <View style={styles.dropdown}>
+        <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={styles.dropdown}>
           {options.map(option => (
             <Pressable key={option} onPress={() => onSelect(option)} style={styles.dropdownOption}>
               <Text style={[styles.dropdownText, value === option && styles.dropdownTextSelected]}>
@@ -641,7 +643,7 @@ function SelectField({
               </Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -778,13 +780,7 @@ const styles = StyleSheet.create({
     borderColor: colors.gray200,
     borderRadius: radius.sm,
     borderWidth: 1,
-    left: 0,
     maxHeight: 300,
-    overflow: 'hidden',
-    position: 'absolute',
-    right: 0,
-    top: 85,
-    zIndex: 20,
   },
   dropdownOption: {
     borderBottomColor: colors.gray200,
