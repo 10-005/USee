@@ -40,7 +40,7 @@ export const useShelterDemo = create<ShelterStore>((set) => ({
                       ...animal,
                       status: 'adopted',
                       adoptable: false,
-                      closingReason: reason,
+                      closingReason: undefined,
                       closingReasonType: undefined,
                       guardianName: undefined,
                       guardianPhone: undefined,

@@ -157,7 +157,7 @@ export function AdoptionDetailPage() {
               ? '입양 신청서가 접수되었습니다. 제출된 내용을 검토하고 서류 승인 또는 거절 여부를 결정해 주세요.'
               : record.status === '서류 승인'
                 ? '면접 및 후속 절차를 진행한 뒤 최종 입양 여부를 결정해 주세요.'
-                : record.reason || '심사 처리가 완료되었습니다.'}
+                : (record.status === '거절' && record.reason) || '심사 처리가 완료되었습니다.'}
           </p>
         </div>
         {['심사 대기', '서류 승인'].includes(record.status) && (
@@ -188,19 +188,16 @@ export function AdoptionDetailPage() {
             <Button
               disabled={saving}
               onClick={async () => {
-                if ((action === '거절' || action === '최종 승인') && !reason.trim()) {
-                  setError(
-                    action === '거절'
-                      ? '거절 사유를 입력해 주세요.'
-                      : '최종 승인 사유를 입력해 주세요.',
-                  );
+                if (action === '거절' && !reason.trim()) {
+                  setError('거절 사유를 입력해 주세요.');
                   return;
                 }
                 if (!action || saving) return;
                 setSaving(true);
                 setSaveError('');
                 try {
-                  await review(record.id, action, reason.trim());
+                  if (action === '거절') await review(record.id, action, reason.trim());
+                  else await review(record.id, action);
                   setAction(undefined);
                 } catch {
                   setSaveError('저장하지 못했습니다. 다시 시도해 주세요.');
@@ -215,9 +212,10 @@ export function AdoptionDetailPage() {
         }
       >
         {saveError && <p role="alert">{saveError}</p>}
-        {(action === '거절' || action === '최종 승인') && (
+        {action === '최종 승인' && <p>입양을 최종 승인하시겠습니까?</p>}
+        {action === '거절' && (
           <TextAreaField
-            label={action === '거절' ? '거절 사유' : '최종 승인 사유'}
+            label="거절 사유"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             error={error}

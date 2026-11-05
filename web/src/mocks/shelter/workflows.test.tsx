@@ -115,29 +115,23 @@ describe('예시 업무 흐름', () => {
     );
     expect(await screen.findByRole('link', { name: '보호동물 등록' })).toBeVisible();
   });
-  it('최종 승인 사유를 입력하면 연결된 동물도 입양 완료로 변경된다', () => {
+  it('사유 없이 최종 승인하면 연결된 동물도 입양 완료로 변경된다', () => {
     const application = useShelterDemo.getState().adoptions.find((a) => a.status === '서류 승인')!;
     open(`/adoptions/${application.id}`);
     fireEvent.click(screen.getByRole('button', { name: '최종 승인' }));
     const dialog = screen.getByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: '확인' }));
-    expect(within(dialog).getByText('최종 승인 사유를 입력해 주세요.')).toBeVisible();
-    fireEvent.change(within(dialog).getByLabelText(/최종 승인 사유/), {
-      target: { value: '방문 상담 완료' },
-    });
+    expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: '확인' }));
     expect(
       useShelterDemo.getState().animals.find((a) => a.id === application.animalId),
     ).toMatchObject({
       status: 'adopted',
       adoptable: false,
-      closingReason: '방문 상담 완료',
+      closingReason: undefined,
     });
     fireEvent.click(screen.getByRole('link', { name: '보호동물 정보 보기' }));
     expect(screen.getByRole('heading', { name: /입양 완료/ })).toBeVisible();
-    expect(screen.getByRole('heading', { name: '입양 정보' })).toBeVisible();
-    expect(screen.getByText('최종 승인 사유')).toBeVisible();
-    expect(screen.getByText('방문 상담 완료')).toBeVisible();
+    expect(screen.queryByText('최종 승인 사유')).not.toBeInTheDocument();
   });
   it('발견 신고에서 진행 중과 완료 탭의 건수와 카드가 각각 구조 상태와 일치한다', () => {
     open('/reports');

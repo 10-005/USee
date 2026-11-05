@@ -13,7 +13,7 @@ export type ShelterStore = {
   profile: ShelterProfile;
   saveAnimal: (animal: ShelterAnimalRecord) => void;
   deleteAnimal: (id: string) => void;
-  reviewAdoption: (id: string, status: AdoptionStatus, reason: string) => void;
+  reviewAdoption: (id: string, status: AdoptionStatus, reason?: string) => void;
   saveRescue: (rescue: Rescue) => void;
   saveProfile: (profile: ShelterProfile) => void;
 };

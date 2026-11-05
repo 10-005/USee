@@ -61,15 +61,9 @@ export function AnimalDetailPage() {
           </h2>
           <p>공고번호 {animal.noticeNumber || '미등록'}</p>
         </div>
-        {animal.status !== 'protected' && (
+        {(animal.status === 'closed' || animal.status === 'returned') && (
           <div className="animal-summary__outcome">
-            <h3>
-              {animal.status === 'closed'
-                ? '보호 종료 정보'
-                : animal.status === 'returned'
-                  ? '반환 정보'
-                  : '입양 정보'}
-            </h3>
+            <h3>{animal.status === 'closed' ? '보호 종료 정보' : '반환 정보'}</h3>
             <InfoRows
               rows={
                 animal.status === 'returned'
@@ -77,12 +71,7 @@ export function AnimalDetailPage() {
                       ['보호자 이름', animal.guardianName],
                       ['보호자 연락처', animal.guardianPhone],
                     ]
-                  : [
-                      [
-                        animal.status === 'closed' ? '보호 종료 사유' : '최종 승인 사유',
-                        animal.closingReason || '미등록',
-                      ],
-                    ]
+                  : [['보호 종료 사유', animal.closingReason || '미등록']]
               }
             />
           </div>

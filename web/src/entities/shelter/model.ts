@@ -27,7 +27,7 @@ export type Adoption = {
   applicant: string;
   date: string;
   status: AdoptionStatus;
-  reason: string;
+  reason?: string;
 };
 export type Rescue = {
   reportId?: string;
