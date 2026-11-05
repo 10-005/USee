@@ -148,49 +148,57 @@ export function CartScreen({ navigation, route }: Props) {
               }
               return (
                 <View key={id} style={styles.item}>
-                  <View style={s.between}>
-                    <Pressable
-                      accessibilityRole="checkbox"
-                      accessibilityLabel={`${p.name} 선택`}
-                      accessibilityState={{ checked: selected.includes(id) }}
-                      onPress={() => shop.toggle(id)}
-                      style={[styles.selection, s.flex]}
-                    >
-                      <CheckIndicator checked={selected.includes(id)} />
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityLabel={`${p.name} 선택`}
+                    accessibilityState={{ checked: selected.includes(id) }}
+                    onPress={() => shop.toggle(id)}
+                    style={styles.itemSelection}
+                  >
+                    <CheckIndicator checked={selected.includes(id)} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${p.name} 상세 보기`}
+                    style={styles.image}
+                    onPress={() =>
+                      navigation.navigate('ShopProductDetail', { petId, productId: id })
+                    }
+                  >
+                    <ProductArt product={p} />
+                  </Pressable>
+                  <View style={[s.flex, styles.info]}>
+                    <View style={s.between}>
                       <Text style={[s.label, s.flex]}>{p.name}</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`${p.name} 삭제`}
-                      onPress={() => shop.remove([id])}
-                    >
-                      <Text style={[s.body, styles.deleteText]}>삭제</Text>
-                    </Pressable>
-                  </View>
-                  <View style={s.row}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`${p.name} 상세 보기`}
-                      style={styles.image}
-                      onPress={() =>
-                        navigation.navigate('ShopProductDetail', { petId, productId: id })
-                      }
-                    >
-                      <ProductArt product={p} />
-                    </Pressable>
-                    <View style={[s.flex, styles.info]}>
-                      <Text style={s.body}>
-                        {p.qty}
-                        {p.unit} / 묶음 · 총 {p.qty * shop.cart[id]}
-                        {p.unit}
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${p.name} 삭제`}
+                        onPress={() => shop.remove([id])}
+                      >
+                        <Text style={[s.body, styles.deleteText]}>삭제</Text>
+                      </Pressable>
+                    </View>
+                    <Text style={s.body}>
+                      {p.qty}
+                      {p.unit} / 묶음 · 총 {p.qty * shop.cart[id]}
+                      {p.unit}
+                    </Text>
+                    <View style={styles.itemBottom}>
+                      <Text
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.8}
+                        style={[s.price, styles.itemPrice]}
+                      >
+                        {money(p.price * shop.cart[id])}
                       </Text>
                       <QuantityControl
+                        compact
                         name={p.name}
                         value={shop.cart[id]}
                         max={Number.MAX_SAFE_INTEGER}
                         onChange={n => shop.setQuantity(id, n, pet!.category)}
                       />
-                      <Text style={s.price}>{money(p.price * shop.cart[id])}</Text>
                     </View>
                   </View>
                 </View>
@@ -207,9 +215,7 @@ export function CartScreen({ navigation, route }: Props) {
               <Text style={s.label}>선택 상품 합계</Text>
               <Text style={s.price}>{money(total)}</Text>
             </View>
-            <Text style={s.body}>
-              {`구매 후 남은 예산 ${money(remaining - total)}`}
-            </Text>
+            <Text style={s.body}>{`구매 후 남은 예산 ${money(remaining - total)}`}</Text>
             <Button disabled={!selected.length} onPress={purchase}>
               {`${selected.length}종 모의 구매하기`}
             </Button>
@@ -231,7 +237,24 @@ const styles = StyleSheet.create({
   },
   guideButton: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 },
   guideContent: { gap: 12, marginTop: 12 },
-  item: { gap: 16, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#D7D6CF' },
-  image: { width: 100 },
-  info: { gap: 12, alignItems: 'flex-start' },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.gray200,
+    borderRadius: 12,
+    backgroundColor: colors.white,
+  },
+  itemSelection: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  image: { width: 64 },
+  info: { gap: 4, minWidth: 0 },
+  itemBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  itemPrice: { flex: 1, minWidth: 0 },
 });
