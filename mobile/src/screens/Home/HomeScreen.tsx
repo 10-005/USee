@@ -327,7 +327,7 @@ export function HomeScreen({ navigation }: Props) {
             contentContainerStyle={styles.filters}
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.filterScroll}
+            style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
           >
             {filterItems.map(filter => (
               <Pressable
@@ -368,8 +368,8 @@ export function HomeScreen({ navigation }: Props) {
           />
         </>
       )}
-      {navigationBar}
-      {registrationMenuOpen ? (
+      {activeFilter ? null : navigationBar}
+      {registrationMenuOpen && !activeFilter ? (
         <RegistrationMenu
           bottom={insets.bottom + 84}
           onClose={() => setRegistrationMenuOpen(false)}
@@ -420,6 +420,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   filterScroll: { flexGrow: 0, height: 54 },
+  filterScrollAboveSheet: { position: 'relative', zIndex: 21 },
   filters: { gap: 6, paddingHorizontal: 20, paddingVertical: 14 },
   filterChip: {
     alignItems: 'center',
