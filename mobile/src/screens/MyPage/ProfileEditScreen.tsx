@@ -1,4 +1,3 @@
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useMemo, useState } from 'react';
@@ -30,6 +29,7 @@ import {
   MAX_IMAGE_SIZE_BYTES,
   MAX_IMAGE_SIZE_MB,
 } from '../../constants/upload';
+import { DatePickerModal } from '../../components/common';
 import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
 import {
@@ -54,6 +54,7 @@ export function ProfileEditScreen({ navigation }: Props) {
   const [image, setImage] = useState(profile.image);
   const [imageMenuOpen, setImageMenuOpen] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [touched, setTouched] = useState({ name: false, nickname: false, phone: false });
 
   const nicknameError = getNicknameError(nickname, profile.nickname);
@@ -165,12 +166,7 @@ export function ProfileEditScreen({ navigation }: Props) {
   const openDatePicker = () => {
     Keyboard.dismiss();
     setImageMenuOpen(false);
-    DateTimePickerAndroid.open({
-      maximumDate: new Date(),
-      mode: 'date',
-      onChange: (_, date) => date && setBirthDate(formatDate(date)),
-      value: parseDate(birthDate),
-    });
+    setDatePickerOpen(true);
   };
 
   const submit = () => {
@@ -285,6 +281,17 @@ export function ProfileEditScreen({ navigation }: Props) {
           <Text style={styles.submitText}>수정하기</Text>
         </Pressable>
       </View>
+      <DatePickerModal
+        maximumDate={new Date()}
+        onClose={() => setDatePickerOpen(false)}
+        onConfirm={date => {
+          setBirthDate(formatDate(date));
+          setDatePickerOpen(false);
+        }}
+        title="생년월일 선택"
+        value={parseDate(birthDate)}
+        visible={datePickerOpen}
+      />
 
       <Modal
         animationType="fade"

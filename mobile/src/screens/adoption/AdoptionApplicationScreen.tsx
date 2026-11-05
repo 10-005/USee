@@ -1,5 +1,4 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { saveSubmittedAdoptionApplication } from '../../services/storage/adoptionApplicationStorage';
 import {
@@ -23,7 +22,7 @@ import EditIcon from '../../assets/icons/common/edit.svg';
 import LocationIcon from '../../assets/icons/common/location.svg';
 import PawCheckIcon from '../../assets/icons/common/paw-check.svg';
 import PhoneIcon from '../../assets/icons/common/phone.svg';
-import { AppHeader, Button, StepIndicator } from '../../components/common';
+import { AppHeader, Button, DatePickerModal, StepIndicator } from '../../components/common';
 import {
   type AdoptionApplicationDraft,
   getAdoptionApplicationDraft,
@@ -232,29 +231,38 @@ function ChoiceGroup({
 }
 
 function CalendarField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const parsedValue = value.split('.').map(Number);
+  const selectedValue = value
+    ? new Date(parsedValue[0], parsedValue[1] - 1, parsedValue[2])
+    : new Date();
   const openCalendar = () => {
-    DateTimePickerAndroid.open({
-      value: value ? new Date(value.replaceAll('.', '-')) : new Date(),
-      mode: 'date',
-      minimumDate: new Date(),
-      onChange: (_event, selectedDate) => {
-        if (selectedDate) {
+    Keyboard.dismiss();
+    setCalendarOpen(true);
+  };
+
+  return (
+    <>
+      <Pressable accessibilityRole="button" onPress={openCalendar} style={styles.calendarField}>
+        <Text style={[styles.calendarText, !value && styles.placeholder]}>
+          {value || '날짜를 선택해 주세요'}
+        </Text>
+        <CalendarIcon />
+      </Pressable>
+      <DatePickerModal
+        minimumDate={new Date()}
+        onClose={() => setCalendarOpen(false)}
+        onConfirm={selectedDate => {
           const year = selectedDate.getFullYear();
           const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
           const day = String(selectedDate.getDate()).padStart(2, '0');
           onChange(`${year}.${month}.${day}`);
-        }
-      },
-    });
-  };
-
-  return (
-    <Pressable accessibilityRole="button" onPress={openCalendar} style={styles.calendarField}>
-      <Text style={[styles.calendarText, !value && styles.placeholder]}>
-        {value || '날짜를 선택해 주세요'}
-      </Text>
-      <CalendarIcon />
-    </Pressable>
+          setCalendarOpen(false);
+        }}
+        value={selectedValue}
+        visible={calendarOpen}
+      />
+    </>
   );
 }
 

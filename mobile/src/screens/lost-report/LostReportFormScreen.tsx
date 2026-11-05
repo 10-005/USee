@@ -19,7 +19,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { RootStackParamList } from '../../app/navigation/types';
 import CalendarIcon from '../../assets/icons/common/calendar.svg';
 import LocationIcon from '../../assets/icons/common/location.svg';
-import { AppHeader, StepIndicator, Switch } from '../../components/common';
+import { AppHeader, DatePickerModal, StepIndicator, Switch } from '../../components/common';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
 import { useLostReportEditStore } from '../../stores/lostReportEditStore';
 import { colors, radius, typography } from '../../theme';
@@ -66,6 +66,7 @@ export function LostReportFormScreen({ navigation, route }: Props) {
   const isEditing = Boolean(route.params?.reportId);
   const [step, setStep] = useState<Step>(3);
   const [error, setError] = useState('');
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const buttonInsetStyle = useMemo(() => ({ bottom: insets.bottom + 16 }), [insets.bottom]);
   const contentInsetStyle = useMemo(() => ({ paddingBottom: insets.bottom + 92 }), [insets.bottom]);
@@ -96,32 +97,29 @@ export function LostReportFormScreen({ navigation, route }: Props) {
 
   const openDateTimePicker = () => {
     Keyboard.dismiss();
+    setDatePickerOpen(true);
+  };
+
+  const selectLostDate = (date: Date) => {
     const current = details.lostAt ? new Date(details.lostAt) : new Date();
-    DateTimePickerAndroid.open({
-      maximumDate: new Date(),
-      mode: 'date',
-      value: current,
-      onChange: (event, selectedDate) => {
-        if (event.type !== 'set' || !selectedDate) {
-          return;
-        }
-        const selected = new Date(selectedDate);
-        selected.setHours(current.getHours(), current.getMinutes(), 0, 0);
-        DateTimePickerAndroid.open({
-          is24Hour: false,
-          mode: 'time',
-          value: selected,
-          onChange: (timeEvent, selectedTime) => {
-            if (timeEvent.type !== 'set' || !selectedTime) {
-              return;
-            }
-            selected.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
-            updateDetails({ lostAt: selected.toISOString() });
-            setError('');
-          },
-        });
-      },
-    });
+    const selected = new Date(date);
+    selected.setHours(current.getHours(), current.getMinutes(), 0, 0);
+    setDatePickerOpen(false);
+    setTimeout(() => {
+      DateTimePickerAndroid.open({
+        is24Hour: false,
+        mode: 'time',
+        value: selected,
+        onChange: (timeEvent, selectedTime) => {
+          if (timeEvent.type !== 'set' || !selectedTime) {
+            return;
+          }
+          selected.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+          updateDetails({ lostAt: selected.toISOString() });
+          setError('');
+        },
+      });
+    }, 200);
   };
 
   const openLocationPicker = () => {
@@ -214,6 +212,14 @@ export function LostReportFormScreen({ navigation, route }: Props) {
           {step === 3 ? '다음' : isEditing ? '게시글 수정' : '게시글 등록'}
         </Text>
       </Pressable>
+      <DatePickerModal
+        maximumDate={new Date()}
+        onClose={() => setDatePickerOpen(false)}
+        onConfirm={selectLostDate}
+        title="실종일 선택"
+        value={details.lostAt ? new Date(details.lostAt) : new Date()}
+        visible={datePickerOpen}
+      />
     </SafeAreaView>
   );
 }

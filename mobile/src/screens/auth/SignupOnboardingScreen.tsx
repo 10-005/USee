@@ -1,4 +1,3 @@
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
@@ -22,6 +21,7 @@ import CalendarIcon from '../../assets/icons/common/calendar.svg';
 import CheckCircleIcon from '../../assets/icons/common/check-circle.svg';
 import MinusCircleIcon from '../../assets/icons/common/minus-circle.svg';
 import Logo from '../../assets/images/logo.png';
+import { DatePickerModal } from '../../components/common';
 import { colors, radius, typography } from '../../theme';
 import {
   formatBirthDate,
@@ -51,6 +51,7 @@ export function SignupOnboardingScreen({ navigation }: Props) {
   const [phone, setPhone] = useState('');
   const [phoneFocused, setPhoneFocused] = useState(false);
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const revealPhoneInput = () => {
     scrollRef.current?.scrollTo({ animated: true, y: Math.max(0, phoneFieldYRef.current - 32) });
@@ -101,17 +102,7 @@ export function SignupOnboardingScreen({ navigation }: Props) {
       return;
     }
     Keyboard.dismiss();
-    DateTimePickerAndroid.open({
-      maximumDate: new Date(),
-      mode: 'date',
-      onChange: (_, date) => {
-        if (date) {
-          setBirthDate(formatBirthDate(date));
-          requestAnimationFrame(() => phoneRef.current?.focus());
-        }
-      },
-      value: new Date(2000, 0, 1),
-    });
+    setDatePickerOpen(true);
   };
 
   const submit = () => {
@@ -286,6 +277,18 @@ export function SignupOnboardingScreen({ navigation }: Props) {
           ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
+      <DatePickerModal
+        maximumDate={new Date()}
+        onClose={() => setDatePickerOpen(false)}
+        onConfirm={date => {
+          setBirthDate(formatBirthDate(date));
+          setDatePickerOpen(false);
+          requestAnimationFrame(() => phoneRef.current?.focus());
+        }}
+        title="생년월일 선택"
+        value={birthDate ? new Date(birthDate.replaceAll('.', '-')) : new Date(2000, 0, 1)}
+        visible={datePickerOpen}
+      />
       <Modal
         animationType="fade"
         onRequestClose={() => setCompletionModalOpen(false)}

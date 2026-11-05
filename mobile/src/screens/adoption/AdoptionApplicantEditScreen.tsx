@@ -1,4 +1,3 @@
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useMemo, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -6,7 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import CalendarIcon from '../../assets/icons/common/calendar.svg';
-import { AppHeader } from '../../components/common';
+import { AppHeader, DatePickerModal } from '../../components/common';
 import { useAdoptionApplicantStore } from '../../stores/adoptionApplicantStore';
 import { colors, radius, typography } from '../../theme';
 import {
@@ -27,6 +26,7 @@ export function AdoptionApplicantEditScreen({ navigation }: Props) {
   const [birthDate, setBirthDate] = useState(draft.birthDate);
   const [phone, setPhone] = useState(draft.phone);
   const [touched, setTouched] = useState({ name: false, phone: false });
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const nameError = getNameError(name);
   const phoneError = isValidPhoneNumber(phone) ? null : '올바른 휴대폰 번호를 입력해주세요.';
@@ -37,12 +37,7 @@ export function AdoptionApplicantEditScreen({ navigation }: Props) {
 
   const openDatePicker = () => {
     Keyboard.dismiss();
-    DateTimePickerAndroid.open({
-      maximumDate: new Date(),
-      mode: 'date',
-      onChange: (_, date) => date && setBirthDate(formatDate(date)),
-      value: parseDate(birthDate),
-    });
+    setDatePickerOpen(true);
   };
 
   const submit = () => {
@@ -107,6 +102,17 @@ export function AdoptionApplicantEditScreen({ navigation }: Props) {
           <Text style={styles.submitText}>수정하기</Text>
         </Pressable>
       </View>
+      <DatePickerModal
+        maximumDate={new Date()}
+        onClose={() => setDatePickerOpen(false)}
+        onConfirm={date => {
+          setBirthDate(formatDate(date));
+          setDatePickerOpen(false);
+        }}
+        title="생년월일 선택"
+        value={parseDate(birthDate)}
+        visible={datePickerOpen}
+      />
     </SafeAreaView>
   );
 }

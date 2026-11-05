@@ -21,7 +21,7 @@ import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import LocationIcon from '../../assets/icons/common/location.svg';
 import PlusIcon from '../../assets/icons/common/plus.svg';
 import XCircleIcon from '../../assets/icons/common/x-circle.svg';
-import { AppHeader, StepIndicator, Switch } from '../../components/common';
+import { AppHeader, DatePickerModal, StepIndicator, Switch } from '../../components/common';
 import { MAX_IMAGE_SIZE_MB } from '../../constants/upload';
 import {
   useFoundReportDraftStore,
@@ -68,6 +68,7 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
   const updateReport = useFoundReportEditStore(state => state.updateReport);
   const [step, setStep] = useState<Step>(2);
   const [error, setError] = useState('');
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const isEditing = Boolean(route.params?.reportId);
 
   const canContinue = useMemo(() => {
@@ -89,29 +90,28 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
 
   const openDateTime = () => {
     Keyboard.dismiss();
+    setDatePickerOpen(true);
+  };
+
+  const selectFoundDate = (date: Date) => {
     const current = draft.foundAt ? new Date(draft.foundAt) : new Date();
-    DateTimePickerAndroid.open({
-      maximumDate: new Date(),
-      mode: 'date',
-      value: current,
-      onChange: (event, selectedDate) => {
-        if (event.type !== 'set' || !selectedDate) {
-          return;
-        }
-        DateTimePickerAndroid.open({
-          is24Hour: false,
-          mode: 'time',
-          value: selectedDate,
-          onChange: (timeEvent, selectedTime) => {
-            if (timeEvent.type !== 'set' || !selectedTime) {
-              return;
-            }
-            selectedDate.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
-            updateDraft({ foundAt: selectedDate.toISOString() });
-          },
-        });
-      },
-    });
+    const selected = new Date(date);
+    selected.setHours(current.getHours(), current.getMinutes(), 0, 0);
+    setDatePickerOpen(false);
+    setTimeout(() => {
+      DateTimePickerAndroid.open({
+        is24Hour: false,
+        mode: 'time',
+        value: selected,
+        onChange: (timeEvent, selectedTime) => {
+          if (timeEvent.type !== 'set' || !selectedTime) {
+            return;
+          }
+          selected.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+          updateDraft({ foundAt: selected.toISOString() });
+        },
+      });
+    }, 200);
   };
 
   const submit = () => {
@@ -195,6 +195,14 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
           {step === 3 ? (isEditing ? '게시글 수정' : '게시글 등록') : '다음'}
         </Text>
       </Pressable>
+      <DatePickerModal
+        maximumDate={new Date()}
+        onClose={() => setDatePickerOpen(false)}
+        onConfirm={selectFoundDate}
+        title="발견일 선택"
+        value={draft.foundAt ? new Date(draft.foundAt) : new Date()}
+        visible={datePickerOpen}
+      />
     </SafeAreaView>
   );
 }

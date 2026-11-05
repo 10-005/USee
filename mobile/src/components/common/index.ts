@@ -5,6 +5,7 @@ export type { BottomNavigationItem } from './BottomNavigation';
 export { RegistrationMenu } from './RegistrationMenu';
 export { Button } from './Button';
 export { ChatListItem } from './ChatListItem';
+export { DatePickerModal } from './DatePickerModal';
 export { StepIndicator } from './StepIndicator';
 export { Switch } from './Switch';
 export { TextInput } from './TextInput';
