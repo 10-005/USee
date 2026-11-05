@@ -5,6 +5,16 @@ import org.junit.Test
 import kotlin.math.PI
 
 class DogAttentionMotionTest {
+  @Test fun torsoBendSharesTheGazeTurnButNeverExceedsFortyFiveDegrees() {
+    assertEquals(0f, attentionTorsoDegrees(180f, 0f), 0.001f)
+    assertEquals(30f, attentionTorsoDegrees(30f, 1f), 0.001f)
+    assertEquals(-30f, attentionTorsoDegrees(-30f, 1f), 0.001f)
+    assertEquals(45f, attentionTorsoDegrees(180f, 1f), 0.001f)
+    assertEquals(-45f, attentionTorsoDegrees(-180f, 1f), 0.001f)
+    assertEquals(0f, attentionTorsoDegrees(180f, 3f), 0.001f)
+    val torso = attentionTorsoDegrees(90f, 1f)
+    assertEquals(45f, 90f - torso, 0.001f)
+  }
   @Test fun cameraCrossingBehindDogDoesNotFlipNeckAcrossTheAngleWrap() {
     val next = smoothAttentionYaw(179f, -179f, 0.05f)
     assertTrue(next > 179f && next < 181f)

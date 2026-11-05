@@ -13,6 +13,10 @@ internal fun attentionYaw(forwardX: Float, forwardZ: Float, targetX: Float, targ
 internal fun attentionTailDegrees(seconds: Float): Float =
   sin(seconds * (8f * PI.toFloat())) * 20f * attentionWeight(seconds, 2f)
 
+/** Bend only the spine above the pelvis; the front legs inherit the upper-body turn. */
+internal fun attentionTorsoDegrees(yawDegrees: Float, seconds: Float): Float =
+  yawDegrees.coerceIn(-45f, 45f) * attentionWeight(seconds, 3f)
+
 internal fun smoothAttentionYaw(currentDegrees: Float, targetDegrees: Float, dt: Float): Float {
   val delta = (targetDegrees - currentDegrees) * PI.toFloat() / 180f
   val shortest = atan2(sin(delta), cos(delta)) * 180f / PI.toFloat()
