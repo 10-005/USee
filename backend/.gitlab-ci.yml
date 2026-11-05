@@ -1,4 +1,7 @@
-# 백엔드 CI: develop-backend 에 머지되면
+# 백엔드 CI
+#   MR(→ develop-backend): backend:test 로 컴파일·테스트. 실패하면 머지 불가 (파이프라인 성공 필수 설정)
+#   develop-backend 에 머지되면
+#   0) backend:test (실패하면 아래 단계를 진행하지 않음)
 #   1) 바뀐 서비스의 이미지를 빌드해 자체 레지스트리에 push  (태그 = 커밋 짧은 SHA)
 #   2) infra 브랜치의 overlays/dev/kustomization.yaml newTag 를 그 SHA로 커밋 → ArgoCD 가 배포
 # 필요한 CI 변수 (Settings → CI/CD → Variables, Masked and hidden + Protected):
@@ -43,8 +46,11 @@ variables:
       if git diff --cached --quiet; then
         echo "태그 변경 없음 ($CI_COMMIT_SHORT_SHA)"; exit 0
       fi
+    # 팀 커밋 규칙: 제목 → 빈 줄 → "- " 본문 → 빈 줄 → 이슈 번호
     - |
-      git commit -m "chore(deploy): $SERVICE $CI_COMMIT_SHORT_SHA" -m "Source: $CI_PROJECT_URL/-/commit/$CI_COMMIT_SHA"
+      printf 'chore: deploy %s %s\n\n- 원본 커밋: %s\n- 파이프라인: %s\n\nS15P31D106-301\n' \
+        "$SERVICE" "$CI_COMMIT_SHORT_SHA" "$CI_PROJECT_URL/-/commit/$CI_COMMIT_SHA" "$CI_PIPELINE_URL" \
+        | git commit -F -
     # 다른 서비스 배포 커밋과 겹치면 rebase 후 재시도 (최대 3번)
     - |
       for i in 1 2 3; do
@@ -52,6 +58,41 @@ variables:
         git pull --rebase origin infra
       done
       exit 1
+
+# ---------- 테스트 (backend 전체) ----------
+
+# common 을 모든 서비스가 쓰므로 서비스별로 나누지 않고 전체 모듈을 한 번에 컴파일·테스트한다
+# Protected 변수(REGISTRY_CI_PASSWORD, INFRA_PUSH_TOKEN)는 쓰지 않는다
+backend:test:
+  stage: test
+  image: eclipse-temurin:21.0.12.1_1-jdk
+  interruptible: true # 새 커밋이 push 되면 이전 파이프라인의 테스트는 취소
+  variables:
+    GRADLE_USER_HOME: $CI_PROJECT_DIR/.gradle-home # GitLab cache 는 프로젝트 폴더 안만 저장 가능
+  cache:
+    key:
+      files:
+        - backend/gradle/libs.versions.toml
+        - backend/gradle/wrapper/gradle-wrapper.properties
+    paths:
+      - .gradle-home/caches/
+      - .gradle-home/wrapper/
+  script:
+    - cd backend
+    - ./gradlew build --no-daemon
+  artifacts:
+    when: always # 테스트가 실패해도 결과를 MR 화면에 올린다
+    reports:
+      junit: backend/*/build/test-results/test/TEST-*.xml
+  rules:
+    # develop-backend 대상 MR은 경로와 상관없이 항상 실행 (문서만 바꾼 MR도 파이프라인이 생겨야 머지 가능)
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "develop-backend"
+    # 머지 후에는 backend 가 바뀐 경우에만. build 보다 앞 stage 라 실패하면 이미지 빌드·배포가 되지 않는다
+    - if: $CI_COMMIT_BRANCH == "develop-backend"
+      changes:
+        - backend/**/*
+        - .gitlab-ci.yml
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "develop-backend"
 
 # ---------- core-api ----------
 
