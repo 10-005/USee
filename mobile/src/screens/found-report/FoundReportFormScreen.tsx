@@ -1,4 +1,3 @@
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
@@ -21,7 +20,13 @@ import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import LocationIcon from '../../assets/icons/common/location.svg';
 import PlusIcon from '../../assets/icons/common/plus.svg';
 import XCircleIcon from '../../assets/icons/common/x-circle.svg';
-import { AppHeader, DatePickerModal, StepIndicator, Switch } from '../../components/common';
+import {
+  AppHeader,
+  DatePickerModal,
+  StepIndicator,
+  Switch,
+  TimePickerModal,
+} from '../../components/common';
 import { MAX_IMAGE_SIZE_MB } from '../../constants/upload';
 import {
   useFoundReportDraftStore,
@@ -69,6 +74,7 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
   const [step, setStep] = useState<Step>(2);
   const [error, setError] = useState('');
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [pendingDate, setPendingDate] = useState<Date | null>(null);
   const isEditing = Boolean(route.params?.reportId);
 
   const canContinue = useMemo(() => {
@@ -98,20 +104,7 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
     const selected = new Date(date);
     selected.setHours(current.getHours(), current.getMinutes(), 0, 0);
     setDatePickerOpen(false);
-    setTimeout(() => {
-      DateTimePickerAndroid.open({
-        is24Hour: false,
-        mode: 'time',
-        value: selected,
-        onChange: (timeEvent, selectedTime) => {
-          if (timeEvent.type !== 'set' || !selectedTime) {
-            return;
-          }
-          selected.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
-          updateDraft({ foundAt: selected.toISOString() });
-        },
-      });
-    }, 200);
+    setPendingDate(selected);
   };
 
   const submit = () => {
@@ -202,6 +195,16 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
         title="발견일 선택"
         value={draft.foundAt ? new Date(draft.foundAt) : new Date()}
         visible={datePickerOpen}
+      />
+      <TimePickerModal
+        onClose={() => setPendingDate(null)}
+        onConfirm={selected => {
+          updateDraft({ foundAt: selected.toISOString() });
+          setPendingDate(null);
+        }}
+        title="발견 시간 선택"
+        value={pendingDate ?? new Date()}
+        visible={pendingDate !== null}
       />
     </SafeAreaView>
   );

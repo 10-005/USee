@@ -9,3 +9,4 @@ export { DatePickerModal } from './DatePickerModal';
 export { StepIndicator } from './StepIndicator';
 export { Switch } from './Switch';
 export { TextInput } from './TextInput';
+export { TimePickerModal } from './TimePickerModal';
