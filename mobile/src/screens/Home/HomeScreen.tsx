@@ -595,12 +595,14 @@ const styles = StyleSheet.create({
   card: { marginBottom: 18 },
   cardImage: { borderRadius: radius.sm },
   bookmarkButton: {
+    alignItems: 'center',
     height: 24,
+    justifyContent: 'center',
     position: 'absolute',
     right: 8,
     top: 8,
     width: 24,
-    zIndex: 1,
+    zIndex: 2,
   },
   statusBadge: {
     alignSelf: 'flex-start',
