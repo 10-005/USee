@@ -16,3 +16,13 @@ output "backup_bucket" {
   description = "PostgreSQL 백업 버킷 (CronJob의 BACKUP_BUCKET 값)"
   value       = aws_s3_bucket.backup.bucket
 }
+
+output "media_bucket" {
+  description = "이미지 버킷 (core-api의 STORAGE_BUCKET 값)"
+  value       = aws_s3_bucket.media.bucket
+}
+
+output "media_public_base_url" {
+  description = "이미지 공개 주소 (core-api의 STORAGE_PUBLIC_BASE_URL 값)"
+  value       = "https://${aws_s3_bucket.media.bucket_regional_domain_name}"
+}
