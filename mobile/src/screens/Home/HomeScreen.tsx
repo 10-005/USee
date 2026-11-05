@@ -190,6 +190,11 @@ export function HomeScreen({ navigation }: Props) {
     setControlsVisible(true);
   }, [controlsProgress]);
 
+  const scrollAdoptionToTop = useCallback(() => {
+    resetAdoptionListHeader();
+    listRef.current?.scrollToOffset({ animated: true, offset: 0 });
+  }, [resetAdoptionListHeader]);
+
   const handleListScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const currentOffset = Math.max(0, event.nativeEvent.contentOffset.y);
     const delta = currentOffset - lastScrollOffset.current;
@@ -390,11 +395,18 @@ export function HomeScreen({ navigation }: Props) {
       ) : (
         <>
           <View style={styles.header}>
-            <Image
-              resizeMode="contain"
-              source={require('../../assets/images/logo.png')}
-              style={styles.logo}
-            />
+            <Pressable
+              accessibilityLabel="입양 목록 상단으로 이동"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={scrollAdoptionToTop}
+            >
+              <Image
+                resizeMode="contain"
+                source={require('../../assets/images/logo.png')}
+                style={styles.logo}
+              />
+            </Pressable>
             <Pressable
               accessibilityLabel="알림"
               accessibilityRole="button"

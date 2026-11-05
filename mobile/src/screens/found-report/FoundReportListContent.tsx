@@ -246,6 +246,10 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
 
   const selectTab = (tab: ReportTab) => {
     resetListHeader();
+    if (tab === activeTab) {
+      listRef.current?.scrollToOffset({ animated: true, offset: 0 });
+      return;
+    }
     setActiveTab(tab);
     setActiveFilter(null);
     setFilters(initialFilters);
