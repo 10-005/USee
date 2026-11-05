@@ -6,6 +6,7 @@ S15P31D106-347. 2026-11-06 기준 infra 브랜치 구성으로 작성했다. 비
 - 노드 1의 kubectl은 항상 `sudo k3s kubectl`
 - 클러스터 변경은 원칙적으로 infra 브랜치 커밋으로 한다(ArgoCD selfHeal이 되돌림). 이 문서의 직접 변경 명령은 장애 복구용 예외이며, 실행 전에 담당자 확인을 받는다
 - 확인되지 않은 항목은 `(확인 필요)`로 표시했다
+- **장애가 나면 5장(장애 종류별 대응표)부터 본다.** 목표 RTO는 1시간 이내, RPO는 백업 주기 기준 최대 6시간
 
 ---
 
@@ -189,7 +190,7 @@ Flyway로 바꾼 뒤에는 `flyway_schema_history`도 덤프에 같이 들어 �
 
   | 기기 | 만든 주체 | 태그 |
   |---|---|---|
-  | 노드 1 (Tailscale IP `100.121.219.58`) | 수동 설치 | (확인 필요) |
+  | 노드 1 (Tailscale IP `100.121.219.58`) | 수동 설치(개인 계정 소유) | 없음. ACL은 IP로 지정(5.7 사례 1) |
   | `k15d106-node2` | node2 user_data | `tag:k3s` |
   | `k15-operator` | tailscale-operator | `tag:k8s-operator` |
   | `animal-db` | operator(Service `data/postgres-tailnet`) | `tag:svc-db` |
@@ -205,7 +206,147 @@ Flyway로 바꾼 뒤에는 `flyway_schema_history`도 덤프에 같이 들어 �
 
 ---
 
+## 5. 장애 종류별 대응표
+
+"먼저 볼 명령"은 모두 읽기 전용이다. 위치는 별도 표기가 없으면 [노드 1]이다. 복구 시간은 **실측이 아니라 추정**이므로, 실제로 겪으면 사례(5.7)에 기록하고 값을 고친다.
+
+| 장애 | 주로 보이는 곳 | 이어지는 장 | 예상 복구 시간 |
+|---|---|---|---|
+| 5.1 DB Pod 재시작 | API 5xx 잠깐, ArgoCD postgres Progressing | 대부분 자동. 데이터 손상이면 1장 | 1~3분(자동) |
+| 5.2 노드 재부팅 | 노드 1: 전체 서비스·SSH 끊김 / 노드 2: 일부 Pod 재배치 | 대부분 자동. Tailscale 끊김이면 4장 | 5~10분 |
+| 5.3 잘못된 데이터 변경 | 사용자 제보, 데이터 불일치 | 1장(전체 복원) 또는 부분 복구 | 30~60분 |
+| 5.4 서버 손실 | 노드 응답 없음, Lightsail·EC2 콘솔 | 0.2 → 2장 → 1장 | 노드 1: 약 75~90분(목표 초과) / 노드 2: 약 30분 |
+| 5.5 디스크 가득 참 | DB 쓰기 실패, Pod Evicted | 정리 후 필요하면 1장 | 10~30분 |
+| 5.6 메모리 부족 | OOMKilled, Evicted, 응답 지연 | infra 커밋으로 limits 조정 | 5~20분 |
+
+### 5.1 DB Pod 재시작
+- 증상: core-api 로그에 커넥션 오류가 나고 API가 잠깐 5xx를 낸다. `postgres-0`의 RESTARTS가 늘어난다
+- 먼저 볼 명령
+  ```bash
+  sudo k3s kubectl -n data get pod postgres-0 -o wide
+  sudo k3s kubectl -n data describe pod postgres-0 | grep -A6 'Last State'   # Reason: OOMKilled / Error
+  sudo k3s kubectl -n data logs postgres-0 --previous --tail=50
+  sudo k3s kubectl -n data get events --sort-by=.lastTimestamp | tail -20
+  ```
+- 대응: StatefulSet이 다시 띄우고 PVC 데이터는 남는다. WAL 복구 뒤 Ready가 되고 앱 커넥션 풀이 다시 연결된다
+  - `OOMKilled`(limit 2Gi)이면 → 5.6
+  - `CrashLoopBackOff`이고 로그에 데이터 파일 손상이 보이면 → 1장
+- 예상 시간: 1~3분 (liveness 첫 검사 30초 + 복구)
+
+### 5.2 노드 재부팅
+- 증상
+  - 노드 1: k3s 서버, DB, 레지스트리가 모두 있어 **전체 서비스 중단**, SSH도 끊긴다
+  - 노드 2: 그 노드의 Pod만 재배치되고 CI 러너가 오프라인이 된다
+- 먼저 볼 명령
+  ```bash
+  uptime; last -x reboot | head -5               # 재부팅 시각
+  sudo journalctl -b -1 -n 50 --no-pager         # 직전 부팅의 마지막 로그(원인 단서)
+  ls /var/log/unattended-upgrades/ 2>/dev/null   # 자동 업데이트 재부팅 여부
+  systemctl status k3s --no-pager | head -5      # 노드 2는 k3s-agent
+  tailscale status | head
+  sudo k3s kubectl get nodes -o wide
+  sudo k3s kubectl get pods -A | grep -v -E 'Running|Completed'
+  ```
+- 대응: k3s와 Tailscale은 systemd로 자동 시작된다. 노드 IP가 Tailscale IP(`flannel-iface: tailscale0`)라서 **Tailscale이 먼저 붙어야** 노드 간 통신이 된다
+  - 노드가 NotReady로 남거나 노드 2의 Pod가 노드 1 서비스(DNS 포함)에 닿지 못하면 → [노드 2] `tailscale ping 100.121.219.58`, Tailscale 관리 화면의 ACL(`tag:k3s` ↔ 노드 1) 확인 → 4장
+- 예상 시간: 5~10분 (부팅 2~3분 + Pod 재기동)
+
+### 5.3 잘못된 데이터 변경 (실수로 UPDATE·DELETE)
+- 증상: 사용자 제보, API 응답이나 조회 결과가 이상하다. DB에는 에러가 남지 않는다
+- 먼저 볼 명령 (영향 범위 파악, 읽기 전용 계정)
+  ```bash
+  sudo k3s kubectl -n data exec -it postgres-0 -- psql -U dev_readonly -d animal   # 해당 테이블 조회
+  ```
+  [맥] 쓸 수 있는 백업 확인
+  ```bash
+  aws s3api list-objects-v2 --bucket s15p31d106-backup-887324111755 --prefix postgres/ --profile s15p31d106 \
+    --query 'reverse(sort_by(Contents,&LastModified))[:6].[Key,LastModified]' --output text
+  ```
+- 대응: **시점 복구(PITR)가 없다.** WAL 아카이브 없이 6시간마다 덤프만 있으므로 되돌릴 수 있는 지점은 백업 시각뿐이다
+  1. 먼저 그대로 둔다. 같은 실수가 반복되지 않게 원인(코드·수동 쿼리)을 막는다
+  2. 피해가 일부 행이면 **부분 복구**: 변경 직전 백업을 임시 Pod에 복원해 해당 행을 뽑고, 승인을 받아 운영에 반영한다. 지금 restore-test.sh는 끝나면 임시 DB를 지우므로, 행을 뽑으려면 "Pod 유지" 옵션이 필요하다(확인 필요 목록)
+  3. 피해가 넓으면 1장 전체 복원. 백업 이후의 정상 변경도 함께 잃는다
+- 예상 시간: 부분 복구 30~60분, 전체 복원 약 30분 + 손실 확인
+
+### 5.4 서버 손실
+- 증상: SSH·Tailscale·API 모두 응답이 없다. Lightsail 콘솔(노드 1)이나 EC2 콘솔(노드 2)에서 인스턴스가 중지·손상·삭제 상태로 보인다
+- 먼저 볼 명령
+  - [맥] `tailscale status | grep -E 'k15d106|100.121.219.58'`, `ping -c3 k15d106.p.ssafy.io`
+  - [맥] 노드 2: `aws ec2 describe-instance-status --instance-ids <terraform output node2_instance_id> --profile s15p31d106`
+  - 노드 1: Lightsail 콘솔에서 인스턴스 상태와 메트릭
+  - 살아 있는 노드에서: `sudo k3s kubectl get nodes` (노드 1이 없으면 API 자체가 안 된다)
+- 대응: 노드 1 → 0.2 → 2.2 → 1장 / 노드 2 → 2.1
+- **노드 1 손실 단계별 추정** (서버를 새로 만드는 경우)
+
+  | 단계 | 내용 | 추정 | 누적 |
+  |---|---|---|---|
+  | 1 | 탐지·판단(재부팅으로 안 살아나는지 확인) | 5분 | 5분 |
+  | 2 | Lightsail 인스턴스 생성, ufw·swap·시간대 설정 | 10분 | 15분 |
+  | 3 | Tailscale 가입, IP를 `100.121.219.58`로 지정, 옛 기기 정리(4장) | 5분 | 20분 |
+  | 4 | k3s 서버 설치(`k3s-config-node1.yaml`) | 5분 | 25분 |
+  | 5 | Sealed Secrets 키 복원(0.2), ArgoCD 설치·root 적용 | 10분 | 35분 |
+  | 6 | ArgoCD 동기화: 차트·DB·Redis·RabbitMQ·레지스트리 기동 | 10분 | 45분 |
+  | 7 | 노드 2 재조인(새 토큰, 2.1의 일부) → CI 러너 복귀 | 10분 | 55분 |
+  | 8 | 레지스트리가 비어 있어 CI로 앱 이미지 재빌드·배포 | 10~15분 | 65~70분 |
+  | 9 | DB 복구(1장, 앱 정지 커밋 포함) | 15분 | 80~85분 |
+  | 10 | 확인(노드·앱·SealedSecret·헬스 체크) | 5분 | **85~90분** |
+
+  - 현재 절차로는 **목표 RTO 1시간을 넘는다.** 7·8단계(노드 2와 이미지)가 병목이다. 9단계는 6단계 직후 7·8단계와 병렬로 할 수 있어 70분 안팎까지 줄일 여지가 있다
+  - 1시간 안에 들어가려면: Lightsail 자동 스냅샷(스냅샷에서 복원하면 2~6단계가 15분 안팎으로 줄 것으로 추정, 스냅샷 이후 데이터는 1장으로 보충), 레지스트리 이미지 외부 보관 등을 검토한다(확인 필요 목록)
+- **노드 2 손실:** 2.1 기준 Terraform 교체 10분 + cloud-init 조인 5분 + Docker·러너 설치 10분 + 확인 5분 = **약 30분**. 그동안 노드 1의 서비스는 계속 동작한다. 노드 2에 있던 Pod는 노드 1로 재배치되고, CI만 멈춘다
+
+### 5.5 디스크 가득 참
+- 증상: DB 로그에 `No space left on device`가 나오고 쓰기 API가 500을 낸다. 노드에 `DiskPressure`가 생기고 Pod가 `Evicted`된다. 이미지 pull이 실패한다. 노드 2에서는 CI 빌드가 실패한다
+- 먼저 볼 명령
+  ```bash
+  df -h / /var/lib/rancher
+  sudo du -xh --max-depth=2 /var/lib/rancher/k3s 2>/dev/null | sort -h | tail -10
+  sudo k3s kubectl describe node <노드> | grep -A8 Conditions
+  sudo k3s kubectl get pods -A | grep Evicted
+  journalctl --disk-usage
+  ```
+  [노드 2] `docker system df`(빌드 캐시. 매일 04:00 정리 cron이 도는지 `/var/log/docker-prune.log`로 확인)
+- 대응(쓰기, 승인 후): 쓰지 않는 이미지 정리 `sudo k3s crictl rmi --prune`, 로그 정리 `sudo journalctl --vacuum-size=500M`, 노드 2 `docker builder prune`. local-path PVC는 크기 제한이 없어 노드 디스크를 함께 쓴다. 공간을 확보한 뒤에도 DB가 기동하지 않거나 손상이 보이면 → 1장
+- 참고: 2026-11-06 기준 노드 1 여유 공간은 291G
+- 예상 시간: 10~30분
+
+### 5.6 메모리 부족
+- 증상: Pod가 `OOMKilled`로 재시작되거나 `Evicted`된다. 노드에 `MemoryPressure`가 생기고 응답이 느려진다
+- 먼저 볼 명령
+  ```bash
+  sudo k3s kubectl top node
+  sudo k3s kubectl top pod -A --sort-by=memory | head -10
+  sudo k3s kubectl get pods -A | grep -E 'OOMKilled|Evicted|CrashLoop'
+  sudo k3s kubectl describe pod -n <ns> <pod> | grep -A6 'Last State'
+  free -h; sudo dmesg -T | grep -i -E 'killed process|out of memory' | tail -5
+  ```
+- 대응: 원인 Pod를 찾아 infra 커밋으로 requests·limits를 조정하거나 원인(메모리 누수, 큰 쿼리)을 고친다. DB는 PriorityClass `data-critical`이라 가장 나중에 밀려난다. DB가 OOMKilled되면 limit(2Gi)을 검토한다 → 5.1
+- 참고: 2026-11-06 기준 노드 1 메모리 실사용 3.5Gi(22%), requests 1868Mi(11%)
+- 예상 시간: 5~20분
+
+### 5.7 실제 사례
+#### 사례 1: Tailscale ACL 적용 직후 노드 2 → 노드 1 통신 끊김 (2026-11-05, 5.2·4장)
+- 배경: Tailscale ACL을 전체 허용(`{"src":["*"],"dst":["*"]}`)에서 최소 권한으로 좁혔다(S15P31D106-338). 2단계로 나눠 적용했다: A(`tagOwners`만 추가) → Operator·DB·ArgoCD 검증 → B(규칙 좁히기)
+- 증상: 노드 2에 뜬 DB 프록시가 postgres 연결에 실패했고, DNS 조회도 실패했다
+- 원인: 노드 1은 **태그 없는 개인 계정 소유 기기**인데, 노드 간 규칙을 `tag:k3s` ↔ `tag:k3s`로만 넣었다. 그래서 노드 2 → 노드 1 트래픽이 막혔다. k3s 노드 간 통신은 Tailscale IP를 쓴다
+- 조치: 노드 1 IP(`100.121.219.58`)를 출발지·목적지로 명시한 양방향 규칙을 추가했다 → 노드 2개 Ready, 비정상 Pod 없음
+- 교훈: ACL 정책을 고치기 전에 원본을 백업한다. `tests` 블록을 유지한다. 노드 1에도 `tag:k3s`를 붙여 태그 하나로 통일한다(후속 과제)
+- 소요 시간: 기록 없음
+- 근거: Jira S15P31D106-338 코멘트, infra 커밋 `86fbe2a`
+
+#### 사례 2: 노드 1 보안 업데이트 재부팅 (2026-11-06 새벽, 계획된 작업, 5.2)
+- 절차: 재부팅 직전 수동 백업 → `sudo reboot` → 재부팅 후 전체 정상 확인(노드 Ready, ArgoCD 앱 Synced/Healthy)
+- 결과: 문제 없음
+- 교훈(운영 실수 예방): **서버 연결을 끊는 명령(`sudo reboot`)은 그 한 줄만 붙여 넣는다.** 여러 줄을 함께 붙이면 연결이 끊긴 뒤 나머지 줄이 내 PC에서 실행된다(맥에서 sudo가 실행될 뻔했다)
+- 소요 시간: 기록 없음
+
+---
+
 ## 확인 필요 목록
+- 노드 1에도 `tag:k3s`를 붙여 ACL 노드 간 규칙을 태그 하나로 통일(5.7 사례 1)
+- 다음 장애·계획 작업부터 복구 소요 시간 기록(5장 추정값 보정용)
+- 노드 1 손실 RTO(추정 85~90분)를 1시간 안으로 줄이는 방안: Lightsail 자동 스냅샷, 레지스트리 이미지 외부 보관, 복구 단계 병렬화(5.4)
+- 부분 데이터 복구용 restore-test.sh "임시 Pod 유지" 옵션(5.3)
 - 후속 작업: 생성 스크립트가 없는 Secret 3개(`postgres-credentials` 전체, `rabbitmq-credentials`, `redis-credentials`)의 생성·봉인 스크립트 작성(0.3)
 - 마스터 키 재백업 일정(월 1회) 담당·알림 방법
 - 노드 1 Lightsail 사양·스냅샷·SSH 키 위치, 노드 1 Tailscale 태그
