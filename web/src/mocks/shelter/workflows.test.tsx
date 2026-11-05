@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '@/app/App';
 import { AppProviders } from '@/app/providers/AppProviders';
 import { useShelterDemo } from './store';
@@ -31,39 +31,58 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  vi.unstubAllGlobals();
   cleanup();
   Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
   Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
 });
 describe('예시 업무 흐름', () => {
+  it('수정 화면에서 삭제를 취소하거나 확인할 수 있다', async () => {
+    const original = useShelterDemo.getState().animals[1]!;
+    const adoptions = useShelterDemo.getState().adoptions;
+    open(`/animals/${original.id}/edit`);
+    fireEvent.click(screen.getByRole('button', { name: '삭제하기' }));
+    let dialog = screen.getByRole('dialog', { name: '보호동물을 삭제할까요?' });
+    expect(dialog).toHaveTextContent('복구할 수 없습니다');
+    fireEvent.click(within(dialog).getByRole('button', { name: '취소' }));
+    expect(useShelterDemo.getState().animals.some((item) => item.id === original.id)).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '삭제하기' }));
+    dialog = screen.getByRole('dialog', { name: '보호동물을 삭제할까요?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: '삭제하기' }));
+    expect(await screen.findByRole('heading', { name: '보호동물 목록' })).toBeInTheDocument();
+    expect(useShelterDemo.getState().animals.some((item) => item.id === original.id)).toBe(false);
+    expect(useShelterDemo.getState().adoptions).toEqual(adoptions);
+  });
   it.each([
     ['실패', '취소'],
     ['취소', '실패'],
-  ] as const)('구조 상세와 수정 화면에서 %s 및 %s 사유를 입력해야 저장한다', (first, second) => {
-    const rescue = useShelterDemo.getState().rescues.find((r) => r.status === '진행 중')!;
-    open(`/rescues/${rescue.id}`);
-    fireEvent.click(screen.getByRole('radio', { name: first }));
-    const field = screen.getByRole('textbox', { name: `${first} 사유 *` });
-    fireEvent.change(field, { target: { value: '   ' } });
-    fireEvent.click(screen.getByRole('button', { name: '상태 저장' }));
-    expect(screen.getByRole('alert')).toHaveTextContent(`${first} 사유를 입력해 주세요.`);
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    fireEvent.change(field, { target: { value: ' 현장에서 동물을 찾지 못함 ' } });
-    fireEvent.click(screen.getByRole('button', { name: '상태 저장' }));
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '저장' }));
-    fireEvent.click(screen.getByRole('link', { name: '수정' }));
-    expect(screen.getByLabelText(`${first} 사유 *`)).toHaveValue('현장에서 동물을 찾지 못함');
-    fireEvent.click(screen.getByRole('radio', { name: second }));
-    fireEvent.click(screen.getByRole('button', { name: '저장하기' }));
-    expect(screen.getByRole('alert')).toHaveTextContent(`${second} 사유를 입력해 주세요.`);
-    expect(useShelterDemo.getState().rescues.find((r) => r.id === rescue.id)?.status).toBe(first);
-    fireEvent.change(screen.getByLabelText(`${second} 사유 *`), {
-      target: { value: '현장 확인 결과' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: '저장하기' }));
-    expect(screen.getByLabelText(`${second} 사유 *`)).toHaveValue('현장 확인 결과');
-    expect(screen.getByRole('link', { name: '수정' })).toBeVisible();
-  });
+  ] as const)(
+    '구조 상세와 수정 화면에서 %s 및 %s 사유를 입력해야 저장한다',
+    async (first, second) => {
+      const rescue = useShelterDemo.getState().rescues.find((r) => r.status === '진행 중')!;
+      open(`/rescues/${rescue.id}`);
+      fireEvent.click(screen.getByRole('radio', { name: first }));
+      const field = screen.getByRole('textbox', { name: `${first} 사유 *` });
+      fireEvent.change(field, { target: { value: '   ' } });
+      fireEvent.click(screen.getByRole('button', { name: '상태 저장' }));
+      expect(screen.getByRole('alert')).toHaveTextContent(`${first} 사유를 입력해 주세요.`);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      fireEvent.change(field, { target: { value: ' 현장에서 동물을 찾지 못함 ' } });
+      fireEvent.click(screen.getByRole('button', { name: '상태 저장' }));
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '저장' }));
+      fireEvent.click(await screen.findByRole('link', { name: '수정' }));
+      expect(screen.getByLabelText(`${first} 사유 *`)).toHaveValue('현장에서 동물을 찾지 못함');
+      fireEvent.click(screen.getByRole('radio', { name: second }));
+      fireEvent.click(screen.getByRole('button', { name: '저장하기' }));
+      expect(screen.getByRole('alert')).toHaveTextContent(`${second} 사유를 입력해 주세요.`);
+      expect(useShelterDemo.getState().rescues.find((r) => r.id === rescue.id)?.status).toBe(first);
+      fireEvent.change(screen.getByLabelText(`${second} 사유 *`), {
+        target: { value: '현장 확인 결과' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: '저장하기' }));
+      expect(await screen.findByRole('link', { name: '수정' })).toBeVisible();
+    },
+  );
   it('구조 상세는 접수 일시와 구조 일시를 각각 표시하고 수정 후에도 접수 일시를 유지한다', () => {
     const rescue = useShelterDemo.getState().rescues[0]!;
     open(`/rescues/${rescue.id}`);
@@ -81,7 +100,7 @@ describe('예시 업무 흐름', () => {
     open('/animals/sample-01');
     expect(screen.getByText('공고번호 경북-구미-2026-00001')).toBeVisible();
   });
-  it('구조 수정 화면에서 진행 상태를 바꾸고 저장할 수 있다', () => {
+  it('구조 수정 화면에서 진행 상태를 바꾸고 저장할 수 있다', async () => {
     const rescue = useShelterDemo.getState().rescues.find((item) => item.status === '진행 중')!;
     open(`/rescues/${rescue.id}/edit`);
     const group = screen.getByRole('group', { name: '구조 상태' });
@@ -94,7 +113,7 @@ describe('예시 업무 흐름', () => {
     expect(useShelterDemo.getState().rescues.find((item) => item.id === rescue.id)?.status).toBe(
       '완료',
     );
-    expect(screen.getByRole('link', { name: '보호동물 등록' })).toBeVisible();
+    expect(await screen.findByRole('link', { name: '보호동물 등록' })).toBeVisible();
   });
   it('최종 승인 사유를 입력하면 연결된 동물도 입양 완료로 변경된다', () => {
     const application = useShelterDemo.getState().adoptions.find((a) => a.status === '서류 승인')!;
@@ -149,15 +168,65 @@ describe('예시 업무 흐름', () => {
     expect(screen.getByRole('button', { name: '2페이지' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getAllByRole('link', { name: /구조 상세보기/ })[0]).toHaveAttribute('href', href);
   });
-  it('완료된 구조에서 등록을 열면 해당 구조 정보와 발생장소를 불러온다', () => {
+  it('완료된 구조에서 등록을 열면 상단에 연결된 구조 신고 카드를 표시한다', () => {
     const rescue = useShelterDemo.getState().rescues.find((r) => r.status === '완료')!;
     open(`/rescues/${rescue.id}`);
     fireEvent.click(screen.getByRole('link', { name: '보호동물 등록' }));
-    expect(screen.getByRole('heading', { name: '연결된 구조 정보' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: '연결된 구조 신고' })).toBeVisible();
     expect(screen.getByText(rescue.id)).toBeVisible();
     expect(screen.getByText(rescue.location)).toBeVisible();
     expect(screen.getByText(rescue.date.replace('T', ' '))).toBeVisible();
-    expect(screen.getByLabelText('발생장소')).toHaveValue(rescue.location);
+    expect(screen.queryByLabelText('발생장소')).not.toBeInTheDocument();
+  });
+  it('완료된 구조에서 보호동물을 등록하면 구조 연결과 장소를 유지한다', async () => {
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static createObjectURL() {
+          return 'blob:test-photo';
+        }
+        static revokeObjectURL() {}
+      },
+    );
+    const rescue = useShelterDemo.getState().rescues.find((r) => r.status === '완료')!;
+    open(`/rescues/${rescue.id}`);
+    fireEvent.click(screen.getByRole('link', { name: '보호동물 등록' }));
+    fireEvent.change(screen.getByLabelText('동물 사진'), {
+      target: { files: [new File(['photo'], 'cat.png', { type: 'image/png' })] },
+    });
+    fireEvent.change(screen.getByLabelText('동물 종류 *'), { target: { value: 'cat' } });
+    fireEvent.change(screen.getByLabelText('품종 *'), { target: { value: '러시안블루' } });
+    fireEvent.change(screen.getByLabelText('색상 *'), { target: { value: '회색' } });
+    fireEvent.change(screen.getByLabelText('성별 *'), { target: { value: 'female' } });
+    fireEvent.click(screen.getByRole('radio', { name: '미완료' }));
+    fireEvent.click(screen.getByLabelText('공고기간 *'));
+    fireEvent.change(screen.getByLabelText('연도'), { target: { value: '2026' } });
+    fireEvent.change(screen.getByLabelText('월'), { target: { value: '12' } });
+    fireEvent.click(screen.getByRole('button', { name: '2026-12-01' }));
+    fireEvent.click(screen.getByRole('button', { name: '확인' }));
+    expect(screen.queryByRole('radio', { name: '보호 중' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: '입양 가능' }));
+    fireEvent.click(screen.getByRole('button', { name: '등록하기' }));
+    expect(await screen.findByRole('heading', { name: '보호동물 상세' })).toBeVisible();
+    expect(useShelterDemo.getState().animals[0]).toMatchObject({
+      rescueId: rescue.id,
+      location: rescue.location,
+      name: '러시안블루',
+      status: 'protected',
+    });
+    const registeredAnimal = useShelterDemo.getState().animals[0]!;
+    const rescueLink = screen.getByRole('link', { name: `${rescue.id} 구조 상세보기` });
+    expect(screen.getByRole('heading', { name: '구조정보' }).closest('section')).toContainElement(
+      rescueLink,
+    );
+    expect(within(rescueLink).queryByText('구조 장소')).not.toBeInTheDocument();
+    expect(rescueLink).toHaveAttribute('href', `/rescues/${rescue.id}`);
+    fireEvent.click(rescueLink);
+    expect(screen.queryByRole('link', { name: '보호동물 등록' })).not.toBeInTheDocument();
+    const detailLink = screen.getByRole('link', { name: '등록된 보호동물 상세보기' });
+    expect(detailLink).toHaveAttribute('href', `/animals/${registeredAnimal.id}`);
+    fireEvent.click(detailLink);
+    expect(screen.getByRole('heading', { name: '보호동물 상세' })).toBeVisible();
   });
   it('구조 상세에서 이전을 누르면 필터와 정렬이 적용된 2페이지로 돌아간다', () => {
     open('/rescues?source=direct&period=90&sort=oldest&page=2');
@@ -208,7 +277,7 @@ describe('예시 업무 흐름', () => {
     expect(screen.getByRole('button', { name: '1페이지' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getAllByRole('link', { name: /^A-/ })).toHaveLength(6);
   });
-  it('거절 사유가 비어 있으면 저장하지 않고 사유 입력 후 상태를 변경한다', () => {
+  it('거절 사유가 비어 있으면 저장하지 않고 사유 입력 후 상태를 변경한다', async () => {
     open('/adoptions/A-1029-01');
     fireEvent.click(screen.getByRole('button', { name: '서류 거절' }));
     const dialog = screen.getByRole('dialog');
@@ -223,9 +292,9 @@ describe('예시 업무 흐름', () => {
       status: '거절',
       reason: '돌봄 계획 보완 필요',
     });
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
-  it('구조 접수 후 상세에서 상태를 저장하고 목록으로 복귀한다', () => {
+  it('구조 접수 후 상세에서 상태를 저장하고 목록으로 복귀한다', async () => {
     open('/rescues/new');
     fireEvent.click(screen.getByRole('button', { name: '접수하기' }));
     expect(screen.getByText('구조 사유를 선택해 주세요.')).toBeVisible();
@@ -245,7 +314,7 @@ describe('예시 업무 흐름', () => {
       target: { value: '구미 공원' },
     });
     fireEvent.click(screen.getByRole('button', { name: '접수하기' }));
-    expect(screen.getByRole('heading', { name: /R-demo-/ })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /R-demo-/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: '완료' }));
     fireEvent.click(screen.getByRole('button', { name: '상태 저장' }));
     expect(useShelterDemo.getState().rescues[0]?.status).toBe('진행 중');
@@ -254,6 +323,7 @@ describe('예시 업무 흐름', () => {
       status: '완료',
       location: '구미 공원',
     });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     fireEvent.click(screen.getByRole('link', { name: '이전' }));
     expect(screen.getByRole('status')).toHaveTextContent('총 25건');
   });
@@ -261,7 +331,7 @@ describe('예시 업무 흐름', () => {
     open('/animals/new');
     fireEvent.click(screen.getByRole('button', { name: '등록하기' }));
     expect(screen.getByText('최소 1장의 사진을 첨부해 주세요.')).toBeVisible();
-    expect(screen.getByText('상태를 선택해 주세요.')).toBeVisible();
+    expect(screen.queryByText('상태를 선택해 주세요.')).not.toBeInTheDocument();
     expect(screen.getByLabelText('동물 종류 *')).toHaveAccessibleDescription(
       '동물 종류를 선택해 주세요.',
     );

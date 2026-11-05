@@ -1,12 +1,9 @@
+import { LinkButton } from '@/shared/ui/LinkButton';
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { DemoPage, InfoRows, MissingRecord, RecordBadge } from '@/features/shelter-demo/Page';
-import {
-  useShelterDemo,
-  rescueStates,
-  type Rescue,
-  type RescueStatus,
-} from '@/features/shelter-demo/store';
+import { WorkPage, InfoRows, MissingRecord, RecordBadge } from '@/shared/ui/WorkPage';
+import { useRescue, useAnimalByRescue, useSaveRescue } from '@/entities/shelter/data';
+import { rescueStates, type Rescue, type RescueStatus } from '@/entities/shelter/model';
 import { Button } from '@/shared/ui/Button';
 import { ChoiceGroup } from '@/shared/ui/ChoiceGroup';
 import { FormSection } from '@/shared/ui/FormSection';
@@ -15,11 +12,11 @@ import { TextAreaField } from '@/shared/ui/TextAreaField';
 import { SelectField } from '@/shared/ui/SelectField';
 import { CalendarField } from '@/shared/ui/CalendarField';
 import { Modal } from '@/shared/ui/Modal';
-import pencil from '@/shared/assets/figma/edit-pencil.svg';
-import locationIcon from '@/shared/assets/figma/location.svg';
-import calendarIcon from '@/shared/assets/figma/calendar-check.svg';
+import pencil from '@/shared/assets/icons/edit-pencil.svg';
+import locationIcon from '@/shared/assets/icons/location.svg';
+import calendarIcon from '@/shared/assets/icons/calendar-check.svg';
 import cat from '@/shared/assets/figma/demo-cat.png';
-import { initialReports } from './reports-data';
+import { useReports, type Report } from '@/entities/shelter/data';
 
 function useReportListUrl() {
   const { state } = useLocation();
@@ -63,7 +60,7 @@ export function RescueDetailPage() {
   const { id } = useParams();
   const { search } = useLocation();
   const listUrl = useReportListUrl() ?? '/rescues' + search;
-  const record = useShelterDemo((s) => s.rescues.find((r) => r.id === id));
+  const record = useRescue(id);
   return record ? (
     <RescueDetail key={record.id} record={record} listUrl={listUrl} />
   ) : (
@@ -71,16 +68,20 @@ export function RescueDetailPage() {
   );
 }
 function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) {
-  const report = initialReports.find(
+  const registeredAnimal = useAnimalByRescue(record.id);
+  const reports = useReports();
+  const report = reports.find(
     (r) => r.id === (record.reportId ?? record.source.replace(/^신고 #/, '')),
   );
-  const save = useShelterDemo((s) => s.saveRescue);
+  const save = useSaveRescue();
   const draft = useRescueStatus(record);
   const { status, statusReason } = draft;
   const [submitted, setSubmitted] = useState(false);
   const [confirmStatus, setConfirmStatus] = useState(false);
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusError, setStatusError] = useState('');
   return (
-    <DemoPage
+    <WorkPage
       title={
         <span className="rescue-detail-title">
           {record.id}
@@ -88,22 +89,31 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
         </span>
       }
       back={listUrl}
+      titleDescription={
+        <p className="rescue-detail-date">
+          접수 일시{' '}
+          {record.receivedAt ? (
+            <time dateTime={record.receivedAt}>{record.receivedAt.replace('T', ' ')}</time>
+          ) : (
+            '미등록'
+          )}
+        </p>
+      }
       titleAction={
-        record.status === '완료' && (
-          <Link className="page-link" to={`/animals/new?rescueId=${encodeURIComponent(record.id)}`}>
-            보호동물 등록
-          </Link>
+        (registeredAnimal || record.status === '완료') && (
+          <LinkButton
+            variant={registeredAnimal ? 'soft' : 'primary'}
+            to={
+              registeredAnimal
+                ? `/animals/${registeredAnimal.id}`
+                : `/animals/new?rescueId=${encodeURIComponent(record.id)}`
+            }
+          >
+            {registeredAnimal ? '등록된 보호동물 상세보기' : '보호동물 등록'}
+          </LinkButton>
         )
       }
     >
-      <p className="rescue-detail-date">
-        접수 일시{' '}
-        {record.receivedAt ? (
-          <time dateTime={record.receivedAt}>{record.receivedAt.replace('T', ' ')}</time>
-        ) : (
-          '미등록'
-        )}
-      </p>
       <div className="detail-grid">
         <div>
           <section className="detail-box">
@@ -186,60 +196,76 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
         open={confirmStatus}
         title="구조 상태를 저장하시겠어요?"
         description={`구조 상태를 ‘${status}’ 상태로 저장합니다.`}
-        onClose={() => setConfirmStatus(false)}
+        onClose={() => {
+          if (!statusSaving) setConfirmStatus(false);
+        }}
         actions={
           <>
-            <Button variant="secondary" onClick={() => setConfirmStatus(false)}>
+            <Button
+              variant="secondary"
+              disabled={statusSaving}
+              onClick={() => setConfirmStatus(false)}
+            >
               취소
             </Button>
             <Button
-              onClick={() => {
-                save({ ...record, status, statusReason });
-                setSubmitted(false);
-                setConfirmStatus(false);
+              disabled={statusSaving}
+              onClick={async () => {
+                if (statusSaving) return;
+                setStatusSaving(true);
+                setStatusError('');
+                try {
+                  await save({ ...record, status, statusReason });
+                  setSubmitted(false);
+                  setConfirmStatus(false);
+                } catch {
+                  setStatusError('저장하지 못했습니다. 다시 시도해 주세요.');
+                } finally {
+                  setStatusSaving(false);
+                }
               }}
             >
               저장
             </Button>
           </>
         }
-      />
-    </DemoPage>
+      >
+        {statusError && <p role="alert">{statusError}</p>}
+      </Modal>
+    </WorkPage>
   );
 }
 
 export function RescueFormPage() {
   const { id } = useParams();
-  const record = useShelterDemo((s) => s.rescues.find((r) => r.id === id));
+  const record = useRescue(id);
   const [params] = useSearchParams();
+  const reports = useReports();
   if (id && !record) return <MissingRecord back="/rescues" />;
   const reportId = record
     ? (record.reportId ?? record.source.replace(/^신고 #/, ''))
     : params.get('report');
-  const report = initialReports.find((item) => item.id === reportId);
+  const report = reports.find((item) => item.id === reportId);
   if (!record && reportId && !report) return <MissingRecord back="/reports" />;
   return <RescueForm key={id ?? params.get('report') ?? 'new'} record={record} report={report} />;
 }
-function RescueForm({
-  record,
-  report,
-}: {
-  record?: Rescue;
-  report?: (typeof initialReports)[number];
-}) {
+function RescueForm({ record, report }: { record?: Rescue; report?: Report }) {
   const navigate = useNavigate();
   const reportListUrl = useReportListUrl();
   const { state } = useLocation();
   const back = reportListUrl ?? '/rescues';
-  const save = useShelterDemo((s) => s.saveRescue);
+  const save = useSaveRescue();
   const [cancel, setCancel] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [reason, setReason] = useState(record?.reason ?? '');
   const [location, setLocation] = useState(record?.location ?? report?.location ?? '');
   const [date, setDate] = useState(record?.date ?? '');
   const draft = useRescueStatus(record);
   const [submitted, setSubmitted] = useState(false);
-  const submit = (e: FormEvent<HTMLFormElement>) => {
+  const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (saving) return;
     setSubmitted(true);
     if (!reason || !location.trim() || !date || draft.missingReason) {
       const form = e.currentTarget;
@@ -268,11 +294,19 @@ function RescueForm({
       status: draft.status,
       statusReason: draft.statusReason,
     };
-    save(next);
-    navigate(`/rescues/${next.id}`, { state });
+    setSaving(true);
+    setSaveError('');
+    try {
+      const saved = await save(next);
+      navigate(`/rescues/${saved.id}`, { state });
+    } catch {
+      setSaveError('저장하지 못했습니다. 다시 시도해 주세요.');
+    } finally {
+      setSaving(false);
+    }
   };
   return (
-    <DemoPage title={record ? '구조 정보 수정' : '구조 접수'} narrow back={back}>
+    <WorkPage title={record ? '구조 정보 수정' : '구조 접수'} narrow back={back}>
       <form className="work-form rescue-form" noValidate onSubmit={submit}>
         <FormSection title="접수 내용">
           <InfoRows
@@ -369,11 +403,16 @@ function RescueForm({
           )}
           <StatusReasonField draft={draft} submitted={submitted} />
         </FormSection>
+        {saveError && (
+          <p role="alert" className="form-error">
+            {saveError}
+          </p>
+        )}
         <div className="page-actions">
-          <Button variant="secondary" onClick={() => setCancel(true)}>
+          <Button variant="secondary" disabled={saving} onClick={() => setCancel(true)}>
             취소
           </Button>
-          <Button type="submit" variant="approval">
+          <Button type="submit" variant="approval" disabled={saving}>
             <img src={pencil} alt="" />
             {record ? '저장하기' : '접수하기'}
           </Button>
@@ -395,6 +434,6 @@ function RescueForm({
           </>
         }
       />
-    </DemoPage>
+    </WorkPage>
   );
 }

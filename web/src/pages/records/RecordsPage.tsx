@@ -1,17 +1,19 @@
+import { LinkButton } from '@/shared/ui/LinkButton';
 import { useSearchParams, Link, useNavigate } from 'react-router';
 import { DataTable, Pagination, type TableColumn } from '@/shared/ui/DataTable';
 import { FilterSelect } from '@/shared/ui/ListPanel';
 import { Button } from '@/shared/ui/Button';
-import { DemoPage, RecordBadge } from '@/features/shelter-demo/Page';
-import { adoptionStates, rescueStates, useShelterDemo } from '@/features/shelter-demo/store';
-import { sampleReferenceDate } from '@/pages/animals/sample-data';
+import { WorkPage, RecordBadge } from '@/shared/ui/WorkPage';
+import { useAnimals, useAdoptions, useRescues } from '@/entities/shelter/data';
+import { adoptionStates, rescueStates } from '@/entities/shelter/model';
+import { referenceDate } from '@/entities/shelter/data';
 
 const rescuePeriods = [7, 30, 90];
 
 export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
-  const adoptions = useShelterDemo((s) => s.adoptions);
-  const rescues = useShelterDemo((s) => s.rescues);
-  const animals = useShelterDemo((s) => s.animals);
+  const adoptions = useAdoptions();
+  const rescues = useRescues();
+  const animals = useAnimals();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const rescue = kind === 'rescues';
@@ -22,7 +24,7 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
   const source = rescue ? rescues : scopedAdoptions;
   const status = states.find((s) => s === params.get('status')) ?? '';
   const period = rescue && rescuePeriods.find((days) => String(days) === params.get('period'));
-  const periodStart = new Date(sampleReferenceDate);
+  const periodStart = new Date(referenceDate);
   if (period) periodStart.setUTCDate(periodStart.getUTCDate() - period + 1);
   const startDate = periodStart.toISOString().slice(0, 10);
   const change = (key: string, value: string) =>
@@ -42,7 +44,7 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
           (params.get('source') === 'direct'
             ? r.source === '직접 접수'
             : r.source !== '직접 접수'))) &&
-      (!period || (r.date.slice(0, 10) >= startDate && r.date.slice(0, 10) <= sampleReferenceDate)),
+      (!period || (r.date.slice(0, 10) >= startDate && r.date.slice(0, 10) <= referenceDate)),
   );
   const sorted = [...rows].sort((a, b) =>
     params.get('sort') === 'oldest' ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date),
@@ -126,7 +128,7 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
       : []),
   ];
   return (
-    <DemoPage title={rescue ? '구조일지' : '입양 신청 목록'} hideTitle>
+    <WorkPage title={rescue ? '구조일지' : '입양 신청 목록'} hideTitle>
       <div className="record-status-filters" role="group" aria-label="상태 필터">
         {statusOptions.map((value) => {
           const count = source.filter((r) => !value || r.status === value).length;
@@ -208,7 +210,7 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
               </svg>
               필터 초기화
             </Button>
-            <Link className="page-link rescue-actions__reports" to="/reports">
+            <LinkButton className="rescue-actions__reports" to="/reports">
               <svg
                 aria-hidden="true"
                 width="16"
@@ -222,8 +224,8 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
                 <path d="M4 4h16v12H9l-5 4z" />
               </svg>
               발견 신고로 구조 접수
-            </Link>
-            <Link className="page-link rescue-actions__new" to="/rescues/new">
+            </LinkButton>
+            <LinkButton className="rescue-actions__new" to="/rescues/new">
               <svg
                 aria-hidden="true"
                 width="16"
@@ -237,7 +239,7 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
                 <path d="M12 5v14 M5 12h14" />
               </svg>
               직접 구조 접수
-            </Link>
+            </LinkButton>
           </div>
         </div>
       )}
@@ -280,6 +282,6 @@ export function RecordsPage({ kind }: { kind: 'adoptions' | 'rescues' }) {
           })
         }
       />
-    </DemoPage>
+    </WorkPage>
   );
 }

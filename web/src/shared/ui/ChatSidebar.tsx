@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react';
 import mascot from '@/shared/assets/chat-peek.png';
-import chevron from '@/shared/assets/figma/sidebar-chevron.svg';
+import chevron from '@/shared/assets/icons/sidebar-chevron.svg';
 import { ChatRoom } from './ChatRoom';
 import './shelter-ui.css';
 

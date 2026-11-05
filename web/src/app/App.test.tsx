@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { App } from '@/app/App';
 import { AppProviders } from '@/app/providers/AppProviders';
-import { initialReports } from '@/pages/records/reports-data';
+import { initialReports } from '@/mocks/shelter/reports';
 import { useUiStore } from '@/shared/model/ui-store';
 
 function renderApp(path: string) {

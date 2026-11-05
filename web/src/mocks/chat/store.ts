@@ -1,20 +1,11 @@
 import { create } from 'zustand';
-import { sampleConversations } from './sample-conversations';
+import { sampleConversations } from './fixtures';
+import type { ChatMessage, Conversation } from '@/entities/chat/model';
 
-export type DemoMessage =
-  | { id: string; type: 'post'; animalId: string }
-  | {
-      id: string;
-      type: 'message';
-      sender: 'other' | 'me';
-      text?: string;
-      image?: string;
-      time: string;
-      readByRecipient?: boolean;
-    };
+export type DemoMessage = ChatMessage;
 
 type DemoChatState = {
-  conversations: typeof sampleConversations;
+  conversations: Conversation[];
   messages: Record<string, DemoMessage[]>;
   sidebarOpen: boolean;
   selectedId?: string;

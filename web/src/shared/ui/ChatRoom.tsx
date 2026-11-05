@@ -1,23 +1,30 @@
+import { isSupportedImage, readImageDataUrl } from '@/shared/lib/image';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { useDemoChat } from '@/shared/model/demo-chat';
-import { useShelterDemo } from '@/features/shelter-demo/store';
+import {
+  useChatMessages,
+  useSendMessage,
+  useLeaveConversation,
+  useChatDraft,
+  useSetChatDraft,
+} from '@/entities/chat/data';
+import { useAnimals, type AnimalRecord } from '@/entities/shelter/data';
 import { Link } from 'react-router';
 import type { ChatSummary } from './ChatSidebar';
-import backIcon from '@/shared/assets/figma/chat-back.svg';
-import moreIcon from '@/shared/assets/figma/chat-more.svg';
-import plusIcon from '@/shared/assets/figma/chat-plus.svg';
-import sendIcon from '@/shared/assets/figma/chat-send.svg';
-import reportIcon from '@/shared/assets/figma/chat-report.svg';
-import leaveIcon from '@/shared/assets/figma/chat-leave.svg';
+import backIcon from '@/shared/assets/icons/chat-back.svg';
+import moreIcon from '@/shared/assets/icons/chat-more.svg';
+import plusIcon from '@/shared/assets/icons/chat-plus.svg';
+import sendIcon from '@/shared/assets/icons/chat-send.svg';
+import reportIcon from '@/shared/assets/icons/chat-report.svg';
+import leaveIcon from '@/shared/assets/icons/chat-leave.svg';
 import './chat-room.css';
 
 export function ChatRoom({ chat, onBack }: { chat: ChatSummary; onBack: () => void }) {
-  const messages = useDemoChat((state) => state.messages[chat.id] ?? []);
-  const animals = useShelterDemo((state) => state.animals);
-  const send = useDemoChat((state) => state.send);
-  const leave = useDemoChat((state) => state.leave);
-  const text = useDemoChat((state) => state.drafts[chat.id] ?? '');
-  const setDraft = useDemoChat((state) => state.setDraft);
+  const messages = useChatMessages(chat.id);
+  const animals = useAnimals();
+  const send = useSendMessage();
+  const leave = useLeaveConversation();
+  const text = useChatDraft(chat.id);
+  const setDraft = useSetChatDraft();
   const [menu, setMenu] = useState(false);
   const [dialog, setDialog] = useState<'report' | 'leave'>();
   const [reason, setReason] = useState('');
@@ -58,14 +65,13 @@ export function ChatRoom({ chat, onBack }: { chat: ChatSummary; onBack: () => vo
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    if (!['image/jpeg', 'image/png'].includes(file.type) || file.size > 10 * 1024 * 1024) {
+    if (!isSupportedImage(file)) {
       setFeedback('JPG 또는 PNG 사진을 10MB 이하로 선택해 주세요.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => addMessage({ image: String(reader.result) });
-    reader.onerror = () => setFeedback('사진을 읽지 못했어요. 다시 선택해 주세요.');
-    reader.readAsDataURL(file);
+    void readImageDataUrl(file)
+      .then((image) => addMessage({ image }))
+      .catch(() => setFeedback('사진을 읽지 못했어요. 다시 선택해 주세요.'));
   };
   return (
     <div className="chat-room">
@@ -279,11 +285,7 @@ export function ChatRoom({ chat, onBack }: { chat: ChatSummary; onBack: () => vo
   );
 }
 
-function ChatAnimalPost({
-  animal,
-}: {
-  animal?: ReturnType<typeof useShelterDemo.getState>['animals'][number];
-}) {
+function ChatAnimalPost({ animal }: { animal?: AnimalRecord }) {
   if (!animal)
     return <p className="chat-post--missing">연결된 보호동물 게시글을 찾을 수 없어요.</p>;
   return (

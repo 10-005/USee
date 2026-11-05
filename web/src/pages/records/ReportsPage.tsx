@@ -1,13 +1,13 @@
+import { LinkButton } from '@/shared/ui/LinkButton';
 import { useSearchParams, Link } from 'react-router';
-import { DemoPage, RecordBadge } from '@/features/shelter-demo/Page';
-import { useShelterDemo } from '@/features/shelter-demo/store';
+import { WorkPage, RecordBadge } from '@/shared/ui/WorkPage';
+import { useRescues } from '@/entities/shelter/data';
 import { Pagination } from '@/shared/ui/DataTable';
 import { FilterSelect } from '@/shared/ui/ListPanel';
 import { Button } from '@/shared/ui/Button';
-import { initialReports } from './reports-data';
-import { sampleReferenceDate } from '@/pages/animals/sample-data';
+import { useReports } from '@/entities/shelter/data';
+import { referenceDate } from '@/entities/shelter/data';
 
-const regions = [...new Set(initialReports.map((r) => r.location.split(' ')[0]))];
 const periods = [7, 30, 90];
 
 const reportTabs = [
@@ -20,18 +20,20 @@ const reportTabs = [
 
 export function ReportsPage() {
   const [params, setParams] = useSearchParams();
-  const rescues = useShelterDemo((s) => s.rescues);
+  const rescues = useRescues();
+  const reportRecords = useReports();
+  const regions = [...new Set(reportRecords.map((r) => r.location.split(' ')[0]))];
   const tabIndex = Math.max(
     0,
     reportTabs.findIndex(([value]) => value === params.get('kind')),
   );
   const kind = reportTabs[tabIndex]![0];
   const days = periods.find((n) => String(n) === params.get('period'));
-  const since = new Date(sampleReferenceDate);
+  const since = new Date(referenceDate);
   since.setUTCDate(since.getUTCDate() - (days ?? 1) + 1);
   const firstDay = since.toISOString().slice(0, 10);
   const reportState = { reportSearch: params.toString() };
-  const reports = initialReports.map((report) => ({
+  const reports = reportRecords.map((report) => ({
     ...report,
     rescue: rescues.find((r) => r.reportId === report.id || r.source === `신고 #${report.id}`),
   }));
@@ -48,7 +50,7 @@ export function ReportsPage() {
         (!params.get('status') || r.reportStatus === params.get('status')) &&
         (!params.get('region') || r.location.split(' ')[0] === params.get('region')) &&
         (!days ||
-          (r.foundAt.slice(0, 10) >= firstDay && r.foundAt.slice(0, 10) <= sampleReferenceDate)) &&
+          (r.foundAt.slice(0, 10) >= firstDay && r.foundAt.slice(0, 10) <= referenceDate)) &&
         (!kind || reportKind(r) === kind),
     )
     .sort((a, b) =>
@@ -67,7 +69,7 @@ export function ReportsPage() {
       return next;
     });
   return (
-    <DemoPage title="발견 신고 목록" hideTitle>
+    <WorkPage title="발견 신고 목록" hideTitle>
       <div className="record-status-filters report-tabs" role="group" aria-label="접수 상태">
         {reportTabs.map(([value, label, badgeStatus]) => (
           <button
@@ -200,13 +202,13 @@ export function ReportsPage() {
               <p>{r.traits}</p>
               <p>신고자 | {r.reporter}</p>
               {!r.rescue || ['실패', '취소'].includes(r.rescue.status) ? (
-                <Link
-                  className={`page-link report-card__action ${r.rescue ? 'report-card__action--retry' : ''}`}
+                <LinkButton
+                  className={`report-card__action ${r.rescue ? 'report-card__action--retry' : ''}`}
                   state={reportState}
                   to={`/rescues/new?report=${r.id}`}
                 >
                   {r.rescue ? '재구조 접수' : '구조 접수'}
-                </Link>
+                </LinkButton>
               ) : (
                 <span
                   className={`report-card__action report-card__action--${r.rescue.status === '완료' ? 'complete' : 'active'}`}
@@ -230,6 +232,6 @@ export function ReportsPage() {
           })
         }
       />
-    </DemoPage>
+    </WorkPage>
   );
 }

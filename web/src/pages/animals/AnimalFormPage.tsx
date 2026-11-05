@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
-import { DemoPage, InfoRows, MissingRecord } from '@/features/shelter-demo/Page';
-import { useShelterDemo, type DemoAnimal, type Rescue } from '@/features/shelter-demo/store';
+import { WorkPage, MissingRecord } from '@/shared/ui/WorkPage';
+import { useAnimal, useRescue, useSaveAnimal, useDeleteAnimal } from '@/entities/shelter/data';
+import type { ShelterAnimalRecord, Rescue } from '@/entities/shelter/model';
 import { FormSection } from '@/shared/ui/FormSection';
 import { TextField } from '@/shared/ui/TextField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
@@ -10,37 +11,36 @@ import { CalendarField } from '@/shared/ui/CalendarField';
 import { ChoiceGroup } from '@/shared/ui/ChoiceGroup';
 import { ImageUpload } from '@/shared/ui/ImageUpload';
 import { Button } from '@/shared/ui/Button';
+import { LinkedRescueCard } from '@/pages/animals/LinkedRescueCard';
 import { Modal } from '@/shared/ui/Modal';
 import { animalStatuses } from './animal-statuses';
 import { breedColors } from './breed-options';
-import pencil from '@/shared/assets/figma/edit-pencil.svg';
+import { localDate } from '@/shared/lib/date';
+import { readImageDataUrl } from '@/shared/lib/image';
+import pencil from '@/shared/assets/icons/edit-pencil.svg';
 
-const readImage = (file: File) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error('사진을 읽을 수 없습니다.'));
-    reader.readAsDataURL(file);
-  });
 export function AnimalFormPage() {
   const { id } = useParams();
-  const animal = useShelterDemo((s) => s.animals.find((a) => a.id === id));
+  const animal = useAnimal(id);
   const [params] = useSearchParams();
   const rescueId = id ? animal?.rescueId : params.get('rescueId');
-  const rescue = useShelterDemo((s) => s.rescues.find((r) => r.id === rescueId));
+  const rescue = useRescue(rescueId ?? undefined);
   if (id && !animal) return <MissingRecord back="/animals" />;
   if (!id && rescueId && rescue?.status !== '완료') return <MissingRecord back="/rescues" />;
   return <AnimalForm key={id ?? rescueId ?? 'new'} animal={animal} rescue={rescue} />;
 }
-function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }) {
+function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?: Rescue }) {
   const navigate = useNavigate();
   const back = animal ? `/animals/${animal.id}` : rescue ? `/rescues/${rescue.id}` : '/animals';
-  const save = useShelterDemo((s) => s.saveAnimal);
+  const save = useSaveAnimal();
+  const deleteAnimal = useDeleteAnimal();
   const [files, setFiles] = useState<File[]>([]);
   const [existing, setExisting] = useState<string[]>(
     animal ? (animal.images ?? [animal.imageSrc]) : [],
   );
-  const [species, setSpecies] = useState<DemoAnimal['species'] | ''>(animal?.species ?? '');
+  const [species, setSpecies] = useState<ShelterAnimalRecord['species'] | ''>(
+    animal?.species ?? '',
+  );
   const [breed, setBreed] = useState(animal?.name ?? '');
   const [color, setColor] = useState(animal?.color ?? '');
   const breeds = species ? Object.keys(breedColors[species]) : [];
@@ -54,13 +54,17 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
     !colors.includes(animal.color)
   )
     colors.push(animal.color);
-  const [sex, setSex] = useState<DemoAnimal['sex'] | ''>(animal?.sex ?? '');
-  const [neutered, setNeutered] = useState<DemoAnimal['neutered'] | ''>(animal?.neutered ?? '');
-  const [status, setStatus] = useState<DemoAnimal['status'] | ''>(animal?.status ?? '');
+  const [sex, setSex] = useState<ShelterAnimalRecord['sex'] | ''>(animal?.sex ?? '');
+  const [neutered, setNeutered] = useState<ShelterAnimalRecord['neutered'] | ''>(
+    animal?.neutered ?? '',
+  );
+  const [status, setStatus] = useState<ShelterAnimalRecord['status']>(
+    animal?.status ?? 'protected',
+  );
   const [adoptable, setAdoptable] = useState(animal ? (animal.adoptable ? 'yes' : 'no') : '');
   const [start, setStart] = useState(animal?.period.split(' ~ ')[0] ?? '');
   const savedReason = animal?.status === 'closed' ? animal.closingReason : '';
-  const [reasonType, setReasonType] = useState<DemoAnimal['closingReasonType']>(
+  const [reasonType, setReasonType] = useState<ShelterAnimalRecord['closingReasonType']>(
     animal?.closingReasonType ??
       (savedReason === '자연사' || savedReason === '안락사'
         ? savedReason
@@ -101,6 +105,8 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [cancel, setCancel] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -123,12 +129,12 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
     setBusy(true);
     setError('');
     try {
-      const images = [...existing, ...(await Promise.all(files.map(readImage)))];
-      const next: DemoAnimal = {
+      const images = [...existing, ...(await Promise.all(files.map(readImageDataUrl)))];
+      const next: ShelterAnimalRecord = {
         ...animal,
         rescueId: rescue?.id ?? animal?.rescueId,
         id: animal?.id ?? `animal-${crypto.randomUUID().slice(0, 8)}`,
-        registeredAt: animal?.registeredAt ?? '2026-11-01',
+        registeredAt: animal?.registeredAt ?? localDate(),
         name: breed,
         species,
         sex,
@@ -144,7 +150,7 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
         birth: value('birth'),
         weight: value('weight'),
         summary: `${value('birth') || '나이 미상'} | ${{ female: '암컷', male: '수컷', unknown: '모름' }[sex]} | ${value('color')} | ${value('weight') || '미상'}kg`,
-        location: value('location') || animal?.location || '미등록',
+        location: animal?.location || rescue?.location || '미등록',
         period: `${value('start')} ~ ${value('end')}`,
         description: value('description'),
         health: value('health'),
@@ -159,26 +165,20 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
         guardianName: status === 'returned' ? guardianName.trim() : undefined,
         guardianPhone: status === 'returned' ? guardianPhone.trim() : undefined,
       };
-      save(next);
-      navigate(`/animals/${next.id}`);
+      const saved = await save(next);
+      navigate(`/animals/${saved.id}`);
     } catch {
-      setError('사진을 읽지 못했습니다. 다시 선택해 주세요.');
+      setError('저장하지 못했습니다. 사진과 입력 내용을 확인한 후 다시 시도해 주세요.');
     } finally {
       setBusy(false);
     }
   };
   return (
-    <DemoPage title={animal ? '보호동물 수정' : '보호동물 등록'} narrow back={back}>
+    <WorkPage title={animal ? '보호동물 수정' : '보호동물 등록'} narrow back={back}>
       <form className="work-form animal-form" noValidate onSubmit={submit}>
         {rescue && (
-          <FormSection title="연결된 구조 정보">
-            <InfoRows
-              rows={[
-                ['구조번호', rescue.id],
-                ['구조 장소', rescue.location],
-                ['구조 일시', rescue.date.replace('T', ' ')],
-              ]}
-            />
+          <FormSection title="연결된 구조 신고">
+            <LinkedRescueCard rescue={rescue} />
           </FormSection>
         )}
         <FormSection
@@ -227,7 +227,7 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
             required
             value={species}
             onChange={(e) => {
-              setSpecies(e.target.value as DemoAnimal['species']);
+              setSpecies(e.target.value as ShelterAnimalRecord['species']);
               setBreed('');
               setColor('');
             }}
@@ -300,7 +300,7 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
             name="sex"
             required
             value={sex}
-            onChange={(e) => setSex(e.target.value as DemoAnimal['sex'])}
+            onChange={(e) => setSex(e.target.value as ShelterAnimalRecord['sex'])}
           >
             <option value="" disabled>
               성별 선택
@@ -314,7 +314,7 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
             error={fieldError('neutered')}
             required
             value={neutered}
-            onChange={(v) => setNeutered(v as DemoAnimal['neutered'])}
+            onChange={(v) => setNeutered(v as ShelterAnimalRecord['neutered'])}
             options={[
               { value: 'yes', label: '완료' },
               { value: 'no', label: '미완료' },
@@ -342,12 +342,6 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
             defaultValue={animal?.vaccination}
             placeholder="예: 종합백신 1차 완료(2026.10.20), 광견병 미접종"
           />
-          <TextField
-            label="발생장소"
-            name="location"
-            defaultValue={animal?.location ?? rescue?.location}
-            placeholder="예: 구미시 인동동 송산도서관 인근"
-          />
         </FormSection>
         <FormSection title="공고 및 입양 정보">
           <CalendarField
@@ -359,14 +353,16 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
             onConfirm={setStart}
             range={{ days: 10, endName: 'end', initialEnd: animal?.period.split(' ~ ')[1] }}
           />
-          <ChoiceGroup
-            label="상태"
-            error={fieldError('status')}
-            required
-            value={status}
-            onChange={(v) => setStatus(v as DemoAnimal['status'])}
-            options={Object.entries(animalStatuses).map(([value, label]) => ({ value, label }))}
-          />
+          {animal && (
+            <ChoiceGroup
+              label="상태"
+              error={fieldError('status')}
+              required
+              value={status}
+              onChange={(v) => setStatus(v as ShelterAnimalRecord['status'])}
+              options={Object.entries(animalStatuses).map(([value, label]) => ({ value, label }))}
+            />
+          )}
           {status === 'closed' && (
             <>
               <ChoiceGroup
@@ -374,7 +370,7 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
                 required
                 value={reasonType ?? ''}
                 error={fieldError('reasonType')}
-                onChange={(v) => setReasonType(v as DemoAnimal['closingReasonType'])}
+                onChange={(v) => setReasonType(v as ShelterAnimalRecord['closingReasonType'])}
                 options={['자연사', '안락사', '직접 입력'].map((value) => ({
                   value,
                   label: value,
@@ -450,6 +446,31 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
           </p>
         )}
         <div className="page-actions">
+          {animal && (
+            <Button
+              className="animal-form__delete"
+              disabled={busy}
+              onClick={() => {
+                setDeleteError('');
+                setConfirmDelete(true);
+              }}
+            >
+              <svg
+                aria-hidden="true"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 7h16M10 11v6m4-6v6M5 7l1 13h12l1-13M9 7V4h6v3" />
+              </svg>
+              삭제하기
+            </Button>
+          )}
           <Button variant="secondary" disabled={busy} onClick={() => setCancel(true)}>
             취소
           </Button>
@@ -459,6 +480,45 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
           </Button>
         </div>
       </form>
+      <Modal
+        open={confirmDelete}
+        title="보호동물을 삭제할까요?"
+        description="삭제하면 보호동물 목록에서 더 이상 볼 수 없으며, 복구할 수 없습니다."
+        onClose={() => {
+          if (!busy) setConfirmDelete(false);
+        }}
+        actions={
+          <>
+            <Button variant="secondary" disabled={busy} onClick={() => setConfirmDelete(false)}>
+              취소
+            </Button>
+            <Button
+              className="animal-form__delete-confirm"
+              disabled={busy}
+              onClick={async () => {
+                if (!animal || busy) return;
+                setBusy(true);
+                setDeleteError('');
+                try {
+                  await deleteAnimal(animal.id);
+                  navigate('/animals', { replace: true });
+                } catch {
+                  setDeleteError('삭제하지 못했습니다. 다시 시도해 주세요.');
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? '삭제 중…' : '삭제하기'}
+            </Button>
+          </>
+        }
+      >
+        {deleteError && (
+          <p role="alert" className="form-error">
+            {deleteError}
+          </p>
+        )}
+      </Modal>
       <Modal
         open={cancel}
         title="작성을 취소할까요?"
@@ -473,6 +533,6 @@ function AnimalForm({ animal, rescue }: { animal?: DemoAnimal; rescue?: Rescue }
           </>
         }
       />
-    </DemoPage>
+    </WorkPage>
   );
 }

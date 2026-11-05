@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { AnimalsPage } from './AnimalsPage';
 import { selectAnimals } from './model';
-import { sampleAnimals, sampleReferenceDate } from './sample-data';
+import { sampleAnimals, sampleReferenceDate } from '@/mocks/shelter/animals';
 
 describe('보호동물 목록', () => {
   it.each([

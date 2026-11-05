@@ -1,21 +1,27 @@
+import { demoMode } from '@/shared/config/demo';
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { TextField } from '@/shared/ui/TextField';
 import { Button } from '@/shared/ui/Button';
 import logo from '@/shared/assets/figma/logo.png';
-import info from '@/shared/assets/figma/account-info.svg';
-import '@/features/shelter-demo/pages.css';
+import info from '@/shared/assets/icons/account-info.svg';
+import '@/shared/styles/work-pages.css';
+import './login.css';
 
 export function LoginPage() {
   const navigate = useNavigate();
   // [TODO] 실제 DB와 연결한 뒤 id, password에 할당한 'demo' 기본값 제거할 것
-  const [id, setId] = useState('demo');
-  const [password, setPassword] = useState('demo');
+  const [id, setId] = useState(demoMode ? 'demo' : '');
+  const [password, setPassword] = useState(demoMode ? 'demo' : '');
   const [error, setError] = useState('');
 
   // [TODO] 실제 DB와 연결할 것
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (!demoMode) {
+      setError('로그인 서비스 연결을 준비 중입니다.');
+      return;
+    }
     if (id === 'demo' && password === 'demo') {
       sessionStorage.setItem('usee-demo-login', 'true');
       setPassword('');

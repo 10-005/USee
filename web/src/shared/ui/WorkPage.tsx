@@ -2,11 +2,12 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { ShelterPageLayout } from '@/app/layouts/ShelterPageLayout';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
-import './pages.css';
+import '@/shared/styles/work-pages.css';
 
-export function DemoPage({
+export function WorkPage({
   title,
   titleAction,
+  titleDescription,
   children,
   narrow = false,
   back,
@@ -14,6 +15,7 @@ export function DemoPage({
 }: {
   title: ReactNode;
   titleAction?: ReactNode;
+  titleDescription?: ReactNode;
   children: ReactNode;
   narrow?: boolean;
   back?: string;
@@ -38,9 +40,16 @@ export function DemoPage({
             이전
           </Link>
         )}
-        {titleAction ? (
+        {titleAction || titleDescription ? (
           <div className="work-page__title-row">
-            <h1>{title}</h1>
+            {titleDescription ? (
+              <div className="work-page__title-group">
+                <h1>{title}</h1>
+                {titleDescription}
+              </div>
+            ) : (
+              <h1>{title}</h1>
+            )}
             {titleAction}
           </div>
         ) : (
@@ -81,8 +90,8 @@ export function InfoRows({ rows }: { rows: [string, ReactNode][] }) {
 }
 export function MissingRecord({ back }: { back: string }) {
   return (
-    <DemoPage title="정보를 찾을 수 없습니다" back={back}>
+    <WorkPage title="정보를 찾을 수 없습니다" back={back}>
       <p>예시 데이터가 초기화되었거나 존재하지 않는 주소입니다.</p>
-    </DemoPage>
+    </WorkPage>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import plus from '@/shared/assets/figma/upload-plus.svg';
+import plus from '@/shared/assets/icons/upload-plus.svg';
 import './shelter-ui.css';
 
 function FilePreview({ file }: { file: File }) {

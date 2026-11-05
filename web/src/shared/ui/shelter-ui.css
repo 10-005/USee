@@ -149,6 +149,7 @@
   flex: 0 0 min(412px, calc(100vw - 28px));
   min-width: 0;
   background: white;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -185,7 +186,11 @@
   padding: 18px 26px;
   margin: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
+}
+.chat-sidebar__list > li {
+  min-width: 0;
 }
 .chat-summary {
   display: flex;
@@ -213,6 +218,7 @@
 }
 .chat-summary__line {
   display: flex;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
   gap: 4px;
@@ -221,16 +227,22 @@
   margin-top: 12px;
 }
 .chat-summary strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 18px;
   color: #53524d;
   font-weight: 600;
 }
 .chat-summary time {
+  flex-shrink: 0;
   white-space: nowrap;
   font-size: 10px;
   color: #b9b8b0;
 }
 .chat-summary__preview {
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -279,7 +291,7 @@
   border: 1px solid var(--ui-border);
   border-radius: 20px;
   color: #72716c;
-  background: transparent url('../assets/figma/filter-chevron.svg') no-repeat right 5px center;
+  background: transparent url('../assets/icons/filter-chevron.svg') no-repeat right 5px center;
   font: 14px/1.28 var(--ui-font);
   cursor: pointer;
 }
@@ -510,7 +522,7 @@
 .shelter-select {
   appearance: none;
   padding-right: 40px;
-  background: url('../assets/figma/select-chevron.svg') no-repeat right 10px center;
+  background: url('../assets/icons/select-chevron.svg') no-repeat right 10px center;
 }
 :is(.rescue-form, .animal-form) .ui-input {
   box-sizing: border-box;
@@ -521,7 +533,7 @@
 :is(.rescue-form, .animal-form) .ui-input:not([aria-invalid='true']) {
   border-color: #ced6d0;
 }
-:is(.rescue-form, .animal-form) .ui-input:focus {
+:is(.rescue-form, .animal-form, .profile-form) .ui-input:focus {
   outline: 2px solid #16a34a;
   outline-offset: 2px;
 }

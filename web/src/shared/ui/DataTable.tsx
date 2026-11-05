@@ -1,5 +1,6 @@
 import type { Key, ReactNode } from 'react';
 import { Button } from './Button';
+import { LoadStateMessage, type LoadState } from './LoadState';
 import './table-modal.css';
 
 export type TableColumn<T> = {
@@ -17,6 +18,7 @@ export function DataTable<T>({
   rowKey,
   onRowClick,
   emptyMessage = '조회 결과가 없습니다.',
+  loadState = { status: 'ready' },
 }: {
   className?: string;
   caption: string;
@@ -25,6 +27,7 @@ export function DataTable<T>({
   rowKey: (row: T) => Key;
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
+  loadState?: LoadState;
 }) {
   return (
     <div className={`ui-table-scroll ${className}`} role="region" aria-label={caption} tabIndex={0}>
@@ -45,7 +48,13 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {rows.length ? (
+          {loadState.status !== 'ready' ? (
+            <tr>
+              <td colSpan={columns.length} className="ui-table__empty">
+                <LoadStateMessage state={loadState}>{null}</LoadStateMessage>
+              </td>
+            </tr>
+          ) : rows.length ? (
             rows.map((row) => (
               <tr
                 key={rowKey(row)}
