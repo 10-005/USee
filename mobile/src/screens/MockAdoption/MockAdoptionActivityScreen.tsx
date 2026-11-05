@@ -380,7 +380,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                 }}
               >
                 <Image
-                  source={require('../../assets/images/mock-adoption/img_dog_walking.png')}
+                  source={require('../../assets/images/mock-adoption/img_dog_paw.png')}
                   resizeMode="contain"
                   style={styles.walkImage}
                 />
