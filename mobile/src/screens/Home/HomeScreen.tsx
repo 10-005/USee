@@ -391,102 +391,97 @@ export function HomeScreen({ navigation }: Props) {
               <NotificationIcon />
             </Pressable>
           </View>
-          <Animated.View
-            pointerEvents={controlsVisible ? 'auto' : 'none'}
-            style={[
-              styles.searchAndFilters,
-              activeFilter && styles.searchAndFiltersAboveSheet,
-              {
-                filter: [
-                  {
-                    blur: controlsProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [3, 0],
-                    }),
-                  },
-                ],
-                height: controlsProgress.interpolate({
-                  inputRange: [0, 0.55, 1],
-                  outputRange: [0, SEARCH_FILTERS_HEIGHT, SEARCH_FILTERS_HEIGHT],
-                }),
-                opacity: controlsProgress.interpolate({
-                  inputRange: [0, 0.35, 1],
-                  outputRange: [0, 0, 1],
-                }),
-                transform: [
-                  {
-                    translateY: controlsProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-10, 0],
-                    }),
-                  },
-                  {
-                    scale: controlsProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.985, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <View style={styles.searchBox}>
-              <SearchInputIcon />
-              <TextInput
-                onChangeText={setQuery}
-                placeholder="특징으로 검색해보세요"
-                placeholderTextColor={colors.gray400}
-                style={styles.searchInput}
-                value={query}
-              />
-            </View>
-            <ScrollView
-              contentContainerStyle={styles.filters}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
+          <View style={styles.listArea}>
+            <FlatList
+              columnWrapperStyle={styles.column}
+              contentContainerStyle={[
+                styles.listContent,
+                { paddingBottom: 104 + insets.bottom, paddingTop: SEARCH_FILTERS_HEIGHT },
+              ]}
+              data={animals}
+              decelerationRate="fast"
+              key={listKey}
+              keyExtractor={item => item.id}
+              numColumns={2}
+              onScroll={handleListScroll}
+              ref={listRef}
+              renderItem={renderAnimal}
+              showsVerticalScrollIndicator={false}
+              scrollEventThrottle={16}
+            />
+            <Animated.View
+              pointerEvents={controlsVisible ? 'auto' : 'none'}
+              style={[
+                styles.searchAndFilters,
+                activeFilter && styles.searchAndFiltersAboveSheet,
+                {
+                  filter: [
+                    {
+                      blur: controlsProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [3, 0],
+                      }),
+                    },
+                  ],
+                  opacity: controlsProgress.interpolate({
+                    inputRange: [0, 0.35, 1],
+                    outputRange: [0, 0, 1],
+                  }),
+                  transform: [
+                    {
+                      translateY: controlsProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-SEARCH_FILTERS_HEIGHT, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
             >
-              {filterItems.map(filter => (
-                <Pressable
-                  accessibilityLabel={`${filter.label} 필터`}
-                  accessibilityRole="button"
-                  key={filter.key}
-                  onPress={() =>
-                    setActiveFilter(current => (current === filter.key ? null : filter.key))
-                  }
-                  style={[
-                    styles.filterChip,
-                    activeFilter === filter.key && styles.filterChipOpen,
-                    isFilterApplied(filter.key) && styles.filterChipApplied,
-                  ]}
-                >
-                  <Text
+              <View style={styles.searchBox}>
+                <SearchInputIcon />
+                <TextInput
+                  onChangeText={setQuery}
+                  placeholder="특징으로 검색해보세요"
+                  placeholderTextColor={colors.gray400}
+                  style={styles.searchInput}
+                  value={query}
+                />
+              </View>
+              <ScrollView
+                contentContainerStyle={styles.filters}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
+              >
+                {filterItems.map(filter => (
+                  <Pressable
+                    accessibilityLabel={`${filter.label} 필터`}
+                    accessibilityRole="button"
+                    key={filter.key}
+                    onPress={() =>
+                      setActiveFilter(current => (current === filter.key ? null : filter.key))
+                    }
                     style={[
-                      styles.filterText,
-                      isFilterApplied(filter.key) && styles.filterTextApplied,
+                      styles.filterChip,
+                      activeFilter === filter.key && styles.filterChipOpen,
+                      isFilterApplied(filter.key) && styles.filterChipApplied,
                     ]}
                   >
-                    {getFilterLabel(filter.key, filter.label)}
-                  </Text>
-                  <FilterArrowIcon />
-                </Pressable>
-              ))}
-            </ScrollView>
-          </Animated.View>
-          <FlatList
-            columnWrapperStyle={styles.column}
-            contentContainerStyle={[styles.listContent, { paddingBottom: 104 + insets.bottom }]}
-            data={animals}
-            decelerationRate="fast"
-            key={listKey}
-            keyExtractor={item => item.id}
-            numColumns={2}
-            onScroll={handleListScroll}
-            ref={listRef}
-            renderItem={renderAnimal}
-            showsVerticalScrollIndicator={false}
-            scrollEventThrottle={16}
-          />
+                    <Text
+                      style={[
+                        styles.filterText,
+                        isFilterApplied(filter.key) && styles.filterTextApplied,
+                      ]}
+                    >
+                      {getFilterLabel(filter.key, filter.label)}
+                    </Text>
+                    <FilterArrowIcon />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </Animated.View>
+          </View>
         </>
       )}
       {activeFilter ? null : navigationBar}
@@ -522,7 +517,16 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', flexDirection: 'row', height: 56, justifyContent: 'center' },
   logo: { height: 34, width: 88 },
   headerIcon: { position: 'absolute', right: 20 },
-  searchAndFilters: { overflow: 'hidden' },
+  listArea: { flex: 1 },
+  searchAndFilters: {
+    backgroundColor: colors.white,
+    height: SEARCH_FILTERS_HEIGHT,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 2,
+  },
   searchAndFiltersAboveSheet: { zIndex: 21 },
   searchBox: {
     alignItems: 'center',
