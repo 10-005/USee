@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PostgreSQL 백업 복원 테스트 (S15P31D106-347). S3 백업을 운영과 분리된 임시 Pod에 복원하고 운영 DB와 비교한다.
 #
-# 사용법 (노드 1, 일반 사용자. kubectl은 스크립트가 sudo k3s kubectl로 부른다)
+# 사용법 (노드 1, 일반 사용자. kubectl은 스크립트가 sudo -n k3s kubectl로 부른다. 비밀번호 없는 sudo 필요)
 #   bash restore-test.sh <백업 TS 예: 20261106-0600>   복원·비교·정리
 #   bash restore-test.sh cleanup                       중단돼 남은 임시 리소스 정리
 #
@@ -24,7 +24,7 @@ readonly POD=pg-restore-test
 readonly NODE=ip-172-26-15-33
 readonly IMAGE=pgvector/pgvector:pg17
 readonly BUCKET=s15p31d106-backup-887324111755
-readonly K=(sudo k3s kubectl)
+readonly K=(sudo -n k3s kubectl)
 
 kt() { "${K[@]}" -n "$NS" "$@"; }
 
@@ -50,6 +50,8 @@ delete_ns() {
   fi
 }
 
+sudo -n true || { echo "비밀번호 없는 sudo가 필요"; exit 1; }
+
 if [ "${1:-}" = cleanup ]; then
   delete_ns
   exit 0
@@ -71,7 +73,6 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 
-sudo -v
 prod_ro check >/dev/null
 if "${K[@]}" get ns "$NS" >/dev/null 2>&1; then
   echo "$NS 네임스페이스가 이미 있습니다. 이전 실행이 남았다면: bash $0 cleanup" >&2
