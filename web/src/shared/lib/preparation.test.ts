@@ -4,11 +4,10 @@ import { localDate } from './date';
 import { isSupportedImage } from './image';
 
 describe('API 연결 전 공통 처리', () => {
-  it('운영 빌드에서는 데모 모드를 명시적으로 켠 경우에만 활성화한다', () => {
-    expect(isDemoMode(undefined, false)).toBe(false);
-    expect(isDemoMode('true', false)).toBe(true);
-    expect(isDemoMode('false', true)).toBe(false);
-    expect(isDemoMode(undefined, true)).toBe(true);
+  it('데모 모드는 기본 활성화하며 명시적으로 끌 수 있다', () => {
+    expect(isDemoMode(undefined)).toBe(true);
+    expect(isDemoMode('true')).toBe(true);
+    expect(isDemoMode('false')).toBe(false);
   });
   it('로컬 달력 날짜를 생성한다', () => {
     expect(localDate(new Date(2026, 0, 2, 23, 59))).toBe('2026-01-02');
