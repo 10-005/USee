@@ -16,7 +16,7 @@ export function LoginScreen({ navigation }: Props) {
         <Pressable
           accessibilityLabel="카카오 로그인"
           accessibilityRole="button"
-          onPress={() => navigation.navigate('SignupOnboarding')}
+          onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Home' }] })}
           style={({ pressed }) => [styles.kakaoButton, pressed && styles.pressed]}
         >
           <KakaoLoginButton height={45} width={300} />
