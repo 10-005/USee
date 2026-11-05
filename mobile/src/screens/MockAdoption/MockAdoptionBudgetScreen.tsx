@@ -71,7 +71,11 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          decelerationRate="fast"
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.step}>예산 설정</Text>
           <Text style={styles.title}>초기 비용을 포함한{'\n'}예상 예산을 입력해주세요!</Text>
           <Text style={styles.subtitle}>

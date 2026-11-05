@@ -233,6 +233,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
           <View style={s.historyArea}>
             <FlatList
               ref={list}
+              decelerationRate="fast"
               inverted
               data={newestFirst}
               contentContainerStyle={s.history}

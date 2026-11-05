@@ -202,6 +202,7 @@ export function ProfileEditScreen({ navigation }: Props) {
 
       <ScrollView
         contentContainerStyle={styles.content}
+        decelerationRate="fast"
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={dismissOverlays}

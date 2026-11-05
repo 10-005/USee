@@ -189,6 +189,7 @@ export function AdoptionApplicationListScreen({ navigation }: Props) {
           <FlatList
             contentContainerStyle={styles.list}
             data={items}
+            decelerationRate="fast"
             keyExtractor={item => item.id}
             ListEmptyComponent={
               <Text style={styles.filteredEmpty}>선택한 상태의 신청 내역이 없습니다</Text>

@@ -22,14 +22,8 @@ export function LostReportPetSelectionScreen({ navigation }: Props) {
   const selectPet = useLostReportDraftStore(state => state.selectPet);
   const resetSelection = useLostReportDraftStore(state => state.resetSelection);
   const hasSelection = entryMode !== null;
-  const nextButtonInsetStyle = useMemo(
-    () => ({ bottom: insets.bottom + 16 }),
-    [insets.bottom],
-  );
-  const scrollInsetStyle = useMemo(
-    () => ({ paddingBottom: insets.bottom + 88 }),
-    [insets.bottom],
-  );
+  const nextButtonInsetStyle = useMemo(() => ({ bottom: insets.bottom + 16 }), [insets.bottom]);
+  const scrollInsetStyle = useMemo(() => ({ paddingBottom: insets.bottom + 88 }), [insets.bottom]);
 
   useEffect(() => {
     resetSelection();
@@ -45,6 +39,7 @@ export function LostReportPetSelectionScreen({ navigation }: Props) {
 
       <ScrollView
         contentContainerStyle={[styles.scrollContent, scrollInsetStyle]}
+        decelerationRate="fast"
         showsVerticalScrollIndicator={false}
       >
         <Pressable

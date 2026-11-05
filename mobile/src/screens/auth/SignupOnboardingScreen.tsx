@@ -138,6 +138,7 @@ export function SignupOnboardingScreen({ navigation }: Props) {
           ref={scrollRef}
           automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           contentContainerStyle={[styles.content, phoneFocused && styles.contentWithKeyboard]}
+          decelerationRate="fast"
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => {

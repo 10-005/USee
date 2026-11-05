@@ -192,6 +192,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
       />
       <ScrollView
         contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
+        decelerationRate="fast"
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         ref={scrollRef}

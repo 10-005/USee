@@ -74,21 +74,23 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   const [name, setName] = useState(initialAnimal?.name ?? '');
   const initialSpecies = isFoundReportFlow ? foundReportDraft.species : initialAnimal?.species;
   const [species, setSpecies] = useState<PetSpecies | ''>(
-    initialSpecies && initialSpecies in PET_OPTIONS
-      ? (initialSpecies as PetSpecies)
-      : '',
+    initialSpecies && initialSpecies in PET_OPTIONS ? (initialSpecies as PetSpecies) : '',
   );
-  const [breed, setBreed] = useState(isFoundReportFlow ? foundReportDraft.breed : initialAnimal?.breed ?? '');
-  const [color, setColor] = useState(isFoundReportFlow ? foundReportDraft.color : initialAnimal?.color ?? '');
+  const [breed, setBreed] = useState(
+    isFoundReportFlow ? foundReportDraft.breed : initialAnimal?.breed ?? '',
+  );
+  const [color, setColor] = useState(
+    isFoundReportFlow ? foundReportDraft.color : initialAnimal?.color ?? '',
+  );
   const [gender, setGender] = useState<Gender | ''>(
     isFoundReportFlow
       ? foundReportDraft.gender === 'male'
         ? '수컷'
         : foundReportDraft.gender === 'female'
-          ? '암컷'
-          : foundReportDraft.gender === 'unknown'
-            ? '모름'
-            : ''
+        ? '암컷'
+        : foundReportDraft.gender === 'unknown'
+        ? '모름'
+        : ''
       : initialAnimal?.gender ?? '',
   );
   const [neutered, setNeutered] = useState<Neutered | ''>(
@@ -96,10 +98,10 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       ? foundReportDraft.neutered === 'done'
         ? '완료'
         : foundReportDraft.neutered === 'not-done'
-          ? '미완료'
-          : foundReportDraft.neutered === 'unknown'
-            ? '모름'
-            : ''
+        ? '미완료'
+        : foundReportDraft.neutered === 'unknown'
+        ? '모름'
+        : ''
       : isLostReportFlow && lostReportEntryMode === 'manual'
       ? ''
       : initialAnimal
@@ -110,18 +112,24 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         : '미완료'
       : '',
   );
-  const [age, setAge] = useState(isFoundReportFlow ? foundReportDraft.age : initialAnimal?.age?.toString() ?? '');
-  const [weight, setWeight] = useState(isFoundReportFlow ? foundReportDraft.weight : initialAnimal?.weight?.toString() ?? '');
-  const [description, setDescription] = useState(isFoundReportFlow ? foundReportDraft.description : initialAnimal?.description ?? '');
+  const [age, setAge] = useState(
+    isFoundReportFlow ? foundReportDraft.age : initialAnimal?.age?.toString() ?? '',
+  );
+  const [weight, setWeight] = useState(
+    isFoundReportFlow ? foundReportDraft.weight : initialAnimal?.weight?.toString() ?? '',
+  );
+  const [description, setDescription] = useState(
+    isFoundReportFlow ? foundReportDraft.description : initialAnimal?.description ?? '',
+  );
   const [microchip, setMicrochip] = useState<Microchip | ''>(
     isFoundReportFlow
       ? foundReportDraft.microchipStatus === 'done'
         ? '완료'
         : foundReportDraft.microchipStatus === 'not-done'
-          ? '미완료'
-          : foundReportDraft.microchipStatus === 'unknown'
-            ? '모름'
-          : ''
+        ? '미완료'
+        : foundReportDraft.microchipStatus === 'unknown'
+        ? '모름'
+        : ''
       : isLostReportFlow && lostReportEntryMode === 'manual'
       ? ''
       : initialAnimal
@@ -350,7 +358,10 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       </View>
       {isReportFlow ? (
         <View style={styles.lostReportIndicator}>
-          <StepIndicator currentStep={isFoundReportFlow ? 1 : 2} totalSteps={isFoundReportFlow ? 3 : 4} />
+          <StepIndicator
+            currentStep={isFoundReportFlow ? 1 : 2}
+            totalSteps={isFoundReportFlow ? 3 : 4}
+          />
         </View>
       ) : null}
       <KeyboardAvoidingView
@@ -359,6 +370,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       >
         <ScrollView
           contentContainerStyle={styles.content}
+          decelerationRate="fast"
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           onTouchStart={Keyboard.dismiss}

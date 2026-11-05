@@ -58,6 +58,7 @@ export function AdoptionApplicantEditScreen({ navigation }: Props) {
       <AppHeader onBackPress={navigation.goBack} title="신청자 정보 수정" />
       <ScrollView
         contentContainerStyle={styles.content}
+        decelerationRate="fast"
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         onTouchStart={Keyboard.dismiss}

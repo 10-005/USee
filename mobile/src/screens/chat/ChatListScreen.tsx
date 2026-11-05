@@ -58,6 +58,7 @@ export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => voi
       <FlatList
         contentContainerStyle={[styles.list, { paddingBottom: 104 + insets.bottom }]}
         data={filter === '전체' ? rooms : unreadRooms}
+        decelerationRate="fast"
         keyExtractor={room => room.id}
         ListEmptyComponent={
           <Text style={styles.empty}>

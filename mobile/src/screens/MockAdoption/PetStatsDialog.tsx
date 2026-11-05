@@ -91,7 +91,11 @@ export function PetStatsDialog({ visible, petName, stats = {}, onClose }: Props)
               <CloseIcon width={12} height={12} />
             </Pressable>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.stats}>
+          <ScrollView
+            contentContainerStyle={styles.stats}
+            decelerationRate="fast"
+            showsVerticalScrollIndicator={false}
+          >
             {petStatItems.map(item => {
               const raw = stats[item.key];
               const value =

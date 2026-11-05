@@ -68,10 +68,7 @@ export function LostReportFormScreen({ navigation, route }: Props) {
   const [error, setError] = useState('');
 
   const buttonInsetStyle = useMemo(() => ({ bottom: insets.bottom + 16 }), [insets.bottom]);
-  const contentInsetStyle = useMemo(
-    () => ({ paddingBottom: insets.bottom + 92 }),
-    [insets.bottom],
-  );
+  const contentInsetStyle = useMemo(() => ({ paddingBottom: insets.bottom + 92 }), [insets.bottom]);
   const canContinue =
     step === 3
       ? Boolean(details.lostAt && details.location.trim())
@@ -159,7 +156,7 @@ export function LostReportFormScreen({ navigation, route }: Props) {
           : details.location,
         name: animal.name || animal.breed,
         neutered: animal.neutered === true,
-        species: animal.species === '강아지' ? '개' : animal.species as '고양이' | '기타',
+        species: animal.species === '강아지' ? '개' : (animal.species as '고양이' | '기타'),
         weight: animal.weight === null ? '모름' : `${animal.weight}kg`,
       });
       resetDraft();
@@ -182,6 +179,7 @@ export function LostReportFormScreen({ navigation, route }: Props) {
       >
         <ScrollView
           contentContainerStyle={[styles.content, contentInsetStyle]}
+          decelerationRate="fast"
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           onTouchStart={Keyboard.dismiss}

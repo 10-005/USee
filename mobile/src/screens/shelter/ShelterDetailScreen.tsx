@@ -46,6 +46,7 @@ export function ShelterDetailScreen({ navigation }: Props) {
     <SafeAreaView edges={[]} style={styles.safeArea}>
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 112 + insets.bottom }]}
+        decelerationRate="fast"
         showsVerticalScrollIndicator={false}
       >
         <Image

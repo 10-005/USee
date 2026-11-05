@@ -62,7 +62,7 @@ export function DogActions({ available, moving, bottom, onAction }: DogActionsPr
           <View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: bottom + 16 }]}>
             <Text style={styles.title}>강아지 동작</Text>
             <Text style={styles.hint}>다시 걸으면 산책을 이어갑니다.</Text>
-            <ScrollView>
+            <ScrollView decelerationRate="fast">
               <View style={styles.grid}>
                 {ACTIONS.map(([action, label]) => (
                   <Pressable

@@ -113,7 +113,7 @@ function TwoColumnFilter({
     <View style={styles.columns}>
       <View style={styles.column}>
         <Text style={styles.columnTitle}>{kind === 'region' ? '시도' : '대분류'}</Text>
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView decelerationRate="fast" showsVerticalScrollIndicator={false}>
           {Object.keys(source).map(option => (
             <Pressable
               key={option}
@@ -130,7 +130,7 @@ function TwoColumnFilter({
       </View>
       <View style={[styles.column, styles.secondaryColumn]}>
         <Text style={styles.columnTitle}>{kind === 'region' ? '시군구' : '종'}</Text>
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView decelerationRate="fast" showsVerticalScrollIndicator={false}>
           {source[primary].map(option => (
             <Pressable
               key={option}

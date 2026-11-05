@@ -112,51 +112,44 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
   const foundReportEdits = useFoundReportEditStore(state => state.editsById);
   const deletedLostReportIds = useLostReportEditStore(state => state.deletedIds);
   const lostReportEdits = useLostReportEditStore(state => state.editsById);
-  const reports = useMemo(
-    () => {
-      const source = (activeTab === 'found' ? foundReports : lostReports)
-        .filter(report =>
-          activeTab === 'found'
-            ? !deletedFoundReportIds.includes(report.id)
-            : !deletedLostReportIds.includes(report.id),
-        )
-        .map(report => {
-          const editedReport =
-            activeTab === 'found' ? foundReportEdits[report.id] : lostReportEdits[report.id];
-          const currentReport = (editedReport ? { ...report, ...editedReport } : report) as Report;
-          const storedStatus = statusById[report.id];
-          if (!storedStatus) {
-            return currentReport;
-          }
-          return {
-            ...currentReport,
-            status:
-              activeTab === 'found'
-                ? storedStatus === 'active'
-                  ? '진행 중'
-                  : '완료'
-                : storedStatus === 'active'
-                  ? '실종'
-                  : '종료',
-          } as Report;
-        });
-      return filterReports(
-        source,
-        query,
-        filters,
-      );
-    },
-    [
-      activeTab,
-      deletedFoundReportIds,
-      deletedLostReportIds,
-      filters,
-      foundReportEdits,
-      lostReportEdits,
-      query,
-      statusById,
-    ],
-  );
+  const reports = useMemo(() => {
+    const source = (activeTab === 'found' ? foundReports : lostReports)
+      .filter(report =>
+        activeTab === 'found'
+          ? !deletedFoundReportIds.includes(report.id)
+          : !deletedLostReportIds.includes(report.id),
+      )
+      .map(report => {
+        const editedReport =
+          activeTab === 'found' ? foundReportEdits[report.id] : lostReportEdits[report.id];
+        const currentReport = (editedReport ? { ...report, ...editedReport } : report) as Report;
+        const storedStatus = statusById[report.id];
+        if (!storedStatus) {
+          return currentReport;
+        }
+        return {
+          ...currentReport,
+          status:
+            activeTab === 'found'
+              ? storedStatus === 'active'
+                ? '진행 중'
+                : '완료'
+              : storedStatus === 'active'
+              ? '실종'
+              : '종료',
+        } as Report;
+      });
+    return filterReports(source, query, filters);
+  }, [
+    activeTab,
+    deletedFoundReportIds,
+    deletedLostReportIds,
+    filters,
+    foundReportEdits,
+    lostReportEdits,
+    query,
+    statusById,
+  ]);
 
   useEffect(() => {
     listRef.current?.scrollToOffset({ animated: false, offset: 0 });
@@ -225,9 +218,7 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
           activeTab === 'lost' && item.status === '종료' && styles.closedBadge,
         ]}
       >
-        <Text style={styles.badgeText}>
-          {activeTab === 'found' ? '제보' : item.status}
-        </Text>
+        <Text style={styles.badgeText}>{activeTab === 'found' ? '제보' : item.status}</Text>
       </View>
       <Text numberOfLines={1} style={styles.cardTitle}>
         {item.name}
@@ -285,14 +276,16 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
             value={query}
           />
         </View>
-        {activeTab === 'found' ? <Pressable
-          accessibilityLabel="지도로 보기"
-          accessibilityRole="button"
-          onPress={() => navigation.navigate('FoundReportMap')}
-          style={({ pressed }) => [styles.mapButton, pressed && styles.pressed]}
-        >
-          <MapButtonIcon height={24} width={24} />
-        </Pressable> : null}
+        {activeTab === 'found' ? (
+          <Pressable
+            accessibilityLabel="지도로 보기"
+            accessibilityRole="button"
+            onPress={() => navigation.navigate('FoundReportMap')}
+            style={({ pressed }) => [styles.mapButton, pressed && styles.pressed]}
+          >
+            <MapButtonIcon height={24} width={24} />
+          </Pressable>
+        ) : null}
       </View>
       <ScrollView
         contentContainerStyle={styles.filters}
@@ -332,6 +325,7 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
           !reports.length && styles.emptyList,
         ]}
         data={reports}
+        decelerationRate="fast"
         keyExtractor={item => item.id}
         numColumns={2}
         ref={listRef}

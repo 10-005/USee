@@ -472,6 +472,7 @@ export function AdoptionApplicationScreen({ navigation, route }: Props) {
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={[styles.content, step === 5 && styles.finalContent]}
+        decelerationRate="fast"
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         onTouchStart={Keyboard.dismiss}
@@ -640,8 +641,7 @@ function StepOne({
       <View style={styles.profileCard}>
         <View style={styles.profileHeader}>
           <Text style={styles.profileName}>
-            {form.applicantName}　
-            <Text style={styles.profileMeta}>{form.applicantBirthDate}</Text>
+            {form.applicantName}　<Text style={styles.profileMeta}>{form.applicantBirthDate}</Text>
           </Text>
           <Pressable
             accessibilityLabel="신청자 정보 수정"

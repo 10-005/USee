@@ -137,7 +137,11 @@ export function SettingsScreen({ navigation }: Props) {
         <Text style={styles.headerTitle}>환경설정</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        decelerationRate="fast"
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.sectionTitle}>알림 설정</Text>
         <View style={styles.settingsBody}>
           <Pressable

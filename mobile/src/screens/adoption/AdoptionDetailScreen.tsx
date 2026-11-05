@@ -50,7 +50,9 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
   const shelterName = '익산유기동물보호소';
   const openChat = async () => {
     try {
-      const params = await useChatStore.getState().openPostRoom('adoption', animal.id, shelterName, 'iksan-shelter');
+      const params = await useChatStore
+        .getState()
+        .openPostRoom('adoption', animal.id, shelterName, 'iksan-shelter');
       if (navigation.isFocused()) {
         navigation.navigate('ChatRoom', params);
       }
@@ -82,7 +84,10 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <AppHeader onBackPress={navigation.goBack} title="게시글" />
       <ScrollView
-        contentContainerStyle={{ paddingBottom: isClosed ? 24 + insets.bottom : 96 + insets.bottom }}
+        contentContainerStyle={{
+          paddingBottom: isClosed ? 24 + insets.bottom : 96 + insets.bottom,
+        }}
+        decelerationRate="fast"
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.shelterProfile}>
@@ -164,7 +169,9 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
       </ScrollView>
       {!isClosed ? (
         <View style={[styles.actions, { bottom: insets.bottom + 12 }]}>
-          <Button onPress={openChat} style={styles.action}>채팅 보내기</Button>
+          <Button onPress={openChat} style={styles.action}>
+            채팅 보내기
+          </Button>
           <Button onPress={openApplication} style={[styles.action, styles.applyButton]}>
             입양 신청하기
           </Button>
