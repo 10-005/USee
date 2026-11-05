@@ -5,6 +5,7 @@ export type RootStackParamList = {
   PetShop: { petId: string };
   ShopProductDetail: { petId: string; productId: string };
   ShopCart: { petId: string };
+  ShopInventory: { petId: string };
   Login: undefined;
   SignupOnboarding: undefined;
   ArWalk: { petName: string } | undefined;

@@ -37,6 +37,7 @@ import { NotificationListScreen } from '../../screens/notification/NotificationL
 import { ShopScreen } from '../../screens/shop/ShopScreen';
 import { ProductDetailScreen } from '../../screens/shop/ProductDetailScreen';
 import { CartScreen } from '../../screens/shop/CartScreen';
+import { InventoryScreen } from '../../screens/shop/InventoryScreen';
 
 const styles = StyleSheet.create({
   walkExitTitle: {
@@ -62,6 +63,7 @@ export function RootNavigator() {
         <Stack.Screen name="PetShop" component={ShopScreen} />
         <Stack.Screen name="ShopProductDetail" component={ProductDetailScreen} />
         <Stack.Screen name="ShopCart" component={CartScreen} />
+        <Stack.Screen name="ShopInventory" component={InventoryScreen} />
         <Stack.Screen name="FoundReportDetail" component={FoundReportDetailScreen} />
         <Stack.Screen name="FoundReportForm" component={FoundReportFormScreen} />
         <Stack.Screen name="FoundReportMap" component={FoundReportMapScreen} />

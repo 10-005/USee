@@ -4,6 +4,7 @@ import { FlatList, Keyboard } from 'react-native';
 import { ShopScreen } from '../ShopScreen';
 import { ProductDetailScreen } from '../ProductDetailScreen';
 import { CartScreen } from '../CartScreen';
+import { InventoryScreen } from '../InventoryScreen';
 import { useShopStore } from '../../../stores/shopStore';
 import { getShopDatabase } from '../../../services/shop/shopDatabase';
 import { findProduct } from '../../../services/shop/catalog';
@@ -66,7 +67,8 @@ it('searches the list and opens details without quantity or add controls', () =>
   expect(screen.root.findAllByProps({ accessibilityLabel: '물그릇 장바구니 담기' })).toHaveLength(
     0,
   );
-  expect(screen.root.findByProps({ accessibilityLabel: '장바구니' })).toBeDefined();
+  act(() => screen.root.findByProps({ accessibilityLabel: '보유 목록' }).props.onPress());
+  expect(navigate).toHaveBeenCalledWith('ShopInventory', { petId: 'dog-1' });
   act(() => screen.unmount());
 });
 
@@ -151,6 +153,40 @@ it('supports multiple category buttons', () => {
   expect(
     screen.root.findByProps({ accessibilityLabel: '간식 분류' }).props.accessibilityState.checked,
   ).toBe(false);
+  act(() => screen.unmount());
+});
+
+it('shows paid items, remaining money and individual usage counters', () => {
+  useShopStore.getState().setQuantity('food', 2, 'dog');
+  useShopStore.getState().checkout('dog');
+  useShopStore.getState().consume({ food: 1 });
+  let screen!: renderer.ReactTestRenderer;
+  act(() => {
+    screen = renderer.create(
+      wrap(
+        <InventoryScreen
+          navigation={{ navigate: jest.fn() } as never}
+          route={{ key: 'inventory', name: 'ShopInventory', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  expect(screen.root.findByProps({ children: '28,800원' })).toBeDefined();
+  expect(
+    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 1번째 남은 수량 11끼' }),
+  ).toBeDefined();
+  expect(
+    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 2번째 남은 수량 12끼' }),
+  ).toBeDefined();
+  act(() => {
+    useShopStore.getState().consume({ food: 12 });
+  });
+  expect(
+    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 1번째 남은 수량 0끼' }),
+  ).toBeDefined();
+  expect(
+    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 2번째 남은 수량 11끼' }),
+  ).toBeDefined();
   act(() => screen.unmount());
 });
 
