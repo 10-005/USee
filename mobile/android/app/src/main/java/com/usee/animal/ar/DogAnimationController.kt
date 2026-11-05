@@ -47,6 +47,13 @@ class DogAnimationController(
     if (action in ACTIONS) requested = action
   }
 
+  fun holdSpin() {
+    requested = null
+    steps = emptyList()
+    heldSitSeconds = null
+    change("TurnRight", true)
+  }
+
   fun pause() {
     heldSitSeconds = null
     requested = null

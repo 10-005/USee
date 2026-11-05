@@ -36,7 +36,7 @@ export function useWalkVoice(active: boolean, petName = '') {
       }
       if (status === 'recognized') {
         setIsRecognizing(false);
-        setMessage(transcript ? `“${transcript}”` : '앉아 / 멈춰 / 가자라고 말해 주세요');
+        setMessage(transcript ? `“${transcript}”` : '앉아 / 멈춰 / 가자 / 돌아');
         const command = parseWalkVoiceCommand(transcript, petName);
         if (command) {
           setActionRequest(`${++requestId.current}:${command}`);
@@ -65,7 +65,7 @@ export function useWalkVoice(active: boolean, petName = '') {
           {
             title: '산책 음성 명령',
             message:
-              '강아지에게 “앉아”, “멈춰”, “가자”라고 말하려면 마이크 권한이 필요합니다.',
+              '강아지에게 “앉아”, “멈춰”, “가자”, “돌아”라고 말하려면 마이크 권한이 필요합니다.',
             buttonPositive: '확인',
           },
         );
@@ -74,7 +74,7 @@ export function useWalkVoice(active: boolean, petName = '') {
         }
         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
           setIsRecognizing(true);
-          setMessage('듣는 중 · 앉아 / 멈춰 / 가자');
+          setMessage('듣는 중 · 앉아 / 멈춰 / 가자 / 돌아');
           speech.start();
         } else {
           setIsRecognizing(false);

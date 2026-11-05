@@ -1,5 +1,15 @@
 import { parseWalkVoiceCommand } from './voiceCommand';
 
+test.each(['돌아', '돌아 줘', '초코야 돌아!', '초코야돌아줘'])(
+  'recognizes in-place spin command %s',
+  text => {
+    expect(parseWalkVoiceCommand(text, '초코')).toBe('spin');
+  },
+);
+test.each(['돌아오지 마', '돌아서 기다려'])('does not spin for %s', text => {
+  expect(parseWalkVoiceCommand(text, '초코')).toBeNull();
+});
+
 test.each(['초코', '초코야', '초코야!'])('recognizes the saved name %s as attention', text => {
   expect(parseWalkVoiceCommand(text, '초코')).toBe('look');
 });

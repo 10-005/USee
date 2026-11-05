@@ -2,7 +2,7 @@
 export function parseWalkVoiceCommand(
   transcript: string,
   petName = '',
-): 'sit' | 'stop' | 'go' | 'look' | null {
+): 'sit' | 'stop' | 'go' | 'look' | 'spin' | null {
   const normalized = transcript.replace(/[\s.,!?。？！]/g, '');
   // An exact saved name is a call even if the name itself ends in a command word.
   // A name followed by a separate command still reaches the command checks below.
@@ -17,6 +17,9 @@ export function parseWalkVoiceCommand(
   }
   if (/가자$/.test(normalized)) {
     return 'go';
+  }
+  if (/(?:돌아|돌아줘)$/.test(normalized)) {
+    return 'spin';
   }
   return null;
 }

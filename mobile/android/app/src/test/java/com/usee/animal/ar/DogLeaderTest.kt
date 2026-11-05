@@ -5,6 +5,55 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun spinMakesExactlyOneFullTurnWithoutTranslatingAndStaysStoppedAfterward() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.requestAction("spin")
+    var previousYaw = initial.yawDegrees
+    var turned = 0f
+    var dog = initial
+    for (i in 1..152) {
+      dog = leader.update(0.02f, i * 0.01f, -i * 0.02f, 1f, 0f, floor)
+      val delta = Math.toRadians((dog.yawDegrees - previousYaw).toDouble())
+      turned += Math.toDegrees(atan2(sin(delta), cos(delta))).toFloat()
+      previousYaw = dog.yawDegrees
+      assertEquals(initial.x, dog.x, 0.0001f)
+      assertEquals(initial.z, dog.z, 0.0001f)
+      if (i == 75) assertEquals("TurnRight", dog.clip)
+    }
+    assertEquals(360f, turned, 0.02f)
+    assertFalse(dog.spinning)
+    for (i in 1..200) dog = leader.update(0.02f, 3f, -5f, 1f, 0f, floor)
+    assertEquals(initial.x, dog.x, 0.0001f)
+    assertEquals(initial.z, dog.z, 0.0001f)
+    assertEquals("Idle", dog.clip)
+    leader.requestAction("go")
+    for (i in 1..150) dog = leader.update(0.02f, 3f, -5f, 1f, 0f, floor)
+    assertTrue(hypot(dog.x - initial.x, dog.z - initial.z) > 0.1f)
+  }
+
+  @Test fun repeatedSpinDoesNotRestartAndExplicitStopOrTrackingPauseCancelsIt() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.requestAction("spin")
+    for (i in 1..100) {
+      leader.requestAction("spin")
+      assertFalse(leader.requestAttention())
+      leader.update(0.02f, 0f, -3f, 0f, -1f, floor)
+    }
+    val beforeStop = leader.update(0.02f, 0f, -3f, 0f, -1f, floor)
+    val expectedYaw = ((initial.yawDegrees + 242.4f + 180f) % 360f + 360f) % 360f - 180f
+    assertEquals(expectedYaw, beforeStop.yawDegrees, 0.02f)
+    leader.requestAction("stop")
+    val stopped = leader.update(0.02f, 0f, -3f, 0f, -1f, floor)
+    assertFalse(stopped.spinning)
+    assertEquals(beforeStop.yawDegrees, stopped.yawDegrees, 0.001f)
+    leader.requestAction("spin")
+    leader.pauseTracking()
+    val paused = leader.update(0.02f, 0f, -3f, 0f, -1f, floor)
+    assertFalse(paused.spinning)
+    assertEquals(initial.z, paused.z, 0.0001f)
+  }
   @Test fun attentionTimerUsesElapsedTimeEvenWithSlowFrames() {
     val leader = DogLeader()
     val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)

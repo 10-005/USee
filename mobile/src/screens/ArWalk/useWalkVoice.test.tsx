@@ -45,6 +45,8 @@ test('saved-name call requests attention while name plus command requests only t
   expect(voice.actionRequest).toBe('2:sit');
   await ReactTestRenderer.act(() => receive({ status: 'recognized', transcript: '보리야' }));
   expect(voice.actionRequest).toBe('2:sit');
+  await ReactTestRenderer.act(() => receive({ status: 'recognized', transcript: '초코야 돌아' }));
+  expect(voice.actionRequest).toBe('3:spin');
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 

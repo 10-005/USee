@@ -76,7 +76,8 @@ export function MockAdoptionNameScreen({ navigation, route }: Props) {
               {!error ? `“${getPetCallName(name)}” 하고 불러보세요` : '이름으로 더 가까워지는 시간'}
             </Text>
             <Text style={styles.subtitle}>
-              이름만 부르면 잠시 멈춰 나를 보고 꼬리를 흔들어요.{'\n'}“이름 + 앉아 / 멈춰 / 가자”로 행동을 알려줄 수도 있어요.
+              이름만 부르면 잠시 멈춰 나를 보고 꼬리를 흔들어요.{'\n'}“이름 + 앉아 / 멈춰 / 가자 /
+              돌아”로 행동을 알려줄 수도 있어요.
             </Text>
           </View>
         </ScrollView>

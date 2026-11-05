@@ -94,6 +94,21 @@ class DogLeader(
   fun requestAction(action: String) {
     if (!placed || poopStage != null) return
     attentionSeconds = 0f
+    if (action == "spin") {
+      if (spinElapsed != null) return
+      spinElapsed = 0f
+      spinStartYaw = yaw
+      commandedHold = "stop"
+      animations.pause()
+      recalling = false
+      returning = false
+      placementRequested = false
+      speed = 0f
+      moving = false
+      floorPath.clear()
+      return
+    }
+    spinElapsed = null
     if (action == "sit" || action == "stop" || action == "go") {
       val next = if (action == "go") null else action
       if (commandedHold == next) return
@@ -113,9 +128,11 @@ class DogLeader(
 
   private var commandedHold: String? = null
   private var attentionSeconds = 0f
+  private var spinElapsed: Float? = null
+  private var spinStartYaw = 0f
 
   fun requestAttention(): Boolean {
-    if (!placed || poopStage != null) return false
+    if (!placed || poopStage != null || spinElapsed != null) return false
     attentionSeconds = 3f
     speed = 0f
     moving = false
@@ -128,6 +145,7 @@ class DogLeader(
 
   fun pauseTracking() {
     attentionSeconds = 0f
+    spinElapsed = null
     hasCamera = false
     velocityX = 0f
     velocityZ = 0f
@@ -220,6 +238,22 @@ class DogLeader(
     previousCameraX = cameraX
     previousCameraZ = cameraZ
     hasCamera = true
+    spinElapsed?.let { elapsed ->
+      val next = (elapsed + deltaSeconds.coerceIn(0f, 0.25f)).coerceAtMost(3f)
+      spinElapsed = next
+      yaw = wrap(spinStartYaw + next / 3f * 2f * PI.toFloat())
+      speed = 0f
+      moving = false
+      blocked = false
+      userMoving = hypot(velocityX, velocityZ) > 0.15f
+      stopReason = ""
+      if (next >= 3f) {
+        spinElapsed = null
+        yaw = spinStartYaw
+        animations.pause()
+      } else animations.holdSpin()
+      return frame(true, 0f)
+    }
     if (placed && (commandedHold != null || attentionSeconds > 0f)) {
       speed = 0f
       moving = false
@@ -496,7 +530,7 @@ class DogLeader(
 
   private fun frame(visible: Boolean, actualSpeed: Float) = DogFrame(
     x, y, z, Math.toDegrees(yaw.toDouble()).toFloat(), visible && placed,
-    animations.current.clip, actualSpeed, animations.current.loop, animations.current.revision, moving, blocked, userMoving, recalling || returning, floorUncertain, stopReason, poopDeposited,
+    animations.current.clip, actualSpeed, animations.current.loop, animations.current.revision, moving, blocked, userMoving, recalling || returning, floorUncertain, stopReason, poopDeposited, spinElapsed != null,
   )
 
   private fun wrap(angle: Float): Float {
@@ -535,4 +569,5 @@ data class DogFrame(
   val cautious: Boolean = false,
   val stopReason: String = "",
   val poopDeposited: Boolean = false,
+  val spinning: Boolean = false,
 )
