@@ -3,7 +3,6 @@ package com.usee.animal.ar
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.opengl.Matrix
@@ -19,39 +18,27 @@ import kotlin.math.hypot
 /** 30%-opacity diagnostic overlay above the live AR camera. No frame/image is retained. */
 internal class TraversalDebugView(context: Context) : View(context) {
   private var showAreas = false
-  private var showNotices = false
 
-  fun setDisplay(areas: Boolean, notices: Boolean) {
+  fun setDisplay(areas: Boolean) {
     showAreas = areas
-    showNotices = notices
     invalidate()
   }
 
   private val paint = Paint().apply { isFilterBitmap = false }
-  private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 12f * resources.displayMetrics.scaledDensity }
   private var bitmap: Bitmap? = null
   private var nextUpdate = 0L
-  private var caption = "분석 결과 대기 · 미확인 영역은 노랑"
-  private var statistics = ""
   private val destination = Rect()
 
   init { isClickable = false; importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
 
-  fun update(frame: Frame, mask: SemanticFloorMask?, planes: Collection<Plane>, walls: List<WallSegment>, dog: DogFrame, stopSummary: String, userGround: UserWalkRegion, depth: DepthTerrain) {
+  fun update(frame: Frame, mask: SemanticFloorMask?, planes: Collection<Plane>, walls: List<WallSegment>, dog: DogFrame, userGround: UserWalkRegion, depth: DepthTerrain) {
     val now = SystemClock.elapsedRealtimeNanos()
     if (width <= 0 || height <= 0 || now < nextUpdate) return
     nextUpdate = now + 250_000_000L
-    statistics = "${depth.status} · $stopSummary"
     val columns = 40
     val rows = ceil(columns.toDouble() * height / width).toInt().coerceIn(24, 128)
     val colors = IntArray(columns * rows) { YELLOW }
     val tracking = frame.camera.trackingState == TrackingState.TRACKING
-    caption = when {
-      !tracking -> "추적 끊김 · 이동 중단 · 미확인 영역은 노랑"
-      mask == null -> "${motionLabel(dog)} · 분석 결과 대기"
-      !mask.isFresh(now) -> "${motionLabel(dog)} · 분석 결과 만료"
-      else -> "${motionLabel(dog)} · 분석 ${(now - mask.capturedAtNanos) / 1_000_000}ms 전"
-    }
     if (tracking) {
       val screen = FloatArray(colors.size * 2)
       for (i in colors.indices) {
@@ -127,7 +114,7 @@ internal class TraversalDebugView(context: Context) : View(context) {
 
   override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
-    if (!showAreas && !showNotices) return
+    if (!showAreas) return
     if (showAreas) {
       destination.set(0, 0, width, height)
       paint.alpha = 77
@@ -136,23 +123,6 @@ internal class TraversalDebugView(context: Context) : View(context) {
       else canvas.drawColor((YELLOW and 0x00ffffff) or (77 shl 24))
       paint.alpha = 255
     }
-    if (!showNotices) return
-    val density = resources.displayMetrics.density
-    val top = 236f * density
-    paint.color = Color.BLACK
-    canvas.drawRect(8f * density, top, width - 8f * density, top + 84f * density, paint)
-    canvas.drawText("초록: 실제 보행 경로·이동 가능 / 빨강: 장애물", 16f * density, top + 18f * density, text)
-    canvas.drawText("노랑: 길이지만 이동 조건 미충족 / 미확인", 16f * density, top + 37f * density, text)
-    canvas.drawText(caption, 16f * density, top + 55f * density, text)
-    canvas.drawText(statistics, 16f * density, top + 74f * density, text)
-  }
-
-  private fun motionLabel(dog: DogFrame) = when {
-    dog.ignoresObstacles -> "복귀 중 · 장애물 무시"
-    dog.blocked -> "정지: ${dog.stopReason}"
-    dog.cautious && dog.moving -> "감속: 바닥 재확인"
-    dog.moving -> "이동 중"
-    else -> "대기"
   }
 
   fun release() { bitmap?.recycle(); bitmap = null }

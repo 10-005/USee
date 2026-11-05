@@ -1,12 +1,9 @@
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useIsFocused } from '@react-navigation/native';
 import { useEffect, useState } from 'react';
-import { Pressable, Text, View, type NativeSyntheticEvent } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCameraPermission } from 'react-native-vision-camera';
-
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../app/navigation/types';
 
 import { styles } from './ArWalkScreen.styles';
 import {
@@ -15,61 +12,24 @@ import {
   type FloorTrackingStatus,
 } from './components/ArFloorView';
 
-const STATUS_COPY: Record<FloorTrackingStatus | 'leading', { label: string; hint: string }> = {
-  analyzing: {
-    label: '걸을 수 있는 바닥을 확인하는 중',
-    hint: '바닥이 화면에 보이도록 휴대폰을 천천히 움직여 주세요.',
-  },
-  recognitionError: {
-    label: '바닥 인식을 시작하지 못했습니다',
-    hint: '산책 화면을 닫았다가 다시 열어 주세요.',
-  },
-  searching: {
-    label: '바닥을 찾는 중',
-    hint: '바닥이 보이도록 휴대폰을 천천히 움직여 주세요.',
-  },
-  ready: {
-    label: '강아지를 놓을 수 있어요',
-    hint: '바닥이 확인되면 내 앞 약 1m에 강아지가 자동으로 배치됩니다.',
-  },
-  anchored: {
-    label: '앞에서 기다리는 중',
-    hint: '걸음을 옮기면 강아지가 방향을 맞춰 함께 움직입니다.',
-  },
-  leading: {
-    label: '함께 걷는 중',
-    hint: '방향을 바꾸거나 뒤로 걸어도 강아지가 따라옵니다.',
-  },
-  lost: {
-    label: '추적을 놓쳤습니다',
-    hint: '바닥이 다시 보이도록 휴대폰을 움직여 주세요.',
-  },
-  needsInstall: {
-    label: 'ARCore 설치가 필요합니다',
-    hint: '화면에 나온 안내에서 Google Play Services for AR을 설치해 주세요.',
-  },
-  unsupported: {
-    label: '이 폰은 바닥 인식을 지원하지 않습니다',
-    hint: 'ARCore를 사용할 수 있는 기기에서 다시 열어 주세요.',
-  },
-  error: {
-    label: '바닥 인식을 시작하지 못했습니다',
-    hint: '카메라 권한을 확인한 뒤 화면을 다시 열어 주세요.',
-  },
+const STARTUP_ERRORS: Partial<Record<FloorTrackingStatus, string>> = {
+  recognitionError: '지형 인식을 시작하지 못했습니다. 산책 화면을 다시 열어 주세요.',
+  needsInstall: 'Google Play Services for AR을 설치해 주세요.',
+  unsupported: '이 기기는 AR 산책을 지원하지 않습니다.',
+  error: 'AR 산책을 시작하지 못했습니다. 카메라 권한을 확인해 주세요.',
 };
 
-export function ArWalkScreen({
-  route,
-}: Partial<NativeStackScreenProps<RootStackParamList, 'ArWalk'>>) {
+export function ArWalkScreen() {
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { hasPermission, requestPermission, canRequestPermission } = useCameraPermission();
-  const [status, setStatus] = useState<FloorTrackingStatus | 'leading'>('searching');
+  const [status, setStatus] = useState<FloorTrackingStatus>('searching');
   const [placementRequest, setPlacementRequest] = useState(0);
   const [canReposition, setCanReposition] = useState(true);
   const [showTraversalDebug, setShowTraversalDebug] = useState(false);
-  const [showWalkNotices, setShowWalkNotices] = useState(false);
+  const [hasSeenDog, setHasSeenDog] = useState(false);
+  const [loadingDots, setLoadingDots] = useState(2);
   const [walkStartedAt, setWalkStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
@@ -90,8 +50,22 @@ export function ArWalkScreen({
     }
   }, [canRequestPermission, hasPermission, requestPermission]);
 
+  const startupError = STARTUP_ERRORS[status];
+  const isRecognizing = hasPermission && isFocused && !hasSeenDog && !startupError;
+
+  useEffect(() => {
+    if (!isRecognizing) {
+      return;
+    }
+    const interval = setInterval(() => setLoadingDots(value => (value % 3) + 1), 400);
+    return () => clearInterval(interval);
+  }, [isRecognizing]);
+
   const onTracking = (event: NativeSyntheticEvent<FloorTracking>) => {
     const next = event.nativeEvent;
+    if (next.visible && next.onScreen) {
+      setHasSeenDog(true);
+    }
     if (isFocused && next.status === 'anchored' && next.userMoving) {
       setWalkStartedAt(current => current ?? Date.now());
     }
@@ -100,11 +74,9 @@ export function ArWalkScreen({
         !next.onScreen &&
         !next.userMoving,
     );
-    const shown = next.status === 'anchored' && next.moving ? 'leading' : next.status;
-    setStatus(current => (current === shown ? current : shown));
+    setStatus(current => (current === next.status ? current : next.status));
   };
 
-  const copy = STATUS_COPY[status];
   const walkTime = `${Math.floor(elapsedSeconds / 60)
     .toString()
     .padStart(2, '0')}:${(elapsedSeconds % 60).toString().padStart(2, '0')}`;
@@ -114,10 +86,8 @@ export function ArWalkScreen({
       {hasPermission ? (
         <ArFloorView
           active={isFocused}
-          petName={route?.params?.petName ?? '강아지'}
           placementRequest={placementRequest}
           showTraversalDebug={showTraversalDebug}
-          showWalkNotices={showWalkNotices}
           collapsable={false}
           style={styles.camera}
           onTracking={onTracking}
@@ -132,12 +102,17 @@ export function ArWalkScreen({
           {walkTime}
         </Text>
       </View>
-      {showWalkNotices && (
-        <View pointerEvents="none" style={styles.overlay}>
-          <View style={[styles.status, { top: headerHeight + 112 }]}>
-            <Text style={styles.statusLabel}>{copy.label}</Text>
-            <Text style={styles.statusHint}>{copy.hint}</Text>
-          </View>
+      {isRecognizing && (
+        <View pointerEvents="none" style={styles.loadingOverlay}>
+          <ActivityIndicator color="#FFFFFF" size="large" />
+          <Text accessibilityLabel="지형 인식 중" style={styles.loadingText}>
+            지형 인식 중{'.'.repeat(loadingDots)}
+          </Text>
+        </View>
+      )}
+      {hasPermission && !hasSeenDog && startupError && (
+        <View pointerEvents="none" style={styles.loadingOverlay}>
+          <Text style={styles.messageText}>{startupError}</Text>
         </View>
       )}
       {hasPermission && (
@@ -152,18 +127,6 @@ export function ArWalkScreen({
             <Text style={styles.areaToggleLabel}>영역 표시</Text>
             <View style={[styles.toggleTrack, showTraversalDebug && styles.toggleTrackOn]}>
               <View style={[styles.toggleThumb, showTraversalDebug && styles.toggleThumbOn]} />
-            </View>
-          </Pressable>
-          <Pressable
-            accessibilityRole="switch"
-            accessibilityLabel="상단 안내 표시"
-            accessibilityState={{ checked: showWalkNotices }}
-            onPress={() => setShowWalkNotices(value => !value)}
-            style={styles.areaToggle}
-          >
-            <Text style={styles.areaToggleLabel}>안내 표시</Text>
-            <View style={[styles.toggleTrack, showWalkNotices && styles.toggleTrackOn]}>
-              <View style={[styles.toggleThumb, showWalkNotices && styles.toggleThumbOn]} />
             </View>
           </Pressable>
         </View>

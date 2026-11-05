@@ -8,8 +8,19 @@ export const styles = StyleSheet.create({
   camera: {
     ...StyleSheet.absoluteFill,
   },
-  overlay: {
+  loadingOverlay: {
     ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    gap: 16,
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    width: 180,
+    textAlign: 'center',
   },
   walkTimer: {
     position: 'absolute',
@@ -34,20 +45,6 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     textAlign: 'center',
-  },
-  status: {
-    backgroundColor: 'rgba(17, 17, 17, 0.55)',
-    borderRadius: 16,
-    left: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    position: 'absolute',
-    right: 20,
-  },
-  statusLabel: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
   },
   toggleTrack: {
     width: 48,
@@ -79,12 +76,6 @@ export const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '600',
     marginRight: 8,
-  },
-  statusHint: {
-    color: '#F4F4F4',
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 4,
   },
   placeButton: {
     alignItems: 'center',

@@ -68,28 +68,48 @@ test('placement remains visible during analysis and hides only for visible dogs 
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
-test('areas and notices default to hidden and toggle independently', async () => {
+test('area toggle remains available without a notices toggle', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<ArWalkScreen />);
   });
-  const toggle = (label: string) => renderer.root.findAllByProps({ accessibilityLabel: label })[0];
   const native = () => renderer.root.findByType(ArFloorView).props;
-  const notices = () => renderer.root.findAllByProps({ children: '바닥을 찾는 중' });
+  const toggle = () => renderer.root.findAllByProps({ accessibilityLabel: '이동 가능 영역 표시' })[0];
   expect(native().showTraversalDebug).toBe(false);
-  expect(native().showWalkNotices).toBe(false);
-  expect(notices()).toHaveLength(0);
-  await ReactTestRenderer.act(() => toggle('이동 가능 영역 표시').props.onPress());
+  expect(renderer!.root.findAllByProps({ accessibilityLabel: '상단 안내 표시' })).toHaveLength(0);
+  await ReactTestRenderer.act(() => toggle().props.onPress());
   expect(native().showTraversalDebug).toBe(true);
-  expect(native().showWalkNotices).toBe(false);
-  await ReactTestRenderer.act(() => toggle('상단 안내 표시').props.onPress());
-  expect(native().showWalkNotices).toBe(true);
-  expect(notices().length).toBeGreaterThan(0);
-  await ReactTestRenderer.act(() => toggle('이동 가능 영역 표시').props.onPress());
+  await ReactTestRenderer.act(() => toggle().props.onPress());
   expect(native().showTraversalDebug).toBe(false);
-  expect(native().showWalkNotices).toBe(true);
-  await ReactTestRenderer.act(() => toggle('상단 안내 표시').props.onPress());
-  expect(native().showWalkNotices).toBe(false);
-  expect(notices()).toHaveLength(0);
   await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('startup loading animates until the dog first appears on screen', async () => {
+  jest.useFakeTimers();
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+  try {
+    await ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(<ArWalkScreen />);
+    });
+    const loading = () => renderer!.root.findAllByProps({ accessibilityLabel: '지형 인식 중' });
+    expect(loading()[0].props.children.join('')).toBe('지형 인식 중..');
+    await ReactTestRenderer.act(() => jest.advanceTimersByTime(400));
+    expect(loading()[0].props.children.join('')).toBe('지형 인식 중...');
+    const tracking = async (visible: boolean, onScreen: boolean) => {
+      await ReactTestRenderer.act(() => {
+        renderer!.root.findByType(ArFloorView).props.onTracking({
+          nativeEvent: { status: 'anchored', visible, onScreen, userMoving: false },
+        });
+      });
+    };
+    await tracking(true, false);
+    expect(loading().length).toBeGreaterThan(0);
+    await tracking(true, true);
+    expect(loading()).toHaveLength(0);
+    await tracking(false, false);
+    expect(loading()).toHaveLength(0);
+  } finally {
+    await ReactTestRenderer.act(() => renderer?.unmount());
+    jest.useRealTimers();
+  }
 });
