@@ -307,6 +307,7 @@ export function HomeScreen({ navigation }: Props) {
             <Pressable
               accessibilityLabel="알림"
               accessibilityRole="button"
+              onPress={() => navigation.navigate('Notifications')}
               style={styles.headerIcon}
             >
               <NotificationIcon />

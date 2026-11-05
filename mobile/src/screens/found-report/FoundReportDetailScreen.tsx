@@ -63,6 +63,8 @@ export function getContactDisplayValue(contact?: string) {
 
 export function FoundReportDetailScreen({ navigation, route }: Props) {
   const isLostReport = route.name === 'LostReportDetail';
+  const highlightCommentId =
+    'highlightCommentId' in route.params ? route.params.highlightCommentId : undefined;
   const baseReport = isLostReport
     ? getLostReport(route.params.reportId)
     : getFoundReport(route.params.reportId);
@@ -111,7 +113,9 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const reporterName = report.isMine ? '내 닉네임' : '시샤';
   const openChat = async (name: string, authorId: string) => {
     try {
-      const params = await useChatStore.getState().openPostRoom(isLostReport ? 'lost' : 'found', report.id, name, authorId);
+      const params = await useChatStore
+        .getState()
+        .openPostRoom(isLostReport ? 'lost' : 'found', report.id, name, authorId);
       if (navigation.isFocused()) {
         navigation.navigate('ChatRoom', params);
       }
@@ -267,9 +271,15 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           <Text style={styles.description}>{report.description}</Text>
         </View>
         <FoundReportCommentList
+          onTargetLayout={y => {
+            setTimeout(() => {
+              scrollRef.current?.scrollTo({ animated: true, y: Math.max(0, y - 80) });
+            }, 250);
+          }}
           onChat={openChat}
           onEditFocus={revealCommentInput}
           reportId={report.id}
+          targetCommentId={highlightCommentId}
         />
       </ScrollView>
       {!keyboardVisible && !isCompleted ? (
@@ -341,8 +351,8 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                     report.gender === '수컷'
                       ? 'male'
                       : report.gender === '암컷'
-                        ? 'female'
-                        : 'unknown',
+                      ? 'female'
+                      : 'unknown',
                   images: report.images.map(image => ({
                     type: 'image/jpeg',
                     uri: Image.resolveAssetSource(image)?.uri ?? '',
@@ -749,7 +759,12 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 28,
   },
-  statusModalGuide: { ...typography.bodyRegular14, color: colors.gray500, marginBottom: 14, marginTop: 16 },
+  statusModalGuide: {
+    ...typography.bodyRegular14,
+    color: colors.gray500,
+    marginBottom: 14,
+    marginTop: 16,
+  },
   statusOption: {
     alignItems: 'center',
     backgroundColor: colors.gray10,
