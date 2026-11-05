@@ -5,4 +5,4 @@ resources:
 # CI가 이미지를 올린 뒤 newTag를 커밋 SHA로 바꾼다 (ArgoCD가 감지해 배포)
 images:
   - name: k15d106.p.ssafy.io/animal/core-api
-    newTag: "af0083e8"
+    newTag: "e46f1e21"
