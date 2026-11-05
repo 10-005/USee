@@ -1,9 +1,12 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
   FlatList,
   Alert,
   Image,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +14,8 @@ import {
   TextInput,
   useWindowDimensions,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -65,6 +70,10 @@ const initialFilters: AdoptionFilters = {
   species: '전체',
   status: '전체',
 };
+const SEARCH_FILTERS_HEIGHT = 120;
+const HIDE_CONTROLS_OFFSET = 120;
+const HIDE_DIRECTION_DISTANCE = 40;
+const SHOW_DIRECTION_DISTANCE = 16;
 const navigationItems = [
   {
     key: 'adoption',
@@ -110,6 +119,12 @@ export function HomeScreen({ navigation }: Props) {
   const cardWidth = (screenWidth - 52) / 2;
   const [query, setQuery] = useState('');
   const listRef = useRef<FlatList<AdoptionAnimal>>(null);
+  const controlsProgress = useRef(new Animated.Value(1)).current;
+  const controlsVisibleRef = useRef(true);
+  const lastScrollOffset = useRef(0);
+  const scrollDirection = useRef<'down' | 'up' | null>(null);
+  const scrollDirectionDistance = useRef(0);
+  const [controlsVisible, setControlsVisible] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
   const [registrationMenuOpen, setRegistrationMenuOpen] = useState(false);
   const [filterValues, setFilterValues] = useState(initialFilters);
@@ -148,6 +163,85 @@ export function HomeScreen({ navigation }: Props) {
     );
   }, [filterValues, query]);
   const listKey = `${query}-${Object.values(filterValues).join('-')}`;
+
+  const updateControlsVisibility = useCallback(
+    (visible: boolean) => {
+      if (controlsVisibleRef.current === visible) {
+        return;
+      }
+      controlsVisibleRef.current = visible;
+      setControlsVisible(visible);
+      Animated.timing(controlsProgress, {
+        duration: 300,
+        easing: Easing.bezier(0.22, 1, 0.36, 1),
+        toValue: visible ? 1 : 0,
+        useNativeDriver: false,
+      }).start();
+    },
+    [controlsProgress],
+  );
+
+  const resetAdoptionListHeader = useCallback(() => {
+    controlsProgress.stopAnimation();
+    controlsProgress.setValue(1);
+    controlsVisibleRef.current = true;
+    lastScrollOffset.current = 0;
+    scrollDirection.current = null;
+    scrollDirectionDistance.current = 0;
+    setControlsVisible(true);
+  }, [controlsProgress]);
+
+  const scrollAdoptionToTop = useCallback(() => {
+    resetAdoptionListHeader();
+    listRef.current?.scrollToOffset({ animated: true, offset: 0 });
+  }, [resetAdoptionListHeader]);
+
+  const handleListScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const currentOffset = Math.max(0, event.nativeEvent.contentOffset.y);
+    const delta = currentOffset - lastScrollOffset.current;
+    lastScrollOffset.current = currentOffset;
+
+    if (activeFilter) {
+      return;
+    }
+    if (currentOffset <= 20) {
+      scrollDirection.current = null;
+      scrollDirectionDistance.current = 0;
+      updateControlsVisibility(true);
+      return;
+    }
+    if (Math.abs(delta) < 1) {
+      return;
+    }
+
+    const nextDirection = delta > 0 ? 'down' : 'up';
+    if (scrollDirection.current !== nextDirection) {
+      scrollDirection.current = nextDirection;
+      scrollDirectionDistance.current = 0;
+    }
+    scrollDirectionDistance.current += Math.abs(delta);
+
+    if (
+      nextDirection === 'down' &&
+      currentOffset > HIDE_CONTROLS_OFFSET &&
+      scrollDirectionDistance.current >= HIDE_DIRECTION_DISTANCE
+    ) {
+      updateControlsVisibility(false);
+      scrollDirectionDistance.current = 0;
+    } else if (
+      nextDirection === 'up' &&
+      scrollDirectionDistance.current >= SHOW_DIRECTION_DISTANCE
+    ) {
+      updateControlsVisibility(true);
+      scrollDirectionDistance.current = 0;
+    }
+  };
+
+  useEffect(() => {
+    if (activeFilter) {
+      updateControlsVisibility(true);
+    }
+  }, [activeFilter, updateControlsVisibility]);
 
   useEffect(() => {
     listRef.current?.scrollToOffset({ animated: false, offset: 0 });
@@ -253,12 +347,19 @@ export function HomeScreen({ navigation }: Props) {
         centerAction={{
           accessibilityLabel: '등록',
           icon: <PlusIcon height={24} width={24} />,
-          onPress: () => setRegistrationMenuOpen(open => !open),
+          onPress: () => {
+            Keyboard.dismiss();
+            setRegistrationMenuOpen(open => !open);
+          },
           selected: registrationMenuOpen,
         }}
         items={navigationItems}
         onSelect={key => {
+          Keyboard.dismiss();
           setRegistrationMenuOpen(false);
+          if (key === 'adoption') {
+            resetAdoptionListHeader();
+          }
           setSelectedTab(key);
         }}
         selectedKey={selectedTab}
@@ -299,11 +400,18 @@ export function HomeScreen({ navigation }: Props) {
       ) : (
         <>
           <View style={styles.header}>
-            <Image
-              resizeMode="contain"
-              source={require('../../assets/images/logo.png')}
-              style={styles.logo}
-            />
+            <Pressable
+              accessibilityLabel="입양 목록 상단으로 이동"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={scrollAdoptionToTop}
+            >
+              <Image
+                resizeMode="contain"
+                source={require('../../assets/images/logo.png')}
+                style={styles.logo}
+              />
+            </Pressable>
             <Pressable
               accessibilityLabel="알림"
               accessibilityRole="button"
@@ -313,63 +421,102 @@ export function HomeScreen({ navigation }: Props) {
               <NotificationIcon />
             </Pressable>
           </View>
-          <View style={styles.searchBox}>
-            <SearchInputIcon />
-            <TextInput
-              onChangeText={setQuery}
-              placeholder="특징으로 검색해보세요"
-              placeholderTextColor={colors.gray400}
-              style={styles.searchInput}
-              value={query}
+          <View style={styles.listArea}>
+            <FlatList
+              columnWrapperStyle={styles.column}
+              contentContainerStyle={[
+                styles.listContent,
+                { paddingBottom: 104 + insets.bottom, paddingTop: SEARCH_FILTERS_HEIGHT },
+              ]}
+              data={animals}
+              decelerationRate="fast"
+              key={listKey}
+              keyExtractor={item => item.id}
+              keyboardDismissMode="on-drag"
+              numColumns={2}
+              onScroll={handleListScroll}
+              ref={listRef}
+              renderItem={renderAnimal}
+              showsVerticalScrollIndicator={false}
+              scrollEventThrottle={16}
             />
-          </View>
-          <ScrollView
-            contentContainerStyle={styles.filters}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
-          >
-            {filterItems.map(filter => (
-              <Pressable
-                accessibilityLabel={`${filter.label} 필터`}
-                accessibilityRole="button"
-                key={filter.key}
-                onPress={() =>
-                  setActiveFilter(current => (current === filter.key ? null : filter.key))
-                }
-                style={[
-                  styles.filterChip,
-                  activeFilter === filter.key && styles.filterChipOpen,
-                  isFilterApplied(filter.key) && styles.filterChipApplied,
-                ]}
+            <Animated.View
+              pointerEvents={controlsVisible ? 'auto' : 'none'}
+              style={[
+                styles.searchAndFilters,
+                activeFilter && styles.searchAndFiltersAboveSheet,
+                {
+                  filter: [
+                    {
+                      blur: controlsProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [3, 0],
+                      }),
+                    },
+                  ],
+                  opacity: controlsProgress.interpolate({
+                    inputRange: [0, 0.35, 1],
+                    outputRange: [0, 0, 1],
+                  }),
+                  transform: [
+                    {
+                      translateY: controlsProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-SEARCH_FILTERS_HEIGHT, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <View style={styles.searchBox}>
+                <SearchInputIcon />
+                <TextInput
+                  onChangeText={setQuery}
+                  placeholder="특징으로 검색해보세요"
+                  placeholderTextColor={colors.gray400}
+                  style={styles.searchInput}
+                  value={query}
+                />
+              </View>
+              <ScrollView
+                contentContainerStyle={styles.filters}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
               >
-                <Text
-                  style={[
-                    styles.filterText,
-                    isFilterApplied(filter.key) && styles.filterTextApplied,
-                  ]}
-                >
-                  {getFilterLabel(filter.key, filter.label)}
-                </Text>
-                <FilterArrowIcon />
-              </Pressable>
-            ))}
-          </ScrollView>
-          <FlatList
-            columnWrapperStyle={styles.column}
-            contentContainerStyle={[styles.listContent, { paddingBottom: 104 + insets.bottom }]}
-            data={animals}
-            key={listKey}
-            keyExtractor={item => item.id}
-            numColumns={2}
-            ref={listRef}
-            renderItem={renderAnimal}
-            showsVerticalScrollIndicator={false}
-          />
+                {filterItems.map(filter => (
+                  <Pressable
+                    accessibilityLabel={`${filter.label} 필터`}
+                    accessibilityRole="button"
+                    key={filter.key}
+                    onPress={() =>
+                      setActiveFilter(current => (current === filter.key ? null : filter.key))
+                    }
+                    style={[
+                      styles.filterChip,
+                      activeFilter === filter.key && styles.filterChipOpen,
+                      isFilterApplied(filter.key) && styles.filterChipApplied,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterText,
+                        isFilterApplied(filter.key) && styles.filterTextApplied,
+                      ]}
+                    >
+                      {getFilterLabel(filter.key, filter.label)}
+                    </Text>
+                    <FilterArrowIcon />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </Animated.View>
+          </View>
         </>
       )}
-      {navigationBar}
-      {registrationMenuOpen ? (
+      {activeFilter ? null : navigationBar}
+      {registrationMenuOpen && !activeFilter ? (
         <RegistrationMenu
           bottom={insets.bottom + 84}
           onClose={() => setRegistrationMenuOpen(false)}
@@ -401,6 +548,17 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', flexDirection: 'row', height: 56, justifyContent: 'center' },
   logo: { height: 34, width: 88 },
   headerIcon: { position: 'absolute', right: 20 },
+  listArea: { flex: 1 },
+  searchAndFilters: {
+    backgroundColor: colors.white,
+    height: SEARCH_FILTERS_HEIGHT,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 2,
+  },
+  searchAndFiltersAboveSheet: { zIndex: 21 },
   searchBox: {
     alignItems: 'center',
     borderColor: colors.gray200,
@@ -443,12 +601,14 @@ const styles = StyleSheet.create({
   card: { marginBottom: 18 },
   cardImage: { borderRadius: radius.sm },
   bookmarkButton: {
+    alignItems: 'center',
     height: 24,
+    justifyContent: 'center',
     position: 'absolute',
     right: 8,
     top: 8,
     width: 24,
-    zIndex: 1,
+    zIndex: 2,
   },
   statusBadge: {
     alignSelf: 'flex-start',

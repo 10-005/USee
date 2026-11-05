@@ -99,6 +99,7 @@ export function NotificationListScreen({ navigation }: Props) {
       </View>
 
       <FlatList
+        decelerationRate="fast"
         contentContainerStyle={[
           styles.listContent,
           filteredNotifications.length === 0 && styles.emptyListContent,

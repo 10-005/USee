@@ -1,14 +1,19 @@
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
   FlatList,
   Image,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 
 import type { RootStackParamList } from '../../app/navigation/types';
@@ -61,6 +66,11 @@ const initialFilters: AdoptionFilters = {
   status: '전체',
 };
 
+const SEARCH_FILTERS_HEIGHT = 120;
+const HIDE_CONTROLS_OFFSET = 120;
+const HIDE_DIRECTION_DISTANCE = 40;
+const SHOW_DIRECTION_DISTANCE = 16;
+
 export const filterFoundReports = (query: string, filters: AdoptionFilters) => {
   return filterReports(foundReports, query, filters);
 };
@@ -99,6 +109,12 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
   const { width } = useWindowDimensions();
   const cardWidth = (width - 52) / 2;
   const listRef = useRef<FlatList<Report>>(null);
+  const controlsProgress = useRef(new Animated.Value(1)).current;
+  const controlsVisibleRef = useRef(true);
+  const lastScrollOffset = useRef(0);
+  const scrollDirection = useRef<'down' | 'up' | null>(null);
+  const scrollDirectionDistance = useRef(0);
+  const [controlsVisible, setControlsVisible] = useState(true);
   const [activeTab, setActiveTab] = useState<ReportTab>('found');
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
@@ -110,57 +126,130 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
   const foundReportEdits = useFoundReportEditStore(state => state.editsById);
   const deletedLostReportIds = useLostReportEditStore(state => state.deletedIds);
   const lostReportEdits = useLostReportEditStore(state => state.editsById);
-  const reports = useMemo(
-    () => {
-      const source = (activeTab === 'found' ? foundReports : lostReports)
-        .filter(report =>
-          activeTab === 'found'
-            ? !deletedFoundReportIds.includes(report.id)
-            : !deletedLostReportIds.includes(report.id),
-        )
-        .map(report => {
-          const editedReport =
-            activeTab === 'found' ? foundReportEdits[report.id] : lostReportEdits[report.id];
-          const currentReport = (editedReport ? { ...report, ...editedReport } : report) as Report;
-          const storedStatus = statusById[report.id];
-          if (!storedStatus) {
-            return currentReport;
-          }
-          return {
-            ...currentReport,
-            status:
-              activeTab === 'found'
-                ? storedStatus === 'active'
-                  ? '진행 중'
-                  : '완료'
-                : storedStatus === 'active'
-                  ? '실종'
-                  : '종료',
-          } as Report;
-        });
-      return filterReports(
-        source,
-        query,
-        filters,
-      );
+  const reports = useMemo(() => {
+    const source = (activeTab === 'found' ? foundReports : lostReports)
+      .filter(report =>
+        activeTab === 'found'
+          ? !deletedFoundReportIds.includes(report.id)
+          : !deletedLostReportIds.includes(report.id),
+      )
+      .map(report => {
+        const editedReport =
+          activeTab === 'found' ? foundReportEdits[report.id] : lostReportEdits[report.id];
+        const currentReport = (editedReport ? { ...report, ...editedReport } : report) as Report;
+        const storedStatus = statusById[report.id];
+        if (!storedStatus) {
+          return currentReport;
+        }
+        return {
+          ...currentReport,
+          status:
+            activeTab === 'found'
+              ? storedStatus === 'active'
+                ? '진행 중'
+                : '완료'
+              : storedStatus === 'active'
+              ? '실종'
+              : '종료',
+        } as Report;
+      });
+    return filterReports(source, query, filters);
+  }, [
+    activeTab,
+    deletedFoundReportIds,
+    deletedLostReportIds,
+    filters,
+    foundReportEdits,
+    lostReportEdits,
+    query,
+    statusById,
+  ]);
+
+  const updateControlsVisibility = useCallback(
+    (visible: boolean) => {
+      if (controlsVisibleRef.current === visible) {
+        return;
+      }
+      controlsVisibleRef.current = visible;
+      setControlsVisible(visible);
+      Animated.timing(controlsProgress, {
+        duration: 300,
+        easing: Easing.bezier(0.22, 1, 0.36, 1),
+        toValue: visible ? 1 : 0,
+        useNativeDriver: false,
+      }).start();
     },
-    [
-      activeTab,
-      deletedFoundReportIds,
-      deletedLostReportIds,
-      filters,
-      foundReportEdits,
-      lostReportEdits,
-      query,
-      statusById,
-    ],
+    [controlsProgress],
   );
+
+  const resetListHeader = useCallback(() => {
+    controlsProgress.stopAnimation();
+    controlsProgress.setValue(1);
+    controlsVisibleRef.current = true;
+    lastScrollOffset.current = 0;
+    scrollDirection.current = null;
+    scrollDirectionDistance.current = 0;
+    setControlsVisible(true);
+  }, [controlsProgress]);
+
+  const handleListScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const currentOffset = Math.max(0, event.nativeEvent.contentOffset.y);
+    const delta = currentOffset - lastScrollOffset.current;
+    lastScrollOffset.current = currentOffset;
+
+    if (activeFilter) {
+      return;
+    }
+    if (currentOffset <= 20) {
+      scrollDirection.current = null;
+      scrollDirectionDistance.current = 0;
+      updateControlsVisibility(true);
+      return;
+    }
+    if (Math.abs(delta) < 1) {
+      return;
+    }
+
+    const nextDirection = delta > 0 ? 'down' : 'up';
+    if (scrollDirection.current !== nextDirection) {
+      scrollDirection.current = nextDirection;
+      scrollDirectionDistance.current = 0;
+    }
+    scrollDirectionDistance.current += Math.abs(delta);
+
+    if (
+      nextDirection === 'down' &&
+      currentOffset > HIDE_CONTROLS_OFFSET &&
+      scrollDirectionDistance.current >= HIDE_DIRECTION_DISTANCE
+    ) {
+      updateControlsVisibility(false);
+      scrollDirectionDistance.current = 0;
+    } else if (
+      nextDirection === 'up' &&
+      scrollDirectionDistance.current >= SHOW_DIRECTION_DISTANCE
+    ) {
+      updateControlsVisibility(true);
+      scrollDirectionDistance.current = 0;
+    }
+  };
 
   useEffect(() => {
     listRef.current?.scrollToOffset({ animated: false, offset: 0 });
   }, [activeTab, filters, query]);
 
+  useEffect(() => {
+    if (activeFilter) {
+      updateControlsVisibility(true);
+    }
+  }, [activeFilter, updateControlsVisibility]);
+
   const selectTab = (tab: ReportTab) => {
+    Keyboard.dismiss();
+    resetListHeader();
+    if (tab === activeTab) {
+      listRef.current?.scrollToOffset({ animated: true, offset: 0 });
+      return;
+    }
     setActiveTab(tab);
     setActiveFilter(null);
     setFilters(initialFilters);
@@ -223,9 +312,7 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
           activeTab === 'lost' && item.status === '종료' && styles.closedBadge,
         ]}
       >
-        <Text style={styles.badgeText}>
-          {activeTab === 'found' ? '제보' : item.status}
-        </Text>
+        <Text style={styles.badgeText}>{activeTab === 'found' ? '제보' : item.status}</Text>
       </View>
       <Text numberOfLines={1} style={styles.cardTitle}>
         {item.name}
@@ -272,54 +359,92 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
           <View style={activeTab === 'lost' ? styles.activeIndicator : styles.inactiveIndicator} />
         </Pressable>
       </View>
-      <View style={styles.searchRow}>
-        <SearchBar onChangeText={setQuery} placeholder="특징으로 검색해보세요" value={query} />
-        {activeTab === 'found' ? <Pressable
-          accessibilityLabel="지도로 보기"
-          accessibilityRole="button"
-          onPress={() => navigation.navigate('FoundReportMap')}
-          style={({ pressed }) => [styles.mapButton, pressed && styles.pressed]}
+      <View style={styles.listArea}>
+        <FlatList
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>검색 결과가 없습니다</Text>
+              <Text style={styles.emptyBody}>다른 검색어나 필터 조건을 선택해보세요.</Text>
+            </View>
+          }
+          columnWrapperStyle={reports.length ? styles.columns : undefined}
+          contentContainerStyle={[
+            styles.list,
+            { paddingBottom: 104 + bottomInset, paddingTop: SEARCH_FILTERS_HEIGHT },
+            !reports.length && styles.emptyList,
+          ]}
+          data={reports}
+          decelerationRate="fast"
+          keyExtractor={item => item.id}
+          keyboardDismissMode="on-drag"
+          numColumns={2}
+          onScroll={handleListScroll}
+          ref={listRef}
+          renderItem={renderReport}
+          scrollEventThrottle={16}
+          showsVerticalScrollIndicator={false}
+        />
+        <Animated.View
+          pointerEvents={controlsVisible ? 'auto' : 'none'}
+          style={[
+            styles.searchAndFilters,
+            activeFilter && styles.searchAndFiltersAboveSheet,
+            {
+              filter: [
+                {
+                  blur: controlsProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [3, 0],
+                  }),
+                },
+              ],
+              opacity: controlsProgress.interpolate({
+                inputRange: [0, 0.35, 1],
+                outputRange: [0, 0, 1],
+              }),
+              transform: [
+                {
+                  translateY: controlsProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-SEARCH_FILTERS_HEIGHT, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
         >
-          <MapButtonIcon height={24} width={24} />
-        </Pressable> : null}
-      </View>
-      <ScrollView
-        contentContainerStyle={styles.filters}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
-      >
-        {filterItems.map(item => (
-          <FilterChip
-            accessibilityLabel={`${item.label} 필터`}
-            key={item.key}
-            onPress={() => setActiveFilter(current => (current === item.key ? null : item.key))}
-            label={labelFor(item.key, item.label)}
-            open={activeFilter === item.key}
-            applied={applied(item.key)}
-          />
-        ))}
-      </ScrollView>
-      <FlatList
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>검색 결과가 없습니다</Text>
-            <Text style={styles.emptyBody}>다른 검색어나 필터 조건을 선택해보세요.</Text>
+          <View style={styles.searchRow}>
+            <SearchBar onChangeText={setQuery} placeholder="특징으로 검색해보세요" value={query} />
+            {activeTab === 'found' ? (
+              <Pressable
+                accessibilityLabel="지도로 보기"
+                accessibilityRole="button"
+                onPress={() => navigation.navigate('FoundReportMap')}
+                style={({ pressed }) => [styles.mapButton, pressed && styles.pressed]}
+              >
+                <MapButtonIcon height={24} width={24} />
+              </Pressable>
+            ) : null}
           </View>
-        }
-        columnWrapperStyle={reports.length ? styles.columns : undefined}
-        contentContainerStyle={[
-          styles.list,
-          { paddingBottom: 104 + bottomInset },
-          !reports.length && styles.emptyList,
-        ]}
-        data={reports}
-        keyExtractor={item => item.id}
-        numColumns={2}
-        ref={listRef}
-        renderItem={renderReport}
-        showsVerticalScrollIndicator={false}
-      />
+          <ScrollView
+            contentContainerStyle={styles.filters}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={[styles.filterScroll, activeFilter && styles.filterScrollAboveSheet]}
+          >
+            {filterItems.map(item => (
+              <FilterChip
+                accessibilityLabel={`${item.label} 필터`}
+                applied={applied(item.key)}
+                key={item.key}
+                label={labelFor(item.key, item.label)}
+                onPress={() => setActiveFilter(current => (current === item.key ? null : item.key))}
+                open={activeFilter === item.key}
+              />
+            ))}
+          </ScrollView>
+        </Animated.View>
+      </View>
       <AdoptionFilterSheet
         activeFilter={activeFilter}
         filters={filters}
@@ -341,6 +466,17 @@ const styles = StyleSheet.create({
   tabText: { ...typography.bodyRegular16, color: colors.gray600, marginBottom: 16 },
   activeIndicator: { backgroundColor: colors.green400, height: 4, width: '100%' },
   inactiveIndicator: { backgroundColor: colors.gray200, height: 1, width: '100%' },
+  listArea: { flex: 1 },
+  searchAndFilters: {
+    backgroundColor: colors.white,
+    height: SEARCH_FILTERS_HEIGHT,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 2,
+  },
+  searchAndFiltersAboveSheet: { zIndex: 21 },
   searchRow: { flexDirection: 'row', gap: 8, marginHorizontal: 20, marginTop: 16 },
   mapButton: {
     alignItems: 'center',

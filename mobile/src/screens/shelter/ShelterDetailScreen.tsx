@@ -13,6 +13,7 @@ import { Button } from '../../components/common';
 import { colors, typography } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ShelterDetail'>;
+const MAX_FONT_SIZE_MULTIPLIER = 1.15;
 
 const shelterDescription =
   '안녕하세요 박범준보호소입니다. 보호동물이 안전하게 가족을 기다릴 수 있도록 돌보고 있습니다. 입양을 희망하시는 분께서는 보호동물의 성격과 건강 상태를 충분히 확인해 주세요. 방문 상담을 통해 동물과 직접 만나고 가족 구성원 모두의 동의를 확인한 뒤 입양을 진행하고 있습니다. 입양 상담과 방문 일정은 채팅으로 문의해 주세요.';
@@ -45,6 +46,7 @@ export function ShelterDetailScreen({ navigation }: Props) {
     <SafeAreaView edges={[]} style={styles.safeArea}>
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 112 + insets.bottom }]}
+        decelerationRate="fast"
         showsVerticalScrollIndicator={false}
       >
         <Image
@@ -59,7 +61,15 @@ export function ShelterDetailScreen({ navigation }: Props) {
             style={styles.avatar}
           />
           <View style={styles.shelterNameRow}>
-            <Text style={styles.shelterName}>박범준동물보호소</Text>
+            <Text
+              adjustsFontSizeToFit
+              maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER}
+              minimumFontScale={0.8}
+              numberOfLines={1}
+              style={styles.shelterName}
+            >
+              박범준동물보호소
+            </Text>
             <BadgeIcon />
           </View>
           <View style={styles.contactList}>
@@ -67,7 +77,13 @@ export function ShelterDetailScreen({ navigation }: Props) {
               <View style={[styles.icon, styles.mapIcon]}>
                 <MapIcon />
               </View>
-              <Text numberOfLines={2} style={styles.contactText}>
+              <Text
+                adjustsFontSizeToFit
+                maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER}
+                minimumFontScale={0.65}
+                numberOfLines={1}
+                style={styles.contactText}
+              >
                 전북특별자치도 익산시 삼기면 황금 342-17
               </Text>
               <Pressable
@@ -78,35 +94,63 @@ export function ShelterDetailScreen({ navigation }: Props) {
                   copyToClipboard('address', '전북특별자치도 익산시 삼기면 황금 342-17')
                 }
               >
-                <Text style={styles.copyText}>{copiedField === 'address' ? '복사됨' : '복사'}</Text>
+                <Text maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER} style={styles.copyText}>
+                  {copiedField === 'address' ? '복사됨' : '복사'}
+                </Text>
               </Pressable>
             </View>
             <View style={styles.contactRow}>
               <View style={[styles.icon, styles.phoneIcon]}>
                 <PhoneIcon />
               </View>
-              <Text style={styles.contactText}>063-855-1214</Text>
+              <Text maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER} style={styles.contactText}>
+                063-855-1214
+              </Text>
               <Pressable
                 accessibilityLabel="보호센터 전화번호 복사"
                 accessibilityRole="button"
                 hitSlop={8}
                 onPress={() => copyToClipboard('phone', '063-855-1214')}
               >
-                <Text style={styles.copyText}>{copiedField === 'phone' ? '복사됨' : '복사'}</Text>
+                <Text maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER} style={styles.copyText}>
+                  {copiedField === 'phone' ? '복사됨' : '복사'}
+                </Text>
               </Pressable>
             </View>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>운영시간</Text>
-              <Text style={styles.infoValue}>09:00~18:00</Text>
+              <Text
+                maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER}
+                numberOfLines={1}
+                style={styles.infoLabel}
+              >
+                운영시간
+              </Text>
+              <Text maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER} style={styles.infoValue}>
+                09:00~18:00
+              </Text>
             </View>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>휴무일</Text>
-              <Text style={styles.infoValue}>일월 휴무</Text>
+              <Text
+                maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER}
+                numberOfLines={1}
+                style={styles.infoLabel}
+              >
+                휴무일
+              </Text>
+              <Text maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER} style={styles.infoValue}>
+                일월 휴무
+              </Text>
             </View>
           </View>
           <View style={styles.divider} />
-          <Text style={styles.sectionTitle}>보호센터 소개</Text>
-          <Text numberOfLines={descriptionExpanded ? undefined : 4} style={styles.description}>
+          <Text maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER} style={styles.sectionTitle}>
+            보호센터 소개
+          </Text>
+          <Text
+            maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER}
+            numberOfLines={descriptionExpanded ? undefined : 4}
+            style={styles.description}
+          >
             {shelterDescription}
           </Text>
           <Pressable
@@ -116,7 +160,10 @@ export function ShelterDetailScreen({ navigation }: Props) {
             onPress={() => setDescriptionExpanded(current => !current)}
             style={styles.descriptionToggle}
           >
-            <Text style={styles.descriptionToggleText}>
+            <Text
+              maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER}
+              style={styles.descriptionToggleText}
+            >
               {descriptionExpanded ? '간략히' : '더보기'}
             </Text>
           </Pressable>
@@ -172,21 +219,27 @@ const styles = StyleSheet.create({
     width: 70,
   },
   shelterNameRow: { alignItems: 'center', flexDirection: 'row', gap: 4 },
-  shelterName: { color: colors.black, fontFamily: 'Pretendard-Bold', fontSize: 22, lineHeight: 28 },
+  shelterName: {
+    color: colors.black,
+    flexShrink: 1,
+    fontFamily: 'Pretendard-Bold',
+    fontSize: 22,
+    lineHeight: 28,
+  },
   contactList: { gap: 14, marginTop: 26 },
   contactRow: { alignItems: 'center', flexDirection: 'row', gap: 8 },
   icon: { alignItems: 'center', height: 20, justifyContent: 'center', width: 20 },
   mapIcon: { opacity: 0.36 },
   phoneIcon: { opacity: 0.55 },
-  contactText: { ...typography.bodyRegular16, color: colors.black, flexShrink: 1 },
+  contactText: { ...typography.bodyRegular16, color: colors.black, flex: 1, minWidth: 0 },
   copyText: {
     ...typography.bodyRegular16,
     color: colors.green400,
     textDecorationLine: 'underline',
   },
   infoRow: { alignItems: 'center', flexDirection: 'row', gap: 13 },
-  infoLabel: { ...typography.bodyRegular16, color: colors.gray300, width: 55 },
-  infoValue: { ...typography.bodyRegular16, color: colors.black },
+  infoLabel: { ...typography.bodyRegular16, color: colors.gray300, width: 64 },
+  infoValue: { ...typography.bodyRegular16, color: colors.black, flexShrink: 1 },
   divider: { backgroundColor: colors.gray200, height: 1, marginVertical: 26 },
   sectionTitle: { ...typography.bodySemiBold16, color: colors.black },
   description: { ...typography.bodyRegular16, color: colors.gray600, marginTop: 20 },

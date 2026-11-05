@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState, type ComponentRef } from 'react';
 import {
   Alert,
   BackHandler,
@@ -14,7 +14,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { launchCamera, launchImageLibrary, type Asset } from 'react-native-image-picker';
@@ -27,7 +26,11 @@ import PlusIcon from '../../assets/icons/common/plus.svg';
 import XCircleIcon from '../../assets/icons/common/x-circle.svg';
 import CameraIcon from '../../assets/icons/common/photo-camera.svg';
 import LibraryIcon from '../../assets/icons/common/photo-library.svg';
-import { StepIndicator } from '../../components/common';
+import {
+  KeyboardAwareInputProvider,
+  KeyboardAwareTextInput,
+  StepIndicator,
+} from '../../components/common';
 import { MAX_IMAGE_SIZE_MB } from '../../constants/upload';
 import { useFoundReportDraftStore } from '../../stores/foundReportDraftStore';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
@@ -42,6 +45,7 @@ type Neutered = '완료' | '미완료' | '모름';
 type Microchip = '완료' | '미완료' | '모름';
 
 export function PetRegistrationScreen({ navigation, route }: Props) {
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const isLostReportFlow = route.params?.flow === 'lost-report';
   const isFoundReportFlow = route.params?.flow === 'found-report';
   const isReportFlow = isLostReportFlow || isFoundReportFlow;
@@ -74,21 +78,23 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   const [name, setName] = useState(initialAnimal?.name ?? '');
   const initialSpecies = isFoundReportFlow ? foundReportDraft.species : initialAnimal?.species;
   const [species, setSpecies] = useState<PetSpecies | ''>(
-    initialSpecies && initialSpecies in PET_OPTIONS
-      ? (initialSpecies as PetSpecies)
-      : '',
+    initialSpecies && initialSpecies in PET_OPTIONS ? (initialSpecies as PetSpecies) : '',
   );
-  const [breed, setBreed] = useState(isFoundReportFlow ? foundReportDraft.breed : initialAnimal?.breed ?? '');
-  const [color, setColor] = useState(isFoundReportFlow ? foundReportDraft.color : initialAnimal?.color ?? '');
+  const [breed, setBreed] = useState(
+    isFoundReportFlow ? foundReportDraft.breed : initialAnimal?.breed ?? '',
+  );
+  const [color, setColor] = useState(
+    isFoundReportFlow ? foundReportDraft.color : initialAnimal?.color ?? '',
+  );
   const [gender, setGender] = useState<Gender | ''>(
     isFoundReportFlow
       ? foundReportDraft.gender === 'male'
         ? '수컷'
         : foundReportDraft.gender === 'female'
-          ? '암컷'
-          : foundReportDraft.gender === 'unknown'
-            ? '모름'
-            : ''
+        ? '암컷'
+        : foundReportDraft.gender === 'unknown'
+        ? '모름'
+        : ''
       : initialAnimal?.gender ?? '',
   );
   const [neutered, setNeutered] = useState<Neutered | ''>(
@@ -96,10 +102,10 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       ? foundReportDraft.neutered === 'done'
         ? '완료'
         : foundReportDraft.neutered === 'not-done'
-          ? '미완료'
-          : foundReportDraft.neutered === 'unknown'
-            ? '모름'
-            : ''
+        ? '미완료'
+        : foundReportDraft.neutered === 'unknown'
+        ? '모름'
+        : ''
       : isLostReportFlow && lostReportEntryMode === 'manual'
       ? ''
       : initialAnimal
@@ -110,18 +116,24 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         : '미완료'
       : '',
   );
-  const [age, setAge] = useState(isFoundReportFlow ? foundReportDraft.age : initialAnimal?.age?.toString() ?? '');
-  const [weight, setWeight] = useState(isFoundReportFlow ? foundReportDraft.weight : initialAnimal?.weight?.toString() ?? '');
-  const [description, setDescription] = useState(isFoundReportFlow ? foundReportDraft.description : initialAnimal?.description ?? '');
+  const [age, setAge] = useState(
+    isFoundReportFlow ? foundReportDraft.age : initialAnimal?.age?.toString() ?? '',
+  );
+  const [weight, setWeight] = useState(
+    isFoundReportFlow ? foundReportDraft.weight : initialAnimal?.weight?.toString() ?? '',
+  );
+  const [description, setDescription] = useState(
+    isFoundReportFlow ? foundReportDraft.description : initialAnimal?.description ?? '',
+  );
   const [microchip, setMicrochip] = useState<Microchip | ''>(
     isFoundReportFlow
       ? foundReportDraft.microchipStatus === 'done'
         ? '완료'
         : foundReportDraft.microchipStatus === 'not-done'
-          ? '미완료'
-          : foundReportDraft.microchipStatus === 'unknown'
-            ? '모름'
-          : ''
+        ? '미완료'
+        : foundReportDraft.microchipStatus === 'unknown'
+        ? '모름'
+        : ''
       : isLostReportFlow && lostReportEntryMode === 'manual'
       ? ''
       : initialAnimal
@@ -350,15 +362,22 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       </View>
       {isReportFlow ? (
         <View style={styles.lostReportIndicator}>
-          <StepIndicator currentStep={isFoundReportFlow ? 1 : 2} totalSteps={isFoundReportFlow ? 3 : 4} />
+          <StepIndicator
+            currentStep={isFoundReportFlow ? 1 : 2}
+            totalSteps={isFoundReportFlow ? 3 : 4}
+          />
         </View>
       ) : null}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}
-      >
-        <ScrollView
+      <KeyboardAwareInputProvider scrollRef={scrollRef}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.flex}
+        >
+          <ScrollView
+            ref={scrollRef}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           contentContainerStyle={styles.content}
+          decelerationRate="fast"
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           onTouchStart={Keyboard.dismiss}
@@ -519,8 +538,9 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
               {isReportFlow ? '다음' : isEditing ? '수정하기' : '등록하기'}
             </Text>
           </Pressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </KeyboardAwareInputProvider>
       <Modal
         animationType="fade"
         onRequestClose={() => setCancelModalOpen(false)}
@@ -568,11 +588,11 @@ function InputField({
   required,
   multiline,
   ...props
-}: React.ComponentProps<typeof TextInput> & { label: string; required?: boolean }) {
+}: React.ComponentProps<typeof KeyboardAwareTextInput> & { label: string; required?: boolean }) {
   return (
     <View style={styles.field}>
       <FieldLabel required={required}>{label}</FieldLabel>
-      <TextInput
+      <KeyboardAwareTextInput
         placeholderTextColor={colors.gray400}
         style={[styles.input, multiline && styles.textArea]}
         {...props}

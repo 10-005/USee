@@ -171,7 +171,11 @@ export function AdoptionApplicationReviewScreen({ navigation }: Props) {
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
       <AppHeader onBackPress={navigation.goBack} title="" />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        decelerationRate="fast"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.animalCard}>
           <Image
             source={require('../../assets/images/adoption/animal-detail.jpg')}

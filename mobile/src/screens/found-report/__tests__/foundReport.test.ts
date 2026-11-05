@@ -24,14 +24,14 @@ describe('found report data', () => {
   it('오래된 순으로 정렬한다', () => {
     const result = filterFoundReports('', { ...filters, sort: '오래된 순' });
 
-    expect(result[0].date).toBe('2026-10-16');
+    expect(result[0].date).toBe('2026-10-10');
     expect(result.at(-1)?.date).toBe('2026-10-19');
   });
 
   it('상세 조회 시 여러 이미지와 연락처 공개 여부를 유지한다', () => {
     expect(getFoundReport('found-1').images).toHaveLength(3);
     expect(getFoundReport('found-3').contact).toBeUndefined();
-    expect(foundReports).toHaveLength(4);
+    expect(foundReports).toHaveLength(10);
   });
 
   it('비공개 연락처도 상세 화면에서 안내 문구로 표시한다', () => {

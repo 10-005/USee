@@ -15,7 +15,11 @@ export function NoticeDetailScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <NoticeHeader onBack={navigation.goBack} />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        decelerationRate="fast"
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>{notice.title}</Text>
         <Text style={styles.date}>{notice.date}</Text>
         <View style={styles.divider} />

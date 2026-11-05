@@ -81,14 +81,7 @@ export function MyPostsScreen({ navigation }: Props) {
           summary: `${current.age} | ${current.gender} | ${current.color} | ${current.weight}`,
         };
       });
-  }, [
-    activeTab,
-    deletedFoundIds,
-    deletedLostIds,
-    foundEdits,
-    lostEdits,
-    statusById,
-  ]);
+  }, [activeTab, deletedFoundIds, deletedLostIds, foundEdits, lostEdits, statusById]);
 
   const renderPost = ({ item }: { item: MyPost }) => {
     const bookmarked = bookmarkedIds.includes(item.id);
@@ -185,6 +178,7 @@ export function MyPostsScreen({ navigation }: Props) {
         columnWrapperStyle={posts.length ? styles.columns : undefined}
         contentContainerStyle={[styles.list, !posts.length && styles.emptyList]}
         data={posts}
+        decelerationRate="fast"
         key={activeTab}
         keyExtractor={item => item.id}
         numColumns={2}

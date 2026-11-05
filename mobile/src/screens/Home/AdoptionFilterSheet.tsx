@@ -113,7 +113,7 @@ function TwoColumnFilter({
     <View style={styles.columns}>
       <View style={styles.column}>
         <Text style={styles.columnTitle}>{kind === 'region' ? '시도' : '대분류'}</Text>
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView decelerationRate="fast" showsVerticalScrollIndicator={false}>
           {Object.keys(source).map(option => (
             <Pressable
               key={option}
@@ -130,7 +130,7 @@ function TwoColumnFilter({
       </View>
       <View style={[styles.column, styles.secondaryColumn]}>
         <Text style={styles.columnTitle}>{kind === 'region' ? '시군구' : '종'}</Text>
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView decelerationRate="fast" showsVerticalScrollIndicator={false}>
           {source[primary].map(option => (
             <Pressable
               key={option}
@@ -401,7 +401,7 @@ export function AdoptionFilterSheet({
     return null;
   }
   return (
-    <View accessibilityViewIsModal style={styles.overlay}>
+    <View style={styles.overlay}>
       <Pressable
         accessibilityLabel="필터 닫기"
         accessibilityRole="button"
@@ -411,8 +411,7 @@ export function AdoptionFilterSheet({
       <View
         style={[
           styles.sheet,
-          { paddingBottom: 28 + insets.bottom },
-          activeFilter === 'period' && [styles.calendarSheet, { height: 600 + insets.bottom }],
+          { paddingBottom: (activeFilter === 'period' ? 16 : 28) + insets.bottom },
           (activeFilter === 'region' || activeFilter === 'species') && [
             styles.twoColumnSheet,
             { height: 333 + insets.bottom },
@@ -478,7 +477,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
   },
-  calendarSheet: {},
   twoColumnSheet: {},
   title: { ...typography.bodySemiBold16, color: colors.black, textAlign: 'center' },
   divider: { backgroundColor: colors.gray200, height: 1, marginTop: 12 },
@@ -505,7 +503,7 @@ const styles = StyleSheet.create({
   columnOption: { justifyContent: 'center', minHeight: 36, paddingHorizontal: 8 },
   columnOptionSelected: { backgroundColor: '#EBEAE5' },
   columnOptionText: { ...typography.bodyRegular16, color: colors.gray700 },
-  calendarContent: { flex: 1 },
+  calendarContent: {},
   quickPeriods: { flexDirection: 'row', gap: 6, marginTop: 16 },
   quickPeriod: {
     alignItems: 'center',

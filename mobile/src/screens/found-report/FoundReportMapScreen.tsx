@@ -193,7 +193,11 @@ export function FoundReportMapScreen({ navigation }: Props) {
         {candidates ? (
           <View style={styles.resultsPanel}>
             {candidates.length ? (
-              <ScrollView keyboardShouldPersistTaps="handled" style={styles.resultsScroll}>
+              <ScrollView
+                decelerationRate="fast"
+                keyboardShouldPersistTaps="handled"
+                style={styles.resultsScroll}
+              >
                 {candidates.map(candidate => (
                   <Pressable
                     key={`${candidate.latitude}-${candidate.longitude}`}

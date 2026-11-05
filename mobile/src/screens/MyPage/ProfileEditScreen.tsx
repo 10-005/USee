@@ -1,12 +1,12 @@
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type ComponentRef } from 'react';
 import {
   Alert,
   BackHandler,
   Image,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
   PermissionsAndroid,
   Platform,
@@ -14,7 +14,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { launchCamera, launchImageLibrary, type Asset } from 'react-native-image-picker';
@@ -30,6 +29,11 @@ import {
   MAX_IMAGE_SIZE_BYTES,
   MAX_IMAGE_SIZE_MB,
 } from '../../constants/upload';
+import {
+  DatePickerModal,
+  KeyboardAwareInputProvider,
+  KeyboardAwareTextInput,
+} from '../../components/common';
 import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
 import {
@@ -45,6 +49,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ProfileEdit'>;
 
 export function ProfileEditScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const profile = useProfileStore(state => state.profile);
   const updateProfile = useProfileStore(state => state.updateProfile);
   const [nickname, setNickname] = useState(profile.nickname);
@@ -54,6 +59,7 @@ export function ProfileEditScreen({ navigation }: Props) {
   const [image, setImage] = useState(profile.image);
   const [imageMenuOpen, setImageMenuOpen] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [touched, setTouched] = useState({ name: false, nickname: false, phone: false });
 
   const nicknameError = getNicknameError(nickname, profile.nickname);
@@ -165,12 +171,7 @@ export function ProfileEditScreen({ navigation }: Props) {
   const openDatePicker = () => {
     Keyboard.dismiss();
     setImageMenuOpen(false);
-    DateTimePickerAndroid.open({
-      maximumDate: new Date(),
-      mode: 'date',
-      onChange: (_, date) => date && setBirthDate(formatDate(date)),
-      value: parseDate(birthDate),
-    });
+    setDatePickerOpen(true);
   };
 
   const submit = () => {
@@ -200,13 +201,21 @@ export function ProfileEditScreen({ navigation }: Props) {
         <Text style={styles.headerTitle}>내 정보 수정</Text>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
-        onScrollBeginDrag={dismissOverlays}
-        showsVerticalScrollIndicator={false}
-      >
+      <KeyboardAwareInputProvider scrollRef={scrollRef}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardArea}
+        >
+          <ScrollView
+            ref={scrollRef}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+          contentContainerStyle={styles.content}
+          decelerationRate="fast"
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={dismissOverlays}
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.profileWrap}>
           <Pressable
             accessibilityLabel="프로필 사진 변경"
@@ -271,7 +280,9 @@ export function ProfileEditScreen({ navigation }: Props) {
           onChangeText={value => setPhone(formatPhoneNumber(value))}
           value={phone}
         />
-      </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </KeyboardAwareInputProvider>
 
       <View style={[styles.bottomArea, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <Pressable
@@ -284,6 +295,17 @@ export function ProfileEditScreen({ navigation }: Props) {
           <Text style={styles.submitText}>수정하기</Text>
         </Pressable>
       </View>
+      <DatePickerModal
+        maximumDate={new Date()}
+        onClose={() => setDatePickerOpen(false)}
+        onConfirm={date => {
+          setBirthDate(formatDate(date));
+          setDatePickerOpen(false);
+        }}
+        title="생년월일 선택"
+        value={parseDate(birthDate)}
+        visible={datePickerOpen}
+      />
 
       <Modal
         animationType="fade"
@@ -340,7 +362,7 @@ function ProfileInput({
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput
+      <KeyboardAwareTextInput
         keyboardType={keyboardType}
         maxLength={maxLength}
         onBlur={onBlur}
@@ -355,6 +377,7 @@ function ProfileInput({
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
+  keyboardArea: { flex: 1 },
   header: { alignItems: 'center', height: 56, justifyContent: 'center' },
   backButton: { left: 18, position: 'absolute' },
   headerTitle: { ...typography.titleBold18, color: colors.black },

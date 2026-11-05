@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import CancelIcon from '../../assets/icons/common/cancel.svg';
 import ChatIcon from '../../assets/icons/common/chat.svg';
+import SendIcon from '../../assets/icons/common/chat-send.svg';
 import DotsIcon from '../../assets/icons/common/dots-vertical.svg';
 import PlusIcon from '../../assets/icons/common/plus.svg';
 import ReportIcon from '../../assets/icons/common/report.svg';
@@ -45,6 +46,7 @@ type ComposerProps = {
   compact?: boolean;
   onCancel?: () => void;
   onDismissMenus: () => void;
+  onFocus?: (inputHandle: number) => void;
   onPhotoMenuChange: (open: boolean) => void;
   onStartWriting?: () => void;
   onSubmit: (content: string, imageUri?: string) => void;
@@ -55,6 +57,7 @@ function CommentComposer({
   compact = false,
   onCancel,
   onDismissMenus,
+  onFocus,
   onPhotoMenuChange,
   onStartWriting,
   onSubmit,
@@ -157,18 +160,29 @@ function CommentComposer({
           multiline
           onBlur={() => setFocused(false)}
           onChangeText={setContent}
-          onFocus={() => {
+          onFocus={event => {
             setFocused(true);
             onStartWriting?.();
             onDismissMenus();
+            onFocus?.(event.nativeEvent.target);
           }}
           placeholder="메시지를 입력하세요"
           placeholderTextColor={colors.gray300}
           style={styles.commentTextInput}
           value={content}
         />
-        <Pressable accessibilityLabel="댓글 전송" disabled={!canSubmit} onPress={submit}>
-          <ChatIcon height={20} width={20} />
+        <Pressable
+          accessibilityLabel="댓글 전송"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !canSubmit }}
+          disabled={!canSubmit}
+          onPress={submit}
+        >
+          <SendIcon
+            color={canSubmit ? colors.green400 : '#797770'}
+            height={20}
+            width={20}
+          />
         </Pressable>
       </View>
       {image?.uri ? (
@@ -319,11 +333,16 @@ function CommentItem({
               />
               <Pressable
                 accessibilityLabel="댓글 수정 전송"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !draft.trim() }}
                 disabled={!draft.trim()}
                 onPress={() => onEdit(draft.trim())}
-                style={!draft.trim() && styles.editSendDisabled}
               >
-                <ChatIcon height={20} width={20} />
+                <SendIcon
+                  color={draft.trim() ? colors.green400 : '#797770'}
+                  height={20}
+                  width={20}
+                />
               </Pressable>
             </View>
           </View>
@@ -506,6 +525,7 @@ function CommentThread({
           compact
           onCancel={() => onReply(null)}
           onDismissMenus={() => onPhotoMenuChange(null)}
+          onFocus={onEditFocus}
           onPhotoMenuChange={open => onPhotoMenuChange(open ? `reply-${comment.id}` : null)}
           onStartWriting={() => onReply(comment.id)}
           onSubmit={(content, imageUri) => onAddReply(comment.id, content, imageUri)}
@@ -628,6 +648,7 @@ export function FoundReportCommentList({
       <Text style={styles.title}>{getCommentCount(comments)}개의 댓글</Text>
       <CommentComposer
         onDismissMenus={dismissMenus}
+        onFocus={onEditFocus}
         onPhotoMenuChange={open => changePhotoMenu(open ? 'root' : null)}
         onStartWriting={() => {
           setEditingId(null);
@@ -918,7 +939,6 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     paddingVertical: 8,
   },
-  editSendDisabled: { opacity: 0.35 },
   modalBackdrop: {
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.32)',
