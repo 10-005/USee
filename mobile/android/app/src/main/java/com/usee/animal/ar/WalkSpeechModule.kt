@@ -87,7 +87,9 @@ class WalkSpeechModule(private val context: ReactApplicationContext) :
           emit(if (idle) "waiting" else "retrying")
           schedule(if (idle) 500 else (1000L * failures).coerceAtMost(5000))
         }
-        override fun onBeginningOfSpeech() = Unit
+        override fun onBeginningOfSpeech() {
+          if (session == generation && enabled) emit("hearing")
+        }
         override fun onRmsChanged(rmsdB: Float) = Unit
         override fun onBufferReceived(buffer: ByteArray?) = Unit
         override fun onEndOfSpeech() = Unit

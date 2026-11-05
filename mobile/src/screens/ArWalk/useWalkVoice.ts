@@ -14,9 +14,11 @@ const speech = NativeModules.WalkSpeech;
 export function useWalkVoice(active: boolean) {
   const [enabled, setEnabled] = useState(true);
   const [message, setMessage] = useState('음성 명령 준비 중');
+  const [isRecognizing, setIsRecognizing] = useState(false);
   const [actionRequest, setActionRequest] = useState('');
   const requestId = useRef(0);
   useEffect(() => {
+    setIsRecognizing(false);
     if (!active || !enabled) {
       return;
     }
@@ -32,25 +34,25 @@ export function useWalkVoice(active: boolean) {
         return;
       }
       if (status === 'recognized') {
+        setIsRecognizing(false);
+        setMessage(transcript ? `“${transcript}”` : '앉아 / 멈춰 / 가자라고 말해 주세요');
         const command = parseWalkVoiceCommand(transcript);
         if (command) {
           setActionRequest(`${++requestId.current}:${command}`);
-          const label = { sit: '앉기', stop: '정지', go: '이동 시작' }[command];
-          setMessage(`“${transcript}” · ${label} 요청`);
-        } else {
-          setMessage(
-            transcript
-              ? `“${transcript}” · 앉아 / 멈춰 / 가자`
-              : '앉아 / 멈춰 / 가자라고 말해 주세요',
-          );
         }
+      } else if (status === 'hearing') {
+        setIsRecognizing(true);
       } else if (status === 'permissionDenied') {
+        setIsRecognizing(false);
         setMessage('음성 명령을 사용하려면 설정에서 마이크 권한을 허용해 주세요.');
       } else if (status === 'unavailable') {
+        setIsRecognizing(false);
         setMessage('사용 가능한 음성 인식 서비스가 없습니다.');
       } else if (status === 'error') {
+        setIsRecognizing(false);
         setMessage('음성 인식이 중단되었습니다. 음성을 껐다 켜서 재시도해 주세요.');
       } else if (status === 'retrying') {
+        setIsRecognizing(false);
         setMessage('음성 인식에 다시 연결 중');
       }
     });
@@ -69,13 +71,16 @@ export function useWalkVoice(active: boolean) {
           return;
         }
         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          setIsRecognizing(true);
           setMessage('듣는 중 · 앉아 / 멈춰 / 가자');
           speech.start();
         } else {
+          setIsRecognizing(false);
           setMessage('마이크 권한이 없어 음성 명령을 사용할 수 없습니다.');
         }
       } catch {
         if (!disposed) {
+          setIsRecognizing(false);
           setMessage('마이크 권한을 확인하지 못했습니다. 음성을 껐다 켜 주세요.');
         }
       }
@@ -87,6 +92,7 @@ export function useWalkVoice(active: boolean) {
       if (state === 'active') {
         start();
       } else {
+        setIsRecognizing(false);
         lifecycleVersion++;
         speech.stop();
       }
@@ -99,5 +105,11 @@ export function useWalkVoice(active: boolean) {
       speech.stop();
     };
   }, [active, enabled]);
-  return { enabled, setEnabled, message, actionRequest };
+  return {
+    enabled,
+    setEnabled,
+    message,
+    actionRequest,
+    isRecognizing: active && enabled && isRecognizing,
+  };
 }

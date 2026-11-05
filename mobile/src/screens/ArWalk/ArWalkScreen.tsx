@@ -8,6 +8,8 @@ import { useShopStore } from '../../stores/shopStore';
 
 import { styles } from './ArWalkScreen.styles';
 import { useWalkVoice } from './useWalkVoice';
+import { VoiceListeningDots } from './components/VoiceListeningDots';
+import { VoiceGlowText } from './components/VoiceGlowText';
 import {
   ArFloorView,
   type FloorTracking,
@@ -118,7 +120,7 @@ export function ArWalkScreen() {
       </View>
       {isRecognizing && (
         <View pointerEvents="none" style={styles.loadingOverlay}>
-          <ActivityIndicator color="#FFFFFF" size="large" />
+          <ActivityIndicator color="#FFFFFF" size="small" />
           <Text accessibilityLabel="지형 인식 중" style={styles.loadingText}>
             지형 인식 중{'.'.repeat(loadingDots)}
           </Text>
@@ -137,6 +139,7 @@ export function ArWalkScreen() {
             accessibilityState={{ checked: voice.enabled }}
             onPress={() => voice.setEnabled(value => !value)}
             style={styles.areaToggle}
+            hitSlop={4}
           >
             <Text style={styles.areaToggleLabel}>음성 {voice.enabled ? '켜짐' : '꺼짐'}</Text>
           </Pressable>
@@ -146,6 +149,7 @@ export function ArWalkScreen() {
             accessibilityState={{ checked: showTraversalDebug }}
             onPress={() => setShowTraversalDebug(value => !value)}
             style={styles.areaToggle}
+            hitSlop={4}
           >
             <Text style={styles.areaToggleLabel}>영역 표시</Text>
             <View style={[styles.toggleTrack, showTraversalDebug && styles.toggleTrackOn]}>
@@ -174,9 +178,10 @@ export function ArWalkScreen() {
       )}
       {hasSeenDog && voice.enabled && (
         <View pointerEvents="none" style={[styles.voiceStatus, { bottom: insets.bottom + 90 }]}>
-          <Text style={styles.messageText}>{voice.message}</Text>
+          {voice.isRecognizing ? <VoiceListeningDots /> : <VoiceGlowText text={voice.message} />}
         </View>
       )}
+
     </View>
   );
 }

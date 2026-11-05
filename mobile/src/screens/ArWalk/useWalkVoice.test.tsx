@@ -47,10 +47,16 @@ test('a full utterance requests sit once, ignores unknown text, and stops on scr
   expect(voice.actionRequest).toBe('1:sit');
   await ReactTestRenderer.act(() => receive({ status: 'recognized', transcript: '초코야 멈춰' }));
   expect(voice.actionRequest).toBe('2:stop');
-  expect(voice.message).toContain('정지 요청');
+  expect(voice.message).toBe('“초코야 멈춰”');
+  expect(voice.isRecognizing).toBe(false);
   await ReactTestRenderer.act(() => receive({ status: 'recognized', transcript: '초코야 가자' }));
   expect(voice.actionRequest).toBe('3:go');
-  expect(voice.message).toContain('이동 시작 요청');
+  expect(voice.message).toBe('“초코야 가자”');
+  await ReactTestRenderer.act(() => receive({ status: 'listening', transcript: '' }));
+  expect(voice.message).toBe('“초코야 가자”');
+  expect(voice.isRecognizing).toBe(false);
+  await ReactTestRenderer.act(() => receive({ status: 'hearing', transcript: '' }));
+  expect(voice.isRecognizing).toBe(true);
   await ReactTestRenderer.act(() => renderer.update(<Harness active={false} />));
   expect(NativeModules.WalkSpeech.stop).toHaveBeenCalled();
   await ReactTestRenderer.act(() => renderer.unmount());

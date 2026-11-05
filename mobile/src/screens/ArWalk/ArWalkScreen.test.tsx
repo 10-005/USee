@@ -13,6 +13,7 @@ jest.mock('react-native-vision-camera', () => ({
   useCameraPermission: () => ({ hasPermission: true, canRequestPermission: false }),
 }));
 jest.mock('./components/ArFloorView', () => ({ ArFloorView: 'ArFloorView' }));
+jest.mock('./components/VoiceGlowText', () => ({ VoiceGlowText: 'VoiceGlowText' }));
 
 test('deducts a bag once per cleanup request and acknowledges only a saved deduction', async () => {
   const session = {
