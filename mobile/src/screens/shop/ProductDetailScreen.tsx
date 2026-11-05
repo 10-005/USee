@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   infoSection: { borderTopWidth: 1, borderTopColor: colors.gray200, paddingVertical: 24, gap: 10 },
   sectionTitle: { ...typography.titleBold18, color: colors.black, marginBottom: 8 },
   infoRow: { flexDirection: 'row' },
-  infoLabel: { ...typography.bodyRegular14, color: colors.gray400, width: 110 },
+  infoLabel: { ...typography.bodyRegular14, color: colors.gray400, width: 55 },
   infoValue: { ...typography.bodyRegular14, color: colors.black, flex: 1 },
   productName: { marginTop: 10 },
   productPrice: { marginTop: 16 },
