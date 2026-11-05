@@ -6,6 +6,7 @@ import {
   FlatList,
   Alert,
   Image,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -346,11 +347,15 @@ export function HomeScreen({ navigation }: Props) {
         centerAction={{
           accessibilityLabel: '등록',
           icon: <PlusIcon height={24} width={24} />,
-          onPress: () => setRegistrationMenuOpen(open => !open),
+          onPress: () => {
+            Keyboard.dismiss();
+            setRegistrationMenuOpen(open => !open);
+          },
           selected: registrationMenuOpen,
         }}
         items={navigationItems}
         onSelect={key => {
+          Keyboard.dismiss();
           setRegistrationMenuOpen(false);
           if (key === 'adoption') {
             resetAdoptionListHeader();
@@ -427,6 +432,7 @@ export function HomeScreen({ navigation }: Props) {
               decelerationRate="fast"
               key={listKey}
               keyExtractor={item => item.id}
+              keyboardDismissMode="on-drag"
               numColumns={2}
               onScroll={handleListScroll}
               ref={listRef}

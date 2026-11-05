@@ -5,6 +5,7 @@ import {
   Easing,
   FlatList,
   Image,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -245,6 +246,7 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
   }, [activeFilter, updateControlsVisibility]);
 
   const selectTab = (tab: ReportTab) => {
+    Keyboard.dismiss();
     resetListHeader();
     if (tab === activeTab) {
       listRef.current?.scrollToOffset({ animated: true, offset: 0 });
@@ -376,6 +378,7 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
           data={reports}
           decelerationRate="fast"
           keyExtractor={item => item.id}
+          keyboardDismissMode="on-drag"
           numColumns={2}
           onScroll={handleListScroll}
           ref={listRef}
