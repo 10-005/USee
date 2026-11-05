@@ -1,3 +1,4 @@
+import { StyleSheet, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -30,6 +31,18 @@ import { LostReportPetSelectionScreen } from '../../screens/lost-report/LostRepo
 import { LostReportFormScreen } from '../../screens/lost-report/LostReportFormScreen';
 import { LostReportLocationPickerScreen } from '../../screens/lost-report/LostReportLocationPickerScreen';
 import type { RootStackParamList } from './types';
+
+const styles = StyleSheet.create({
+  walkExitTitle: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    transform: [{ translateX: -20 }],
+  },
+});
+
+function WalkExitTitle() {
+  return <Text style={styles.walkExitTitle}>산책 그만하기</Text>;
+}
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -67,6 +80,7 @@ export function RootNavigator() {
           options={{
             headerShown: true,
             title: '산책 그만하기',
+            headerTitle: WalkExitTitle,
             headerTitleAlign: 'left',
             headerTransparent: true,
             headerShadowVisible: false,
