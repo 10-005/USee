@@ -434,17 +434,6 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           <View style={styles.rightActions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="알림"
-              style={styles.iconButton}
-            >
-              <Image
-                source={require('../../assets/images/mock-adoption/img_alarm.png')}
-                resizeMode="contain"
-                style={styles.alarm}
-              />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
               accessibilityLabel="상점 열기"
               disabled={busy || leaving}
               onPress={() =>
@@ -652,7 +641,6 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   iconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  alarm: { width: 36, height: 36 },
   room: { flex: 1 },
   bowls: {
     position: 'absolute',
