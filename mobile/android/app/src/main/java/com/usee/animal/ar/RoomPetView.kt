@@ -259,6 +259,7 @@ class RoomPetView(private val reactContext: ReactContext) : SceneHostView(reactC
               "eat" -> "Eat"
               "treat" -> "Eat"
               "drink" -> "Drink"
+              "returnTurn" -> "Idle"
               "fetchRun", "fetchCarry" -> "Trot"
               "fetchPick", "fetchDrop" -> "EatDrinkStart"
               else -> "Walk"
@@ -276,14 +277,15 @@ class RoomPetView(private val reactContext: ReactContext) : SceneHostView(reactC
           careMotion == "fetchCarry" -> 10f
           careMotion == "fetchDrop" -> 0f
           careMotion == "treat" -> 0f
-          careMotion == "return" -> 25f
+          careMotion == "return" || careMotion == "returnTurn" -> 150f
           careMotion == "eat" || careMotion == "drink" -> -25f
-          careMotion == "approach" -> -55f
+          careMotion == "approach" -> -30f
           behavior.walking -> -135f
           behavior.resting -> -25f
           else -> 0f
         }
-        yaw += (targetYaw - yaw) * (dt * 3f).coerceAtMost(1f)
+        yaw += if (careMotion == "returnTurn") (targetYaw - yaw).coerceIn(-360f * dt, 360f * dt)
+          else (targetYaw - yaw) * (dt * 3f).coerceAtMost(1f)
         node.rotation = Rotation(y = yaw)
         if (careMotion == "fetchCarry" && carriedToy == null) {
           carriedToy = OwnedImageNode(
