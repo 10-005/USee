@@ -24,6 +24,10 @@ class RoomPetView(private val reactContext: ReactContext) : SceneHostView(reactC
   private var scene: SceneView? = null
   private val modelLoad = SceneModelLoad()
   private var disposed = false
+  private var entryX = 0f
+  private var entryY = 0f
+  fun setEntryX(value: Float) { entryX = value * resources.displayMetrics.density }
+  fun setEntryY(value: Float) { entryY = value * resources.displayMetrics.density }
   private var active = false
   private var bathing = false
   private var sceneOpacity = 1f
@@ -39,6 +43,8 @@ class RoomPetView(private val reactContext: ReactContext) : SceneHostView(reactC
   private var visibilityRevision = 0
 
   init {
+    clipChildren = false
+    clipToPadding = false
     isClickable = true
     setOnClickListener {
       UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
@@ -176,6 +182,8 @@ class RoomPetView(private val reactContext: ReactContext) : SceneHostView(reactC
       var yaw = if (returningFromWalk) -135f else 0f
       node.rotation = Rotation(y = yaw)
       var readySent = false
+      var arrivalElapsed = 0f
+      var arriving = returningFromWalk
       var previousCare = ""
       var careRevision = 1000000
       var carriedToy: OwnedImageNode? = null
@@ -193,8 +201,21 @@ class RoomPetView(private val reactContext: ReactContext) : SceneHostView(reactC
         }
         // No physics here: use wall time so a delayed frame cannot leave the
         // behavior timer behind a clip that has already reached its final pose.
-        val dt = if (lastFrame == 0L) 0f else ((now - lastFrame) / 1_000_000_000f).coerceAtLeast(0f)
+        val dt = if (lastFrame == 0L) 0f else
+          ((now - lastFrame) / 1_000_000_000f).coerceIn(0f, if (arriving) 0.1f else Float.MAX_VALUE)
         lastFrame = now
+        if (arriving) {
+          arrivalElapsed += dt
+          val remaining = (1f - arrivalElapsed / RoomPetBehavior.RETURN_WALK_SECONDS).coerceAtLeast(0f)
+          view.translationX = entryX * remaining
+          view.translationY = entryY * remaining
+          if (remaining == 0f) {
+            arriving = false
+            UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
+              ReturnCompleteEvent(UIManagerHelper.getSurfaceId(this), id),
+            )
+          }
+        }
         if (bathing && !wasBathing) {
           bathElapsed = 0f
           careRevision++
@@ -309,6 +330,11 @@ class RoomPetView(private val reactContext: ReactContext) : SceneHostView(reactC
 
   private class ReadyEvent(surfaceId: Int, viewId: Int) : Event<ReadyEvent>(surfaceId, viewId) {
     override fun getEventName() = "topReady"
+    override fun getEventData() = Arguments.createMap()
+  }
+
+  private class ReturnCompleteEvent(surfaceId: Int, viewId: Int) : Event<ReturnCompleteEvent>(surfaceId, viewId) {
+    override fun getEventName() = "topReturnComplete"
     override fun getEventData() = Arguments.createMap()
   }
 

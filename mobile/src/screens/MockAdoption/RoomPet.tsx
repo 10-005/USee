@@ -16,7 +16,9 @@ type Props = ViewProps & {
   bathing?: boolean;
   sceneOpacity?: number;
   returningFromWalk: boolean;
-  onReady: () => void;
+  entryX: number;
+  entryY: number;
+  onReturnComplete: () => void;
   onPetPress?: () => void;
   onHidden?: () => void;
 };
@@ -57,15 +59,10 @@ export function RoomPet({
   const callbacks = useRef({ onConsumed, onCareComplete, onFetchPhase });
   callbacks.current = { onConsumed, onCareComplete, onFetchPhase };
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
-  const completedReturn = useRef(0);
-  const { x: entryX, y: entryY } = entryOffset;
-  const latestEntry = useRef(entryOffset);
-  latestEntry.current = { x: entryX, y: entryY };
-  const startedReturn = useRef<number | null>(null);
-  const returningFromWalk = returnSequence > completedReturn.current;
-  const offset = useRef(
-    new Animated.ValueXY(returningFromWalk ? entryOffset : { x: 0, y: 0 }),
-  ).current;
+  const [completedReturn, setCompletedReturn] = useState(0);
+  const returningFromWalk = returnSequence > completedReturn;
+  // Arrival translation and walking share the native frame clock. Care stays in React.
+  const offset = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   useEffect(() => {
     if (!care || !focused || !foreground) {
       return;
@@ -165,13 +162,6 @@ export function RoomPet({
     }
   }, [leaving, focused, foreground, onHidden]);
   useEffect(() => {
-    offset.setValue(returningFromWalk ? latestEntry.current : { x: 0, y: 0 });
-    return () => {
-      offset.stopAnimation();
-      startedReturn.current = null;
-    };
-  }, [offset, focused, foreground, returnSequence, returningFromWalk]);
-  useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
       setForeground(state === 'active');
       if (state !== 'active') {
@@ -184,38 +174,18 @@ export function RoomPet({
   if (!NativeRoomPet || !focused || !foreground) {
     return null;
   }
-  const onReady = () => {
-    if (
-      leaving ||
-      returnSequence <= completedReturn.current ||
-      startedReturn.current === returnSequence
-    ) {
-      return;
-    }
-    startedReturn.current = returnSequence;
-    offset.setValue(latestEntry.current);
-    Animated.timing(offset, {
-      toValue: { x: 0, y: 0 },
-      duration: 3000,
-      easing: Easing.linear,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) {
-        completedReturn.current = returnSequence;
-      } else if (startedReturn.current === returnSequence) {
-        startedReturn.current = null;
-      }
-    });
-  };
   return (
     <NativeRoomPet
+      key={`${petId}-${returnSequence}`}
       petId={petId}
       active={!leaving}
       careMotion={careMotion}
       bathing={bathing}
       sceneOpacity={sceneOpacity}
       returningFromWalk={returningFromWalk}
-      onReady={onReady}
+      entryX={entryOffset.x}
+      entryY={entryOffset.y}
+      onReturnComplete={() => setCompletedReturn(returnSequence)}
       onPetPress={onPress}
       onHidden={onHidden}
       accessibilityRole="button"

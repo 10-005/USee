@@ -19,6 +19,10 @@ class RoomPetViewManager : SimpleViewManager<RoomPetView>() {
   fun setSceneOpacity(view: RoomPetView, value: Float) = view.setSceneOpacity(value)
   @ReactProp(name = "returningFromWalk")
   fun setReturningFromWalk(view: RoomPetView, value: Boolean) = view.setReturningFromWalk(value)
+  @ReactProp(name = "entryX")
+  fun setEntryX(view: RoomPetView, value: Float) = view.setEntryX(value)
+  @ReactProp(name = "entryY")
+  fun setEntryY(view: RoomPetView, value: Float) = view.setEntryY(value)
   override fun onAfterUpdateTransaction(view: RoomPetView) {
     super.onAfterUpdateTransaction(view)
     view.onPropsUpdated()
@@ -26,6 +30,7 @@ class RoomPetViewManager : SimpleViewManager<RoomPetView>() {
   override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> =
     mutableMapOf(
       "topReady" to mutableMapOf("registrationName" to "onReady"),
+      "topReturnComplete" to mutableMapOf("registrationName" to "onReturnComplete"),
       "topPetPress" to mutableMapOf("registrationName" to "onPetPress"),
       "topHidden" to mutableMapOf("registrationName" to "onHidden"),
     )
