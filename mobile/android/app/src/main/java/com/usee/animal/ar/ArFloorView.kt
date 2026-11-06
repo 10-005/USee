@@ -182,6 +182,21 @@ class ArFloorView(
     val view = FloorSceneView(
       context = activity,
       sharedLifecycle = activity.lifecycle,
+      sessionFailure = { error ->
+        android.util.Log.e("ArFloorView", "AR session initialization failed", error)
+        val failureStatus = when (error) {
+          is com.google.ar.core.exceptions.UnavailableArcoreNotInstalledException,
+          is com.google.ar.core.exceptions.UnavailableApkTooOldException -> "needsInstall"
+          is com.google.ar.core.exceptions.UnavailableDeviceNotCompatibleException -> "unsupported"
+          else -> "error"
+        }
+        post {
+          if (active && !disposed) {
+            stop()
+            emit(failureStatus, false, "", false, false, false)
+          }
+        }
+      },
       sessionConfiguration = { session, config ->
         config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL_AND_VERTICAL
         scratch.depth.supported = session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)
@@ -449,10 +464,12 @@ class ArFloorView(
   private class FloorSceneView(
     context: Context,
     sharedLifecycle: Lifecycle,
+    sessionFailure: (Exception) -> Unit,
     sessionConfiguration: ((Session, Config) -> Unit)?,
   ) : ARSceneView(
     context = context,
     sharedLifecycle = sharedLifecycle,
+    onSessionFailed = sessionFailure,
     sessionConfiguration = sessionConfiguration,
   ) {
     var beforeDestroy: (() -> Unit)? = null
