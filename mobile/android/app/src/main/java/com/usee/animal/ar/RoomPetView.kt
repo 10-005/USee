@@ -15,7 +15,6 @@ import io.github.sceneview.math.Rotation
 import io.github.sceneview.math.Scale
 import io.github.sceneview.math.colorOf
 import io.github.sceneview.node.SphereNode
-import io.github.sceneview.node.ImageNode
 import io.github.sceneview.math.Direction
 import io.github.sceneview.math.Size
 import kotlin.math.sin
@@ -115,6 +114,16 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
       isOpaque = false, cameraManipulator = null,
     ) {
       private var lastRendered = 0L
+      override fun destroy() {
+        if (isDestroyed) return
+        onFrame = null
+        childNodes.filter { it is OwnedImageNode || it is SphereNode }.forEach { node ->
+          removeChildNode(node)
+          node.destroy()
+        }
+        super.destroy()
+      }
+
       override fun onFrame(frameTimeNanos: Long) {
         if (frameTimeNanos - lastRendered < 33_333_333L) return
         lastRendered = frameTimeNanos
@@ -161,17 +170,22 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
       var lastFrame = 0L
       var yaw = if (returningFromWalk) -135f else 0f
       node.rotation = Rotation(y = yaw)
-      UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
-        ReadyEvent(UIManagerHelper.getSurfaceId(this), id),
-      )
+      var readySent = false
       var previousCare = ""
       var careRevision = 1000000
-      var carriedToy: ImageNode? = null
+      var carriedToy: OwnedImageNode? = null
       val mouth = node.emptyNodes.firstOrNull { it.name == "mouth" }
       val bubbles = mutableListOf<SphereNode>()
       var bathElapsed = 0f
       var wasBathing = false
       view.onFrame = { now ->
+        if (!readySent) {
+          readySent = true
+          // Wait until the loaded model enters the frame loop before moving the room view.
+          UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
+            ReadyEvent(UIManagerHelper.getSurfaceId(this), id),
+          )
+        }
         // No physics here: use wall time so a delayed frame cannot leave the
         // behavior timer behind a clip that has already reached its final pose.
         val dt = if (lastFrame == 0L) 0f else ((now - lastFrame) / 1_000_000_000f).coerceAtLeast(0f)
@@ -246,7 +260,7 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
         yaw += (targetYaw - yaw) * (dt * 3f).coerceAtMost(1f)
         node.rotation = Rotation(y = yaw)
         if (careMotion == "fetchCarry" && carriedToy == null) {
-          carriedToy = ImageNode(
+          carriedToy = OwnedImageNode(
             materialLoader = view.materialLoader,
             imageFileLocation = "models/img_dog_toy.png",
             size = Size(0.252f, 0.252f, 0f),

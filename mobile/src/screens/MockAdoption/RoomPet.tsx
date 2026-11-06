@@ -59,6 +59,9 @@ export function RoomPet({
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const completedReturn = useRef(0);
   const { x: entryX, y: entryY } = entryOffset;
+  const latestEntry = useRef(entryOffset);
+  latestEntry.current = { x: entryX, y: entryY };
+  const startedReturn = useRef<number | null>(null);
   const returningFromWalk = returnSequence > completedReturn.current;
   const offset = useRef(
     new Animated.ValueXY(returningFromWalk ? entryOffset : { x: 0, y: 0 }),
@@ -162,9 +165,12 @@ export function RoomPet({
     }
   }, [leaving, focused, foreground, onHidden]);
   useEffect(() => {
-    offset.setValue(returningFromWalk ? { x: entryX, y: entryY } : { x: 0, y: 0 });
-    return () => offset.stopAnimation();
-  }, [offset, focused, foreground, returnSequence, returningFromWalk, entryX, entryY]);
+    offset.setValue(returningFromWalk ? latestEntry.current : { x: 0, y: 0 });
+    return () => {
+      offset.stopAnimation();
+      startedReturn.current = null;
+    };
+  }, [offset, focused, foreground, returnSequence, returningFromWalk]);
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
       setForeground(state === 'active');
@@ -179,9 +185,15 @@ export function RoomPet({
     return null;
   }
   const onReady = () => {
-    if (!returningFromWalk) {
+    if (
+      leaving ||
+      returnSequence <= completedReturn.current ||
+      startedReturn.current === returnSequence
+    ) {
       return;
     }
+    startedReturn.current = returnSequence;
+    offset.setValue(latestEntry.current);
     Animated.timing(offset, {
       toValue: { x: 0, y: 0 },
       duration: 3000,
@@ -190,6 +202,8 @@ export function RoomPet({
     }).start(({ finished }) => {
       if (finished) {
         completedReturn.current = returnSequence;
+      } else if (startedReturn.current === returnSequence) {
+        startedReturn.current = null;
       }
     });
   };

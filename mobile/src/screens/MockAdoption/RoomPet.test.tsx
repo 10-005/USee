@@ -19,8 +19,11 @@ test('waits for model readiness and consumes each AR return once', async () => {
   const originalState = AppState.currentState;
   AppState.currentState = 'active';
   mockFocused = true;
+  let finishReturn: ((result: { finished: boolean }) => void) | undefined;
   const timing = jest.spyOn(Animated, 'timing').mockReturnValue({
-    start: callback => callback?.({ finished: true }),
+    start: callback => {
+      finishReturn = callback;
+    },
     stop: jest.fn(),
     reset: jest.fn(),
   });
@@ -42,6 +45,12 @@ test('waits for model readiness and consumes each AR return once', async () => {
       useNativeDriver: true,
     }),
   );
+  await ReactTestRenderer.act(() =>
+    renderer.update(<RoomPet petId="dog-1" returnSequence={1} entryOffset={{ x: 220, y: 260 }} />),
+  );
+  await ReactTestRenderer.act(() => native().props.onReady());
+  expect(timing).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(() => finishReturn?.({ finished: true }));
   await ReactTestRenderer.act(() => renderer.update(<RoomPet petId="dog-1" returnSequence={1} />));
   expect(native().props.returningFromWalk).toBe(false);
   await ReactTestRenderer.act(() => renderer.update(<RoomPet petId="dog-1" returnSequence={2} />));

@@ -191,6 +191,7 @@ class ArFloorView(
     ).apply {
       layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
       onSessionUpdated = { session, frame -> handleFrame(session, frame) }
+      beforeDestroy = { releaseSceneResources() }
     }
     sceneView = view
     val debug = TraversalDebugView(context).apply {
@@ -260,7 +261,7 @@ class ArFloorView(
     }
   }
 
-  private fun stop() {
+  private fun releaseSceneResources() {
     cleanup?.let { it.release(); removeView(it) }
     cleanup = null
     dogNode?.onPoseUpdated = null
@@ -276,6 +277,9 @@ class ArFloorView(
     modelReady = false
     dogNode = null
     shadowNode = null
+  }
+
+  private fun stop() {
     val view = sceneView ?: return
     sceneView = null
     removeView(view)
@@ -443,8 +447,13 @@ class ArFloorView(
     sharedLifecycle = sharedLifecycle,
     sessionConfiguration = sessionConfiguration,
   ) {
+    var beforeDestroy: (() -> Unit)? = null
+
     override fun destroy() {
+      if (isDestroyed) return
       onSessionUpdated = null
+      beforeDestroy?.invoke()
+      beforeDestroy = null
       // SceneView destroys its material loader before user-created renderables.
       // Detach also calls destroy(), so release the shadow here for every exit path.
       childNodes.filterIsInstance<CylinderNode>().forEach { shadow ->

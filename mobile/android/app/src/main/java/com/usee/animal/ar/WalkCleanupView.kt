@@ -17,7 +17,6 @@ import com.usee.animal.R
 import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.math.Direction
 import io.github.sceneview.math.Size
-import io.github.sceneview.node.ImageNode
 import kotlin.math.hypot
 
 /** Owns one cleanup event in the current AR session's world coordinate system. */
@@ -34,7 +33,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
   }
   private val imageBounds = RectF()
   // A scene sprite uses the same depth buffer as the dog instead of covering it as an overlay.
-  private val poopNode = ImageNode(
+  private val poopNode = OwnedImageNode(
     materialLoader = scene.materialLoader,
     imageFileLocation = "models/img_poop.png",
     size = Size(1f, 1f, 0f),
@@ -51,6 +50,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
   private val state = WalkCleanupState()
   private var lastFrame = 0L
   private var tracking = false
+  private var released = false
   private var visiblePoop = false
   private var near = false
   private var poopX = 0f
@@ -107,7 +107,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
     contentDescription = "배변봉투를 배변 쪽으로 밀어 던져주세요"
   }
 
-  fun hitBag(x: Float, y: Float): Boolean = collectionRequestId == 0L && (!bagAvailable || tracking && near) && thrownAt == 0L &&
+  fun hitBag(x: Float, y: Float): Boolean = !released && collectionRequestId == 0L && (!bagAvailable || tracking && near) && thrownAt == 0L &&
     kotlin.math.abs(x - bagX) <= bagHitWidth && kotlin.math.abs(y - bagY) <= bagHitHeight
 
   fun pause() {
@@ -184,10 +184,12 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
   }
 
   fun release() {
+    if (released) return
+    released = true
     scene.removeChildNode(poopNode)
     poopNode.destroy()
-    bag.recycle()
-    filledBag.recycle()
+    // Android can retain a removed view's display list during a back transition.
+    // Let Android release these Canvas bitmaps once those references are gone.
   }
 
   private fun image(canvas: Canvas, bitmap: Bitmap, x: Float, y: Float, alpha: Int = 255) {
@@ -200,6 +202,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
   }
 
   override fun onDraw(canvas: Canvas) {
+    if (released) return
     super.onDraw(canvas)
     // Always show the bag dock; stock limits use, not visibility.
     if (thrownAt == 0L && collectionRequestId == 0L) {
@@ -231,6 +234,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
   }
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
+    if (released) return false
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
         if (!hitBag(event.x, event.y)) return false
