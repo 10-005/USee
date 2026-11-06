@@ -38,6 +38,7 @@ import SearchIcon from '../../assets/icons/navigation/search.svg';
 import { BottomNavigation, RegistrationMenu } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { MockAdoptionOverviewScreen } from '../MockAdoption/MockAdoptionOverviewScreen';
+import { MockAdoptionShortcut } from '../MockAdoption/MockAdoptionShortcut';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
 import { MyPageScreen } from '../MyPage/MyPageScreen';
@@ -367,6 +368,12 @@ export function HomeScreen({ navigation }: Props) {
             onResume={petId => navigation.navigate('MockAdoptionActivity', { petId })}
           />
         )}
+        {selectedTab === 'chat' ? (
+          <MockAdoptionShortcut
+            bottom={insets.bottom + 104}
+            onOpen={petId => navigation.navigate('MockAdoptionActivity', { petId })}
+          />
+        ) : null}
         {navigationBar}
       </SafeAreaView>
     );
@@ -505,6 +512,12 @@ export function HomeScreen({ navigation }: Props) {
           </View>
         </>
       )}
+      {!activeFilter && !registrationMenuOpen ? (
+        <MockAdoptionShortcut
+          bottom={insets.bottom + 104}
+          onOpen={petId => navigation.navigate('MockAdoptionActivity', { petId })}
+        />
+      ) : null}
       {activeFilter ? null : navigationBar}
       {registrationMenuOpen && !activeFilter ? (
         <RegistrationMenu
