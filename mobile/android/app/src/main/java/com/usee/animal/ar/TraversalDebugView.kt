@@ -105,7 +105,6 @@ internal class TraversalDebugView(context: Context) : View(context) {
       }
     }
     if (bitmap?.width != columns || bitmap?.height != rows) {
-      bitmap?.recycle()
       bitmap = Bitmap.createBitmap(columns, rows, Bitmap.Config.ARGB_8888)
     }
     bitmap!!.setPixels(colors, 0, columns, 0, 0, columns, rows)
@@ -125,7 +124,8 @@ internal class TraversalDebugView(context: Context) : View(context) {
     }
   }
 
-  fun release() { bitmap?.recycle(); bitmap = null }
+  // The Canvas display list may still hold the last bitmap during screen removal.
+  fun release() { bitmap = null }
 
   companion object {
     const val GREEN: Int = -0xff37ad // #00C853, fully opaque

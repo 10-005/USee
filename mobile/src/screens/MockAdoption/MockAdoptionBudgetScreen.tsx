@@ -53,7 +53,7 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
     setSaving(true);
     setSaveError(undefined);
     try {
-      const session = await startMockAdoption(pet.id, Number(value));
+      const session = await startMockAdoption(pet.id, Number(value), route.params.petName);
       navigation.reset({
         index: 1,
         routes: [
@@ -93,7 +93,7 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
           {pet ? (
             <View style={styles.pet}>
               <Image source={pet.image} style={styles.petImage} resizeMode="contain" />
-              <Text style={styles.petName}>{pet.name}</Text>
+              <Text style={styles.petName}>{route.params.petName ?? pet.name}</Text>
             </View>
           ) : (
             <Text style={styles.error}>

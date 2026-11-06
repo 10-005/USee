@@ -15,34 +15,25 @@ jest.mock('react-native', () => {
   };
 });
 
-test('waits for model readiness and consumes each AR return once', async () => {
+test('keeps arrival native until completion and starts each new return', async () => {
   const originalState = AppState.currentState;
   AppState.currentState = 'active';
   mockFocused = true;
-  const timing = jest.spyOn(Animated, 'timing').mockReturnValue({
-    start: callback => callback?.({ finished: true }),
-    stop: jest.fn(),
-    reset: jest.fn(),
-  });
-  let renderer: ReactTestRenderer.ReactTestRenderer;
+  const timing = jest.spyOn(Animated, 'timing');
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(
       <RoomPet petId="dog-1" returnSequence={1} entryOffset={{ x: 200, y: 240 }} />,
     );
   });
-  expect(timing).not.toHaveBeenCalled();
   const native = () => renderer.root.findByType('RoomPetView' as never);
-  expect(native().props.returningFromWalk).toBe(true);
-  await ReactTestRenderer.act(() => native().props.onReady());
-  expect(timing).toHaveBeenCalledWith(
-    expect.anything(),
-    expect.objectContaining({
-      duration: 3000,
-      toValue: { x: 0, y: 0 },
-      useNativeDriver: true,
-    }),
+  expect(native().props).toMatchObject({ returningFromWalk: true, entryX: 200, entryY: 240 });
+  await ReactTestRenderer.act(() =>
+    renderer.update(<RoomPet petId="dog-1" returnSequence={1} entryOffset={{ x: 220, y: 260 }} />),
   );
-  await ReactTestRenderer.act(() => renderer.update(<RoomPet petId="dog-1" returnSequence={1} />));
+  expect(native().props).toMatchObject({ returningFromWalk: true, entryX: 220, entryY: 260 });
+  expect(timing).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => native().props.onReturnComplete());
   expect(native().props.returningFromWalk).toBe(false);
   await ReactTestRenderer.act(() => renderer.update(<RoomPet petId="dog-1" returnSequence={2} />));
   expect(native().props.returningFromWalk).toBe(true);

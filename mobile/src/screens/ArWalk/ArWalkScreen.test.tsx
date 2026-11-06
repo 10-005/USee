@@ -1,6 +1,7 @@
 import ReactTestRenderer from 'react-test-renderer';
 
 import { ArWalkScreen } from './ArWalkScreen';
+import { AppDialog } from '../../components/common/AppDialog';
 import { useShopStore } from '../../stores/shopStore';
 import { ArFloorView, type FloorTracking } from './components/ArFloorView';
 
@@ -13,6 +14,62 @@ jest.mock('react-native-vision-camera', () => ({
   useCameraPermission: () => ({ hasPermission: true, canRequestPermission: false }),
 }));
 jest.mock('./components/ArFloorView', () => ({ ArFloorView: 'ArFloorView' }));
+jest.mock('./components/VoiceGlowText', () => ({ VoiceGlowText: 'VoiceGlowText' }));
+
+test('empty-bag dialog buys only bags, debits the budget once and enables the native bag', async () => {
+  useShopStore
+    .getState()
+    .open({
+      petId: 'walk-purchase-dog',
+      startedAt: 123,
+      expiresAt: Date.now() + 86400000,
+      weeklyBudget: 50000,
+    });
+  useShopStore.getState().setQuantity('food', 1, 'dog');
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<ArWalkScreen />);
+  });
+  const native = () => renderer.root.findByType(ArFloorView);
+  expect(native().props.bagAvailable).toBe(false);
+  await ReactTestRenderer.act(() => native().props.onBagPurchase());
+  const dialog = renderer.root.findByType(AppDialog);
+  expect(dialog.props.message).toContain('10장');
+  const confirm = dialog.props.onConfirm;
+  await ReactTestRenderer.act(() => {
+    confirm();
+    confirm();
+  });
+  expect(renderer.root.findAllByType(AppDialog)).toHaveLength(0);
+  expect(native().props.bagAvailable).toBe(true);
+  expect(useShopStore.getState().spent).toBe(500);
+  expect(useShopStore.getState().inventory.bags).toBe(10);
+  expect(useShopStore.getState().cart).toEqual({ food: 1 });
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('insufficient budget keeps bag purchase dialog open without granting bags', async () => {
+  useShopStore
+    .getState()
+    .open({
+      petId: 'walk-poor-dog',
+      startedAt: 124,
+      expiresAt: Date.now() + 86400000,
+      weeklyBudget: 100,
+    });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<ArWalkScreen />);
+  });
+  await ReactTestRenderer.act(() => renderer.root.findByType(ArFloorView).props.onBagPurchase());
+  await ReactTestRenderer.act(() => renderer.root.findByType(AppDialog).props.onConfirm());
+  expect(renderer.root.findByType(AppDialog).props.message).toContain('남은 예산이 부족해요.');
+  expect(renderer.root.findByType(ArFloorView).props.bagAvailable).toBe(false);
+  expect(useShopStore.getState().spent).toBe(0);
+  await ReactTestRenderer.act(() => renderer.root.findByType(AppDialog).props.onClose());
+  expect(renderer.root.findAllByType(AppDialog)).toHaveLength(0);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
 
 test('deducts a bag once per cleanup request and acknowledges only a saved deduction', async () => {
   const session = {

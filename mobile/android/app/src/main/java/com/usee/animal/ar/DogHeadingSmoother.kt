@@ -21,6 +21,12 @@ internal class DogHeadingSmoother {
     angularSpeed = 0f
   }
 
+  /** Scripted full turns must bypass the walking direction debounce. */
+  fun snap(desired: Float): Float {
+    reset()
+    return update(desired, 0f)
+  }
+
   fun update(desired: Float, deltaSeconds: Float): Float {
     val current = heading ?: return wrap(desired).also {
       heading = it

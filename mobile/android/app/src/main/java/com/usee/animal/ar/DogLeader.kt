@@ -21,7 +21,7 @@ class DogLeader(
   private var poopDeposited = false
 
   fun beginPoop(rightX: Float, rightZ: Float) {
-    if (!placed || poopStage != null) return
+    if (!placed || poopStage != null || commandedHold != null || attentionSeconds > 0f) return
     val length = hypot(rightX, rightZ)
     if (length < 0.001f) return
     poopOriginX = x
@@ -70,7 +70,7 @@ class DogLeader(
     trustedSegment(cameraX, cameraZ, targetX, targetZ) || wallAvoidance.isClear(cameraX, cameraZ, targetX, targetZ, floorY)
 
   fun requestPlacement() {
-    if (poopStage != null) return
+    if (poopStage != null || commandedHold != null || attentionSeconds > 0f) return
     placementRequested = true
   }
 
@@ -79,6 +79,8 @@ class DogLeader(
   }
 
   fun requestRecall() {
+    if (attentionSeconds > 0f) return
+    if (commandedHold != null) return
     if (placed && poopStage == null) recalling = true
   }
 
@@ -86,14 +88,64 @@ class DogLeader(
     if (meters.isFinite() && meters >= 0f) leashLength = meters
   }
 
-  fun needsUnrestrictedReturn(cameraX: Float, cameraZ: Float): Boolean = placed && poopStage == null &&
+  fun needsUnrestrictedReturn(cameraX: Float, cameraZ: Float): Boolean = placed && poopStage == null && commandedHold == null && attentionSeconds <= 0f &&
     (recalling || returning || leashLength >= 2f || hypot(cameraX - x, cameraZ - z) >= 2f)
 
   fun requestAction(action: String) {
-    if (placed && poopStage == null) animations.request(action)
+    if (!placed || poopStage != null) return
+    attentionSeconds = 0f
+    if (action == "spin") {
+      if (spinElapsed != null) return
+      spinElapsed = 0f
+      spinStartYaw = yaw
+      commandedHold = "stop"
+      animations.pause()
+      recalling = false
+      returning = false
+      placementRequested = false
+      speed = 0f
+      moving = false
+      floorPath.clear()
+      return
+    }
+    spinElapsed = null
+    if (action == "sit" || action == "stop" || action == "go") {
+      val next = if (action == "go") null else action
+      if (commandedHold == next) return
+      commandedHold = next
+      animations.pause()
+      recalling = false
+      returning = false
+      placementRequested = false
+      speed = 0f
+      moving = false
+      floorPath.clear()
+      return
+    }
+    if (commandedHold != null) return
+    animations.request(action)
+  }
+
+  private var commandedHold: String? = null
+  private var attentionSeconds = 0f
+  private var spinElapsed: Float? = null
+  private var spinStartYaw = 0f
+
+  fun requestAttention(): Boolean {
+    if (!placed || poopStage != null || spinElapsed != null) return false
+    attentionSeconds = 3f
+    speed = 0f
+    moving = false
+    recalling = false
+    returning = false
+    placementRequested = false
+    floorPath.clear()
+    return true
   }
 
   fun pauseTracking() {
+    attentionSeconds = 0f
+    spinElapsed = null
     hasCamera = false
     velocityX = 0f
     velocityZ = 0f
@@ -186,6 +238,32 @@ class DogLeader(
     previousCameraX = cameraX
     previousCameraZ = cameraZ
     hasCamera = true
+    spinElapsed?.let { elapsed ->
+      val next = (elapsed + deltaSeconds.coerceIn(0f, 0.25f)).coerceAtMost(3f)
+      spinElapsed = next
+      yaw = wrap(spinStartYaw + next / 3f * 2f * PI.toFloat())
+      speed = 0f
+      moving = false
+      blocked = false
+      userMoving = hypot(velocityX, velocityZ) > 0.15f
+      stopReason = ""
+      if (next >= 3f) {
+        spinElapsed = null
+        yaw = spinStartYaw
+        animations.pause()
+      } else animations.holdSpin()
+      return frame(true, 0f)
+    }
+    if (placed && (commandedHold != null || attentionSeconds > 0f)) {
+      speed = 0f
+      moving = false
+      blocked = false
+      userMoving = hypot(velocityX, velocityZ) > 0.15f
+      stopReason = ""
+      animations.holdPosition(commandedHold == "sit", dt)
+      attentionSeconds = (attentionSeconds - deltaSeconds.coerceIn(0f, 0.25f)).coerceAtLeast(0f)
+      return frame(true, 0f)
+    }
     val along = velocityX * headingX + velocityZ * headingZ
     if (along < -0.25f) backing = true
     if (along > -0.08f) backing = false
@@ -452,7 +530,7 @@ class DogLeader(
 
   private fun frame(visible: Boolean, actualSpeed: Float) = DogFrame(
     x, y, z, Math.toDegrees(yaw.toDouble()).toFloat(), visible && placed,
-    animations.current.clip, actualSpeed, animations.current.loop, animations.current.revision, moving, blocked, userMoving, recalling || returning, floorUncertain, stopReason, poopDeposited,
+    animations.current.clip, actualSpeed, animations.current.loop, animations.current.revision, moving, blocked, userMoving, recalling || returning, floorUncertain, stopReason, poopDeposited, spinElapsed != null,
   )
 
   private fun wrap(angle: Float): Float {
@@ -491,4 +569,5 @@ data class DogFrame(
   val cautious: Boolean = false,
   val stopReason: String = "",
   val poopDeposited: Boolean = false,
+  val spinning: Boolean = false,
 )

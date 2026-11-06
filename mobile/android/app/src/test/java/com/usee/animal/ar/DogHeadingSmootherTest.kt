@@ -5,6 +5,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DogHeadingSmootherTest {
+  @Test fun scriptedSpinBypassesDebounceAndSeedsTheNextWalkingHeading() {
+    val smoother = DogHeadingSmoother()
+    smoother.update(0f, 0f)
+    for (angle in 0..360 step 5) {
+      val expected = ((angle + 180f) % 360f) - 180f
+      assertEquals(expected, smoother.snap(angle.toFloat()), 0.001f)
+    }
+    assertEquals(0f, smoother.update(0f, 0.02f), 0.001f)
+  }
   private fun delta(a: Float, b: Float) = ((a - b + 540f) % 360f) - 180f
 
   @Test fun smallNoiseAndShortAlternatingDirectionsKeepPreviousFacing() {

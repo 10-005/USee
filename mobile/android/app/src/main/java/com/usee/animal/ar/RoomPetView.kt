@@ -3,7 +3,6 @@ package com.usee.animal.ar
 import android.graphics.PixelFormat
 import android.view.MotionEvent
 import android.view.ViewConfiguration
-import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.Arguments
@@ -15,15 +14,20 @@ import io.github.sceneview.math.Rotation
 import io.github.sceneview.math.Scale
 import io.github.sceneview.math.colorOf
 import io.github.sceneview.node.SphereNode
-import io.github.sceneview.node.ImageNode
 import io.github.sceneview.math.Direction
 import io.github.sceneview.math.Size
 import kotlin.math.sin
 import kotlin.math.cos
 
 /** Non-AR scene: one model, fixed camera, no touch controls or camera session. */
-class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactContext) {
+class RoomPetView(private val reactContext: ReactContext) : SceneHostView(reactContext) {
   private var scene: SceneView? = null
+  private val modelLoad = SceneModelLoad()
+  private var disposed = false
+  private var entryX = 0f
+  private var entryY = 0f
+  fun setEntryX(value: Float) { entryX = value * resources.displayMetrics.density }
+  fun setEntryY(value: Float) { entryY = value * resources.displayMetrics.density }
   private var active = false
   private var bathing = false
   private var sceneOpacity = 1f
@@ -39,6 +43,8 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
   private var visibilityRevision = 0
 
   init {
+    clipChildren = false
+    clipToPadding = false
     isClickable = true
     setOnClickListener {
       UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
@@ -101,6 +107,7 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
   }
 
   fun dispose() {
+    disposed = true
     visibilityRevision++
     visibility = INVISIBLE
     active = false
@@ -108,14 +115,27 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
   }
 
   private fun start() {
-    if (!active || !isAttachedToWindow || petId.isEmpty() || scene != null) return
+    if (disposed || !active || !isAttachedToWindow || petId.isEmpty() || scene != null) return
     val activity = reactContext.currentActivity as? ComponentActivity ?: return
     val view = object : SceneView(
       context = activity, sharedLifecycle = activity.lifecycle,
       isOpaque = false, cameraManipulator = null,
     ) {
       private var lastRendered = 0L
+      override fun destroy() {
+        if (isDestroyed) return
+        modelLoad.cancel()
+        onFrame = null
+        childNodes.filter { it is OwnedImageNode || it is SphereNode }.forEach { node ->
+          removeChildNode(node)
+          node.destroy()
+        }
+        super.destroy()
+      }
+
       override fun onFrame(frameTimeNanos: Long) {
+        // A Choreographer callback may already be dequeued when navigation destroys the scene.
+        if (isDestroyed || this@RoomPetView.scene !== this || !active) return
         if (frameTimeNanos - lastRendered < 33_333_333L) return
         lastRendered = frameTimeNanos
         super.onFrame(frameTimeNanos)
@@ -133,8 +153,8 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
     view.cameraNode.position = Position(0f, 0.35f + extraWorldHeight / 2f, 2.4f)
     addView(view, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     // Temporary shared Shiba model for all IDs; keep petId for future breed assets.
-    view.modelLoader.loadModelInstanceAsync("models/dog.glb") { instance ->
-      if (instance == null || scene !== view) return@loadModelInstanceAsync
+    modelLoad.start(view) { instance ->
+      if (disposed || scene !== view) return@start
       val node = DogModelNode(instance, manualPlayback = true)
       node.isVisible = false
       node.scale = node.scale * 2.5f
@@ -161,21 +181,41 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
       var lastFrame = 0L
       var yaw = if (returningFromWalk) -135f else 0f
       node.rotation = Rotation(y = yaw)
-      UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
-        ReadyEvent(UIManagerHelper.getSurfaceId(this), id),
-      )
+      var readySent = false
+      var arrivalElapsed = 0f
+      var arriving = returningFromWalk
       var previousCare = ""
       var careRevision = 1000000
-      var carriedToy: ImageNode? = null
+      var carriedToy: OwnedImageNode? = null
       val mouth = node.emptyNodes.firstOrNull { it.name == "mouth" }
       val bubbles = mutableListOf<SphereNode>()
       var bathElapsed = 0f
       var wasBathing = false
       view.onFrame = { now ->
+        if (!readySent) {
+          readySent = true
+          // Wait until the loaded model enters the frame loop before moving the room view.
+          UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
+            ReadyEvent(UIManagerHelper.getSurfaceId(this), id),
+          )
+        }
         // No physics here: use wall time so a delayed frame cannot leave the
         // behavior timer behind a clip that has already reached its final pose.
-        val dt = if (lastFrame == 0L) 0f else ((now - lastFrame) / 1_000_000_000f).coerceAtLeast(0f)
+        val dt = if (lastFrame == 0L) 0f else
+          ((now - lastFrame) / 1_000_000_000f).coerceIn(0f, if (arriving) 0.1f else Float.MAX_VALUE)
         lastFrame = now
+        if (arriving) {
+          arrivalElapsed += dt
+          val remaining = (1f - arrivalElapsed / RoomPetBehavior.RETURN_WALK_SECONDS).coerceAtLeast(0f)
+          view.translationX = entryX * remaining
+          view.translationY = entryY * remaining
+          if (remaining == 0f) {
+            arriving = false
+            UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
+              ReturnCompleteEvent(UIManagerHelper.getSurfaceId(this), id),
+            )
+          }
+        }
         if (bathing && !wasBathing) {
           bathElapsed = 0f
           careRevision++
@@ -246,7 +286,7 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
         yaw += (targetYaw - yaw) * (dt * 3f).coerceAtMost(1f)
         node.rotation = Rotation(y = yaw)
         if (careMotion == "fetchCarry" && carriedToy == null) {
-          carriedToy = ImageNode(
+          carriedToy = OwnedImageNode(
             materialLoader = view.materialLoader,
             imageFileLocation = "models/img_dog_toy.png",
             size = Size(0.252f, 0.252f, 0f),
@@ -290,6 +330,11 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
 
   private class ReadyEvent(surfaceId: Int, viewId: Int) : Event<ReadyEvent>(surfaceId, viewId) {
     override fun getEventName() = "topReady"
+    override fun getEventData() = Arguments.createMap()
+  }
+
+  private class ReturnCompleteEvent(surfaceId: Int, viewId: Int) : Event<ReturnCompleteEvent>(surfaceId, viewId) {
+    override fun getEventName() = "topReturnComplete"
     override fun getEventData() = Arguments.createMap()
   }
 

@@ -22,12 +22,40 @@ class DogAnimationController(
   private var stepSeconds = 0f
   private var candidate = "Idle"
   private var candidateSeconds = 0f
+  private var heldSitSeconds: Float? = null
+
+  /** Voice sitting persists until an explicit go/stop command, without random idle actions. */
+  fun holdPosition(sitting: Boolean, dt: Float) {
+    requested = null
+    steps = emptyList()
+    if (!sitting) {
+      heldSitSeconds = null
+      change("Idle", true)
+      return
+    }
+    val elapsed = heldSitSeconds
+    if (elapsed == null) {
+      heldSitSeconds = 0f
+      change("SitStart", false, force = true)
+    } else {
+      heldSitSeconds = elapsed + dt.coerceAtLeast(0f)
+      if (heldSitSeconds!! >= (durations["SitStart"] ?: 1f)) change("SitIdle", true)
+    }
+  }
 
   fun request(action: String) {
     if (action in ACTIONS) requested = action
   }
 
+  fun holdSpin() {
+    requested = null
+    steps = emptyList()
+    heldSitSeconds = null
+    change("TurnRight", true)
+  }
+
   fun pause() {
+    heldSitSeconds = null
     requested = null
     steps = emptyList()
     stoppedSeconds = 0f

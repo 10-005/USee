@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.ViewConfiguration
-import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.Lifecycle
 import com.facebook.react.bridge.Arguments
@@ -26,8 +25,9 @@ import io.github.sceneview.node.ModelNode
  */
 class ArFloorView(
   private val reactContext: ReactContext,
-) : FrameLayout(reactContext) {
+) : SceneHostView(reactContext) {
   private var sceneView: ARSceneView? = null
+  private val modelLoad = SceneModelLoad()
   private var cleanup: WalkCleanupView? = null
 
   private var traversalDebug: TraversalDebugView? = null
@@ -122,7 +122,13 @@ class ArFloorView(
   fun requestAction(request: String) {
     if (request.isNotEmpty() && request != lastActionRequest) {
       lastActionRequest = request
-      leader.requestAction(request.substringAfter(':'))
+      val action = request.substringAfter(':')
+      if (action == "look") {
+        if (leader.requestAttention()) dogNode?.startAttention()
+      } else {
+        dogNode?.cancelAttention()
+        leader.requestAction(action)
+      }
     }
   }
 
@@ -160,7 +166,7 @@ class ArFloorView(
   }
 
   private fun start() {
-    if (disposed || sceneView != null) {
+    if (disposed || !active || !isAttachedToWindow || sceneView != null) {
       return
     }
     val activity = reactContext.currentActivity as? ComponentActivity ?: return
@@ -185,6 +191,15 @@ class ArFloorView(
     ).apply {
       layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
       onSessionUpdated = { session, frame -> handleFrame(session, frame) }
+      beforeDestroy = { modelLoad.cancel(); releaseSceneResources() }
+      onFrameFailure = {
+        post {
+          if (sceneView === this) {
+            stop()
+            emit("error", false, "", false, false, false)
+          }
+        }
+      }
     }
     sceneView = view
     val debug = TraversalDebugView(context).apply {
@@ -194,13 +209,19 @@ class ArFloorView(
     traversalDebug = debug
     addView(view)
     addView(debug)
-    cleanup = WalkCleanupView(context, view).also {
+    cleanup = WalkCleanupView(context, view) {
+      if (active && !disposed) {
+        UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
+          BagPurchaseEvent(UIManagerHelper.getSurfaceId(this), id),
+        )
+      }
+    }.also {
       it.bagAvailable = bagAvailable
       addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
-    view.modelLoader.loadModelInstanceAsync("models/dog.glb") { instance ->
-      if (instance == null || disposed || sceneView !== view) {
-        return@loadModelInstanceAsync
+    modelLoad.start(view) { instance ->
+      if (disposed || sceneView !== view) {
+        return@start
       }
       view.post {
         if (disposed || sceneView !== view) {
@@ -220,6 +241,7 @@ class ArFloorView(
             dogLeash.hide()
           }
         }
+        node.attentionTarget = { leashCamera?.let { Position(it.x, it.y, it.z) } }
         leader = DogLeader(requiresPlacement = false, animations = DogAnimationController(node.durations))
         node.isShadowCaster = true
         node.isVisible = false
@@ -247,7 +269,7 @@ class ArFloorView(
     }
   }
 
-  private fun stop() {
+  private fun releaseSceneResources() {
     cleanup?.let { it.release(); removeView(it) }
     cleanup = null
     dogNode?.onPoseUpdated = null
@@ -263,6 +285,9 @@ class ArFloorView(
     modelReady = false
     dogNode = null
     shadowNode = null
+  }
+
+  private fun stop() {
     val view = sceneView ?: return
     sceneView = null
     removeView(view)
@@ -329,7 +354,8 @@ class ArFloorView(
       shadow?.isVisible = shown.dog.visible
       if (shown.dog.visible) {
         node.position = Position(shown.dog.x, shown.dog.y + pawLift(node), shown.dog.z)
-        node.rotation = Rotation(y = dogHeading.update(shown.dog.yawDegrees, rotationDt))
+        node.rotation = Rotation(y = if (shown.dog.spinning) dogHeading.snap(shown.dog.yawDegrees)
+          else dogHeading.update(shown.dog.yawDegrees, rotationDt))
         shadow?.position = Position(shown.dog.x, shown.dog.y + 0.006f, shown.dog.z)
         node.play(DogAnimation(shown.dog.clip, shown.dog.clipLoop, shown.dog.animationRevision))
       } else {
@@ -358,7 +384,10 @@ class ArFloorView(
       cleanup?.update(dog, camera.pose.tx(), camera.pose.tz(), viewMatrix, projectionMatrix, obstacle) {
         leader.beginPoop(rightX, rightZ)
       }
-    } else cleanup?.pause()
+    } else {
+      dogNode?.cancelAttention()
+      cleanup?.pause()
+    }
     emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen, shown.dog.userMoving)
   }
 
@@ -426,8 +455,26 @@ class ArFloorView(
     sharedLifecycle = sharedLifecycle,
     sessionConfiguration = sessionConfiguration,
   ) {
+    var beforeDestroy: (() -> Unit)? = null
+    var onFrameFailure: (() -> Unit)? = null
+    private var frameFailed = false
+
+    override fun onFrame(frameTimeNanos: Long) {
+      if (isDestroyed || frameFailed || !isAttachedToWindow) return
+      try {
+        super.onFrame(frameTimeNanos)
+      } catch (error: com.google.ar.core.exceptions.FatalException) {
+        frameFailed = true
+        android.util.Log.e("ArFloorView", "AR session frame failed", error)
+        onFrameFailure?.invoke()
+      }
+    }
+
     override fun destroy() {
+      if (isDestroyed) return
       onSessionUpdated = null
+      beforeDestroy?.invoke()
+      beforeDestroy = null
       // SceneView destroys its material loader before user-created renderables.
       // Detach also calls destroy(), so release the shadow here for every exit path.
       childNodes.filterIsInstance<CylinderNode>().forEach { shadow ->
@@ -441,6 +488,12 @@ class ArFloorView(
       val rotation = display?.rotation ?: return
       session?.setDisplayGeometry(rotation, width, height)
     }
+  }
+
+  private class BagPurchaseEvent(surfaceId: Int, viewId: Int) : Event<BagPurchaseEvent>(surfaceId, viewId) {
+    override fun getEventName() = "topBagPurchase"
+    override fun canCoalesce() = false
+    override fun getEventData() = Arguments.createMap()
   }
 
   private class TrackingEvent(

@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.RectF
 import android.graphics.Paint
+import android.graphics.ColorMatrixColorFilter
 import android.opengl.Matrix
 import android.os.SystemClock
 import android.os.VibrationEffect
@@ -16,11 +17,11 @@ import com.usee.animal.R
 import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.math.Direction
 import io.github.sceneview.math.Size
-import io.github.sceneview.node.ImageNode
 import kotlin.math.hypot
 
 /** Owns one cleanup event in the current AR session's world coordinate system. */
-internal class WalkCleanupView(context: Context, private val scene: ARSceneView) : View(context) {
+internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
+  private val onBuyBags: () -> Unit) : View(context) {
   // All three source images are 400x400px; display them at 200x200px.
   private val imageScale = 0.5f
   private val density = resources.displayMetrics.density
@@ -32,7 +33,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
   }
   private val imageBounds = RectF()
   // A scene sprite uses the same depth buffer as the dog instead of covering it as an overlay.
-  private val poopNode = ImageNode(
+  private val poopNode = OwnedImageNode(
     materialLoader = scene.materialLoader,
     imageFileLocation = "models/img_poop.png",
     size = Size(1f, 1f, 0f),
@@ -49,6 +50,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
   private val state = WalkCleanupState()
   private var lastFrame = 0L
   private var tracking = false
+  private var released = false
   private var visiblePoop = false
   private var near = false
   private var poopX = 0f
@@ -59,6 +61,13 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
   private val cameraPoint = FloatArray(4)
   private val clip = FloatArray(4)
   private var dragging = false
+  private var purchaseTap = false
+  private val dimFilter = ColorMatrixColorFilter(floatArrayOf(
+    0.35f, 0f, 0f, 0f, 0f,
+    0f, 0.35f, 0f, 0f, 0f,
+    0f, 0f, 0.35f, 0f, 0f,
+    0f, 0f, 0f, 1f, 0f,
+  ))
   private var dragX = 0f
   private var dragY = 0f
   private var downX = 0f
@@ -70,17 +79,26 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
   private var targetY = 0f
   private var collecting = false
   var bagAvailable = false
+    set(value) {
+      field = value
+      invalidate()
+    }
   var collectionRequestId = 0L
     private set
 
   fun confirmCollection(requestId: Long, accepted: Boolean) {
     if (requestId != collectionRequestId || requestId == 0L) return
-    if (accepted) state.collect()
+    if (accepted) {
+      state.collect()
+      poopNode.isVisible = false
+    }
     collectionRequestId = 0L
     invalidate()
   }
-  private val bagX get() = width / 2f
-  private val bagY get() = height - maxOf(104f * density, bag.height * imageScale / 2f)
+  private val bagX get() = 24f * density + bagHitWidth
+  @Suppress("DEPRECATION")
+  private val bagY get() = height - maxOf(24f * density,
+    rootWindowInsets?.systemWindowInsetBottom?.toFloat() ?: 0f) - bagHitHeight
   private val bagHitWidth get() = maxOf(bag.width * imageScale / 2f, 32f * density)
   private val bagHitHeight get() = maxOf(bag.height * imageScale / 2f, 32f * density)
 
@@ -89,7 +107,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
     contentDescription = "배변봉투를 배변 쪽으로 밀어 던져주세요"
   }
 
-  fun hitBag(x: Float, y: Float): Boolean = bagAvailable && collectionRequestId == 0L && tracking && near && thrownAt == 0L &&
+  fun hitBag(x: Float, y: Float): Boolean = !released && collectionRequestId == 0L && (!bagAvailable || tracking && near) && thrownAt == 0L &&
     kotlin.math.abs(x - bagX) <= bagHitWidth && kotlin.math.abs(y - bagY) <= bagHitHeight
 
   fun pause() {
@@ -97,6 +115,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
     tracking = false
     poopNode.isVisible = false
     dragging = false
+    purchaseTap = false
     parent?.requestDisallowInterceptTouchEvent(false)
     invalidate()
   }
@@ -111,20 +130,11 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
       onPoop()
     }
     if (state.pending && appearedAt == 0L && dog.poopDeposited) {
-      poopX = dog.x
-      poopY = dog.y + DOG_MODEL_UNITS / 2f
-      poopZ = dog.z
-      // Move along the camera ray to preserve the model-center projection while
-      // keeping the sprite behind the dog in the scene's depth buffer.
-      if (Matrix.invertM(inverseView, 0, view, 0)) {
-        val dx = poopX - inverseView[12]
-        val dy = poopY - inverseView[13]
-        val dz = poopZ - inverseView[14]
-        val distance = kotlin.math.sqrt(dx * dx + dy * dy + dz * dz).coerceAtLeast(0.01f)
-        poopX += dx / distance * 0.30f
-        poopY += dy / distance * 0.30f
-        poopZ += dz / distance * 0.30f
-      }
+      // Deposit on the ground beside the rear legs, independent of camera angle.
+      val yaw = Math.toRadians(dog.yawDegrees.toDouble()).toFloat()
+      poopX = dog.x - kotlin.math.sin(yaw) * 0.18f
+      poopY = dog.y + 0.01f
+      poopZ = dog.z - kotlin.math.cos(yaw) * 0.18f
       appearedAt = now
       val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
       val pattern = longArrayOf(0, 160, 140, 160, 140, 160)
@@ -143,14 +153,17 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
       screenX = (clip[0] / clip[3] + 1f) * width / 2f
       screenY = (1f - clip[1] / clip[3]) * height / 2f
     }
-    poopNode.isVisible = appearedAt != 0L && state.pending && visiblePoop && (!collecting || now - thrownAt < 350L)
+    poopNode.isVisible = appearedAt != 0L && visiblePoop &&
+      state.shouldShowPoop(collecting, now - thrownAt, collectionRequestId != 0L)
     if (poopNode.isVisible && height > 0 && Matrix.invertM(inverseView, 0, view, 0)) {
       val worldPerPixel = 2f * clip[3] / (projection[5] * height)
       val spriteWidth = poopOptions.outWidth * imageScale * worldPerPixel
       val spriteHeight = poopOptions.outHeight * imageScale * worldPerPixel
       val drop = (1f - ((now - appearedAt) / 450f).coerceIn(0f, 1f))
       val lift = 16f * density * drop * drop * worldPerPixel
-      val verticalOffset = lift - 36f * density * worldPerPixel
+      // The visible bottom of img_poop.png is at y≈330/400 (70px transparent padding).
+      // Align that contact point with the ground anchor instead of lowering the whole image.
+      val verticalOffset = lift + spriteHeight * 0.325f
       // Keep the projected image at 200x200px, independent of camera distance.
       inverseView.copyInto(spriteTransform)
       for (row in 0..2) {
@@ -171,10 +184,12 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
   }
 
   fun release() {
+    if (released) return
+    released = true
     scene.removeChildNode(poopNode)
     poopNode.destroy()
-    bag.recycle()
-    filledBag.recycle()
+    // Android can retain a removed view's display list during a back transition.
+    // Let Android release these Canvas bitmaps once those references are gone.
   }
 
   private fun image(canvas: Canvas, bitmap: Bitmap, x: Float, y: Float, alpha: Int = 255) {
@@ -187,7 +202,15 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
   }
 
   override fun onDraw(canvas: Canvas) {
+    if (released) return
     super.onDraw(canvas)
+    // Always show the bag dock; stock limits use, not visibility.
+    if (thrownAt == 0L && collectionRequestId == 0L) {
+      paint.colorFilter = if (bagAvailable) null else dimFilter
+      image(canvas, bag, if (dragging) dragX else bagX, if (dragging) dragY else bagY,
+        if (bagAvailable) 255 else 180)
+      paint.colorFilter = null
+    }
     if (!tracking || !state.pending) return
     val now = SystemClock.elapsedRealtime()
     if (thrownAt != 0L) {
@@ -207,15 +230,21 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
         collecting = false
       }
       postInvalidateOnAnimation()
-    } else if (near && bagAvailable && collectionRequestId == 0L) {
-      image(canvas, bag, if (dragging) dragX else bagX, if (dragging) dragY else bagY)
     }
   }
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
+    if (released) return false
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
         if (!hitBag(event.x, event.y)) return false
+        if (!bagAvailable) {
+          purchaseTap = true
+          downX = event.x
+          downY = event.y
+          parent.requestDisallowInterceptTouchEvent(true)
+          return true
+        }
         dragging = true
         downX = event.x
         downY = event.y
@@ -224,11 +253,19 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
         parent.requestDisallowInterceptTouchEvent(true)
       }
       MotionEvent.ACTION_MOVE -> {
+        if (purchaseTap) return true
         if (!dragging) return false
         dragX = event.x
         dragY = event.y
       }
       MotionEvent.ACTION_UP -> {
+        if (purchaseTap) {
+          purchaseTap = false
+          parent.requestDisallowInterceptTouchEvent(false)
+          if (!bagAvailable && hypot(event.x - downX, event.y - downY) < 24f * density) onBuyBags()
+          performClick()
+          return true
+        }
         if (!dragging) return false
         dragging = false
         val dx = event.x - downX
@@ -250,6 +287,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView)
         performClick()
       }
       MotionEvent.ACTION_CANCEL -> {
+        purchaseTap = false
         dragging = false
         parent.requestDisallowInterceptTouchEvent(false)
       }

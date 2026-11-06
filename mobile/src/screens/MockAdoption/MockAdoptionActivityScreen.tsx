@@ -43,7 +43,7 @@ const PREVIOUS_ACTION_HEIGHT = 72;
 type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
 
 export function MockAdoptionActivityScreen({ navigation, route }: Props) {
-  const { status: shopStatus } = useShopSession(route.params.petId);
+  const { status: shopStatus, session } = useShopSession(route.params.petId);
   const shop = useShopStore();
   const owns = (id: string) => shopStatus === 'ready' && (shop.inventory[id] ?? 0) > 0;
   const purchased = (id: string) =>
@@ -394,7 +394,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                 onPress={() => {
                   hideThenNavigate(() => {
                     walkPending.current = true;
-                    navigation.navigate('ArWalk', { petName: pet?.name ?? '강아지' });
+                    navigation.navigate('ArWalk', { petName: session?.petName ?? '' });
                   });
                 }}
               >
@@ -619,7 +619,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       {pet ? (
         <PetStatsDialog
           visible={statsVisible}
-          petName={pet.name}
+          petName={session?.petName ?? pet.name}
           stats={mockPetStats}
           onClose={() => setStatsVisible(false)}
         />

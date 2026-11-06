@@ -5,6 +5,168 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun spinMakesExactlyOneFullTurnWithoutTranslatingAndStaysStoppedAfterward() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.requestAction("spin")
+    var previousYaw = initial.yawDegrees
+    var turned = 0f
+    var dog = initial
+    for (i in 1..152) {
+      dog = leader.update(0.02f, i * 0.01f, -i * 0.02f, 1f, 0f, floor)
+      val delta = Math.toRadians((dog.yawDegrees - previousYaw).toDouble())
+      turned += Math.toDegrees(atan2(sin(delta), cos(delta))).toFloat()
+      previousYaw = dog.yawDegrees
+      assertEquals(initial.x, dog.x, 0.0001f)
+      assertEquals(initial.z, dog.z, 0.0001f)
+      if (i == 75) assertEquals("TurnRight", dog.clip)
+    }
+    assertEquals(360f, turned, 0.02f)
+    assertFalse(dog.spinning)
+    for (i in 1..200) dog = leader.update(0.02f, 3f, -5f, 1f, 0f, floor)
+    assertEquals(initial.x, dog.x, 0.0001f)
+    assertEquals(initial.z, dog.z, 0.0001f)
+    assertEquals("Idle", dog.clip)
+    leader.requestAction("go")
+    for (i in 1..150) dog = leader.update(0.02f, 3f, -5f, 1f, 0f, floor)
+    assertTrue(hypot(dog.x - initial.x, dog.z - initial.z) > 0.1f)
+  }
+
+  @Test fun repeatedSpinDoesNotRestartAndExplicitStopOrTrackingPauseCancelsIt() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.requestAction("spin")
+    for (i in 1..100) {
+      leader.requestAction("spin")
+      assertFalse(leader.requestAttention())
+      leader.update(0.02f, 0f, -3f, 0f, -1f, floor)
+    }
+    val beforeStop = leader.update(0.02f, 0f, -3f, 0f, -1f, floor)
+    val expectedYaw = ((initial.yawDegrees + 242.4f + 180f) % 360f + 360f) % 360f - 180f
+    assertEquals(expectedYaw, beforeStop.yawDegrees, 0.02f)
+    leader.requestAction("stop")
+    val stopped = leader.update(0.02f, 0f, -3f, 0f, -1f, floor)
+    assertFalse(stopped.spinning)
+    assertEquals(beforeStop.yawDegrees, stopped.yawDegrees, 0.001f)
+    leader.requestAction("spin")
+    leader.pauseTracking()
+    val paused = leader.update(0.02f, 0f, -3f, 0f, -1f, floor)
+    assertFalse(paused.spinning)
+    assertEquals(initial.z, paused.z, 0.0001f)
+  }
+  @Test fun attentionTimerUsesElapsedTimeEvenWithSlowFrames() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.requestAttention()
+    var dog = initial
+    for (i in 1..16) dog = leader.update(0.2f, 0f, -3f, 0f, -1f, floor)
+    assertTrue(dog.z < initial.z)
+  }
+  @Test fun nameCallStopsPositionAndBodyHeadingForThreeSecondsThenResumes() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    assertTrue(leader.requestAttention())
+    var dog = initial
+    for (i in 1..149) {
+      leader.requestRecall()
+      leader.requestPlacement()
+      leader.beginPoop(1f, 0f)
+      leader.updateLeashLength(5f)
+      dog = leader.update(0.02f, i * 0.01f, -i * 0.02f, 1f, 0f, floor)
+      assertEquals(initial.x, dog.x, 0.0001f)
+      assertEquals(initial.z, dog.z, 0.0001f)
+      assertEquals(initial.yawDegrees, dog.yawDegrees, 0.0001f)
+      assertFalse(dog.moving)
+    }
+    for (i in 1..150) dog = leader.update(0.02f, 1.5f, -3f, 1f, 0f, floor)
+    assertTrue(kotlin.math.hypot(dog.x - initial.x, dog.z - initial.z) > 0.1f)
+  }
+
+  @Test fun nameCallPreservesSitAndStopButExplicitGoOverridesAttention() {
+    for (hold in listOf("sit", "stop")) {
+      val leader = DogLeader()
+      val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+      leader.requestAction(hold)
+      assertTrue(leader.requestAttention())
+      var dog = initial
+      for (i in 1..250) dog = leader.update(0.02f, 0f, -3f, 0f, -1f, floor)
+      assertEquals(initial.z, dog.z, 0.0001f)
+      assertEquals(if (hold == "sit") "SitIdle" else "Idle", dog.clip)
+      assertTrue(leader.requestAttention())
+      leader.requestAction("go")
+      for (i in 1..50) dog = leader.update(0.02f, 0f, -3f, 0f, -1f, floor)
+      assertTrue(dog.z < initial.z - 0.1f)
+    }
+  }
+
+  @Test fun sitCommandHoldsUntilGoEvenWhenWalkerMovesAndLeashIsStretched() {
+    val leader = DogLeader()
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var dog = leader.update(0.02f, 0f, -0.6f, 0f, -1f, floor)
+    val x = dog.x
+    val z = dog.z
+    leader.requestAction("sit")
+    dog = leader.update(0.02f, 0f, -0.8f, 0f, -1f, floor)
+    assertEquals("SitStart", dog.clip)
+    for (i in 1..800) {
+      leader.requestAction("sit")
+      leader.requestRecall()
+      leader.requestPlacement()
+      leader.beginPoop(1f, 0f)
+      leader.updateLeashLength(5f)
+      dog = leader.update(0.02f, 0f, -0.8f - i * 0.005f, 0f, -1f, floor)
+      assertEquals(x, dog.x, 0.0001f)
+      assertEquals(z, dog.z, 0.0001f)
+      assertFalse(dog.moving)
+    }
+    assertEquals("SitIdle", dog.clip)
+    leader.requestAction("go")
+    for (i in 1..150) dog = leader.update(0.02f, 0f, -5f, 0f, -1f, floor)
+    assertTrue("Must follow the walker only after go", dog.z < z - 0.1f)
+  }
+
+  @Test fun trackingPausePreservesSitAndCommandsDoNotInterruptPoop() {
+    val leader = DogLeader()
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.requestAction("sit")
+    leader.pauseTracking()
+    leader.update(0.02f, 0f, 0f, 0f, -1f, floor)
+    val resumed = leader.update(0.02f, 0f, -1f, 0f, -1f, floor)
+    assertTrue(resumed.clip.startsWith("Sit"))
+    leader.requestAction("go")
+    leader.beginPoop(1f, 0f)
+    leader.requestAction("sit")
+    val poop = leader.update(0.02f, 0f, -1f, 0f, -1f, floor)
+    assertFalse(poop.clip.startsWith("Sit"))
+  }
+
+  @Test fun stopHoldsStandingPositionAndSitStopGoCanSwitch() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.requestAction("stop")
+    var dog = initial
+    for (i in 1..800) {
+      dog = leader.update(0.02f, i * 0.01f, -i * 0.01f, 1f, 0f, floor)
+      assertEquals(initial.x, dog.x, 0.0001f)
+      assertEquals(initial.z, dog.z, 0.0001f)
+      assertEquals("Idle", dog.clip)
+      assertFalse(dog.moving)
+    }
+    leader.requestAction("sit")
+    for (i in 1..100) dog = leader.update(0.02f, 0f, -2f, 0f, -1f, floor)
+    assertEquals("SitIdle", dog.clip)
+    leader.requestAction("stop")
+    dog = leader.update(0.02f, 0f, -2f, 0f, -1f, floor)
+    assertEquals("Idle", dog.clip)
+    assertEquals(initial.z, dog.z, 0.0001f)
+    leader.pauseTracking()
+    for (i in 1..100) dog = leader.update(0.02f, 0f, -2f, 0f, -1f, floor)
+    assertEquals(initial.z, dog.z, 0.0001f)
+    leader.requestAction("go")
+    for (i in 1..150) dog = leader.update(0.02f, 0f, -2f, 0f, -1f, floor)
+    assertTrue(dog.z < initial.z - 0.1f)
+  }
+
   @Test fun poopWalksRightStaysFixedAndReturnsBeforeFollowingUser() {
     val leader = DogLeader(animations = DogAnimationController(mapOf("Poop" to 2f)))
     val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)

@@ -1,4 +1,5 @@
 import { getShopDatabase, readShopSnapshot } from '../../services/shop/shopDatabase';
+import * as shopDatabase from '../../services/shop/shopDatabase';
 import { useShopStore, cartTotal } from '../shopStore';
 import { filterProducts, products } from '../../services/shop/catalog';
 import { consumeCareSupplies } from '../../services/shop/consumption';
@@ -23,6 +24,52 @@ it('contains all 32 products with valid prices and species filters', () => {
   expect(filterProducts('dog', '전체', '', '기본순').some(p => p.species === 'cat')).toBe(false);
   expect(filterProducts('cat', '필수 준비', '', '낮은 가격순').every(p => p.essential)).toBe(true);
   expect(filterProducts('cat', '전체', '물그릇', '기본순').map(p => p.id)).toEqual(['waterBowl']);
+});
+
+it('buys only walk bags, saves purchase history and budget, and preserves the cart', () => {
+  shop().setQuantity('food', 2, 'dog');
+  const selected = [...shop().selectedIds];
+  expect(shop().buyWalkBags()).toBeNull();
+  expect(shop().inventory.bags).toBe(10);
+  expect(shop().ownedItems).toEqual([
+    expect.objectContaining({ productId: 'bags', capacity: 10, remaining: 10 }),
+  ]);
+  expect(shop().budget - shop().spent).toBe(49500);
+  expect(shop().cart).toEqual({ food: 2 });
+  expect(shop().selectedIds).toEqual(selected);
+  shop().open(session);
+  expect(shop().inventory.bags).toBe(10);
+  expect(shop().spent).toBe(500);
+  expect(shop().consume({ bags: 1 })).toBe(true);
+  expect(shop().inventory.bags).toBe(9);
+});
+
+it('rejects walk bag purchases without enough budget or after the session expires', () => {
+  useShopStore.setState({ budget: 499, spent: 0 });
+  expect(shop().buyWalkBags()).toBe('남은 예산이 부족해요.');
+  expect(shop().spent).toBe(0);
+  expect(shop().ownedItems).toEqual([]);
+  expect(shop().inventory.bags).toBeUndefined();
+  useShopStore.setState({ budget: 50000, expiresAt: Date.now() - 1 });
+  expect(shop().buyWalkBags()).toBe('모의 입양 기간이 종료되었어요.');
+  expect(shop().spent).toBe(0);
+});
+
+it('does not debit the budget or grant walk bags when saving fails', () => {
+  const save = jest.spyOn(shopDatabase, 'writeShopSnapshot').mockImplementationOnce(() => {
+    throw new Error('disk full');
+  });
+  try {
+    expect(shop().buyWalkBags()).toContain('저장하지 못했어요');
+    expect(shop().spent).toBe(0);
+    expect(shop().inventory.bags).toBeUndefined();
+    expect(shop().ownedItems).toEqual([]);
+  } finally {
+    save.mockRestore();
+  }
+  shop().open(session);
+  expect(shop().spent).toBe(0);
+  expect(shop().inventory.bags).toBeUndefined();
 });
 
 it('enforces species and valid quantities while allowing quantities above the former limit', () => {

@@ -27,7 +27,11 @@ test('accepts digits only and persists only when starting, with retry on save fa
   const reset = jest.fn();
   const props = {
     navigation: { reset, goBack: jest.fn() },
-    route: { key: 'budget', name: 'MockAdoptionBudget', params: { petId: 'dog-1' } },
+    route: {
+      key: 'budget',
+      name: 'MockAdoptionBudget',
+      params: { petId: 'dog-1', petName: '초코' },
+    },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionBudget'>;
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
@@ -81,6 +85,7 @@ test('accepts digits only and persists only when starting, with retry on save fa
   await expect(getActiveMockAdoption()).resolves.toMatchObject({
     petId: 'dog-1',
     weeklyBudget: 35000,
+    petName: '초코',
   });
   save.mockRestore();
   await ReactTestRenderer.act(() => renderer.unmount());

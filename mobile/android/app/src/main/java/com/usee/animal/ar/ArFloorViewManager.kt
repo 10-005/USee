@@ -42,7 +42,10 @@ class ArFloorViewManager : SimpleViewManager<ArFloorView>() {
   fun setCleanupResponse(view: ArFloorView, response: String?) { view.confirmCleanup(response.orEmpty()) }
 
   override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> =
-    mutableMapOf("topTracking" to mutableMapOf("registrationName" to "onTracking"))
+    mutableMapOf(
+      "topTracking" to mutableMapOf("registrationName" to "onTracking"),
+      "topBagPurchase" to mutableMapOf("registrationName" to "onBagPurchase"),
+    )
 
   private companion object {
     const val NAME = "ArFloorView"

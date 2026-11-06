@@ -1,5 +1,6 @@
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 import { getBudgetError } from '../../screens/MockAdoption/budget';
+import { getPetNameError } from '../../screens/MockAdoption/petName';
 import { mockAdoptionPets } from '../../screens/MockAdoption/data';
 import { getStoredValue, removeStoredValue, setStoredValue } from './jsonStorage';
 
@@ -8,6 +9,7 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 export type MockAdoptionSession = {
   version: 1;
   petId: string;
+  petName?: string;
   weeklyBudget: number;
   startedAt: number;
   expiresAt: number;
@@ -20,6 +22,8 @@ export async function getActiveMockAdoption(): Promise<MockAdoptionSession | nul
   }
   if (
     session.version !== 1 ||
+    (session.petName !== undefined &&
+      (typeof session.petName !== 'string' || Boolean(getPetNameError(session.petName)))) ||
     !mockAdoptionPets.some(pet => pet.id === session.petId) ||
     typeof session.weeklyBudget !== 'number' ||
     getBudgetError(String(session.weeklyBudget)) ||
@@ -33,9 +37,12 @@ export async function getActiveMockAdoption(): Promise<MockAdoptionSession | nul
   return session;
 }
 
-export async function startMockAdoption(petId: string, weeklyBudget: number) {
+export async function startMockAdoption(petId: string, weeklyBudget: number, petName?: string) {
   if (!mockAdoptionPets.some(pet => pet.id === petId) || getBudgetError(String(weeklyBudget))) {
     throw new Error('Invalid mock adoption settings');
+  }
+  if (petName !== undefined && getPetNameError(petName)) {
+    throw new Error('Invalid pet name');
   }
   const active = await getActiveMockAdoption();
   if (active) {
@@ -45,6 +52,7 @@ export async function startMockAdoption(petId: string, weeklyBudget: number) {
   const session: MockAdoptionSession = {
     version: 1,
     petId,
+    ...(petName === undefined ? {} : { petName }),
     weeklyBudget,
     startedAt,
     expiresAt: startedAt + WEEK_MS,

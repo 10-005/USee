@@ -7,7 +7,7 @@ import com.facebook.react.uimanager.ViewManager
 
 class ArFloorPackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> =
-    emptyList()
+    listOf(WalkSpeechModule(reactContext))
 
   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =
     listOf(ArFloorViewManager(), RoomPetViewManager())

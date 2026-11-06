@@ -41,7 +41,8 @@ export type RootStackParamList = {
   ProfileEdit: undefined;
   Settings: undefined;
   SavedPosts: undefined;
-  MockAdoptionBudget: { petId: string };
+  MockAdoptionName: { petId: string };
+  MockAdoptionBudget: { petId: string; petName?: string };
   MyPosts: undefined;
   ShelterDetail: { shelterId: string };
 };
