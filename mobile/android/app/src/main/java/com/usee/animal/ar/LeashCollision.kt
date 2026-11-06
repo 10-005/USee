@@ -50,7 +50,10 @@ internal class LeashCollision {
     val guide = start + normal * 0.045f
     // The endpoints must remain exact. Impossible configurations must not draw a penetrating rope.
     if (!clear(start,guide) || !clear(hand,hand)) { reset(); return emptyList() }
-    val guided = listOf(start,guide) + if (points.size > 2) points.drop(2) else listOf(hand)
+    // Nearby curve samples can sit behind the outward guide, creating a hairpin.
+    // Join a farther sample so the collar exit has room to bend gradually.
+    val continuation = points.drop(1).dropWhile { (it - start).length() < 0.14f }
+    val guided = listOf(start,guide) + continuation.ifEmpty { listOf(hand) }
     val directClear = guided.zipWithNext().all { clear(it.first,it.second) }
     clearFrames = if (directClear) clearFrames + 1 else 0
     if (directClear && (previousBends.isEmpty() || clearFrames >= 8)) {
@@ -111,15 +114,17 @@ internal class LeashCollision {
         result.add(corner)
         continue
       }
-      var trim = minOf(0.12f, before * 0.35f, after * 0.35f)
+      // A short collar guide must not force the outgoing bend to be equally tiny.
+      var trimBefore = minOf(0.18f, before * 0.45f)
+      var trimAfter = minOf(0.18f, after * 0.45f)
       var accepted = false
       // A rounded corner cuts inside the old route. Shrink the radius until every
       // rendered chord is clear; retain the original corner if no safe arc fits.
       for (attempt in 0..5) {
-        val entry = corner - incoming * (trim / before)
-        val exit = corner + outgoing * (trim / after)
-        val arc = List(7) { index ->
-          val t = index / 6f
+        val entry = corner - incoming * (trimBefore / before)
+        val exit = corner + outgoing * (trimAfter / after)
+        val arc = List(9) { index ->
+          val t = index / 8f
           entry * ((1f - t) * (1f - t)) + corner * (2f * t * (1f - t)) + exit * (t * t)
         }
         if (clear(result.last(),entry) && clear(exit,path[i + 1]) &&
@@ -128,7 +133,8 @@ internal class LeashCollision {
           accepted = true
           break
         }
-        trim *= 0.5f
+        trimBefore *= 0.5f
+        trimAfter *= 0.5f
       }
       if (!accepted) result.add(corner)
     }

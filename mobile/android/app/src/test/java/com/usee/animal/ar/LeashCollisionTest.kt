@@ -4,6 +4,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LeashCollisionTest {
+  @Test fun shortCollarGuideDoesNotDoubleBackThroughNearbyCurveSamples() {
+    val socket = LeashPoint(0f, 0.42f, 0f)
+    val hand = LeashPoint(0f, 0.8f, -1.6f)
+    val body = LeashBody(listOf(LeashCapsule(
+      LeashPoint(0f, 0.25f, -0.2f), LeashPoint(0f, 0.25f, 0.1f), 0.1f,
+    )), LeashPoint(0f, 0.3f, 0f))
+    val route = LeashCollision().route(LeashCurve().points(socket, hand, 0f), body, 64)
+    assertClear(route, body.capsules)
+    assertEquals(socket, route.first())
+    assertEquals(hand, route.last())
+    val turns = route.windowed(3).map { (a,b,c) ->
+      val u = b-a; val v = c-b
+      kotlin.math.acos(((u.x*v.x + u.y*v.y + u.z*v.z) / (u.length()*v.length())).coerceIn(-1f,1f))
+    }
+    assertTrue("Collar exit should bend gradually: $turns", turns.all { it < 0.65f })
+  }
+
   @Test fun rightAngleIsRoundedWithoutMovingEitherAttachment() {
     val a = LeashPoint(0f,0f,0f)
     val b = LeashPoint(1f,1f,0f)
