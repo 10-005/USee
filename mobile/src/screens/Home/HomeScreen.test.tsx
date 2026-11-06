@@ -19,6 +19,9 @@ beforeEach(async () => {
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => ({ navigate: mockNavigate }),
+  useFocusEffect: (callback: () => void) => {
+    require('react').useEffect(callback, [callback]);
+  },
 }));
 
 jest.mock(
@@ -52,7 +55,10 @@ test('mock adoption selects one pet across categories and preserves adoption fil
   expect(renderer!.root.findAllByProps({ accessibilityLabel: '기간 필터' })).toHaveLength(0);
   expect(renderer!.root.findAllByProps({ accessibilityRole: 'radio' })).toHaveLength(0);
   expect(mockNavigate).not.toHaveBeenCalled();
-  await ReactTestRenderer.act(() => renderer.root.findByType(Button).props.onPress());
+  expect(renderer!.root.findAllByProps({ children: '받은 레포트' }).length).toBeGreaterThan(0);
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findAllByType(Button)[0].props.onPress();
+  });
   expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionSelection');
   await ReactTestRenderer.act(() => {
     renderer.root.findAllByProps({ accessibilityLabel: '입양' })[0].props.onPress();
@@ -64,7 +70,7 @@ test('mock adoption selects one pet across categories and preserves adoption fil
 }, 20000);
 
 test('my page resumes an active adoption without asking for the budget again', async () => {
-  await startMockAdoption('dog-3', 35000);
+  await startMockAdoption('dog-3', 35000, '초코');
   const props = {
     navigation: { navigate: mockNavigate },
     route: { key: 'home', name: 'Home' },
@@ -78,6 +84,11 @@ test('my page resumes an active adoption without asking for the budget again', a
   });
   await ReactTestRenderer.act(async () => {
     await renderer.root.findAllByProps({ accessibilityLabel: '모의입양' })[0].props.onPress();
+  });
+  expect(mockNavigate).not.toHaveBeenCalled();
+  expect(renderer!.root.findAllByType(Button)[0].props.children).toBe('초코 보러가기');
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findAllByType(Button)[0].props.onPress();
   });
   expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionActivity', { petId: 'dog-3' });
   await ReactTestRenderer.act(() => renderer.unmount());
