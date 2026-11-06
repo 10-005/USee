@@ -16,6 +16,16 @@ spring:
         default_schema: core
         jdbc:
           time_zone: Asia/Seoul
+  # core 스키마 DDL·시드(db/migration). ddl-auto=update로 먼저 생긴 테이블(sample 등)이 있어도 V1부터 적용되도록 0으로 baseline
+  flyway:
+    schemas: core
+    create-schemas: false
+    baseline-on-migrate: true
+    baseline-version: 0
+
+security:
+  # 2.1 kakao/verify·2.5 kakao/register·2.3 refresh는 토큰 없이 호출. logout은 로그인 필요
+  permit-paths: /api/core/v1/auth/kakao/**,/api/core/v1/auth/refresh
 
 api:
   prefix: /api/core
@@ -23,6 +33,15 @@ api:
 
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
+  # 발급용 개인 키(core-api만). 서버는 SealedSecret으로 주입
+  private-key: ${JWT_PRIVATE_KEY}
+  # 명세 기본값. 환경 변수 JWT_ACCESS_TOKEN_TTL·JWT_REFRESH_TOKEN_TTL로 덮어쓴다(dev는 access P14D)
+  access-token-ttl: PT1H
+  refresh-token-ttl: P14D
+
+kakao:
+  # Kakao Developers 앱 ID(비밀값 아님). 다른 앱에서 발급된 카카오 토큰을 거른다
+  app-id: ${KAKAO_APP_ID:1639429}
 
 # 이미지 저장소(S3). 비어 있어도 앱은 뜨고 이미지 API만 실패한다. 자격 증명은 AWS_ACCESS_KEY_ID·AWS_SECRET_ACCESS_KEY 환경 변수
 storage:

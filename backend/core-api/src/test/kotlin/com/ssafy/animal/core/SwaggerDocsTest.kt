@@ -2,6 +2,7 @@ package com.ssafy.animal.core
 
 import com.ssafy.animal.common.auth.AuthUser
 import com.ssafy.animal.common.config.CommonWebAutoConfiguration
+import com.ssafy.animal.core.auth.application.port.`in`.AuthUseCase
 import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
 import com.ssafy.animal.core.sample.application.port.`in`.SampleUseCase
 import org.hamcrest.Matchers.containsInAnyOrder
@@ -52,6 +53,9 @@ abstract class SwaggerDocsTestBase {
 
     @MockitoBean
     lateinit var imageUseCase: ImageUseCase
+
+    @MockitoBean
+    lateinit var authUseCase: AuthUseCase
 
     companion object {
         @JvmStatic
