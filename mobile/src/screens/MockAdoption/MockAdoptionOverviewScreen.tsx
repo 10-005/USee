@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeader, Button } from '../../components/common';
@@ -106,30 +106,43 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
           return (
             <View key={report.id} style={styles.card}>
               <View style={styles.cardHeader}>
-                <View style={styles.petInfo}>
-                  <Text style={styles.petName}>
-                    {report.petName} ({pet?.category === 'cat' ? '고양이' : '개'})
-                  </Text>
-                  <Text style={styles.date}>{report.createdAt}</Text>
-                </View>
-                {report.isNew ? (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>new</Text>
-                  </View>
-                ) : null}
                 {pet ? (
                   <Image
-                    accessibilityLabel={`${report.petName} 이미지`}
+                    accessibilityLabel={`${report.petName} (${
+                      pet.category === 'cat' ? '고양이' : '개'
+                    }) 이미지`}
                     source={pet.image}
                     resizeMode="contain"
                     style={styles.petImage}
                   />
                 ) : null}
+                <View style={styles.petInfo}>
+                  <View style={styles.titleRow}>
+                    <Text style={styles.petName}>{report.petName} 모의 입양 결과분석</Text>
+                    {report.isNew ? (
+                      <View style={styles.badge}>
+                        <Text style={styles.badgeText}>new</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.date}>{report.createdAt}</Text>
+                </View>
               </View>
-              <Text style={styles.summary}>{report.summary}</Text>
-              <Button disabled variant="secondary" style={styles.detailButton}>
-                상세보기
-              </Button>
+              <Text numberOfLines={1} style={styles.summary}>
+                {report.summary}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${report.petName} 리포트 상세보기`}
+                accessibilityState={{ disabled: true }}
+                disabled
+                style={styles.detailButton}
+              >
+                <Text style={styles.detailLabel}>상세보기</Text>
+                <Text accessible={false} style={styles.detailArrow}>
+                  →
+                </Text>
+              </Pressable>
             </View>
           );
         })}
@@ -161,25 +174,39 @@ const styles = StyleSheet.create({
   sectionTitle: { ...typography.titleBold18, color: colors.black },
   count: { ...typography.bodySemiBold16, color: colors.green400 },
   card: {
-    backgroundColor: colors.gray10,
+    backgroundColor: '#FCFDFE',
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.gray200,
     padding: 16,
     gap: 16,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  petInfo: { flex: 1, gap: 12 },
-  petName: { ...typography.titleBold18, color: colors.black },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  petInfo: { flex: 1, gap: 6 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  petName: {
+    ...typography.bodySemiBold16,
+    fontFamily: 'Pretendard-Bold',
+    color: colors.black,
+    flexShrink: 1,
+  },
   date: { ...typography.bodyRegular14, color: colors.gray500 },
   badge: {
-    backgroundColor: '#494DFF',
+    backgroundColor: '#789AF5',
     borderRadius: radius.pill,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
   badgeText: { ...typography.captionSemiBold12, color: colors.white },
-  petImage: { width: 58, height: 58, backgroundColor: colors.white, borderRadius: radius.pill },
-  summary: { ...typography.bodyRegular14, color: colors.gray800, lineHeight: 22 },
-  detailButton: { width: '55%' },
+  petImage: { width: 64, height: 64 },
+  summary: { ...typography.bodyRegular14, color: colors.gray500, lineHeight: 22 },
+  detailButton: {
+    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 32,
+  },
+  detailLabel: { ...typography.bodyRegular14, color: colors.gray300 },
+  detailArrow: { ...typography.bodyRegular16, color: colors.gray300 },
 });
