@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.ViewConfiguration
-import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.Lifecycle
 import com.facebook.react.bridge.Arguments
@@ -26,7 +25,7 @@ import io.github.sceneview.node.ModelNode
  */
 class ArFloorView(
   private val reactContext: ReactContext,
-) : FrameLayout(reactContext) {
+) : SceneHostView(reactContext) {
   private var sceneView: ARSceneView? = null
   private val modelLoad = SceneModelLoad()
   private var cleanup: WalkCleanupView? = null

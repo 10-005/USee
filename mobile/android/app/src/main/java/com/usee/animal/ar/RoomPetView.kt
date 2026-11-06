@@ -3,7 +3,6 @@ package com.usee.animal.ar
 import android.graphics.PixelFormat
 import android.view.MotionEvent
 import android.view.ViewConfiguration
-import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.Arguments
@@ -21,7 +20,7 @@ import kotlin.math.sin
 import kotlin.math.cos
 
 /** Non-AR scene: one model, fixed camera, no touch controls or camera session. */
-class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactContext) {
+class RoomPetView(private val reactContext: ReactContext) : SceneHostView(reactContext) {
   private var scene: SceneView? = null
   private val modelLoad = SceneModelLoad()
   private var disposed = false
