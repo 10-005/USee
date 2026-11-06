@@ -4,6 +4,8 @@ import { ArWalkScreen } from './ArWalkScreen';
 import { AppDialog } from '../../components/common/AppDialog';
 import { useShopStore } from '../../stores/shopStore';
 import { ArFloorView, type FloorTracking } from './components/ArFloorView';
+import * as voiceHook from './useWalkVoice';
+import { VoiceGlowText } from './components/VoiceGlowText';
 
 jest.mock('@react-navigation/elements', () => ({ useHeaderHeight: () => 80 }));
 jest.mock('@react-navigation/native', () => ({ useIsFocused: () => true }));
@@ -15,16 +17,58 @@ jest.mock('react-native-vision-camera', () => ({
 }));
 jest.mock('./components/ArFloorView', () => ({ ArFloorView: 'ArFloorView' }));
 jest.mock('./components/VoiceGlowText', () => ({ VoiceGlowText: 'VoiceGlowText' }));
+jest.mock('./components/VoiceMicrophone', () => ({ VoiceMicrophone: 'VoiceMicrophone' }));
+
+test('speech button waits for placement and subtitles exist only while listening', async () => {
+  const startListening = jest.fn();
+  const state = {
+    startListening,
+    isListening: false,
+    isStarting: false,
+    message: '',
+    error: '',
+    actionRequest: '',
+  };
+  const hook = jest.spyOn(voiceHook, 'useWalkVoice').mockReturnValue(state);
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+  try {
+    await ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(<ArWalkScreen />);
+    });
+    const button = () =>
+      renderer!.root.findAllByProps({ accessibilityLabel: '산책 음성 말하기' })[0];
+    expect(button().props.disabled).toBe(true);
+    expect(renderer!.root.findAllByType(VoiceGlowText)).toHaveLength(0);
+    await ReactTestRenderer.act(() =>
+      renderer!.root.findByType(ArFloorView).props.onTracking({
+        nativeEvent: { status: 'anchored', visible: true, onScreen: true },
+      }),
+    );
+    expect(button().props.disabled).toBe(false);
+    await ReactTestRenderer.act(() => button().props.onPress());
+    expect(startListening).toHaveBeenCalledTimes(1);
+    hook.mockReturnValue({ ...state, isListening: true, message: '“초코야 앉아”' });
+    await ReactTestRenderer.act(() => renderer!.update(<ArWalkScreen />));
+    expect(renderer!.root.findByType(VoiceGlowText).props.text).toBe('“초코야 앉아”');
+    expect(
+      renderer!.root.findAllByProps({ accessibilityLabel: '산책 음성 듣는 중' })[0].props.disabled,
+    ).toBe(true);
+    hook.mockReturnValue({ ...state, message: '“초코야 앉아”' });
+    await ReactTestRenderer.act(() => renderer!.update(<ArWalkScreen />));
+    expect(renderer!.root.findAllByType(VoiceGlowText)).toHaveLength(0);
+  } finally {
+    await ReactTestRenderer.act(() => renderer?.unmount());
+    hook.mockRestore();
+  }
+});
 
 test('empty-bag dialog buys only bags, debits the budget once and enables the native bag', async () => {
-  useShopStore
-    .getState()
-    .open({
-      petId: 'walk-purchase-dog',
-      startedAt: 123,
-      expiresAt: Date.now() + 86400000,
-      weeklyBudget: 50000,
-    });
+  useShopStore.getState().open({
+    petId: 'walk-purchase-dog',
+    startedAt: 123,
+    expiresAt: Date.now() + 86400000,
+    weeklyBudget: 50000,
+  });
   useShopStore.getState().setQuantity('food', 1, 'dog');
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
@@ -49,14 +93,12 @@ test('empty-bag dialog buys only bags, debits the budget once and enables the na
 });
 
 test('insufficient budget keeps bag purchase dialog open without granting bags', async () => {
-  useShopStore
-    .getState()
-    .open({
-      petId: 'walk-poor-dog',
-      startedAt: 124,
-      expiresAt: Date.now() + 86400000,
-      weeklyBudget: 100,
-    });
+  useShopStore.getState().open({
+    petId: 'walk-poor-dog',
+    startedAt: 124,
+    expiresAt: Date.now() + 86400000,
+    weeklyBudget: 100,
+  });
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<ArWalkScreen />);
