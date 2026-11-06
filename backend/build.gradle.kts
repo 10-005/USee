@@ -1,5 +1,7 @@
 import org.jetbrains.kotlin.allopen.gradle.AllOpenExtension
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
 
 plugins {
     alias(libs.plugins.kotlin.jvm) apply false
@@ -8,6 +10,11 @@ plugins {
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.spring.boot) apply false
 }
+
+// KSP2는 여러 모듈의 kspKotlin이 한 JVM에서 동시에 돌면 간헐적으로 Q클래스를 하나도 만들지 않는다(CI에서 QSample 미생성).
+// 모든 ksp* 작업이 이 서비스를 쓰게 해 한 번에 하나씩만 실행한다
+abstract class KspSerial : BuildService<BuildServiceParameters.None>
+val kspSerial = gradle.sharedServices.registerIfAbsent("kspSerial", KspSerial::class) { maxParallelUsages.set(1) }
 
 subprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
@@ -43,6 +50,8 @@ subprojects {
         // 엔티티가 있는 모듈마다 Q클래스 생성
         "ksp"(rootProject.libs.querydsl.ksp.codegen)
     }
+
+    tasks.matching { it.name.startsWith("ksp") }.configureEach { usesService(kspSerial) }
 
     tasks.withType<Test> {
         useJUnitPlatform()
