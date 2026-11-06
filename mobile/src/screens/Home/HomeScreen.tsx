@@ -4,7 +4,6 @@ import {
   Animated,
   Easing,
   FlatList,
-  Alert,
   Image,
   Keyboard,
   Pressable,
@@ -36,9 +35,9 @@ import MyPageIcon from '../../assets/icons/navigation/mypage.svg';
 import PlusIcon from '../../assets/icons/navigation/plus.svg';
 import SearchActiveIcon from '../../assets/icons/navigation/search-active.svg';
 import SearchIcon from '../../assets/icons/navigation/search.svg';
-import { BottomNavigation, Button, RegistrationMenu } from '../../components/common';
+import { BottomNavigation, RegistrationMenu } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
-import { getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
+import { MockAdoptionOverviewScreen } from '../MockAdoption/MockAdoptionOverviewScreen';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
 import { MyPageScreen } from '../MyPage/MyPageScreen';
@@ -328,18 +327,7 @@ export function HomeScreen({ navigation }: Props) {
     </Pressable>
   );
 
-  const openMockAdoption = async () => {
-    try {
-      const session = await getActiveMockAdoption();
-      if (session) {
-        navigation.navigate('MockAdoptionActivity', { petId: session.petId });
-      } else {
-        setSelectedTab('mockAdoption');
-      }
-    } catch {
-      Alert.alert('모의 입양', '진행 중인 모의입양을 불러오지 못했어요. 다시 시도해주세요.');
-    }
-  };
+  const openMockAdoption = () => setSelectedTab('mockAdoption');
 
   const navigationBar = (
     <View style={[styles.navigationWrap, { bottom: insets.bottom + 16 }]}>
@@ -373,9 +361,11 @@ export function HomeScreen({ navigation }: Props) {
         {selectedTab === 'chat' ? (
           <ChatListScreen onOpenRoom={roomId => navigation.navigate('ChatRoom', { roomId })} />
         ) : (
-          <View style={styles.mockAdoptionEntry}>
-            <Button onPress={() => navigation.navigate('MockAdoptionSelection')}>동물 선택</Button>
-          </View>
+          <MockAdoptionOverviewScreen
+            onBack={() => setSelectedTab('mypage')}
+            onStart={() => navigation.navigate('MockAdoptionSelection')}
+            onResume={petId => navigation.navigate('MockAdoptionActivity', { petId })}
+          />
         )}
         {navigationBar}
       </SafeAreaView>
@@ -543,7 +533,6 @@ export function HomeScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  mockAdoptionEntry: { flex: 1, justifyContent: 'center', paddingHorizontal: 20 },
   safeArea: { backgroundColor: colors.white, flex: 1 },
   header: { alignItems: 'center', flexDirection: 'row', height: 56, justifyContent: 'center' },
   logo: { height: 34, width: 88 },

@@ -22,7 +22,8 @@ export const mockAdoptionReports: MockAdoptionReport[] = [
     petId: 'dog-5',
     petName: '코코',
     createdAt: '2026.10.15',
-    summary: '코코는 매우 친화적이지만 초기에는 경계심이 있습니다. 꾸준한 교감과 훈련이 필요해 보여요.',
+    summary:
+      '코코는 매우 친화적이지만 초기에는 경계심이 있습니다. 꾸준한 교감과 훈련이 필요해 보여요.',
     isNew: true,
   },
 ];
