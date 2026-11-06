@@ -2,9 +2,18 @@ package com.ssafy.animal.core.auth.adapter.`in`.web
 
 import com.ssafy.animal.common.config.CommonWebAutoConfiguration
 import com.ssafy.animal.core.auth.application.port.`in`.AuthUseCase
+import com.ssafy.animal.common.auth.Role
+import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.core.auth.application.port.`in`.IssuedTokens
+import com.ssafy.animal.core.auth.application.port.`in`.KakaoRegisterCommand
+import com.ssafy.animal.core.auth.application.port.`in`.KakaoRegisterResult
+import com.ssafy.animal.core.auth.application.port.`in`.KakaoRegisterUseCase
 import com.ssafy.animal.core.auth.application.port.`in`.KakaoVerifyResult
+import com.ssafy.animal.core.user.domain.User
+import com.ssafy.animal.core.user.domain.UserErrorCode
 import io.jsonwebtoken.Jwts
+import org.springframework.test.util.ReflectionTestUtils
+import java.time.LocalDate
 import org.junit.jupiter.api.Test
 import org.mockito.BDDMockito.given
 import org.mockito.BDDMockito.then
@@ -30,6 +39,9 @@ class AuthControllerTest {
 
     @MockitoBean
     lateinit var authUseCase: AuthUseCase
+
+    @MockitoBean
+    lateinit var kakaoRegisterUseCase: KakaoRegisterUseCase
 
     private fun post(path: String, body: String, bearer: String? = null) = mockMvc.post("/api/core/v1/auth$path") {
         bearer?.let { header(HttpHeaders.AUTHORIZATION, it) }
@@ -73,6 +85,38 @@ class AuthControllerTest {
 
         post("/logout", """{"refreshToken":"r","fcmToken":"f"}""", BEARER).andExpect { status { isNoContent() } }
         then(authUseCase).should().logout(42, "r", "f")
+    }
+
+    @Test
+    fun `2_5 가입은 비인증으로 호출하고 201, expiresIn은 없다`() {
+        val command = KakaoRegisterCommand("reg", "반려가족", "김가람", LocalDate.of(1997, 5, 12), "01012345678")
+        val user = User(Role.USER, "반려가족", "김가람", LocalDate.of(1997, 5, 12), "01012345678")
+            .also { ReflectionTestUtils.setField(it, "userSeq", 17) }
+        given(kakaoRegisterUseCase.register(command)).willReturn(KakaoRegisterResult(user, IssuedTokens("a", "r", 3600)))
+
+        post(
+            "/kakao/register",
+            """{"registrationToken":"reg","nickname":"반려가족","name":"김가람","birthDate":"1997-05-12","phone":"01012345678"}""",
+        ).andExpect {
+            status { isCreated() }
+            jsonPath("$.status") { value(201) }
+            jsonPath("$.data.userSeq") { value(17) }
+            jsonPath("$.data.role") { value("USER") }
+            jsonPath("$.data.nickname") { value("반려가족") }
+            jsonPath("$.data.accessToken") { value("a") }
+            jsonPath("$.data.refreshToken") { value("r") }
+            jsonPath("$.data.tokenType") { value("Bearer") }
+            jsonPath("$.data.expiresIn") { doesNotExist() }
+        }
+    }
+
+    @Test
+    fun `2_5 서비스 오류는 도메인 코드로 응답한다`() {
+        given(kakaoRegisterUseCase.register(KakaoRegisterCommand("reg", null, null, null, null))).willThrow(BusinessException(UserErrorCode.USER_DUPLICATE_NICKNAME))
+        post("/kakao/register", """{"registrationToken":"reg"}""").andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("USER_DUPLICATE_NICKNAME") }
+        }
     }
 
     companion object {

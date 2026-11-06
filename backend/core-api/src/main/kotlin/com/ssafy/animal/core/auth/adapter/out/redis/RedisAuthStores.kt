@@ -43,5 +43,13 @@ class RedisRegistrationContextStore(
 ) : RegistrationContextStore {
 
     override fun save(registrationToken: String, kakaoId: String, ttl: Duration) =
-        redis.opsForValue().set("auth:register:$registrationToken", kakaoId, ttl)
+        redis.opsForValue().set(key(registrationToken), kakaoId, ttl)
+
+    override fun find(registrationToken: String): String? = redis.opsForValue().get(key(registrationToken))
+
+    override fun delete(registrationToken: String) {
+        redis.delete(key(registrationToken))
+    }
+
+    private fun key(registrationToken: String) = "auth:register:$registrationToken"
 }

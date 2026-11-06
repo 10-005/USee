@@ -66,10 +66,17 @@ class AuthServiceTest {
             override fun save(registrationToken: String, kakaoId: String, ttl: Duration) {
                 registrations[registrationToken] = kakaoId
             }
+            override fun find(registrationToken: String) = registrations[registrationToken]
+            override fun delete(registrationToken: String) {
+                registrations.remove(registrationToken)
+            }
         },
         userRepository = object : UserRepository {
             override fun findById(userSeq: Int) = users[userSeq]
             override fun findActiveAccount(providerCode: String, loginIdentifier: String) = kakaoAccounts[loginIdentifier]
+            override fun existsActiveNickname(nickname: String) = false
+            override fun existsActivePhone(phone: String) = false
+            override fun saveWithAccount(user: User, providerCode: String, loginIdentifier: String) = user
         },
         eventPublisher = object : EventPublisher {
             override fun publish(event: Any) {
