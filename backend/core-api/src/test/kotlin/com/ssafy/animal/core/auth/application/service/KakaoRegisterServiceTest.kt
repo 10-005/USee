@@ -57,6 +57,7 @@ class KakaoRegisterServiceTest {
     private val userRepository = object : UserRepository {
         override fun findById(userSeq: Int) = users.find { it.userSeq == userSeq }
         override fun findActiveAccount(providerCode: String, loginIdentifier: String) = accounts[loginIdentifier]
+        override fun findActiveAccountByUserSeq(userSeq: Int) = error("탈퇴 테스트에서만 쓴다")
         override fun existsActiveNickname(nickname: String, exceptUserSeq: Int?) = users.any { it.nickname.equals(nickname, ignoreCase = true) }
         override fun existsActivePhone(phone: String, exceptUserSeq: Int?) = users.any { it.phone == phone }
         override fun saveAndFlush(user: User) = error("not used")

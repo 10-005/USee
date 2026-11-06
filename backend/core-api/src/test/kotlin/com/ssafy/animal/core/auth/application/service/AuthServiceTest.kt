@@ -74,6 +74,7 @@ class AuthServiceTest {
         userRepository = object : UserRepository {
             override fun findById(userSeq: Int) = users[userSeq]
             override fun findActiveAccount(providerCode: String, loginIdentifier: String) = kakaoAccounts[loginIdentifier]
+            override fun findActiveAccountByUserSeq(userSeq: Int) = error("탈퇴 테스트에서만 쓴다")
             override fun existsActiveNickname(nickname: String, exceptUserSeq: Int?) = false
             override fun existsActivePhone(phone: String, exceptUserSeq: Int?) = false
             override fun saveAndFlush(user: User) = user

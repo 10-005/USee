@@ -11,6 +11,7 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.OneToOne
 import jakarta.persistence.Table
+import java.time.OffsetDateTime
 
 /** DB 명세 03. user_accounts. 회원당 인증 수단 1개, KAKAO는 login_identifier에 카카오 회원번호를 둔다. */
 @Entity
@@ -48,4 +49,10 @@ class UserAccount(
     @Column(nullable = false)
     var isDeleted: Boolean = false
         protected set
+
+    /** 회원과 함께 탈퇴(2.6). 이 테이블에는 deleted_dttm이 없다(DB 명세 03). */
+    fun withdraw(now: OffsetDateTime) {
+        isDeleted = true
+        user.withdraw(now)
+    }
 }

@@ -57,6 +57,9 @@ interface UserAccountJpaRepository : JpaRepository<UserAccount, Int> {
         """,
     )
     fun findActive(@Param("providerCode") providerCode: String, @Param("loginIdentifier") loginIdentifier: String): UserAccount?
+
+    @Query("select a from UserAccount a join fetch a.user u where u.userSeq = :userSeq and a.isDeleted = false")
+    fun findActiveByUserSeq(@Param("userSeq") userSeq: Int): UserAccount?
 }
 
 interface AuthProviderJpaRepository : JpaRepository<AuthProvider, Int> {
@@ -74,6 +77,8 @@ class UserPersistenceAdapter(
 
     override fun findActiveAccount(providerCode: String, loginIdentifier: String): UserAccount? =
         userAccountJpaRepository.findActive(providerCode, loginIdentifier)
+
+    override fun findActiveAccountByUserSeq(userSeq: Int): UserAccount? = userAccountJpaRepository.findActiveByUserSeq(userSeq)
 
     // 부분 UNIQUE가 role=USER 활성 행만 대상이므로 사전 조회도 같은 범위로 본다
     // 제외할 회원이 없으면 0(IDENTITY는 1부터라 어떤 행과도 같지 않다)

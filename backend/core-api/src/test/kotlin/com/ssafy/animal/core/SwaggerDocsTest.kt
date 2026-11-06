@@ -5,6 +5,7 @@ import com.ssafy.animal.common.config.CommonWebAutoConfiguration
 import com.ssafy.animal.core.auth.application.port.`in`.AuthUseCase
 import com.ssafy.animal.core.auth.application.port.`in`.KakaoRegisterUseCase
 import com.ssafy.animal.core.auth.application.port.`in`.LocalLoginUseCase
+import com.ssafy.animal.core.auth.application.port.`in`.WithdrawUseCase
 import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
 import com.ssafy.animal.core.sample.application.port.`in`.SampleUseCase
 import com.ssafy.animal.core.user.application.port.`in`.UserProfileUseCase
@@ -68,6 +69,9 @@ abstract class SwaggerDocsTestBase {
 
     @MockitoBean
     lateinit var userProfileUseCase: UserProfileUseCase
+
+    @MockitoBean
+    lateinit var withdrawUseCase: WithdrawUseCase
 
     companion object {
         @JvmStatic
