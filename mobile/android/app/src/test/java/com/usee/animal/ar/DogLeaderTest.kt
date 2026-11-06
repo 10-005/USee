@@ -227,12 +227,12 @@ class DogLeaderTest {
     val region = UserWalkRegion()
     region.update(0f, 0f, 0f)
     leader.update(0f, 0f, 0f, 0f, -1f, floor)
-    leader.updateWalls(listOf(WallSegment(-10f, -1.2f, 10f, -1.2f)))
+    leader.updateWalls(listOf(WallSegment(-10f, -1.8f, 10f, -1.8f)))
     var dog = leader.update(0.02f, 0f, -0.5f, 0f, -1f, floor)
     for (i in 1..60) dog = leader.update(0.02f, 0f, -0.5f, 0f, -1f, floor)
     assertTrue(dog.blocked)
-    for (i in 1..16) region.update(0f, -i * 0.1f, 0f)
-    for (i in 15 downTo 5) region.update(0f, -i * 0.1f, 0f)
+    for (i in 1..24) region.update(0f, -i * 0.1f, 0f)
+    for (i in 24 downTo 5) region.update(0f, -i * 0.1f, 0f)
     leader.setTrustedGround(region::heightAt)
     for (i in 1..200) dog = leader.update(0.02f, 0f, -0.5f, 0f, -1f) { _, _ -> null }
     assertTrue("Must cross a false-positive wall inside the user region", dog.z < -1.3f)
@@ -260,38 +260,38 @@ class DogLeaderTest {
     assertTrue(recovered.speedMetersPerSecond > 0.35f)
   }
 
-  @Test fun ropeOverTwoMetersTriggersReturnEvenInsideHorizontalLimit() {
+  @Test fun ropeOverLimitTriggersReturnEvenInsideHorizontalLimit() {
     val leader = DogLeader()
     val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
-    leader.updateLeashLength(2.1f)
+    leader.updateLeashLength(2.7f)
     var dog = initial
     for (i in 1..150) dog = leader.update(0.02f, 0f, 0.5f, 0f, -1f, floor)
-    assertTrue("Long rope should pull the dog closer", hypot(dog.x, dog.z - 0.5f) < 1f)
+    assertTrue("Long rope should pull the dog closer", hypot(dog.x, dog.z - 0.5f) < 1.7f)
   }
 
   @Test fun longLeashRecallUsesInitialPlacementDistanceAndForwardDirection() {
     val leader = DogLeader()
     leader.update(0f, 0f, 0f, 0f, -1f, floor)
     leader.requestRecall()
-    leader.updateLeashLength(2.2f)
+    leader.updateLeashLength(2.8f)
     var dog = leader.update(0.02f, 0f, 2f, 0f, 1f, floor)
     for (i in 1..600) dog = leader.update(0.02f, 0f, 2f, 0f, 1f, floor)
     assertEquals(0f, dog.x, 0.1f)
-    assertEquals(3f, dog.z, 0.1f)
+    assertEquals(3.6f, dog.z, 0.1f)
   }
 
-  @Test fun recallReturnsOneMeterAheadAndFollowsChangedViewingDirection() {
+  @Test fun recallReturnsAtLeadDistanceAndFollowsChangedViewingDirection() {
     val leader = DogLeader()
     leader.update(0f, 0f, 0f, 0f, -1f, floor)
     leader.requestRecall()
     var dog = leader.update(0.02f, 0f, 0f, 1f, 0f, floor)
     for (i in 1..400) dog = leader.update(0.02f, 0f, 0f, 1f, 0f, floor)
-    assertEquals(1f, dog.x, 0.1f)
+    assertEquals(1.6f, dog.x, 0.1f)
     assertEquals(0f, dog.z, 0.1f)
     assertTrue("Called dog should face the user", sin(Math.toRadians(dog.yawDegrees.toDouble())) < -0.9)
     for (i in 1..200) dog = leader.update(0.02f, 0f, 0f, 0f, 1f, floor)
     assertEquals(0f, dog.x, 0.1f)
-    assertEquals(1f, dog.z, 0.1f)
+    assertEquals(1.6f, dog.z, 0.1f)
   }
 
   @Test fun recallRestoresInitialSpacingEvenWhenDogWasTooClose() {
@@ -300,7 +300,7 @@ class DogLeaderTest {
     leader.requestRecall()
     var dog = initial
     for (i in 1..200) dog = leader.update(0.02f, 0f, -0.6f, 0f, -1f, floor)
-    assertEquals(-1.6f, dog.z, 0.1f)
+    assertEquals(-2.2f, dog.z, 0.1f)
   }
 
   @Test fun recallCrossesWallsAndUnknownFloorWithoutBlocking() {
@@ -313,8 +313,8 @@ class DogLeaderTest {
       dog = leader.update(0.02f, 0f, 1f, 0f, -1f) { _, _ -> null }
       assertFalse(dog.blocked)
     }
-    assertEquals(0f, dog.z, 0.1f)
-    assertEquals(1f, hypot(dog.x, dog.z - 1f), 0.1f)
+    assertEquals(-0.6f, dog.z, 0.1f)
+    assertEquals(1.6f, hypot(dog.x, dog.z - 1f), 0.1f)
     assertEquals(initial.y, dog.y, 0f)
   }
 
@@ -325,7 +325,7 @@ class DogLeaderTest {
     assertTrue(leader.needsUnrestrictedReturn(0f, 2f))
     var dog = initial
     for (i in 1..500) dog = leader.update(0.02f, 0f, 2f, 0f, -1f) { _, _ -> 5f }
-    assertTrue(hypot(dog.x, dog.z - 2f) < 1f)
+    assertTrue(hypot(dog.x, dog.z - 2f) < 1.7f)
     assertEquals(initial.y, dog.y, 0f)
     assertFalse(leader.needsUnrestrictedReturn(0f, 2f))
   }
@@ -339,7 +339,7 @@ class DogLeaderTest {
     leader.update(0f, 0f, 0f, 0f, -1f) { _, _ -> null }
     var dog = leader.update(0.02f, 0f, 0f, 0f, -1f) { _, _ -> null }
     for (i in 1..400) dog = leader.update(0.02f, 0f, 0f, 0f, -1f) { _, _ -> null }
-    assertEquals(1f, hypot(dog.x, dog.z), 0.1f)
+    assertEquals(1.6f, hypot(dog.x, dog.z), 0.1f)
   }
 
   @Test fun waitingForSemanticRecognitionStopsAnimationAndMotion() {
@@ -386,11 +386,11 @@ class DogLeaderTest {
     leader.requestPlacement()
     val dog = leader.update(0.02f, 2f, 3f, 1f, 0f, floor)
     assertTrue(dog.visible)
-    assertEquals(3f, dog.x, 0.001f)
+    assertEquals(3.6f, dog.x, 0.001f)
     assertEquals(3f, dog.z, 0.001f)
     leader.requestPlacement()
     val next = leader.update(0.02f, 4f, 3f, 1f, 0f, floor)
-    assertEquals(5f, next.x, 0.001f)
+    assertEquals(5.6f, next.x, 0.001f)
     assertEquals(3f, next.z, 0.001f)
   }
 
@@ -499,7 +499,7 @@ class DogLeaderTest {
 
   @Test fun finiteWallIsBypassedWithSideStepsWithoutCrossing() {
     val leader = DogLeader()
-    val wall = WallSegment(-0.5f, -1.8f, 0.5f, -1.8f)
+    val wall = WallSegment(-0.5f, -2.4f, 0.5f, -2.4f)
     var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
     leader.updateWalls(listOf(wall))
     var sawSideStep = false
