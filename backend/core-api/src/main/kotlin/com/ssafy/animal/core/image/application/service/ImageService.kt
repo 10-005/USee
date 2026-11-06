@@ -2,6 +2,7 @@ package com.ssafy.animal.core.image.application.service
 
 import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.core.image.application.port.`in`.ConfirmedImage
+import com.ssafy.animal.core.image.application.port.`in`.ImageSummary
 import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
 import com.ssafy.animal.core.image.application.port.`in`.IssueUploadUrlCommand
 import com.ssafy.animal.core.image.application.port.`in`.UploadUrl
@@ -66,8 +67,19 @@ class ImageService(
         return ConfirmedImage(image, imageStorage.publicUrl(imageKey))
     }
 
+    override fun requireOwned(userSeq: Long, imageSeq: Long): ImageSummary {
+        val image = imageRepository.findById(imageSeq) ?: throw BusinessException(ImageErrorCode.IMAGE_NOT_FOUND)
+        if (image.regUsrSeq?.toLong() != userSeq) throw BusinessException(ImageErrorCode.IMAGE_NOT_OWNED)
+        return image.toSummary()
+    }
+
+    override fun findSummary(imageSeq: Long) = imageRepository.findById(imageSeq)?.toSummary()
+
+    private fun Image.toSummary() = ImageSummary(imageSeq!!, imageStorage.publicUrl(imageKey))
+
     @Transactional
-    override fun delete(imageSeq: Long) {
+    override fun deleteIfUnreferenced(imageSeq: Long) {
+        if (imageRepository.isReferenced(imageSeq)) return
         val image = imageRepository.findById(imageSeq) ?: return
         imageRepository.delete(image)
         val key = image.imageKey

@@ -68,4 +68,13 @@ class User(
 
     /** 로그인·갱신 가능 여부. 탈퇴는 인증 실패, 정지는 403으로 따로 처리한다. */
     val isActive: Boolean get() = !isDeleted && accountStatus == AccountStatus.ACTIVE
+
+    /** 3.2 프로필 수정. 검증(형식·중복·이미지 소유)은 서비스가 끝낸 값만 넘긴다 */
+    fun updateProfile(nickname: String?, name: String?, birthDate: LocalDate?, phone: String?, profileImageSeq: Long?) {
+        this.nickname = nickname
+        this.name = name
+        this.birthDate = birthDate
+        this.phone = phone
+        this.profileImageSeq = profileImageSeq
+    }
 }

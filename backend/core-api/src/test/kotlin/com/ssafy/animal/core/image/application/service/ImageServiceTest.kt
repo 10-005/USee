@@ -168,12 +168,12 @@ class ImageServiceTest {
     // 삭제
 
     @Test
-    fun `삭제는 행을 지우고 커밋 후에만 S3 객체를 지우며 S3 실패는 삼킨다`() {
+    fun `참조가 없으면 행을 지우고 커밋 후에만 S3 객체를 지우며 S3 실패는 삼킨다`() {
         val image = repository.saveAndFlush(Image(key, "image/jpeg", null, mb, 7))
         storage.failDelete = true
         TransactionSynchronizationManager.initSynchronization()
 
-        service.delete(image.imageSeq!!)
+        service.deleteIfUnreferenced(image.imageSeq!!)
         assertEquals(0, repository.rows.size)
         assertTrue("delete" !in calls) // 커밋 전에는 S3를 건드리지 않는다
 
@@ -184,8 +184,33 @@ class ImageServiceTest {
     @Test
     fun `없는 이미지 삭제는 아무것도 하지 않는다`() {
         TransactionSynchronizationManager.initSynchronization()
-        service.delete(999)
+        service.deleteIfUnreferenced(999)
         assertTrue(TransactionSynchronizationManager.getSynchronizations().isEmpty())
+    }
+
+    @Test
+    fun `다른 참조가 남아 있으면 행도 S3 객체도 지우지 않는다`() {
+        val image = repository.saveAndFlush(Image(key, "image/jpeg", null, mb, 7))
+        repository.referenced += image.imageSeq!!
+        TransactionSynchronizationManager.initSynchronization()
+
+        service.deleteIfUnreferenced(image.imageSeq!!)
+        assertEquals(1, repository.rows.size)
+        assertTrue(TransactionSynchronizationManager.getSynchronizations().isEmpty())
+    }
+
+    // 연결 검증(Q407)
+
+    @Test
+    fun `본인이 올린 이미지는 URL과 함께 돌려주고, 남의 것·시드(NULL)는 403, 없으면 404`() {
+        val mine = repository.saveAndFlush(Image(key, "image/jpeg", null, mb, 7))
+        val others = repository.saveAndFlush(Image("images/2026/11/other.jpg", "image/jpeg", null, mb, 8))
+        val seed = repository.saveAndFlush(Image("images/2026/11/seed.jpg", "image/jpeg", null, mb, null))
+
+        assertEquals("https://cdn/$key", service.requireOwned(7, mine.imageSeq!!).imageUrl)
+        assertCode(ImageErrorCode.IMAGE_NOT_OWNED) { service.requireOwned(7, others.imageSeq!!) }
+        assertCode(ImageErrorCode.IMAGE_NOT_OWNED) { service.requireOwned(7, seed.imageSeq!!) }
+        assertCode(ImageErrorCode.IMAGE_NOT_FOUND) { service.requireOwned(7, 999) }
     }
 
     private fun assertCode(code: ImageErrorCode, block: () -> Unit) =
@@ -237,6 +262,10 @@ class ImageServiceTest {
         override fun delete(image: Image) {
             rows.remove(image.imageSeq)
         }
+
+        val referenced = mutableSetOf<Long>()
+
+        override fun isReferenced(imageSeq: Long) = imageSeq in referenced
     }
 
     private class FakeContextStore : UploadContextStore {

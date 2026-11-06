@@ -3,6 +3,7 @@ package com.ssafy.animal.core.user.adapter.out.persistence
 import com.ssafy.animal.common.auth.Role
 import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.core.auth.domain.AuthErrorCode
+import com.ssafy.animal.core.user.application.port.out.ShelterDisplay
 import com.ssafy.animal.core.user.application.port.out.UserRepository
 import com.ssafy.animal.core.user.domain.AuthProvider
 import com.ssafy.animal.core.user.domain.User
@@ -16,11 +17,36 @@ import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 
 interface UserJpaRepository : JpaRepository<User, Int> {
-    @Query("select count(u) > 0 from User u where u.role = :role and u.isDeleted = false and lower(u.nickname) = lower(:nickname)")
-    fun existsActiveNickname(@Param("role") role: Role, @Param("nickname") nickname: String): Boolean
+    @Query(
+        """
+        select count(u) > 0 from User u
+        where u.role = :role and u.isDeleted = false and lower(u.nickname) = lower(:nickname) and u.userSeq <> :exceptUserSeq
+        """,
+    )
+    fun existsActiveNickname(
+        @Param("role") role: Role,
+        @Param("nickname") nickname: String,
+        @Param("exceptUserSeq") exceptUserSeq: Int,
+    ): Boolean
 
-    @Query("select count(u) > 0 from User u where u.role = :role and u.isDeleted = false and u.phone = :phone")
-    fun existsActivePhone(@Param("role") role: Role, @Param("phone") phone: String): Boolean
+    @Query(
+        """
+        select count(u) > 0 from User u
+        where u.role = :role and u.isDeleted = false and u.phone = :phone and u.userSeq <> :exceptUserSeq
+        """,
+    )
+    fun existsActivePhone(@Param("role") role: Role, @Param("phone") phone: String, @Param("exceptUserSeq") exceptUserSeq: Int): Boolean
+
+    // Shelter 엔티티는 9장 보호소 작업 몫이라 여기서는 네이티브로 읽기만 한다
+    @Query(
+        nativeQuery = true,
+        value = """
+        select s.shelter_name as shelterName, s.profile_image_seq as profileImageSeq
+        from shelter_members m join shelters s on s.shelter_seq = m.shelter_seq
+        where m.user_seq = :userSeq and s.is_deleted = false
+        """,
+    )
+    fun findShelterDisplay(@Param("userSeq") userSeq: Int): ShelterDisplay?
 }
 
 interface UserAccountJpaRepository : JpaRepository<UserAccount, Int> {
@@ -50,9 +76,20 @@ class UserPersistenceAdapter(
         userAccountJpaRepository.findActive(providerCode, loginIdentifier)
 
     // 부분 UNIQUE가 role=USER 활성 행만 대상이므로 사전 조회도 같은 범위로 본다
-    override fun existsActiveNickname(nickname: String) = userJpaRepository.existsActiveNickname(Role.USER, nickname)
+    // 제외할 회원이 없으면 0(IDENTITY는 1부터라 어떤 행과도 같지 않다)
+    override fun existsActiveNickname(nickname: String, exceptUserSeq: Int?) =
+        userJpaRepository.existsActiveNickname(Role.USER, nickname, exceptUserSeq ?: 0)
 
-    override fun existsActivePhone(phone: String) = userJpaRepository.existsActivePhone(Role.USER, phone)
+    override fun existsActivePhone(phone: String, exceptUserSeq: Int?) =
+        userJpaRepository.existsActivePhone(Role.USER, phone, exceptUserSeq ?: 0)
+
+    override fun saveAndFlush(user: User): User = try {
+        userJpaRepository.saveAndFlush(user)
+    } catch (e: DataIntegrityViolationException) {
+        throw translate(e) ?: e
+    }
+
+    override fun findShelterDisplay(userSeq: Int) = userJpaRepository.findShelterDisplay(userSeq)
 
     override fun saveWithAccount(user: User, providerCode: String, loginIdentifier: String): User {
         val provider = checkNotNull(authProviderJpaRepository.findByProviderCode(providerCode)) { "auth_providers 시드 없음: $providerCode" }
