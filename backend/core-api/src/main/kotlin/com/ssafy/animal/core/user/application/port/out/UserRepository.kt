@@ -9,6 +9,9 @@ interface UserRepository {
     /** 활성(is_deleted=false) 인증 계정을 회원과 함께 조회한다. */
     fun findActiveAccount(providerCode: String, loginIdentifier: String): UserAccount?
 
+    /** 회원의 활성 인증 계정을 회원과 함께 조회한다. 탈퇴했으면 null */
+    fun findActiveAccountByUserSeq(userSeq: Int): UserAccount?
+
     /** 활성 USER 중 닉네임(대소문자 무관)이 같은 회원이 있는지. 수정할 때는 exceptUserSeq로 본인을 뺀다 */
     fun existsActiveNickname(nickname: String, exceptUserSeq: Int? = null): Boolean
 

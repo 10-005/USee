@@ -37,6 +37,7 @@ class UserProfileServiceTest {
     private val userRepository = object : UserRepository {
         override fun findById(userSeq: Int) = users[userSeq]
         override fun findActiveAccount(providerCode: String, loginIdentifier: String) = error("not used")
+        override fun findActiveAccountByUserSeq(userSeq: Int) = error("not used")
         override fun existsActiveNickname(nickname: String, exceptUserSeq: Int?) =
             activeUsers(exceptUserSeq).any { it.nickname.equals(nickname, ignoreCase = true) }
         override fun existsActivePhone(phone: String, exceptUserSeq: Int?) = activeUsers(exceptUserSeq).any { it.phone == phone }

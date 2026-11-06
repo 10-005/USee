@@ -77,4 +77,10 @@ class User(
         this.phone = phone
         this.profileImageSeq = profileImageSeq
     }
+
+    /** 2.6 탈퇴. 행은 남기고 부분 UNIQUE 범위에서 빠져 같은 닉네임·전화로 재가입할 수 있다. */
+    fun withdraw(now: OffsetDateTime) {
+        isDeleted = true
+        deletedDttm = now
+    }
 }
