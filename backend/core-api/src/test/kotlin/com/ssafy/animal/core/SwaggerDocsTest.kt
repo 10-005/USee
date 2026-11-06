@@ -7,6 +7,7 @@ import com.ssafy.animal.core.auth.application.port.`in`.KakaoRegisterUseCase
 import com.ssafy.animal.core.auth.application.port.`in`.LocalLoginUseCase
 import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
 import com.ssafy.animal.core.sample.application.port.`in`.SampleUseCase
+import com.ssafy.animal.core.user.application.port.`in`.UserProfileUseCase
 import org.hamcrest.Matchers.containsInAnyOrder
 import org.hamcrest.Matchers.empty
 import org.junit.jupiter.api.Test
@@ -64,6 +65,9 @@ abstract class SwaggerDocsTestBase {
 
     @MockitoBean
     lateinit var localLoginUseCase: LocalLoginUseCase
+
+    @MockitoBean
+    lateinit var userProfileUseCase: UserProfileUseCase
 
     companion object {
         @JvmStatic

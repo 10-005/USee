@@ -57,8 +57,10 @@ class KakaoRegisterServiceTest {
     private val userRepository = object : UserRepository {
         override fun findById(userSeq: Int) = users.find { it.userSeq == userSeq }
         override fun findActiveAccount(providerCode: String, loginIdentifier: String) = accounts[loginIdentifier]
-        override fun existsActiveNickname(nickname: String) = users.any { it.nickname.equals(nickname, ignoreCase = true) }
-        override fun existsActivePhone(phone: String) = users.any { it.phone == phone }
+        override fun existsActiveNickname(nickname: String, exceptUserSeq: Int?) = users.any { it.nickname.equals(nickname, ignoreCase = true) }
+        override fun existsActivePhone(phone: String, exceptUserSeq: Int?) = users.any { it.phone == phone }
+        override fun saveAndFlush(user: User) = error("not used")
+        override fun findShelterDisplay(userSeq: Int) = error("not used")
         override fun saveWithAccount(user: User, providerCode: String, loginIdentifier: String): User {
             ReflectionTestUtils.setField(user, "userSeq", users.size + 1)
             users += user

@@ -15,4 +15,6 @@ class ImagePersistenceAdapter(
     override fun findById(imageSeq: Long): Image? = imageJpaRepository.findByIdOrNull(imageSeq)
 
     override fun delete(image: Image) = imageJpaRepository.delete(image)
+
+    override fun isReferenced(imageSeq: Long) = imageJpaRepository.isReferenced(imageSeq)
 }

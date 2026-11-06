@@ -9,9 +9,25 @@ interface ImageUseCase {
     /** 4.2 업로드된 객체를 검증하고 images 행 생성 */
     fun confirm(userSeq: Long, imageKey: String): ConfirmedImage
 
-    /** 마지막 참조가 사라진 이미지 삭제. 참조 확인은 호출하는 도메인 몫(Q383). 행 삭제 후 커밋되면 S3 객체를 best-effort 삭제(Q427) */
-    fun delete(imageSeq: Long)
+    /**
+     * 자기 자원에 연결할 이미지 확인(Q407). 없으면 404 IMAGE_NOT_FOUND, 업로더가 본인이 아니면(시드 NULL 포함) 403 IMAGE_NOT_OWNED
+     */
+    fun requireOwned(userSeq: Long, imageSeq: Long): ImageSummary
+
+    /** 응답용 {imageSeq, imageUrl}. 행이 없으면 null */
+    fun findSummary(imageSeq: Long): ImageSummary?
+
+    /**
+     * 연결을 해제한 쪽이 반영(flush)한 뒤 호출한다. 남은 참조가 없을 때만 행을 지우고(Q383),
+     * 커밋되면 S3 객체를 best-effort 삭제(Q427)
+     */
+    fun deleteIfUnreferenced(imageSeq: Long)
 }
+
+data class ImageSummary(
+    val imageSeq: Long,
+    val imageUrl: String,
+)
 
 data class IssueUploadUrlCommand(
     val userSeq: Long,

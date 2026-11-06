@@ -74,8 +74,10 @@ class AuthServiceTest {
         userRepository = object : UserRepository {
             override fun findById(userSeq: Int) = users[userSeq]
             override fun findActiveAccount(providerCode: String, loginIdentifier: String) = kakaoAccounts[loginIdentifier]
-            override fun existsActiveNickname(nickname: String) = false
-            override fun existsActivePhone(phone: String) = false
+            override fun existsActiveNickname(nickname: String, exceptUserSeq: Int?) = false
+            override fun existsActivePhone(phone: String, exceptUserSeq: Int?) = false
+            override fun saveAndFlush(user: User) = user
+            override fun findShelterDisplay(userSeq: Int) = null
             override fun saveWithAccount(user: User, providerCode: String, loginIdentifier: String) = user
         },
         eventPublisher = object : EventPublisher {

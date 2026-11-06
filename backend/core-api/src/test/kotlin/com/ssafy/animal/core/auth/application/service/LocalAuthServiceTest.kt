@@ -55,8 +55,10 @@ class LocalAuthServiceTest {
         override fun findById(userSeq: Int) = users[userSeq]
         override fun findActiveAccount(providerCode: String, loginIdentifier: String) =
             accounts[loginIdentifier]?.takeIf { providerCode == AuthProvider.LOCAL }
-        override fun existsActiveNickname(nickname: String) = error("not used")
-        override fun existsActivePhone(phone: String) = error("not used")
+        override fun existsActiveNickname(nickname: String, exceptUserSeq: Int?) = error("not used")
+        override fun existsActivePhone(phone: String, exceptUserSeq: Int?) = error("not used")
+        override fun saveAndFlush(user: User) = error("not used")
+        override fun findShelterDisplay(userSeq: Int) = error("not used")
         override fun saveWithAccount(user: User, providerCode: String, loginIdentifier: String) = error("not used")
     }
 
