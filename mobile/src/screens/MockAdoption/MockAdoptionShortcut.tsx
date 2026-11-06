@@ -1,12 +1,11 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { Alert, AppState, Image, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, AppState, Image, Pressable, StyleSheet } from 'react-native';
 
 import {
   getActiveMockAdoption,
   type MockAdoptionSession,
 } from '../../services/storage/mockAdoptionStorage';
-import { colors, radius, shadows } from '../../theme';
 import { mockAdoptionPets } from './data';
 
 type Props = {
@@ -86,44 +85,32 @@ export function MockAdoptionShortcut({ bottom, onOpen }: Props) {
       style={({ pressed }) => [styles.button, { bottom }, pressed && styles.pressed]}
     >
       <Image accessible={false} source={pet.image} resizeMode="contain" style={styles.pet} />
-      <View style={styles.directBadge}>
-        <Image
-          accessible={false}
-          source={require('../../assets/images/mock-adoption/direct.png')}
-          resizeMode="contain"
-          style={styles.direct}
-        />
-      </View>
+      <Image
+        accessible={false}
+        source={require('../../assets/images/mock-adoption/direct.png')}
+        resizeMode="contain"
+        style={styles.direct}
+      />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    ...shadows.level2,
     position: 'absolute',
     right: 24,
-    width: 80,
-    height: 80,
-    borderRadius: radius.pill,
-    backgroundColor: colors.white,
+    width: 72,
+    height: 72,
     alignItems: 'center',
     justifyContent: 'center',
   },
   pet: { width: 72, height: 72 },
-  directBadge: {
+  direct: {
     position: 'absolute',
-    bottom: -2,
-    right: -2,
+    bottom: 0,
+    right: 0,
     width: 28,
     height: 28,
-    borderRadius: radius.pill,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.gray200,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  direct: { width: 20, height: 20 },
   pressed: { opacity: 0.7 },
 });
