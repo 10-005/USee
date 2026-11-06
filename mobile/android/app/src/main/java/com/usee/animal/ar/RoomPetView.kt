@@ -23,6 +23,8 @@ import kotlin.math.cos
 /** Non-AR scene: one model, fixed camera, no touch controls or camera session. */
 class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactContext) {
   private var scene: SceneView? = null
+  private val modelLoad = SceneModelLoad()
+  private var disposed = false
   private var active = false
   private var bathing = false
   private var sceneOpacity = 1f
@@ -100,6 +102,7 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
   }
 
   fun dispose() {
+    disposed = true
     visibilityRevision++
     visibility = INVISIBLE
     active = false
@@ -107,7 +110,7 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
   }
 
   private fun start() {
-    if (!active || !isAttachedToWindow || petId.isEmpty() || scene != null) return
+    if (disposed || !active || !isAttachedToWindow || petId.isEmpty() || scene != null) return
     val activity = reactContext.currentActivity as? ComponentActivity ?: return
     val view = object : SceneView(
       context = activity, sharedLifecycle = activity.lifecycle,
@@ -116,6 +119,7 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
       private var lastRendered = 0L
       override fun destroy() {
         if (isDestroyed) return
+        modelLoad.cancel()
         onFrame = null
         childNodes.filter { it is OwnedImageNode || it is SphereNode }.forEach { node ->
           removeChildNode(node)
@@ -125,6 +129,8 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
       }
 
       override fun onFrame(frameTimeNanos: Long) {
+        // A Choreographer callback may already be dequeued when navigation destroys the scene.
+        if (isDestroyed || this@RoomPetView.scene !== this || !active) return
         if (frameTimeNanos - lastRendered < 33_333_333L) return
         lastRendered = frameTimeNanos
         super.onFrame(frameTimeNanos)
@@ -142,8 +148,8 @@ class RoomPetView(private val reactContext: ReactContext) : FrameLayout(reactCon
     view.cameraNode.position = Position(0f, 0.35f + extraWorldHeight / 2f, 2.4f)
     addView(view, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     // Temporary shared Shiba model for all IDs; keep petId for future breed assets.
-    view.modelLoader.loadModelInstanceAsync("models/dog.glb") { instance ->
-      if (instance == null || scene !== view) return@loadModelInstanceAsync
+    modelLoad.start(view) { instance ->
+      if (disposed || scene !== view) return@start
       val node = DogModelNode(instance, manualPlayback = true)
       node.isVisible = false
       node.scale = node.scale * 2.5f

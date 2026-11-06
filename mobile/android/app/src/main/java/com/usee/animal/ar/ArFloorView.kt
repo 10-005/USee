@@ -28,6 +28,7 @@ class ArFloorView(
   private val reactContext: ReactContext,
 ) : FrameLayout(reactContext) {
   private var sceneView: ARSceneView? = null
+  private val modelLoad = SceneModelLoad()
   private var cleanup: WalkCleanupView? = null
 
   private var traversalDebug: TraversalDebugView? = null
@@ -166,7 +167,7 @@ class ArFloorView(
   }
 
   private fun start() {
-    if (disposed || sceneView != null) {
+    if (disposed || !active || !isAttachedToWindow || sceneView != null) {
       return
     }
     val activity = reactContext.currentActivity as? ComponentActivity ?: return
@@ -191,7 +192,15 @@ class ArFloorView(
     ).apply {
       layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
       onSessionUpdated = { session, frame -> handleFrame(session, frame) }
-      beforeDestroy = { releaseSceneResources() }
+      beforeDestroy = { modelLoad.cancel(); releaseSceneResources() }
+      onFrameFailure = {
+        post {
+          if (sceneView === this) {
+            stop()
+            emit("error", false, "", false, false, false)
+          }
+        }
+      }
     }
     sceneView = view
     val debug = TraversalDebugView(context).apply {
@@ -211,9 +220,9 @@ class ArFloorView(
       it.bagAvailable = bagAvailable
       addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
-    view.modelLoader.loadModelInstanceAsync("models/dog.glb") { instance ->
-      if (instance == null || disposed || sceneView !== view) {
-        return@loadModelInstanceAsync
+    modelLoad.start(view) { instance ->
+      if (disposed || sceneView !== view) {
+        return@start
       }
       view.post {
         if (disposed || sceneView !== view) {
@@ -448,6 +457,19 @@ class ArFloorView(
     sessionConfiguration = sessionConfiguration,
   ) {
     var beforeDestroy: (() -> Unit)? = null
+    var onFrameFailure: (() -> Unit)? = null
+    private var frameFailed = false
+
+    override fun onFrame(frameTimeNanos: Long) {
+      if (isDestroyed || frameFailed || !isAttachedToWindow) return
+      try {
+        super.onFrame(frameTimeNanos)
+      } catch (error: com.google.ar.core.exceptions.FatalException) {
+        frameFailed = true
+        android.util.Log.e("ArFloorView", "AR session frame failed", error)
+        onFrameFailure?.invoke()
+      }
+    }
 
     override fun destroy() {
       if (isDestroyed) return
