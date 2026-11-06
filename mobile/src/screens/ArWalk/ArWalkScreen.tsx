@@ -1,7 +1,14 @@
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useIsFocused } from '@react-navigation/native';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View, type NativeSyntheticEvent } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  Text,
+  View,
+  type NativeSyntheticEvent,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCameraPermission } from 'react-native-vision-camera';
 import { useShopStore } from '../../stores/shopStore';
@@ -71,6 +78,12 @@ export function ArWalkScreen({
     isFocused && hasPermission && status === 'anchored' && !bagPurchaseVisible,
     route?.params?.petName ?? '',
   );
+
+  useEffect(() => {
+    if (voice.error) {
+      Alert.alert('산책 음성 명령', voice.error);
+    }
+  }, [voice.error]);
 
   useEffect(() => {
     if (walkStartedAt === null) {
@@ -167,16 +180,6 @@ export function ArWalkScreen({
         <View pointerEvents="box-none" style={[styles.displayControls, { top: headerHeight + 8 }]}>
           <Pressable
             accessibilityRole="switch"
-            accessibilityLabel="산책 음성 명령"
-            accessibilityState={{ checked: voice.enabled }}
-            onPress={() => voice.setEnabled(value => !value)}
-            style={styles.voiceToggle}
-            hitSlop={4}
-          >
-            <VoiceMicrophone enabled={voice.enabled} hearing={voice.isHearing} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="switch"
             accessibilityLabel="이동 가능 영역 표시"
             accessibilityState={{ checked: showTraversalDebug }}
             onPress={() => setShowTraversalDebug(value => !value)}
@@ -189,6 +192,34 @@ export function ArWalkScreen({
             </View>
           </Pressable>
         </View>
+      )}
+      {hasPermission && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={voice.isListening ? '산책 음성 듣는 중' : '산책 음성 말하기'}
+          accessibilityHint="한 번 누르면 한 문장을 듣고 자동으로 종료합니다"
+          accessibilityState={{
+            disabled:
+              !isFocused ||
+              status !== 'anchored' ||
+              bagPurchaseVisible ||
+              voice.isStarting ||
+              voice.isListening,
+            busy: voice.isStarting || voice.isListening,
+          }}
+          disabled={
+            !isFocused ||
+            status !== 'anchored' ||
+            bagPurchaseVisible ||
+            voice.isStarting ||
+            voice.isListening
+          }
+          onPress={voice.startListening}
+          style={[styles.voiceButton, { bottom: insets.bottom + 24 }]}
+          hitSlop={4}
+        >
+          <VoiceMicrophone listening={voice.isListening} />
+        </Pressable>
       )}
       {hasPermission && canReposition && (
         <Pressable
@@ -208,9 +239,9 @@ export function ArWalkScreen({
           <Text style={styles.placeButtonText}>강아지 배치하기</Text>
         </Pressable>
       )}
-      {hasSeenDog && voice.enabled && (
+      {hasSeenDog && voice.isListening && (
         <View pointerEvents="none" style={[styles.voiceStatus, { bottom: insets.bottom + 90 }]}>
-          {voice.isRecognizing ? <VoiceListeningDots /> : <VoiceGlowText text={voice.message} />}
+          {voice.message ? <VoiceGlowText text={voice.message} /> : <VoiceListeningDots />}
         </View>
       )}
       {bagPurchaseVisible && (

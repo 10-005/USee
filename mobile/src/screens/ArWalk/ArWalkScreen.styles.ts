@@ -73,9 +73,12 @@ export const styles = StyleSheet.create({
     elevation: 10,
     gap: 4,
   },
-  voiceToggle: {
-    width: 48,
-    height: 48,
+  voiceButton: {
+    position: 'absolute',
+    right: 24,
+    width: 60,
+    height: 60,
+    zIndex: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
