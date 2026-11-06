@@ -29,6 +29,31 @@ jest.mock(
   () => require('react-native-safe-area-context/jest/mock').default,
 );
 
+test.each(['입양', '찾아요', '채팅', '마이페이지'])(
+  '%s main tab provides a shortcut to the active pet',
+  async tab => {
+    await startMockAdoption('dog-5', 35000, '코코');
+    const props = {
+      navigation: { navigate: mockNavigate },
+      route: { key: 'home', name: 'Home' },
+    } as unknown as NativeStackScreenProps<RootStackParamList, 'Home'>;
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(<HomeScreen {...props} />);
+    });
+    await ReactTestRenderer.act(async () => {
+      renderer.root.findAllByProps({ accessibilityLabel: tab })[0].props.onPress();
+    });
+    await ReactTestRenderer.act(async () => {
+      await renderer.root
+        .findAllByProps({ accessibilityLabel: '코코 모의입양 바로가기' })[0]
+        .props.onPress();
+    });
+    expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionActivity', { petId: 'dog-5' });
+    await ReactTestRenderer.act(() => renderer.unmount());
+  },
+);
+
 test('mock adoption selects one pet across categories and preserves adoption filters', async () => {
   const props = {
     navigation: { navigate: mockNavigate },
