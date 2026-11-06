@@ -515,6 +515,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       !bathing &&
       (hasTreat || treatActive || care?.kind === 'treat') ? (
         <TreatLauncher
+          dockHidden={!!care || treatActive || bathReturning}
           category={pet.category}
           width={roomSize.width}
           height={roomSize.height}
@@ -540,6 +541,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       ) : null}
       {roomVisible && pet?.category === 'dog' && hasToy && !leaving && !bathing ? (
         <TreatLauncher
+          dockHidden={!!care || treatActive || bathReturning}
           item="toy"
           category="dog"
           bottomOffset={92}
