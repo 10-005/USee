@@ -3,7 +3,7 @@
 #   DB_PASSWORD     : data/postgres-credentials 의 CORE_APP_PASSWORD 를 그대로 옮김
 #   REDIS_PASSWORD  : data/redis-credentials 의 REDIS_PASSWORD 를 그대로 옮김
 #   JWT_PUBLIC_KEY  : Base64(X.509 DER) 한 줄 (JwtVerifier 형식)
-#   JWT_PRIVATE_KEY : Base64(PKCS#8 DER) 한 줄 (토큰 발급 기능용, 아직 미사용)
+#   JWT_PRIVATE_KEY : Base64(PKCS#8 DER) 한 줄 (core-api 토큰 발급용, S15P31D106-63)
 # JWT 키 쌍은 ~/.s15p31d106/jwt/ 에 보관 (없으면 생성, 있으면 재사용 → 다른 서비스도 같은 공개 키 사용)
 # 사용법: infra 작업 폴더 최상위에서  PEM=<노드1 pem 경로> bash infra/scripts/gen-core-api-secrets.sh
 set -euo pipefail
