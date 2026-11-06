@@ -1,6 +1,6 @@
 package com.usee.animal.ar
 
-import kotlin.math.exp
+import kotlin.math.ceil
 import kotlin.math.sqrt
 
 internal data class LeashPoint(val x: Float, val y: Float, val z: Float) {
@@ -13,8 +13,9 @@ internal data class LeashPoint(val x: Float, val y: Float, val z: Float) {
 /** A damped midpoint adds slack/lag while both endpoints stay attached every render frame. */
 internal class LeashCurve {
   private var middle: LeashPoint? = null
+  private var velocity = LeashPoint(0f, 0f, 0f)
 
-  fun reset() { middle = null }
+  fun reset() { middle = null; velocity = LeashPoint(0f, 0f, 0f) }
 
   fun points(collar: LeashPoint, hand: LeashPoint, dt: Float, segments: Int = 24): List<LeashPoint> {
     require(segments > 0)
@@ -22,9 +23,20 @@ internal class LeashCurve {
     val sag = 0.025f + (1f - distance / 2.2f).coerceIn(0f, 1f) * 0.32f
     val desired = (collar + hand) * 0.5f + LeashPoint(0f, -2f * sag, 0f)
     val previous = middle
-    val blend = 1f - exp(-dt.coerceIn(0f, 0.1f) / 0.18f)
-    val control = if (previous == null || (desired - previous).length() > 1f) desired
-      else previous + (desired - previous) * blend
+    var control = previous ?: desired
+    if (previous == null || (desired - previous).length() > 1f || dt > 0.25f) {
+      control = desired
+      velocity = LeashPoint(0f, 0f, 0f)
+    } else {
+      // Substeps keep the damped spring stable across rendering frame rates.
+      val duration = dt.coerceIn(0f, 0.1f)
+      val steps = ceil(duration / (1f / 120f)).toInt().coerceAtLeast(1)
+      val step = duration / steps
+      repeat(steps) {
+        velocity = velocity + ((desired - control) * 90f - velocity * 16f) * step
+        control = control + velocity * step
+      }
+    }
     middle = control
     return List(segments + 1) { i ->
       val t = i.toFloat() / segments
