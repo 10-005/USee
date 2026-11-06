@@ -25,6 +25,8 @@ mkdir -p .keys
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out .keys/jwt-private.pem
 openssl pkey -in .keys/jwt-private.pem -pubout -outform DER | base64 | tr -d '\n'
 # 출력값을 .env의 JWT_PUBLIC_KEY= 뒤에 붙여 넣는다
+openssl pkcs8 -topk8 -nocrypt -in .keys/jwt-private.pem -outform DER | base64 | tr -d '\n'
+# 출력값을 .env의 JWT_PRIVATE_KEY= 뒤에 붙여 넣는다(core-api 발급용, PKCS#8. `pkey -outform DER`은 PKCS#1이라 안 된다)
 
 # 3. PostgreSQL, Redis 실행 (최초 실행 시 core/chat/notification/simulation 스키마 생성)
 docker compose up -d
@@ -37,6 +39,7 @@ docker compose up -d
 - Swagger UI: `http://localhost:8080/swagger-ui.html` (서비스별 포트)
 - 헬스 체크: `/actuator/health`, k8s probe는 `/actuator/health/liveness`, `/actuator/health/readiness`. Ingress는 `/api/**`만 라우팅하므로 외부에 노출되지 않는다.
 - 스키마 초기화 SQL은 볼륨이 비어 있을 때만 실행된다. 처음부터 다시 만들려면 `docker compose down -v`.
+- core-api는 기동 시 Flyway 마이그레이션을 먼저 적용한다. 예전에 `ddl-auto`로 만든 `images` 테이블이 남아 있으면 V1이 실패하므로 `docker compose down -v`로 초기화한다.
 
 ## Docker 이미지
 
@@ -72,7 +75,8 @@ com.ssafy.animal.core.{도메인}
 - MQ, S3, FCM, ai-matching, 다른 서비스 호출 같은 외부 기술은 반드시 `port/out` + `adapter/out`으로 격리한다.
 - 이벤트 발행은 `common`의 `EventPublisher` 포트를 쓴다. MQ가 정해지기 전까지는 로그만 남기는 `LoggingEventAdapter`가 등록되며, MQ 어댑터를 빈으로 등록하면 대체된다.
 - 도메인 에러 코드는 `domain` 패키지에 `ErrorCode`를 구현하는 enum으로 만든다(`{도메인}_상황`, 예: `SampleErrorCode.SAMPLE_NOT_FOUND`). common에는 `ErrorCode` 인터페이스와 공통 코드(`CommonErrorCode`)만 둔다.
-- 엔티티는 `BaseTimeEntity`를 상속해 `regDttm`/`modDttm`을 갖는다. ID 필드는 `{엔티티}Seq`.
+- 엔티티는 `BaseTimeEntity`(`regDttm` + `modDttm`, `modDttm`은 INSERT 때 NULL·UPDATE 때만 채움)를, `mod_dttm` 컬럼이 없는 테이블은 `BaseCreatedEntity`(`regDttm`만)를 상속한다(DB 명세 Q430). ID 필드는 `{엔티티}Seq`.
+- core 스키마 테이블은 `core-api/src/main/resources/db/migration`의 Flyway SQL로 만든다(`V{번호}__{설명}.sql`, 적용된 파일은 수정 금지·새 번호로 추가). 아직 Flyway로 옮기지 않은 엔티티는 `ddl-auto=update`가 만든다.
 - Kotlin에서 `in`은 키워드라 패키지 선언에 백틱이 필요하다: ``package ...port.`in` ``
 
 ## common 모듈
