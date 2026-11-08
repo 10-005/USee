@@ -10,7 +10,7 @@ import com.ssafy.animal.core.auth.application.port.out.RefreshSession
 import com.ssafy.animal.core.auth.application.port.out.RefreshTokenStore
 import com.ssafy.animal.core.auth.application.port.out.RegistrationContextStore
 import com.ssafy.animal.core.auth.domain.AuthErrorCode
-import com.ssafy.animal.core.auth.domain.LogoutDeviceTokenEvent
+import com.ssafy.animal.common.event.DeviceTokenDeactivateRequested
 import com.ssafy.animal.core.user.application.port.out.UserRepository
 import com.ssafy.animal.core.user.domain.AccountStatus
 import com.ssafy.animal.core.user.domain.AuthProvider
@@ -171,6 +171,6 @@ class AuthServiceTest {
 
         service.logout(17, tokens.refreshToken, "fcm-1")
         assertTrue(refreshStore.sessions.isEmpty())
-        assertEquals(listOf<Any>(LogoutDeviceTokenEvent(17, "fcm-1")), events)
+        assertEquals(listOf<Any>(DeviceTokenDeactivateRequested(17, "fcm-1")), events)
     }
 }

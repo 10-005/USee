@@ -12,7 +12,7 @@ import com.ssafy.animal.core.auth.application.port.out.RefreshTokenStore
 import com.ssafy.animal.core.auth.application.port.out.RegistrationContextStore
 import com.ssafy.animal.core.auth.application.port.out.TokenIssuer
 import com.ssafy.animal.core.auth.domain.AuthErrorCode
-import com.ssafy.animal.core.auth.domain.LogoutDeviceTokenEvent
+import com.ssafy.animal.common.event.DeviceTokenDeactivateRequested
 import com.ssafy.animal.core.user.application.port.out.UserRepository
 import com.ssafy.animal.core.user.domain.AuthProvider
 import com.ssafy.animal.core.user.domain.User
@@ -73,7 +73,7 @@ class AuthService(
         tokenIssuer.parseRefresh(refreshToken)
             ?.takeIf { it.userSeq == userSeq }
             ?.let { refreshTokenStore.delete(it.userSeq, it.jti) }
-        fcmToken?.takeIf { it.isNotBlank() }?.let { eventPublisher.publish(LogoutDeviceTokenEvent(userSeq, it)) }
+        fcmToken?.takeIf { it.isNotBlank() }?.let { eventPublisher.publish(DeviceTokenDeactivateRequested(userSeq, it)) }
     }
 
     /** 로그인마다 새 jti → 기기마다 refresh 키 1개(다중 기기 허용). ID/PW 로그인(67)도 이 메서드로 발급한다. */

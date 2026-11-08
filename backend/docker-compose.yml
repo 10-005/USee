@@ -1,4 +1,4 @@
-# 로컬 개발용 인프라. 메시지 큐는 선정(S15P31D106-293) 후 추가
+# 로컬 개발용 인프라. RabbitMQ는 EVENTS_TRANSPORT=rabbit일 때만 쓴다(관리 화면 http://localhost:15672)
 services:
   postgres:
     image: postgres:17-alpine
@@ -34,6 +34,23 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
 
+  rabbitmq:
+    image: rabbitmq:4-management   # 서버(infra/platform/rabbitmq)와 같은 이미지
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-animal}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   postgres-data:
   redis-data:
+  rabbitmq-data:

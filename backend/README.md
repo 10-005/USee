@@ -73,7 +73,7 @@ com.ssafy.animal.core.{도메인}
 - JPA 엔티티를 도메인 모델로 그대로 쓴다. 도메인/엔티티 분리와 매퍼는 두지 않는다.
 - 서비스는 `port/out` 인터페이스에만 의존한다. 저장소는 `adapter/out/persistence`에서 `JpaRepository`에 위임하고, 복잡한 조회는 QueryDSL(`Q{엔티티}`)로 작성한다.
 - MQ, S3, FCM, ai-matching, 다른 서비스 호출 같은 외부 기술은 반드시 `port/out` + `adapter/out`으로 격리한다.
-- 이벤트 발행은 `common`의 `EventPublisher` 포트를 쓴다. MQ가 정해지기 전까지는 로그만 남기는 `LoggingEventAdapter`가 등록되며, MQ 어댑터를 빈으로 등록하면 대체된다.
+- 이벤트 발행은 `common`의 `EventPublisher.publish(이벤트)`만 쓴다. 이벤트 클래스는 `common.event`의 `Events.kt`(API 명세 21.6). 트랜잭션 안에서 부르면 커밋 후에만 나가고 롤백이면 버려진다. `EVENTS_TRANSPORT=rabbit`이면 RabbitMQ 교환기 `animal.events`(라우팅 키 = 클래스 이름), 기본값 `log`는 로그만 남긴다. 소비 쪽은 자기 큐를 선언해 묶고, 리스너는 `@ConditionalOnProperty(events.transport=rabbit)` 아래에 둔다.
 - 도메인 에러 코드는 `domain` 패키지에 `ErrorCode`를 구현하는 enum으로 만든다(`{도메인}_상황`, 예: `SampleErrorCode.SAMPLE_NOT_FOUND`). common에는 `ErrorCode` 인터페이스와 공통 코드(`CommonErrorCode`)만 둔다.
 - 엔티티는 `BaseTimeEntity`(`regDttm` + `modDttm`, `modDttm`은 INSERT 때 NULL·UPDATE 때만 채움)를, `mod_dttm` 컬럼이 없는 테이블은 `BaseCreatedEntity`(`regDttm`만)를 상속한다(DB 명세 Q430). ID 필드는 `{엔티티}Seq`.
 - 테이블은 Flyway SQL로 만든다. core는 `core-api/src/main/resources/db/migration`, simulation은 `simulation/src/main/resources/db/migration`. chat·notification은 core 스키마를 쓰고 `ddl-auto=validate`(테이블을 만들지 않음).
