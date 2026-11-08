@@ -6,8 +6,6 @@ import com.ssafy.animal.common.auth.JwtAuthenticationFilter
 import com.ssafy.animal.common.auth.JwtVerifier
 import com.ssafy.animal.common.auth.SecurityErrorResponder
 import com.ssafy.animal.common.auth.StompAuthChannelInterceptor
-import com.ssafy.animal.common.event.EventPublisher
-import com.ssafy.animal.common.event.LoggingEventAdapter
 import com.ssafy.animal.common.exception.GlobalExceptionHandler
 import com.ssafy.animal.common.response.ApiResponseBodyAdvice
 import com.ssafy.animal.common.web.TraceIdFilter
@@ -121,10 +119,6 @@ class CommonWebAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun userDetailsService() = UserDetailsService { throw UsernameNotFoundException(it) }
-
-    @Bean
-    @ConditionalOnMissingBean
-    fun eventPublisher(): EventPublisher = LoggingEventAdapter()
 
     // Swagger 화면의 Authorize 버튼으로 JWT를 넣어 인증이 필요한 API를 호출할 수 있게 한다
     @Bean

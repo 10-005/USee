@@ -6,7 +6,7 @@ import com.ssafy.animal.common.exception.CommonErrorCode
 import com.ssafy.animal.core.auth.application.port.`in`.WithdrawUseCase
 import com.ssafy.animal.core.auth.application.port.out.RefreshTokenStore
 import com.ssafy.animal.core.auth.domain.AuthErrorCode
-import com.ssafy.animal.core.auth.domain.UserDeleted
+import com.ssafy.animal.common.event.UserDeleted
 import com.ssafy.animal.core.user.application.port.out.UserRepository
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher

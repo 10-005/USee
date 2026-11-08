@@ -14,6 +14,22 @@ spring:
     web:
       pageable:
         max-page-size: 100   # 명세 Q417. 100 초과 요청은 100으로 잘린다
+  # events.transport=rabbit일 때만 실제로 연결한다(첫 발행 시 접속)
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+events:
+  # 서비스 간 이벤트 전송(API 명세 21.6): log(기본, 로그만) | rabbit(RabbitMQ 교환기 animal.events)
+  # rabbit일 때 접속 정보는 위 spring.rabbitmq(RABBITMQ_HOST·PORT·USERNAME·PASSWORD)
+  transport: ${EVENTS_TRANSPORT:log}
+
+management:
+  health:
+    rabbit:
+      enabled: false   # log 모드에서도 연결을 시도해 /actuator/health가 DOWN이 되므로 끈다(k8s 프로브는 liveness·readiness만 봄)
 
 server:
   # Traefik이 보내는 X-Forwarded-Proto(https)를 반영해 문서의 servers 주소를 https로 만든다

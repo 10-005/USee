@@ -7,7 +7,7 @@ import com.ssafy.animal.common.exception.CommonErrorCode
 import com.ssafy.animal.core.auth.application.port.out.RefreshSession
 import com.ssafy.animal.core.auth.application.port.out.RefreshTokenStore
 import com.ssafy.animal.core.auth.domain.AuthErrorCode
-import com.ssafy.animal.core.auth.domain.UserDeleted
+import com.ssafy.animal.common.event.UserDeleted
 import com.ssafy.animal.core.user.application.port.out.UserRepository
 import com.ssafy.animal.core.user.domain.AccountStatus
 import com.ssafy.animal.core.user.domain.AuthProvider
