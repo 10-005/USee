@@ -22,6 +22,8 @@ spring:
     create-schemas: false
     baseline-on-migrate: true
     baseline-version: 0
+    # 병렬 브랜치는 시드·수정 파일을 V{yyyyMMdd_HHmm}__설명.sql로 추가한다. 병합 순서가 버전 순서와 달라도 적용
+    out-of-order: true
 
 security:
   # 2.1 kakao/verify·2.5 kakao/register·2.2 local/login·2.3 refresh는 토큰 없이 호출. logout은 로그인 필요
@@ -86,3 +88,12 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+
+---
+# 개발·시연용 더미 데이터(db/dev)는 local·dev에서만 적용한다. prod는 마스터 시드(db/migration)만
+spring:
+  config:
+    activate:
+      on-profile: local | dev
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev

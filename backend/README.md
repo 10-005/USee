@@ -28,7 +28,7 @@ openssl pkey -in .keys/jwt-private.pem -pubout -outform DER | base64 | tr -d '\n
 openssl pkcs8 -topk8 -nocrypt -in .keys/jwt-private.pem -outform DER | base64 | tr -d '\n'
 # 출력값을 .env의 JWT_PRIVATE_KEY= 뒤에 붙여 넣는다(core-api 발급용, PKCS#8. `pkey -outform DER`은 PKCS#1이라 안 된다)
 
-# 3. PostgreSQL, Redis 실행 (최초 실행 시 core/chat/notification/simulation 스키마 생성)
+# 3. PostgreSQL, Redis 실행 (최초 실행 시 core·simulation 스키마 생성)
 docker compose up -d
 
 # 4. 서비스 실행 (기본 프로필 local)
@@ -76,7 +76,9 @@ com.ssafy.animal.core.{도메인}
 - 이벤트 발행은 `common`의 `EventPublisher` 포트를 쓴다. MQ가 정해지기 전까지는 로그만 남기는 `LoggingEventAdapter`가 등록되며, MQ 어댑터를 빈으로 등록하면 대체된다.
 - 도메인 에러 코드는 `domain` 패키지에 `ErrorCode`를 구현하는 enum으로 만든다(`{도메인}_상황`, 예: `SampleErrorCode.SAMPLE_NOT_FOUND`). common에는 `ErrorCode` 인터페이스와 공통 코드(`CommonErrorCode`)만 둔다.
 - 엔티티는 `BaseTimeEntity`(`regDttm` + `modDttm`, `modDttm`은 INSERT 때 NULL·UPDATE 때만 채움)를, `mod_dttm` 컬럼이 없는 테이블은 `BaseCreatedEntity`(`regDttm`만)를 상속한다(DB 명세 Q430). ID 필드는 `{엔티티}Seq`.
-- core 스키마 테이블은 `core-api/src/main/resources/db/migration`의 Flyway SQL로 만든다(`V{번호}__{설명}.sql`, 적용된 파일은 수정 금지·새 번호로 추가). 아직 Flyway로 옮기지 않은 엔티티는 `ddl-auto=update`가 만든다.
+- 테이블은 Flyway SQL로 만든다. core는 `core-api/src/main/resources/db/migration`, simulation은 `simulation/src/main/resources/db/migration`. chat·notification은 core 스키마를 쓰고 `ddl-auto=validate`(테이블을 만들지 않음).
+- 새 마이그레이션은 `V{yyyyMMdd_HHmm}__{설명}.sql`로 추가한다(병렬 브랜치 충돌 방지, `out-of-order` 켜짐). 적용된 파일은 수정 금지.
+- 개발·시연용 더미 데이터는 `core-api/src/main/resources/db/dev`에 둔다. local·dev 프로필에서만 적용된다.
 - Kotlin에서 `in`은 키워드라 패키지 선언에 백틱이 필요하다: ``package ...port.`in` ``
 
 ## common 모듈

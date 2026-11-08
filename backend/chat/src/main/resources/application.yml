@@ -13,7 +13,7 @@ spring:
     open-in-view: false
     properties:
       hibernate:
-        default_schema: chat
+        default_schema: core   # 명세 Q420 D: chat·notification은 core 스키마를 공유하고 테이블은 core-api Flyway가 만든다
         jdbc:
           time_zone: Asia/Seoul
 
@@ -47,7 +47,7 @@ spring:
     activate:
       on-profile: local
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:animal}?currentSchema=chat
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:animal}?currentSchema=core
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   data:
@@ -57,4 +57,4 @@ spring:
       password: ${REDIS_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate

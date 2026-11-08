@@ -16,6 +16,13 @@ spring:
         default_schema: simulation
         jdbc:
           time_zone: Asia/Seoul
+  # simulation 스키마 DDL·시드(db/migration, Q412). core 테이블(animal_breeds 등)은 읽기 전용 JOIN만
+  flyway:
+    schemas: simulation
+    create-schemas: false
+    baseline-on-migrate: true
+    baseline-version: 0
+    out-of-order: true   # 병렬 브랜치의 V{타임스탬프} 파일이 병합 순서와 달라도 적용
 
 api:
   prefix: /api/simulation
@@ -53,4 +60,4 @@ spring:
       password: ${REDIS_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
