@@ -5,6 +5,7 @@ import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SimulationSession
+import com.ssafy.animal.simulation.domain.SimulationShopItem
 import com.ssafy.animal.simulation.domain.SpeciesType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -28,6 +29,17 @@ interface SimulationSessionRepository {
 
 interface SimulationActionLogRepository {
     fun save(log: SimulationActionLog): SimulationActionLog
+}
+
+/** 저장소 키 → 공개 URL(품종 대표 이미지·물품 사진) */
+interface ImageUrlResolver {
+    fun publicUrl(key: String): String
+}
+
+/** 펫샵 물품 마스터 조회(18.8) */
+interface ShopItemRepository {
+    /** 판매 중(is_active)인 물품. speciesType이 있으면 그 종과 ALL 물품만. display_order, item_seq 순 */
+    fun findActive(speciesType: SpeciesType?): List<SimulationShopItem>
 }
 
 /** core 스키마 품종 기준정보 읽기 전용 조회(Q420·Q482). 잠그지 않는다 */

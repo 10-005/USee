@@ -16,7 +16,6 @@ import com.ssafy.animal.simulation.domain.SimulationErrorCode
 import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SpeciesType
 import com.ssafy.animal.simulation.domain.Stats
-import io.jsonwebtoken.Jwts
 import org.junit.jupiter.api.Test
 import org.mockito.BDDMockito.given
 import org.mockito.BDDMockito.then
@@ -35,11 +34,8 @@ import org.springframework.test.util.ReflectionTestUtils
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
-import java.security.KeyPairGenerator
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
-import java.util.Base64
-import java.util.Date
 
 @WebMvcTest(SimulationSessionController::class)
 @ImportAutoConfiguration(CommonWebAutoConfiguration::class)
@@ -263,19 +259,11 @@ class SimulationSessionControllerTest {
     }
 
     companion object {
-        private val keyPair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
-
-        private fun bearer(claims: Map<String, Any>) = "Bearer " + Jwts.builder().claims(claims).claim("typ", "access")
-            .expiration(Date(System.currentTimeMillis() + 3_600_000))
-            .signWith(keyPair.private, Jwts.SIG.RS256).compact()
-
-        private val USER_TOKEN = bearer(mapOf("userSeq" to 17, "role" to "USER"))
-        private val SHELTER_TOKEN = bearer(mapOf("userSeq" to 77, "role" to "SHELTER", "shelterSeq" to 7))
+        private val USER_TOKEN = WebTestTokens.USER
+        private val SHELTER_TOKEN = WebTestTokens.SHELTER
 
         @JvmStatic
         @DynamicPropertySource
-        fun jwtProperties(registry: DynamicPropertyRegistry) {
-            registry.add("jwt.public-key") { Base64.getEncoder().encodeToString(keyPair.public.encoded) }
-        }
+        fun jwtProperties(registry: DynamicPropertyRegistry) = WebTestTokens.register(registry)
     }
 }

@@ -3,19 +3,11 @@ package com.ssafy.animal.simulation.adapter.out.core
 import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.port.out.BreedReader
 import com.ssafy.animal.simulation.application.port.out.CatalogSpeciesCode
+import com.ssafy.animal.simulation.application.port.out.ImageUrlResolver
 import com.ssafy.animal.simulation.domain.Personality
-import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Component
-
-/** 이미지 공개 URL = {publicBaseUrl}/{imageKey}. core-api의 storage.public-base-url과 같은 값을 쓴다 */
-@ConfigurationProperties("storage")
-data class StorageUrlProperties(
-    val publicBaseUrl: String = "",
-) {
-    fun publicUrl(key: String) = "${publicBaseUrl.trimEnd('/')}/$key"
-}
 
 /**
  * core 스키마의 품종·종·이미지를 읽기 전용 JOIN으로 조회한다(Q420 D·Q482).
@@ -25,7 +17,7 @@ data class StorageUrlProperties(
 @Component
 class CoreBreedReader(
     private val jdbcTemplate: NamedParameterJdbcTemplate,
-    private val storage: StorageUrlProperties,
+    private val imageUrlResolver: ImageUrlResolver,
 ) : BreedReader {
 
     private val rowMapper = RowMapper { rs, _ ->
@@ -34,7 +26,7 @@ class CoreBreedReader(
             breedName = rs.getString("breed_name"),
             speciesCode = CatalogSpeciesCode.valueOf(rs.getString("species_code")),
             personality = Personality.valueOf(rs.getString("personality")),
-            representativeImageUrl = rs.getString("image_key")?.let(storage::publicUrl),
+            representativeImageUrl = rs.getString("image_key")?.let(imageUrlResolver::publicUrl),
         )
     }
 
