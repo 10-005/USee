@@ -33,6 +33,10 @@ type ShopState = ShopSnapshot & {
   selectAll: (ids: string[]) => void;
   remove: (ids: string[]) => void;
   checkout: (species: Species) => string | null;
+  applyServerPurchase: (
+    productId: string,
+    purchase: { amount: number; inventoryQuantity: number },
+  ) => string | null;
   buyWalkBags: () => string | null;
   consume: (requirements: Record<string, number>, ownedItemId?: string) => boolean;
 };
@@ -240,6 +244,47 @@ export const useShopStore = create<ShopState>((set, get) => {
         spent: state.spent + total,
         cart: Object.fromEntries(Object.entries(state.cart).filter(([id]) => !ids.includes(id))),
         selectedIds: [],
+      })
+        ? null
+        : storageError;
+    },
+    applyServerPurchase: (productId, purchase) => {
+      const state = get();
+      const product = findProduct(productId);
+      if (!state.ready) {
+        return '쇼핑 정보를 불러오는 중이에요.';
+      }
+      if (Date.now() >= state.expiresAt) {
+        return '모의 입양 기간이 종료되었어요.';
+      }
+      if (
+        !product ||
+        !Number.isInteger(purchase.amount) ||
+        purchase.amount < 0 ||
+        !Number.isInteger(purchase.inventoryQuantity) ||
+        purchase.inventoryQuantity < 0 ||
+        !Number.isSafeInteger(state.spent + purchase.amount)
+      ) {
+        return '구매 결과를 저장하지 못했어요. 다시 시도해주세요.';
+      }
+      const ownedItems = state.ownedItems.filter(item => item.productId !== productId);
+      for (let index = 1; index <= purchase.inventoryQuantity; index += 1) {
+        ownedItems.push({
+          id: `${state.sessionKey}:${productId}:${index}`,
+          productId,
+          capacity: product.qty,
+          remaining: product.qty,
+        });
+      }
+      return commit({
+        spent: state.spent + purchase.amount,
+        inventory: {
+          ...state.inventory,
+          [productId]: purchase.inventoryQuantity * product.qty,
+        },
+        ownedItems,
+        cart: Object.fromEntries(Object.entries(state.cart).filter(([id]) => id !== productId)),
+        selectedIds: state.selectedIds.filter(id => id !== productId),
       })
         ? null
         : storageError;

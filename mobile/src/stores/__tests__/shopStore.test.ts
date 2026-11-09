@@ -120,6 +120,34 @@ it('shows the shop list saved for this adoption', () => {
   shop().open(session);
 });
 
+it('applies a server purchase to the spent budget and inventory', () => {
+  const product = {
+    id: '11',
+    name: '건식 사료 1kg',
+    qty: 1,
+    unit: '개',
+    species: 'dog' as const,
+    kind: 'consumable' as const,
+    category: '식사',
+    description: '한 끼 분량씩 소모됩니다.',
+    sprite: 0,
+    price: 8000,
+    placement: 'inventory',
+    itemSeq: 11,
+    serverCategory: 'FOOD',
+    imageUrl: null,
+    market: { gamePrice: 8000, basis: '', sources: [] },
+  };
+  replaceSessionShopCatalog(shop().sessionKey, 'DOG', [{ displayOrder: 0, product }]);
+  shop().open(session);
+  expect(shop().setQuantity('11', 5, 'dog')).toBe(true);
+  expect(shop().applyServerPurchase('11', { amount: 40000, inventoryQuantity: 5 })).toBeNull();
+  expect(shop().spent).toBe(40000);
+  expect(shop().inventory['11']).toBe(5);
+  expect(shop().cart['11']).toBeUndefined();
+  expect(shop().ownedItems.filter(item => item.productId === '11')).toHaveLength(5);
+});
+
 it('buys only walk bags, saves purchase history and budget, and preserves the cart', () => {
   shop().setQuantity('food', 2, 'dog');
   const selected = [...shop().selectedIds];
