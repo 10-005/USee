@@ -3,6 +3,7 @@ package com.ssafy.animal.simulation.application.port.`in`
 import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SimulationWalk
 import com.ssafy.animal.simulation.domain.Stat
+import java.time.Duration
 
 /**
  * 18.14~18.17 산책(본인 전용, 개 세션만, S15P31D106-252). 모두 세션 행을 잠그고 지금 시각까지 진행시킨 뒤 처리한다.
@@ -25,6 +26,8 @@ interface WalkUseCase {
 data class WalkStartResult(
     val walk: SimulationWalk,
     val session: SimulationSession,
+    /** 앱이 보낼 하트비트 간격(설정값) */
+    val heartbeatInterval: Duration,
 )
 
 data class WalkHeartbeatResult(

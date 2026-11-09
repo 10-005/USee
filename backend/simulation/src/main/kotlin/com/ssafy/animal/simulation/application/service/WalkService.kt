@@ -63,7 +63,7 @@ class WalkService(
         val walk = walkRepository.save(SimulationWalk.start(session, now))
         session.recordAction(now)
         actionLogRepository.save(SimulationActionLog.walk(session, ActionCode.WALK_START, checkNotNull(walk.walkSeq)))
-        return WalkStartResult(walk, session)
+        return WalkStartResult(walk, session, properties.walk.heartbeatInterval)
     }
 
     @Transactional(noRollbackFor = [BusinessException::class])
