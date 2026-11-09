@@ -4,6 +4,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class UserWalkRegionTest {
+  @Test fun repeatedUndergroundPlaneDoesNotReplaceTheWalkingFloor() {
+    val filter = GroundLevelFilter()
+    filter.update(0f, 0f, 0L)
+    repeat(50) { assertEquals(0f, filter.update(-3f, 0f, it + 1L), 0f) }
+    assertEquals(0f, filter.update(Float.NaN, 0f, 51L), 0f)
+  }
+
   @Test fun onlyActualFootprintIsTrustedNotEntireNearbyDisk() {
     val region = UserWalkRegion()
     region.update(0f, 0f, 0.2f)

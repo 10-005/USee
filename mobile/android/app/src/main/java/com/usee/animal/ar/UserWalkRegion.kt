@@ -58,6 +58,13 @@ internal class GroundLevelFilter {
   fun update(detected: Float?, fallback: Float, sample: Long): Float {
     val current = height
     if (detected == null) { if (current == null) height = fallback; return height!! }
+    // Repeated observations of a distant plane do not make it the walking floor.
+    if (!detected.isFinite() || current != null && kotlin.math.abs(detected - current) > 0.45f) {
+      candidate = null
+      count = 0
+      if (current == null) height = fallback
+      return height!!
+    }
     if (current == null || estimated) { height = detected; estimated = false; lastSample = sample; return detected }
     if (sample == lastSample) return current
     lastSample = sample

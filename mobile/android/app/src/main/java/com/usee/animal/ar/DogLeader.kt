@@ -615,10 +615,8 @@ class DogLeader(
     for (i in 1..samples) {
       val px = x + ux * distance * i / samples
       val pz = z + uz * distance * i / samples
-      val trusted = trustedGround(px, pz)
-      if (trusted != null) { previousY = trusted; continue }
-      val ground = floorAt(px, pz) ?: return null
-      if (abs(ground - previousY) > 0.08f || abs(ground - y) > 0.18f) {
+      val ground = trustedGround(px, pz) ?: floorAt(px, pz) ?: return null
+      if (!ground.isFinite() || abs(ground - previousY) > 0.08f || abs(ground - y) > 0.18f) {
         stopReason = "높이 차"
         return null
       }

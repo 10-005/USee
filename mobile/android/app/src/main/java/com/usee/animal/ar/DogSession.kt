@@ -204,8 +204,9 @@ internal fun floorYAt(planes: Collection<Plane>, cameraY: Float, x: Float, z: Fl
     if (plane.trackingState != TrackingState.TRACKING ||
       plane.type != Plane.Type.HORIZONTAL_UPWARD_FACING || plane.subsumedBy != null) continue
     val y = plane.centerPose.ty()
-    if (y > cameraY - 0.35f) continue
+    if (!y.isFinite() || y > cameraY - 0.35f || y < cameraY - 2.5f) continue
     val distance = abs(y - standingHeight)
+    if (referenceY != null && distance > 0.45f) continue
     if (distance < bestDistance && plane.isPoseInPolygon(Pose.makeTranslation(x, y, z))) {
       bestY = y
       bestDistance = distance

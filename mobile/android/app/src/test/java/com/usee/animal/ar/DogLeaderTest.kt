@@ -5,6 +5,16 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun corruptedTrustedFloorCannotPullTheDogUnderground() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.setTrustedGround { _, _ -> -3f }
+    repeat(150) {
+      val dog = leader.update(0.02f, 0f, -0.5f, 0f, -1f, floor)
+      assertEquals(initial.y, dog.y, 0.001f)
+    }
+  }
+
   @Test fun seatedDogStandsAndTurnsInPlaceBeforeDrinkingOrEating() {
     val leader = DogLeader()
     fun frame() = leader.update(0.05f, 0f, 0f, 0f, -1f, floor)
