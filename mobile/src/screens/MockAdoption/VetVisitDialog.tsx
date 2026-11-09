@@ -24,12 +24,13 @@ const treatmentItems = [
 type Props = {
   event: SimulationEvent;
   remaining: number;
+  toast?: string;
   onClose: () => void;
   onPay: () => void;
   onIgnore: () => void;
 };
 
-export function VetVisitDialog({ event, remaining, onClose, onPay, onIgnore }: Props) {
+export function VetVisitDialog({ event, remaining, toast, onClose, onPay, onIgnore }: Props) {
   const [expanded, setExpanded] = useState(true);
   const { height } = useWindowDimensions();
   const cost = event.vetVisit?.cost ?? 0;
@@ -113,12 +114,30 @@ export function VetVisitDialog({ event, remaining, onClose, onPay, onIgnore }: P
             <Text style={styles.label}>무시하기</Text>
           </Pressable>
         </View>
+        {toast ? (
+          <View pointerEvents="none" style={styles.toast}>
+            <Text accessibilityLiveRegion="polite" style={styles.toastText}>
+              {toast}
+            </Text>
+          </View>
+        ) : null}
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  toast: {
+    position: 'absolute',
+    bottom: 24,
+    alignSelf: 'center',
+    maxWidth: '90%',
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  toastText: { ...typography.bodyRegular14, color: colors.white, textAlign: 'center' },
   overlay: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: 'rgba(0,0,0,0.3)' },
   card: {
     width: '100%',

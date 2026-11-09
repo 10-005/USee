@@ -112,6 +112,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const [fullBowl, setFullBowl] = useState({ food: false, water: false });
   const streak = useRef({ kind: '', count: 0 });
   const [toast, setToast] = useState('');
+  const [toastPosition, setToastPosition] = useState<'pet' | 'bottom'>('pet');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const fillScale = useRef(new Animated.Value(1)).current;
   const bowlViews = useRef<Partial<Record<'food' | 'water', ElementRef<typeof View> | null>>>({});
@@ -213,7 +214,8 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       setBusy(false);
     }
   };
-  const showToast = (message: string) => {
+  const showToast = (message: string, position: 'pet' | 'bottom' = 'pet') => {
+    setToastPosition(position);
     setToast(message);
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 2500);
@@ -231,6 +233,12 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         useShopStore.getState().error ?? '진료를 처리하지 못했어요. 다시 시도해주세요.',
       );
       return;
+    }
+    if (pay) {
+      showToast(
+        `예산이 ${(pendingEvent.vetVisit?.cost ?? 0).toLocaleString('ko-KR')}원 쓰였습니다.`,
+        'bottom',
+      );
     }
     if (hospitalEvents.length <= 1) {
       setHospitalVisible(false);
@@ -656,15 +664,19 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           style={[
             styles.toastAnchor,
             {
-              top: Math.max(16, petFrame.top + petHeight * 0.38 - 48),
-              left: Math.max(
-                16,
-                Math.min(
-                  roomSize.width * 0.4 - 16,
-                  petFrame.left + petWidth / 2 - roomSize.width * 0.3,
-                ),
-              ),
-              width: roomSize.width * 0.6,
+              ...(toastPosition === 'bottom'
+                ? { bottom: 24, left: 24, right: 24, alignItems: 'center' as const }
+                : {
+                    top: Math.max(16, petFrame.top + petHeight * 0.38 - 48),
+                    left: Math.max(
+                      16,
+                      Math.min(
+                        roomSize.width * 0.4 - 16,
+                        petFrame.left + petWidth / 2 - roomSize.width * 0.3,
+                      ),
+                    ),
+                    width: roomSize.width * 0.6,
+                  }),
             },
           ]}
         >
@@ -694,6 +706,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           key={pendingEvent.occurrenceSeq}
           event={pendingEvent}
           remaining={hospitalEvents.length}
+          toast={toastPosition === 'bottom' ? toast : undefined}
           onClose={() => setHospitalVisible(false)}
           onPay={() => resolveTreatment(true)}
           onIgnore={() => resolveTreatment(false)}
