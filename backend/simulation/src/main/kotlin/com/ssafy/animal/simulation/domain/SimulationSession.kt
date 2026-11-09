@@ -112,6 +112,20 @@ class SimulationSession(
     var lastActionDttm: OffsetDateTime? = null
         protected set
 
+    /** 지연 계산 결과를 반영한다(M2). calculatedAt은 계산기가 돌려준 tick 경계 시각 */
+    fun applyStats(stats: Stats, calculatedAt: OffsetDateTime) {
+        check(status == SessionStatus.IN_PROGRESS) { "진행 중인 세션만 스탯을 갱신합니다: $status" }
+        require(!calculatedAt.isBefore(statsCalculatedDttm)) { "계산 시각은 뒤로 갈 수 없습니다." }
+        satiety = stats.satiety.toShort()
+        hydration = stats.hydration.toShort()
+        cleanliness = stats.cleanliness.toShort()
+        bond = stats.bond.toShort()
+        calmness = stats.calmness.toShort()
+        health = stats.health.toShort()
+        energy = stats.energy.toShort()
+        statsCalculatedDttm = calculatedAt
+    }
+
     fun stats() = Stats(
         satiety = satiety.toInt(),
         hydration = hydration.toInt(),

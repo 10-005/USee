@@ -1,10 +1,11 @@
 package com.ssafy.animal.simulation.adapter.`in`.web
 
-import com.ssafy.animal.simulation.application.port.`in`.Equipment
 import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionDetail
+import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionSummary
 import com.ssafy.animal.simulation.application.port.`in`.StartSimulationCommand
 import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.port.out.CatalogSpeciesCode
+import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationSession
@@ -71,6 +72,41 @@ data class SimulationSessionResponse(
                 equipment = detail.equipment,
                 pendingEvent = null,
                 activeWalkSeq = detail.activeWalkSeq,
+            )
+        }
+    }
+}
+
+/** 18.3 목록 행 */
+data class SimulationSessionSummaryResponse(
+    val sessionSeq: Long,
+    val animalName: String,
+    val breed: BreedResponse,
+    val speciesType: SpeciesType,
+    val personality: Personality,
+    val status: SessionStatus,
+    val expectedCost: Int,
+    val balance: Int,
+    val startedDttm: OffsetDateTime,
+    val endsDttm: OffsetDateTime,
+    val endedDttm: OffsetDateTime?,
+    val hasReport: Boolean,
+) {
+    companion object {
+        fun from(summary: SimulationSessionSummary) = with(summary.session) {
+            SimulationSessionSummaryResponse(
+                sessionSeq = checkNotNull(sessionSeq),
+                animalName = animalName,
+                breed = BreedResponse.from(summary.breed),
+                speciesType = speciesType,
+                personality = personality,
+                status = status,
+                expectedCost = expectedCost,
+                balance = balance,
+                startedDttm = startedDttm,
+                endsDttm = endsDttm,
+                endedDttm = endedDttm,
+                hasReport = summary.hasReport,
             )
         }
     }

@@ -1,7 +1,6 @@
 package com.ssafy.animal.simulation.application.service
 
 import com.ssafy.animal.common.exception.BusinessException
-import com.ssafy.animal.simulation.application.port.`in`.Equipment
 import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionDetail
 import com.ssafy.animal.simulation.application.port.`in`.StartSimulationCommand
 import com.ssafy.animal.simulation.application.port.`in`.StartSimulationUseCase
@@ -25,6 +24,7 @@ class SimulationSessionService(
     private val sessionRepository: SimulationSessionRepository,
     private val actionLogRepository: SimulationActionLogRepository,
     private val breedReader: BreedReader,
+    private val detailAssembler: SimulationSessionDetailAssembler,
     private val statCalculator: StatCalculator,
     private val properties: SimulationProperties,
     private val clock: Clock,
@@ -58,6 +58,6 @@ class SimulationSessionService(
             ),
         )
         actionLogRepository.save(SimulationActionLog.system(session, ActionCode.SESSION_START))
-        return SimulationSessionDetail(session, breed, Equipment.NONE, activeWalkSeq = null)
+        return detailAssembler.assemble(session, breed)
     }
 }
