@@ -131,7 +131,7 @@ data class ActionLogResponse(
     val actionType: ActionType,
     @field:Schema(description = ACTION_CODE_DESC, example = "FEED")
     val actionCode: ActionCode,
-    @field:Schema(description = "쓴 물품. 물품을 쓰지 않은 행동이면 null", nullable = true)
+    @field:Schema(description = "쓴 물품(소모품, 놀아 주기면 고른 장난감). 물품을 쓰지 않은 행동이면 null", nullable = true)
     val item: LoggedItem?,
     @field:Schema(description = "산책 중 행동이면 산책 번호, 아니면 null", nullable = true, example = "null")
     val walkSeq: Long?,

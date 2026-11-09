@@ -12,6 +12,7 @@ import com.ssafy.animal.simulation.application.port.out.ShopItemRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationSessionRepository
 import com.ssafy.animal.simulation.application.port.out.TransactionEntry
 import com.ssafy.animal.simulation.application.port.out.TransactionRepository
+import com.ssafy.animal.simulation.domain.ActionCode
 import com.ssafy.animal.simulation.domain.ActionType
 import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.ItemCategory
@@ -29,6 +30,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.test.util.ReflectionTestUtils
+import java.time.OffsetDateTime
 
 /** 서비스 테스트용 메모리 저장소. 포트 계약만 흉내 낸다 */
 class FakeSimulationStore :
@@ -91,10 +93,17 @@ class FakeSimulationStore :
         }
     }
 
+    /** 저장할 로그에 찍을 시각(실제로는 @CreationTimestamp). 테스트가 행동 시각에 맞춰 바꾼다 */
+    var now: OffsetDateTime? = null
+
     override fun save(log: SimulationActionLog) = log.also {
         ReflectionTestUtils.setField(it, "actionLogSeq", 50000L + logs.size + 1)
+        now?.let { at -> ReflectionTestUtils.setField(it, "regDttm", at) }
         logs += it
     }
+
+    override fun findLastActionDttm(sessionSeq: Long, actionCode: ActionCode) =
+        logs.filter { it.sessionSeq == sessionSeq && it.actionCode == actionCode }.mapNotNull { it.regDttm }.maxOrNull()
 
     /** 정렬은 기본값(최근 먼저 = PK desc)만 흉내 낸다 */
     override fun findPage(sessionSeq: Long, type: ActionType?, pageable: Pageable): Page<ActionLogEntry> {
@@ -146,8 +155,23 @@ class FakeSimulationStore :
                 effects = mapOf("cleanliness" to 40, "calmness" to -5), displayOrder = 10,
             ),
             SimulationShopItem(11, "탐색 장난감", ItemCategory.TOY, 4_100, SpeciesScope.ALL, effects = mapOf("bond" to 3), displayOrder = 11),
+            SimulationShopItem(12, "통통 놀이공", ItemCategory.TOY, 8_900, SpeciesScope.ALL, effects = mapOf("bond" to 4, "calmness" to 3), displayOrder = 12),
+            SimulationShopItem(20, "꼬마 쥐 장난감", ItemCategory.TOY, 2_000, SpeciesScope.CAT, effects = mapOf("bond" to 3, "calmness" to 2), displayOrder = 20),
             SimulationShopItem(22, "균형 잡힌 사료", ItemCategory.FOOD, 10_600, SpeciesScope.ALL, effects = mapOf("satiety" to 30), displayOrder = 22),
+            SimulationShopItem(
+                23, "바삭한 미니 비스킷", ItemCategory.SNACK, 4_500, SpeciesScope.ALL,
+                effects = mapOf("satiety" to 5, "bond" to 3, "calmness" to 3), displayOrder = 23,
+            ),
+            SimulationShopItem(
+                27, "동결건조 흰살생선", ItemCategory.SNACK, 13_000, SpeciesScope.CAT,
+                effects = mapOf("satiety" to 10, "bond" to 4, "calmness" to 5), displayOrder = 27,
+            ),
             SimulationShopItem(30, "배변패드", ItemCategory.LITTER, 2_600, SpeciesScope.DOG, effects = mapOf("cleanliness" to 30), displayOrder = 30),
+            SimulationShopItem(
+                33, "향긋한 캣닢", ItemCategory.CATNIP, 9_900, SpeciesScope.CAT,
+                effects = mapOf("energy" to 15, "bond" to 3, "calmness" to -5), displayOrder = 33,
+            ),
+            SimulationShopItem(35, "기본 상비약", ItemCategory.MEDICINE, 15_000, SpeciesScope.ALL, effects = mapOf("health" to 20), displayOrder = 35),
             SimulationShopItem(90, "단종된 간식", ItemCategory.SNACK, 1_000, SpeciesScope.ALL, displayOrder = 90, isActive = false),
             SimulationShopItem(
                 31, "화장실 모래", ItemCategory.LITTER, 7_200, SpeciesScope.CAT,

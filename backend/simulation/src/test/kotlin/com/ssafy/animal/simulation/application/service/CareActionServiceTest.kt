@@ -37,8 +37,12 @@ class CareActionServiceTest {
         tick = Duration.ofHours(1),
         sessionDuration = Duration.ofDays(7),
         stats = StatCalculatorTest.RULES,
-        shop = ShopRules(mapOf(22L to 12, 30L to 10, 31L to 10)),
-        care = CareConfig(mapOf("hydration" to 50)),
+        shop = ShopRules(mapOf(22L to 12, 23L to 5, 30L to 10, 31L to 10, 33L to 4, 35L to 3)),
+        care = CareConfig(
+            waterEffects = mapOf("hydration" to 50),
+            catnipOveruseWindow = Duration.ofHours(6),
+            catnipOveruseEffects = mapOf("calmness" to -20),
+        ),
     )
     private val calculator = StatCalculator(properties.stats, properties.tick)
     private val inventory = SimulationInventory(store, properties)
@@ -144,6 +148,126 @@ class CareActionServiceTest {
     }
 
     @Test
+    fun `간식은 기구 없이 간식 1개를 써서 효과를 반영한다`() {
+        buy(23)
+
+        val result = act(ActionCode.SNACK, itemSeq = 23)
+
+        assertEquals(mapOf(Stat.SATIETY to 5, Stat.BOND to 3, Stat.CALMNESS to 3), result.statDelta)
+        assertEquals(4, result.consumedItem!!.remainingQuantity)
+        assertEquals(ActionCode.SNACK, store.logs.single().actionCode)
+    }
+
+    @Test
+    fun `약은 기구 없이 약 1개를 써서 건강을 올린다`() {
+        buy(35)
+        ReflectionTestUtils.setField(session, "health", 50.toShort())
+
+        val result = act(ActionCode.MEDICINE, itemSeq = 35)
+
+        assertEquals(mapOf(Stat.HEALTH to 20), result.statDelta)
+        assertEquals(70, session.stats().health)
+    }
+
+    @Test
+    fun `놀아 주기는 장난감을 고르지 않으면 보유한 첫 번째 장난감 효과를 쓰고 장난감은 줄지 않는다`() {
+        buy(12)
+        buy(11)
+
+        val result = act(ActionCode.PLAY)
+
+        assertEquals(mapOf(Stat.BOND to 3), result.statDelta)
+        assertNull(result.consumedItem)
+        assertEquals(11L, store.logs.single().itemSeq)
+        assertEquals(1, store.find(sessionSeq, 11)!!.quantity)
+    }
+
+    @Test
+    fun `놀아 주기는 itemSeq로 보유한 장난감을 고를 수 있다`() {
+        buy(11)
+        buy(12)
+
+        val result = act(ActionCode.PLAY, itemSeq = 12)
+
+        assertEquals(mapOf(Stat.BOND to 4, Stat.CALMNESS to 3), result.statDelta)
+        assertEquals(12L, store.logs.single().itemSeq)
+    }
+
+    @Test
+    fun `놀아 주기의 장난감 오류`() {
+        assertError(SimulationErrorCode.SIMULATION_EQUIPMENT_MISSING) { act(ActionCode.PLAY) }
+
+        buy(11)
+        buy(22)
+        // 장난감이 아닌 물품은 400, 없는 물품 404, 사지 않은 장난감 409
+        val notToy = assertFailsWith<BusinessException> { act(ActionCode.PLAY, itemSeq = 22) }
+        assertEquals(CommonErrorCode.COMMON_INVALID_INPUT, notToy.errorCode)
+        assertEquals("itemSeq", notToy.errors.single().field)
+        assertError(SimulationErrorCode.SIMULATION_SHOP_ITEM_NOT_FOUND) { act(ActionCode.PLAY, itemSeq = 999) }
+        assertError(SimulationErrorCode.SIMULATION_ITEM_NOT_IN_INVENTORY) { act(ActionCode.PLAY, itemSeq = 20) }
+        assertTrue(store.logs.isEmpty())
+    }
+
+    /** 고양이 세션에서 캣닢 주기. 로그 시각을 행동 시각에 맞춘다 */
+    private fun giveCatnip(catSeq: Long, at: OffsetDateTime) = run {
+        store.now = at
+        serviceAt(at).act(18, catSeq, CareActionCommand(ActionCode.GIVE_CATNIP, 33))
+    }
+
+    @Test
+    fun `캣닢은 활력·친밀도는 오르고 안정감은 조금 떨어지며 캣닢 1개를 쓴다`() {
+        val cat = startSession(SpeciesType.CAT, userSeq = 18).sessionSeq!!
+        buy(33, seq = cat)
+
+        val result = giveCatnip(cat, start)
+
+        assertEquals(mapOf(Stat.BOND to 3, Stat.CALMNESS to -5, Stat.ENERGY to 15), result.statDelta)
+        assertEquals(3, result.consumedItem!!.remainingQuantity)
+        assertEquals(ActionCode.GIVE_CATNIP, store.logs.single().actionCode)
+    }
+
+    @Test
+    fun `직전 캣닢 뒤 6시간 안에 또 주면 남용으로 안정감만 크게 떨어진다`() {
+        val cat = startSession(SpeciesType.CAT, userSeq = 18).sessionSeq!!
+        buy(33, seq = cat)
+        giveCatnip(cat, start)
+
+        val overused = giveCatnip(cat, start.plusHours(5))
+
+        assertEquals(mapOf(Stat.CALMNESS to -20), overused.statDelta)
+        // 남용이어도 캣닢은 쓴다
+        assertEquals(2, overused.consumedItem!!.remainingQuantity)
+    }
+
+    @Test
+    fun `직전 캣닢에서 6시간이 지나면 다시 평소 효과다`() {
+        val cat = startSession(SpeciesType.CAT, userSeq = 18).sessionSeq!!
+        buy(33, seq = cat)
+        giveCatnip(cat, start)
+
+        val result = giveCatnip(cat, start.plusHours(6))
+
+        assertEquals(mapOf(Stat.BOND to 3, Stat.CALMNESS to -5, Stat.ENERGY to 15), result.statDelta)
+    }
+
+    @Test
+    fun `캣닢은 고양이 전용이라 개 세션은 409`() {
+        assertError(SimulationErrorCode.SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES) { act(ActionCode.GIVE_CATNIP, itemSeq = 33) }
+    }
+
+    @Test
+    fun `간식·약의 물품 오류(누락·분류 불일치·종 불일치·미보유)`() {
+        buy(1)
+        val missing = assertFailsWith<BusinessException> { act(ActionCode.SNACK) }
+        assertEquals("itemSeq", missing.errors.single().field)
+        val mismatch = assertFailsWith<BusinessException> { act(ActionCode.MEDICINE, itemSeq = 23) }
+        assertEquals("itemSeq", mismatch.errors.single().field)
+        // 개 세션에 고양이 전용 간식, 사지 않은 약
+        assertError(SimulationErrorCode.SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES) { act(ActionCode.SNACK, itemSeq = 27) }
+        assertError(SimulationErrorCode.SIMULATION_ITEM_NOT_IN_INVENTORY) { act(ActionCode.MEDICINE, itemSeq = 35) }
+    }
+
+    @Test
     fun `필요 기구가 없으면 409 SIMULATION_EQUIPMENT_MISSING이고 소모품은 그대로다`() {
         buy(22)
 
@@ -173,7 +297,7 @@ class CareActionServiceTest {
 
     @Test
     fun `아직 만들지 않은 돌봄이나 산책·시스템 코드는 400 COMMON_INVALID_INPUT(actionCode)`() {
-        listOf(ActionCode.SNACK, ActionCode.VET_VISIT, ActionCode.GIVE_WATER, ActionCode.SESSION_START).forEach { code ->
+        listOf(ActionCode.VET_VISIT, ActionCode.GIVE_WATER, ActionCode.SESSION_START).forEach { code ->
             val error = assertFailsWith<BusinessException> { act(code) }
             assertEquals(CommonErrorCode.COMMON_INVALID_INPUT, error.errorCode)
             assertEquals("actionCode", error.errors.single().field)

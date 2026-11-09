@@ -6,6 +6,7 @@ import com.ssafy.animal.common.persistence.SortPolicy
 import com.ssafy.animal.simulation.application.port.out.ActionLogEntry
 import com.ssafy.animal.simulation.application.port.out.SimulationActionLogRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationSessionRepository
+import com.ssafy.animal.simulation.domain.ActionCode
 import com.ssafy.animal.simulation.domain.ActionType
 import com.ssafy.animal.simulation.domain.QSimulationActionLog.Companion.simulationActionLog
 import com.ssafy.animal.simulation.domain.QSimulationSession.Companion.simulationSession
@@ -25,6 +26,7 @@ import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
+import java.time.OffsetDateTime
 
 interface SimulationSessionJpaRepository : JpaRepository<SimulationSession, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -63,6 +65,13 @@ class SimulationPersistenceAdapter(
         val total = queryFactory.select(simulationSession.count()).from(simulationSession).where(condition).fetchOne() ?: 0L
         return PageImpl(content, pageable, total)
     }
+
+    // (session_seq, reg_dttm DESC) 인덱스로 그 세션의 최근 로그 중에서 찾는다
+    override fun findLastActionDttm(sessionSeq: Long, actionCode: ActionCode): OffsetDateTime? =
+        queryFactory.select(simulationActionLog.regDttm.max())
+            .from(simulationActionLog)
+            .where(simulationActionLog.sessionSeq.eq(sessionSeq), simulationActionLog.actionCode.eq(actionCode))
+            .fetchOne()
 
     // IDENTITY라 save 시점에 INSERT가 나가므로 부분 UNIQUE 위반도 여기서 잡힌다
     override fun save(session: SimulationSession): SimulationSession = try {
