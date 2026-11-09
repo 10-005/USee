@@ -13,6 +13,9 @@ import com.ssafy.animal.core.missing.application.port.`in`.MissingReportUseCase
 import com.ssafy.animal.core.pet.application.port.`in`.PetUseCase
 import com.ssafy.animal.core.sample.application.port.`in`.SampleUseCase
 import com.ssafy.animal.core.user.application.port.`in`.UserProfileUseCase
+import com.ssafy.animal.core.shelter.application.port.`in`.ShelterUseCase
+import com.ssafy.animal.core.found.application.port.`in`.FoundReportUseCase
+import com.ssafy.animal.core.rescue.application.port.`in`.RescueUseCase
 import org.hamcrest.Matchers.containsInAnyOrder
 import org.hamcrest.Matchers.empty
 import org.junit.jupiter.api.Test
@@ -67,6 +70,15 @@ abstract class SwaggerDocsTestBase {
 
     @MockitoBean
     lateinit var imageUseCase: ImageUseCase
+
+    @MockitoBean
+    lateinit var shelterUseCase: ShelterUseCase
+
+    @MockitoBean
+    lateinit var foundReportUseCase: FoundReportUseCase
+
+    @MockitoBean
+    lateinit var rescueUseCase: RescueUseCase
 
     @MockitoBean
     lateinit var authUseCase: AuthUseCase
