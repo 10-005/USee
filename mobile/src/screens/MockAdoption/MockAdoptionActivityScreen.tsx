@@ -25,6 +25,14 @@ import { useShopSession } from '../shop/useShopSession';
 import { useShopStore } from '../../stores/shopStore';
 import { consumeCareSupplies } from '../../services/shop/consumption';
 import { availableProducts } from '../../services/shop/catalog';
+import { SuddenEventDialog } from './SuddenEventDialog';
+import {
+  getVetVisit,
+  SimulationEventStatus,
+  SimulationTriggerContext,
+  SimulationTriggerType,
+  type SimulationEvent,
+} from '../../services/simulation/events';
 
 // Temporary preview values until the server provides the selected pet's stats.
 const mockPetStats: PetStats = {
@@ -54,6 +62,10 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const hasTreat = petProducts.some(p => p.category === '간식' && owns(p.id));
   const hasToy = petProducts.some(p => p.category === '놀이' && p.kind === 'durable' && owns(p.id));
   const [statsVisible, setStatsVisible] = useState(false);
+  // TODO: refresh from the current session on entry / EVENT push, then apply server status.
+  const [pendingEvent, setPendingEvent] = useState<SimulationEvent | null>(null);
+  const [suddenEvent, setSuddenEvent] = useState<SimulationEvent | null>(null);
+  const vetVisit = getVetVisit(pendingEvent);
   const walkPending = useRef(false);
   const [care, setCare] = useState<{
     kind: 'food' | 'water' | 'treat' | 'fetch';
@@ -199,6 +211,12 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     setToast(message);
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 2500);
+  };
+  const confirmTreatment = () => {
+    if (vetVisit) {
+      // TODO: send 18.6 VET_VISIT; update only from the successful server response.
+      Alert.alert('동물병원', '진료 기능은 준비 중이에요.');
+    }
   };
   const startBath = () => {
     if (careBusy.current || bathingRef.current || leaving || busy || !roomVisible) {
@@ -386,6 +404,39 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           </Pressable>
           <View style={styles.actionColumns}>
             <View style={styles.action}>
+              {__DEV__ && pet ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="돌발 이벤트 팝업 미리보기"
+                  disabled={busy || leaving || !!care || treatActive}
+                  onPress={() => {
+                    setStatsVisible(false);
+                    const preview: SimulationEvent = {
+                      occurrenceSeq: 90001,
+                      scenario: {
+                        scenarioSeq: 5,
+                        title: '축 처져 있어요',
+                        description: '밥을 잘 안 먹고 구석에서 움직이지 않아요. 어떻게 해줘야 할까요?',
+                        triggerContext: SimulationTriggerContext.Home,
+                        triggerType: SimulationTriggerType.Condition,
+                      },
+                      vetVisit: { cost: 30000 },
+                      walkSeq: null,
+                      status: SimulationEventStatus.Pending,
+                      occurredDttm: new Date().toISOString(),
+                      expiresDttm: new Date(Date.now() + 21600000).toISOString(),
+                      resolvedDttm: null,
+                      resolvedActionCode: null,
+                      resultText: null,
+                    };
+                    setPendingEvent(preview);
+                    setSuddenEvent(preview);
+                  }}
+                  style={({ pressed }) => [styles.previewButton, pressed && styles.pressed]}
+                >
+                  <Text style={styles.previewLabel}>돌발 팝업 미리보기</Text>
+                </Pressable>
+              ) : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="AR 산책하기"
@@ -449,15 +500,27 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                 />
                 <Text style={styles.actionCaption}>쇼핑하기</Text>
               </Pressable>
-              <View style={styles.actionButton}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="동물병원"
+                accessibilityValue={{
+                  text: vetVisit !== null ? '치료 필요' : '치료 대기 없음',
+                }}
+                disabled={busy || leaving || !!care || treatActive || !vetVisit}
+                onPress={confirmTreatment}
+                style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
+              >
                 <Image
-                  accessibilityLabel="동물병원"
-                  source={require('../../assets/images/mock-adoption/img_veterinary_hospital.png')}
+                  source={
+                    vetVisit !== null
+                      ? require('../../assets/images/mock-adoption/img_veterinary_hospital_with_red_dot.png')
+                      : require('../../assets/images/mock-adoption/img_veterinary_hospital.png')
+                  }
                   resizeMode="contain"
                   style={styles.actionImage}
                 />
                 <Text style={styles.actionCaption}>동물병원</Text>
-              </View>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -607,6 +670,14 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           ]}
         />
       ) : null}
+      {pet && suddenEvent ? (
+        <SuddenEventDialog
+          event={suddenEvent}
+          image={pet.image}
+          petName={session?.petName ?? pet.name}
+          onClose={() => setSuddenEvent(null)}
+        />
+      ) : null}
       {pet ? (
         <PetStatsDialog
           visible={statsVisible}
@@ -620,6 +691,15 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
+  previewButton: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#68BF65',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 8,
+  },
+  previewLabel: { ...typography.captionSemiBold12, color: '#327A30' },
   container: { flex: 1, backgroundColor: colors.white },
   background: { position: 'absolute', width: '100%', height: '100%' },
   groundToy: { position: 'absolute', width: 40, height: 40 },
