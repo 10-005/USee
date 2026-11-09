@@ -1,5 +1,6 @@
 package com.ssafy.animal.core.animal.adapter.`in`.web
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.ssafy.animal.common.docs.SuccessResponseSchema
 import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.common.exception.CommonErrorCode
@@ -77,6 +78,7 @@ data class UpdateAnimalRequest(
     @field:Schema(description = "나이. 보내면 변경, null이면 비운다. 최대 30자", nullable = true, example = "2살 추정")
     val age: Optional<String>? = null,
     @field:Schema(description = "중성화 여부. 보내면 변경, null이면 모름으로 바꾼다", nullable = true, example = "true")
+    @get:JsonProperty("isNeutered")
     val isNeutered: Optional<Boolean>? = null,
     @field:Schema(description = "몸무게. 보내면 변경, null이면 비운다. 최대 30자", nullable = true, example = "3.5kg")
     val weight: Optional<String>? = null,

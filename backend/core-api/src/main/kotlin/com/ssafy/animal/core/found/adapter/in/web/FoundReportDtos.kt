@@ -1,5 +1,6 @@
 package com.ssafy.animal.core.found.adapter.`in`.web
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonUnwrapped
 import com.ssafy.animal.common.docs.SuccessResponseSchema
 import com.ssafy.animal.common.exception.BusinessException
@@ -99,6 +100,7 @@ data class UpdateFoundReportRequest(
     @field:Schema(description = "추정 몸무게. 최대 30자" + KEEP_OR_CLEAR, nullable = true, example = "약 3kg")
     val weight: Optional<String>? = null,
     @field:Schema(description = "중성화 여부. 생략하면 유지, null을 보내면 모름으로 바꾼다", nullable = true, example = "true")
+    @get:JsonProperty("isNeutered")
     val isNeutered: Optional<Boolean>? = null,
     @field:Schema(description = "마이크로칩 번호. 최대 30자" + KEEP_OR_CLEAR, nullable = true, example = "410100012345678")
     val microchipNumber: Optional<String>? = null,
@@ -107,6 +109,7 @@ data class UpdateFoundReportRequest(
     @field:Schema(description = "신고자 연락처. 최대 30자" + KEEP_REQUIRED, nullable = true, example = "01012345678")
     val reporterPhone: Optional<String>? = null,
     @field:Schema(description = "연락처 공개 여부" + KEEP_REQUIRED, nullable = true, example = "true")
+    @get:JsonProperty("isPhonePublic")
     val isPhonePublic: Optional<Boolean>? = null,
     @field:Schema(description = "기준점 설명" + KEEP_OR_CLEAR, nullable = true, example = "공원 정문 앞")
     val landmarkDescription: Optional<String>? = null,

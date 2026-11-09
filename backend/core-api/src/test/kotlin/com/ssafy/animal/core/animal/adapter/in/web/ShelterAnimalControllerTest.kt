@@ -197,13 +197,13 @@ class ShelterAnimalControllerTest {
 
     @Test
     fun `11_5는 보낸 필드만 넘기고 11_10 상세를 돌려준다`() {
-        val command = UpdateAnimalCommand(age = Optional.of("2살 추정"), weight = Optional.empty(), imageSeqs = listOf(1702))
+        val command = UpdateAnimalCommand(age = Optional.of("2살 추정"), isNeutered = Optional.of(true), weight = Optional.empty(), imageSeqs = listOf(1702))
         given(useCase.update(SHELTER, 700, command)).willReturn(shelterDetail)
 
         mockMvc.patch("/api/core/v1/shelter-animals/700") {
             header(HttpHeaders.AUTHORIZATION, SHELTER_TOKEN)
             contentType = MediaType.APPLICATION_JSON
-            content = """{"age":"2살 추정","weight":null,"imageSeqs":[1702]}"""
+            content = """{"age":"2살 추정","isNeutered":true,"weight":null,"imageSeqs":[1702]}"""
         }.andExpect {
             status { isOk() }
             jsonPath("$.data.animalSeq") { value(700) }
