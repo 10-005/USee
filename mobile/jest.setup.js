@@ -1,5 +1,15 @@
 /* global jest */
 
+jest.mock('@react-native-firebase/messaging', () => ({
+  getMessaging: jest.fn(() => ({})),
+  getToken: jest.fn().mockResolvedValue('test-fcm-token'),
+  getInitialNotification: jest.fn().mockResolvedValue(null),
+  onMessage: jest.fn(() => jest.fn()),
+  onNotificationOpenedApp: jest.fn(() => jest.fn()),
+  onTokenRefresh: jest.fn(() => jest.fn()),
+  setBackgroundMessageHandler: jest.fn(),
+}));
+
 jest.mock('@op-engineering/op-sqlite', () => require('./__mocks__/opSqliteMock'));
 
 jest.mock('@dr.pogodin/react-native-fs', () => ({

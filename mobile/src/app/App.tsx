@@ -6,12 +6,15 @@
  */
 
 import { StatusBar, useColorScheme } from 'react-native';
+import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { RootNavigator } from './navigation/RootNavigator';
+import { startForegroundMessaging } from '../services/notifications/firebaseMessaging';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
+  useEffect(() => startForegroundMessaging(), []);
 
   return (
     <SafeAreaProvider>
