@@ -35,7 +35,7 @@ data class CareRule(
 }
 
 /**
- * 돌봄 행동 규칙표(S15P31D106-238). SNACK·PLAY·MEDICINE은 246, VET_VISIT은 254에서 추가한다.
+ * 돌봄 행동 규칙표(S15P31D106-238·246). VET_VISIT은 254에서 추가한다.
  * 목욕은 위생 관리 키트만 있으면 무제한(사용자 결정 2026-11-09, 명세 18.6의 SHAMPOO 소모를 대체).
  */
 object CareRules {
@@ -54,6 +54,9 @@ object CareRules {
             consumable = null,
             effectSource = EffectSource.REQUIRED_EQUIPMENT,
         ),
+        // 246: 기구 없이 소모품만 쓰는 행동
+        CareRule(ActionCode.SNACK, requiredEquipment = null, consumable = ItemCategory.SNACK, effectSource = EffectSource.CONSUMED_ITEM),
+        CareRule(ActionCode.MEDICINE, requiredEquipment = null, consumable = ItemCategory.MEDICINE, effectSource = EffectSource.CONSUMED_ITEM),
     ).associateBy { it.actionCode }
 
     /** 지원하는 돌봄 행동이 아니면 null(산책·시스템 코드, 아직 만들지 않은 행동) */

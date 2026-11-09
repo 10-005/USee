@@ -37,7 +37,7 @@ class CareActionServiceTest {
         tick = Duration.ofHours(1),
         sessionDuration = Duration.ofDays(7),
         stats = StatCalculatorTest.RULES,
-        shop = ShopRules(mapOf(22L to 12, 30L to 10, 31L to 10)),
+        shop = ShopRules(mapOf(22L to 12, 23L to 5, 30L to 10, 31L to 10, 35L to 3)),
         care = CareConfig(mapOf("hydration" to 50)),
     )
     private val calculator = StatCalculator(properties.stats, properties.tick)
@@ -144,6 +144,40 @@ class CareActionServiceTest {
     }
 
     @Test
+    fun `간식은 기구 없이 간식 1개를 써서 효과를 반영한다`() {
+        buy(23)
+
+        val result = act(ActionCode.SNACK, itemSeq = 23)
+
+        assertEquals(mapOf(Stat.SATIETY to 5, Stat.BOND to 3, Stat.CALMNESS to 3), result.statDelta)
+        assertEquals(4, result.consumedItem!!.remainingQuantity)
+        assertEquals(ActionCode.SNACK, store.logs.single().actionCode)
+    }
+
+    @Test
+    fun `약은 기구 없이 약 1개를 써서 건강을 올린다`() {
+        buy(35)
+        ReflectionTestUtils.setField(session, "health", 50.toShort())
+
+        val result = act(ActionCode.MEDICINE, itemSeq = 35)
+
+        assertEquals(mapOf(Stat.HEALTH to 20), result.statDelta)
+        assertEquals(70, session.stats().health)
+    }
+
+    @Test
+    fun `간식·약의 물품 오류(누락·분류 불일치·종 불일치·미보유)`() {
+        buy(1)
+        val missing = assertFailsWith<BusinessException> { act(ActionCode.SNACK) }
+        assertEquals("itemSeq", missing.errors.single().field)
+        val mismatch = assertFailsWith<BusinessException> { act(ActionCode.MEDICINE, itemSeq = 23) }
+        assertEquals("itemSeq", mismatch.errors.single().field)
+        // 개 세션에 고양이 전용 간식, 사지 않은 약
+        assertError(SimulationErrorCode.SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES) { act(ActionCode.SNACK, itemSeq = 27) }
+        assertError(SimulationErrorCode.SIMULATION_ITEM_NOT_IN_INVENTORY) { act(ActionCode.MEDICINE, itemSeq = 35) }
+    }
+
+    @Test
     fun `필요 기구가 없으면 409 SIMULATION_EQUIPMENT_MISSING이고 소모품은 그대로다`() {
         buy(22)
 
@@ -173,7 +207,7 @@ class CareActionServiceTest {
 
     @Test
     fun `아직 만들지 않은 돌봄이나 산책·시스템 코드는 400 COMMON_INVALID_INPUT(actionCode)`() {
-        listOf(ActionCode.SNACK, ActionCode.VET_VISIT, ActionCode.GIVE_WATER, ActionCode.SESSION_START).forEach { code ->
+        listOf(ActionCode.VET_VISIT, ActionCode.GIVE_WATER, ActionCode.SESSION_START).forEach { code ->
             val error = assertFailsWith<BusinessException> { act(code) }
             assertEquals(CommonErrorCode.COMMON_INVALID_INPUT, error.errorCode)
             assertEquals("actionCode", error.errors.single().field)

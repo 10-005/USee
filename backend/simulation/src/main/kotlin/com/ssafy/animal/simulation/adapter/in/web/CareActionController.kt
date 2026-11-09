@@ -56,7 +56,9 @@ class CareActionController(
             "  - `WATER`: 물그릇 보유, 물은 무료(수분 +50, 가안), `itemSeq` 생략\n" +
             "  - `CLEAN_LITTER`: 화장실(고양이 화장실·강아지 배변판) 보유 + 배변용품(LITTER) 1개, `itemSeq` 필수\n" +
             "  - `BATHE`: 위생 관리 키트 보유, 소모 없이 무제한(키트 효과), `itemSeq` 생략\n" +
-            "- 그 밖의 코드(SNACK·PLAY·MEDICINE·VET_VISIT·산책·시스템)는 아직 400.\n" +
+            "  - `SNACK`: 기구 없이 간식(SNACK) 1개, `itemSeq` 필수\n" +
+            "  - `MEDICINE`: 기구 없이 약(MEDICINE) 1개, `itemSeq` 필수\n" +
+            "- 그 밖의 코드(PLAY·VET_VISIT·산책·시스템)는 아직 400.\n" +
             "- `statDelta`는 실제로 바뀐 양만 담는다(포만감 90에 +30이면 +10, 이미 100이면 빠짐).\n" +
             "- 돈은 쓰지 않는다. 마지막 행동 시각이 갱신되고 행동 이력(CARE)이 1건 남는다.\n" +
             "- `resolvedEvent`는 돌발 이벤트 기능 전까지 항상 null.",
@@ -159,7 +161,7 @@ class CareActionController(
                 """"stats":{"satiety":64,"hydration":100,"cleanliness":77,"bond":31,"calmness":46,"health":90,"energy":55,"calculatedDttm":"2026-11-01T17:00:00+09:00"},""" +
                 """"balance":118000,"resolvedEvent":null},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val UNSUPPORTED_ACTION =
-            """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"actionCode","reason":"지원하지 않는 돌봄 행동입니다: SNACK"}],"traceId":"4f2c9e1a7b3d4c5e"}"""
+            """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"actionCode","reason":"지원하지 않는 돌봄 행동입니다: VET_VISIT"}],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val ITEM_REQUIRED =
             """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"itemSeq","reason":"이 행동에는 사용할 물품이 필요합니다."}],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val ITEM_MISMATCH =
@@ -169,10 +171,10 @@ class CareActionController(
 
 /** actionCode는 DB action_code 값(FEED 등). 응답·18.7의 actionType(CARE 등 분류)과 다른 필드다 */
 data class CareActionRequest(
-    @field:Schema(description = "돌봄 행동 코드. 지금은 FEED·WATER·CLEAN_LITTER·BATHE", example = "FEED")
+    @field:Schema(description = "돌봄 행동 코드. 지금은 FEED·WATER·CLEAN_LITTER·BATHE·SNACK·MEDICINE", example = "FEED")
     @field:NotNull
     val actionCode: ActionCode?,
-    @field:Schema(description = "쓸 소모품 번호(인벤토리 값). FEED·CLEAN_LITTER는 필수, WATER·BATHE는 생략(보내도 무시)", nullable = true, example = "22")
+    @field:Schema(description = "쓸 소모품 번호(인벤토리 값). FEED·CLEAN_LITTER·SNACK·MEDICINE은 필수, WATER·BATHE는 생략(보내도 무시)", nullable = true, example = "22")
     val itemSeq: Long?,
 ) {
     fun toCommand() = CareActionCommand(actionCode!!, itemSeq)

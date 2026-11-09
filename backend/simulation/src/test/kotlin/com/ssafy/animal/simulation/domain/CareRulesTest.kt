@@ -28,8 +28,14 @@ class CareRulesTest {
     }
 
     @Test
+    fun `간식·약은 기구 없이 소모품 1개를 쓰고 그 효과를 쓴다`() {
+        assertEquals(CareRule(ActionCode.SNACK, null, ItemCategory.SNACK, EffectSource.CONSUMED_ITEM), CareRules.of(ActionCode.SNACK))
+        assertEquals(CareRule(ActionCode.MEDICINE, null, ItemCategory.MEDICINE, EffectSource.CONSUMED_ITEM), CareRules.of(ActionCode.MEDICINE))
+    }
+
+    @Test
     fun `아직 만들지 않은 돌봄과 산책·시스템 코드는 규칙이 없다`() {
-        listOf(ActionCode.SNACK, ActionCode.PLAY, ActionCode.MEDICINE, ActionCode.VET_VISIT, ActionCode.GIVE_WATER, ActionCode.SESSION_START)
+        listOf(ActionCode.VET_VISIT, ActionCode.GIVE_WATER, ActionCode.SESSION_START)
             .forEach { assertNull(CareRules.of(it), it.name) }
     }
 

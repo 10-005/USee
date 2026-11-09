@@ -147,7 +147,16 @@ class FakeSimulationStore :
             ),
             SimulationShopItem(11, "탐색 장난감", ItemCategory.TOY, 4_100, SpeciesScope.ALL, effects = mapOf("bond" to 3), displayOrder = 11),
             SimulationShopItem(22, "균형 잡힌 사료", ItemCategory.FOOD, 10_600, SpeciesScope.ALL, effects = mapOf("satiety" to 30), displayOrder = 22),
+            SimulationShopItem(
+                23, "바삭한 미니 비스킷", ItemCategory.SNACK, 4_500, SpeciesScope.ALL,
+                effects = mapOf("satiety" to 5, "bond" to 3, "calmness" to 3), displayOrder = 23,
+            ),
+            SimulationShopItem(
+                27, "동결건조 흰살생선", ItemCategory.SNACK, 13_000, SpeciesScope.CAT,
+                effects = mapOf("satiety" to 10, "bond" to 4, "calmness" to 5), displayOrder = 27,
+            ),
             SimulationShopItem(30, "배변패드", ItemCategory.LITTER, 2_600, SpeciesScope.DOG, effects = mapOf("cleanliness" to 30), displayOrder = 30),
+            SimulationShopItem(35, "기본 상비약", ItemCategory.MEDICINE, 15_000, SpeciesScope.ALL, effects = mapOf("health" to 20), displayOrder = 35),
             SimulationShopItem(90, "단종된 간식", ItemCategory.SNACK, 1_000, SpeciesScope.ALL, displayOrder = 90, isActive = false),
             SimulationShopItem(
                 31, "화장실 모래", ItemCategory.LITTER, 7_200, SpeciesScope.CAT,
