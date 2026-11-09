@@ -7,8 +7,8 @@
 
 ## FCM 연결 지점
 
-현재 프로젝트에는 FCM SDK 및 메시지 수신부가 없다. 서버 payload 규격을 확인한 뒤,
-포그라운드/백그라운드 수신부에서 모의입양 돌발 이벤트를 구분하고 아래 내부 형식으로 변환한다.
+Android FCM SDK 및 포그라운드/백그라운드 수신부가 연결되어 있다.
+`src/services/notifications/remoteMessage.ts`에서 모의입양 돌발 이벤트를 구분하고 아래 내부 형식으로 변환한다.
 이 형식은 서버의 확정된 payload 규격이 아니다.
 
 ```ts
