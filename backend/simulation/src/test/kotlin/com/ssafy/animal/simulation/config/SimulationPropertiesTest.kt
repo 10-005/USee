@@ -22,5 +22,6 @@ class SimulationPropertiesTest {
         assertEquals(Duration.ofHours(1), properties.tick)
         assertEquals(Duration.ofDays(7), properties.sessionDuration)
         assertEquals(StatCalculatorTest.RULES, properties.stats)
+        assertEquals(com.ssafy.animal.simulation.domain.EventConfig(), properties.event)
     }
 }

@@ -70,7 +70,14 @@ class SimulationActionLog(
 
     companion object {
         /** 18.6 돌봄 행동 로그. 실제로 바뀐 스탯과 행동 직후 스탯을 남긴다(변화가 없으면 statDelta는 빈 객체) */
-        fun care(session: SimulationSession, actionCode: ActionCode, itemSeq: Long?, result: EffectResult): SimulationActionLog {
+        /** occurrenceSeq는 이 행동이 해결한 돌발 이벤트(Q486). 그때 result는 물품 효과 + 이벤트 해결 효과 합산 */
+        fun care(
+            session: SimulationSession,
+            actionCode: ActionCode,
+            itemSeq: Long?,
+            result: EffectResult,
+            occurrenceSeq: Long? = null,
+        ): SimulationActionLog {
             require(actionCode.type == ActionType.CARE) { "CARE 코드가 아닙니다: $actionCode" }
             return SimulationActionLog(
                 sessionSeq = checkNotNull(session.sessionSeq) { "저장 전 세션입니다." },
@@ -78,8 +85,20 @@ class SimulationActionLog(
                 statsAfter = result.after,
                 statDelta = result.deltaJson(),
                 itemSeq = itemSeq,
+                occurrenceSeq = occurrenceSeq,
             )
         }
+
+        /** 돌발 이벤트 만료(EVENT_EXPIRE). stat_delta는 실제 반영된 방치 효과(Q486) */
+        fun eventExpire(session: SimulationSession, occurrence: EventOccurrence, result: EffectResult): SimulationActionLog =
+            SimulationActionLog(
+                sessionSeq = checkNotNull(session.sessionSeq) { "저장 전 세션입니다." },
+                actionCode = ActionCode.EVENT_EXPIRE,
+                statsAfter = result.after,
+                statDelta = result.deltaJson(),
+                walkSeq = occurrence.walkSeq,
+                occurrenceSeq = checkNotNull(occurrence.occurrenceSeq) { "저장 전 이벤트입니다." },
+            )
 
         /** SYSTEM 로그(SESSION_START·SESSION_END). 스탯 변화 없이 그 시점 스탯만 남긴다 */
         fun system(session: SimulationSession, actionCode: ActionCode): SimulationActionLog {

@@ -6,6 +6,7 @@ import com.ssafy.animal.simulation.application.port.`in`.CareActionCommand
 import com.ssafy.animal.simulation.application.port.`in`.CareActionResult
 import com.ssafy.animal.simulation.application.port.`in`.CareActionUseCase
 import com.ssafy.animal.simulation.application.port.`in`.ConsumedItem
+import com.ssafy.animal.simulation.application.port.`in`.ResolvedEvent
 import com.ssafy.animal.simulation.domain.ActionCode
 import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.Personality
@@ -79,6 +80,31 @@ class CareActionControllerTest {
             jsonPath("$.data.stats.calculatedDttm") { value("2026-11-01T14:00:00+09:00") }
             jsonPath("$.data.balance") { value(150000) }
             jsonPath("$.data.resolvedEvent") { value(null) }
+        }
+    }
+
+    @Test
+    fun `18_6은 이벤트를 해결했으면 resolvedEvent에 결과와 이벤트 몫 변화를 담는다`() {
+        val session = SimulationSession.start(
+            userSeq = 17, breedSeq = 21, animalName = "초코", speciesType = SpeciesType.DOG, personality = Personality.FRIENDLY,
+            expectedCost = 150_000, startedAt = start, endsAt = start.plusDays(7),
+            initialStats = Stats(satiety = 64, hydration = 58, cleanliness = 77, bond = 31, calmness = 46, health = 90, energy = 55),
+        ).also { ReflectionTestUtils.setField(it, "sessionSeq", 3001L) }
+        val effect = session.applyEffect(StatEffect(mapOf(Stat.CALMNESS to 10, Stat.ENERGY to -10)))
+        val log = SimulationActionLog.care(session, ActionCode.PLAY, 11L, effect, occurrenceSeq = 90001L)
+            .also { ReflectionTestUtils.setField(it, "actionLogSeq", 50004L) }
+        val resolved = ResolvedEvent(90001L, "쿠션을 물어뜯어요", "신나게 놀았어요.", mapOf(Stat.CALMNESS to 10, Stat.ENERGY to -10), 0)
+        given(careActionUseCase.act(17, 3001L, CareActionCommand(ActionCode.PLAY, null)))
+            .willReturn(CareActionResult(log, session, null, effect.delta, resolved))
+
+        post(WebTestTokens.USER, """{"actionCode":"PLAY"}""").andExpect {
+            status { isOk() }
+            jsonPath("$.data.resolvedEvent.occurrenceSeq") { value(90001) }
+            jsonPath("$.data.resolvedEvent.scenarioTitle") { value("쿠션을 물어뜯어요") }
+            jsonPath("$.data.resolvedEvent.resultText") { value("신나게 놀았어요.") }
+            jsonPath("$.data.resolvedEvent.eventStatDelta.calmness") { value(10) }
+            jsonPath("$.data.resolvedEvent.eventStatDelta.energy") { value(-10) }
+            jsonPath("$.data.resolvedEvent.eventCost") { value(0) }
         }
     }
 

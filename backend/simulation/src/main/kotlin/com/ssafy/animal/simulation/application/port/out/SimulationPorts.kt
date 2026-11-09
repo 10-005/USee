@@ -3,7 +3,10 @@ package com.ssafy.animal.simulation.application.port.out
 import com.ssafy.animal.simulation.domain.ActionCode
 import com.ssafy.animal.simulation.domain.ActionType
 import com.ssafy.animal.simulation.domain.Equipment
+import com.ssafy.animal.simulation.domain.EventOccurrence
+import com.ssafy.animal.simulation.domain.EventScenario
 import com.ssafy.animal.simulation.domain.ItemCategory
+import com.ssafy.animal.simulation.domain.OccurrenceStatus
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.ReportSummaryInput
 import com.ssafy.animal.simulation.domain.SessionStatus
@@ -16,6 +19,8 @@ import com.ssafy.animal.simulation.domain.SimulationTransaction
 import com.ssafy.animal.simulation.domain.SpeciesType
 import com.ssafy.animal.simulation.domain.SpendRecord
 import com.ssafy.animal.simulation.domain.TransactionType
+import com.ssafy.animal.simulation.domain.TriggerContext
+import com.ssafy.animal.simulation.domain.TriggerType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import java.time.OffsetDateTime
@@ -106,19 +111,41 @@ data class UserInfo(
 )
 
 /**
- * 세션 종료 시 산책·이벤트 정리와 리포트 카운트. 산책·이벤트 엔티티는 각 기능 작업(252·256)에서 만들므로
- * 그 전까지 테이블을 직접 다룬다.
+ * 세션 종료 시 산책 정리와 리포트 산책 수. 산책 엔티티는 산책 작업(252)에서 만들므로 그 전까지 테이블을 직접 다룬다.
+ * 이벤트 쪽은 EventOccurrenceRepository(255)로 옮겼다.
  */
 interface SessionClosingRepository {
     /** 진행 중 산책을 ENDED로 닫는다(산책 효과 없음). 닫은 수 */
     fun endActiveWalks(sessionSeq: Long, endedAt: OffsetDateTime): Int
 
-    /** PENDING 이벤트를 방치 효과 없이 EXPIRED로 닫는다(Q486). 닫은 수 */
-    fun expirePendingEvents(sessionSeq: Long): Int
-
-    fun countEvents(sessionSeq: Long): EventCounts
-
     fun countWalks(sessionSeq: Long): Int
+}
+
+/** 돌발 이벤트 시나리오 마스터(DB 41). 시드로만 넣고 읽기만 한다 */
+interface EventScenarioRepository {
+    fun findByScenarioSeq(scenarioSeq: Long): EventScenario?
+
+    fun findByScenarioSeqs(scenarioSeqs: Collection<Long>): Map<Long, EventScenario>
+
+    /** 판매 중(is_active)인 그 장소·유형의 시나리오. 종·성격 거르기는 부르는 쪽에서 */
+    fun findActive(context: TriggerContext, type: TriggerType): List<EventScenario>
+}
+
+/** 발생 이벤트(DB 43). 부르는 쪽이 세션 행을 잠근 상태에서 쓴다 */
+interface EventOccurrenceRepository {
+    fun save(occurrence: EventOccurrence): EventOccurrence
+
+    /** 세션의 PENDING 이벤트(부분 UNIQUE라 최대 1건). 없으면 null */
+    fun findPending(sessionSeq: Long): EventOccurrence?
+
+    /** since 이후 발생한 그 장소·유형 이벤트 수(RANDOM 일차당 횟수 제한) */
+    fun countOccurredSince(sessionSeq: Long, context: TriggerContext, type: TriggerType, since: OffsetDateTime): Int
+
+    /** 18.12 세션 이벤트 목록. status가 null이면 전체. 정렬은 occurredDttm만 허용(기본 desc, 동률 PK desc) */
+    fun findPage(sessionSeq: Long, status: OccurrenceStatus?, pageable: Pageable): Page<EventOccurrence>
+
+    /** 리포트 eventCount(해결 + 만료)·eventResolvedCount */
+    fun countEvents(sessionSeq: Long): EventCounts
 }
 
 /** 발생 이벤트 수(해결 + 만료)와 해결 수 */

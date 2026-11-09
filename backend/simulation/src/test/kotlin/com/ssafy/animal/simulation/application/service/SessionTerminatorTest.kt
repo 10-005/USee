@@ -1,6 +1,7 @@
 package com.ssafy.animal.simulation.application.service
 
-import com.ssafy.animal.simulation.application.port.out.EventCounts
+import com.ssafy.animal.simulation.domain.EventOccurrence
+import com.ssafy.animal.simulation.domain.OccurrenceStatus
 import com.ssafy.animal.simulation.config.SimulationProperties
 import com.ssafy.animal.simulation.domain.ActionCode
 import com.ssafy.animal.simulation.domain.Personality
@@ -20,7 +21,6 @@ import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class SessionTerminatorTest {
@@ -29,6 +29,7 @@ class SessionTerminatorTest {
     private val published = mutableListOf<Any>()
     private val terminator = SessionTerminator(
         closingRepository = store,
+        occurrenceRepository = store,
         actionLogRepository = store,
         reportRepository = store,
         reportCalculator = store.reportCalculator(SimulationProperties(Duration.ofHours(1), Duration.ofDays(7), StatCalculatorTest.RULES)),
@@ -47,8 +48,13 @@ class SessionTerminatorTest {
     @Test
     fun `산책·이벤트를 닫고 상태·종료 시각을 정한 뒤 리포트와 SESSION_END 로그를 남기고 종료 이벤트를 낸다`() {
         store.activeWalks[sessionSeq] = 8001L
-        store.pendingEvents += sessionSeq
-        store.eventCounts[sessionSeq] = EventCounts(total = 3, resolved = 2)
+        store.stockScenarios()
+        val scenario = store.scenarios.getValue(1)
+        // 해결 2건 + 대기 1건(종료 시 방치 효과 없이 만료돼 발생 수에 들어간다)
+        repeat(2) {
+            store.save(EventOccurrence.occur(session, scenario, start, start.plusHours(6))).resolve(start.plusHours(1), 50_000L + it)
+        }
+        val pending = store.save(EventOccurrence.occur(session, scenario, start.plusDays(6), start.plusDays(6).plusHours(6)))
         store.walkCounts[sessionSeq] = 2
         store.now = start.plusHours(1)
         store.save(SimulationTransaction.purchase(sessionSeq, store.shopItems.getValue(22), 1, 10_600, 19_400))
@@ -60,7 +66,8 @@ class SessionTerminatorTest {
         assertEquals(SessionStatus.COMPLETED, session.status)
         assertEquals(start.plusDays(7), session.endedDttm)
         assertNull(store.activeWalks[sessionSeq])
-        assertFalse(sessionSeq in store.pendingEvents)
+        assertEquals(OccurrenceStatus.EXPIRED, pending.status)
+        assertNull(store.findPending(sessionSeq))
 
         assertEquals(report, store.reports.single())
         assertEquals(10_600, report.totalSpent)

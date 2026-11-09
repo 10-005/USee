@@ -19,11 +19,14 @@ class SessionStatRefresher(
 
     fun now(): OffsetDateTime = OffsetDateTime.now(clock)
 
-    /** 마지막 계산 시각부터 min(지금, 예정 종료)까지 지난 tick을 반영한다. 반영할 tick이 없으면 쓰지 않는다 */
-    fun refresh(session: SimulationSession) {
+    /**
+     * 마지막 계산 시각부터 min(until, 예정 종료)까지 지난 tick을 반영한다. 반영할 tick이 없으면 쓰지 않는다.
+     * until은 기본 지금이고, 이벤트 만료처럼 그 시각까지만 먼저 계산할 때 넘긴다.
+     */
+    fun refresh(session: SimulationSession, until: OffsetDateTime = now()) {
         if (session.status != SessionStatus.IN_PROGRESS) return
-        val until = minOf(now(), session.endsDttm)
-        val result = statCalculator.advance(session.stats(), session.personality, session.startedDttm, session.statsCalculatedDttm, until)
+        val limit = minOf(until, session.endsDttm)
+        val result = statCalculator.advance(session.stats(), session.personality, session.startedDttm, session.statsCalculatedDttm, limit)
         if (result.ticksApplied > 0) session.applyStats(result.stats, result.calculatedAt)
     }
 }

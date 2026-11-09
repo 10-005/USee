@@ -5,6 +5,13 @@ import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.port.out.BreedReader
 import com.ssafy.animal.simulation.application.port.out.CatalogSpeciesCode
 import com.ssafy.animal.simulation.application.port.out.EventCounts
+import com.ssafy.animal.simulation.application.port.out.EventOccurrenceRepository
+import com.ssafy.animal.simulation.application.port.out.EventScenarioRepository
+import com.ssafy.animal.simulation.domain.EventOccurrence
+import com.ssafy.animal.simulation.domain.EventScenario
+import com.ssafy.animal.simulation.domain.OccurrenceStatus
+import com.ssafy.animal.simulation.domain.TriggerContext
+import com.ssafy.animal.simulation.domain.TriggerType
 import com.ssafy.animal.simulation.application.port.out.ReportListEntry
 import com.ssafy.animal.simulation.application.port.out.ReportRepository
 import com.ssafy.animal.simulation.application.port.out.UserInfo
@@ -45,6 +52,7 @@ import org.springframework.test.util.ReflectionTestUtils
 import java.time.Clock
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.util.random.RandomGenerator
 
 /** 서비스 테스트용 메모리 저장소. 포트 계약만 흉내 낸다 */
 class FakeSimulationStore :
@@ -57,11 +65,11 @@ class FakeSimulationStore :
     TransactionRepository,
     ReportRepository,
     UserReader,
+    EventScenarioRepository,
+    EventOccurrenceRepository,
     SessionClosingRepository {
 
     val reports = mutableListOf<SimulationReport>()
-    val pendingEvents = mutableSetOf<Long>()
-    val eventCounts = mutableMapOf<Long, EventCounts>()
     val walkCounts = mutableMapOf<Long, Int>()
 
     override fun save(report: SimulationReport) = report.also {
@@ -97,9 +105,72 @@ class FakeSimulationStore :
 
     override fun endActiveWalks(sessionSeq: Long, endedAt: OffsetDateTime) = if (activeWalks.remove(sessionSeq) != null) 1 else 0
 
-    override fun expirePendingEvents(sessionSeq: Long) = if (pendingEvents.remove(sessionSeq)) 1 else 0
+    // ===== 돌발 이벤트 =====
+    val scenarios = mutableMapOf<Long, EventScenario>()
+    val occurrences = mutableListOf<EventOccurrence>()
 
-    override fun countEvents(sessionSeq: Long) = eventCounts[sessionSeq] ?: EventCounts(0, 0)
+    override fun findByScenarioSeq(scenarioSeq: Long) = scenarios[scenarioSeq]
+
+    override fun findByScenarioSeqs(scenarioSeqs: Collection<Long>) = scenarioSeqs.mapNotNull { scenarios[it] }.associateBy { it.scenarioSeq }
+
+    override fun findActive(context: TriggerContext, type: TriggerType) = scenarios.values
+        .filter { it.isActive && it.triggerContext == context && it.triggerType == type }
+        .sortedBy { it.scenarioSeq }
+
+    override fun save(occurrence: EventOccurrence) = occurrence.also {
+        if (it.occurrenceSeq == null) {
+            ReflectionTestUtils.setField(it, "occurrenceSeq", 90000L + occurrences.size + 1)
+            occurrences += it
+        }
+    }
+
+    override fun findPending(sessionSeq: Long) = occurrences.firstOrNull { it.sessionSeq == sessionSeq && it.isPending }
+
+    override fun countOccurredSince(sessionSeq: Long, context: TriggerContext, type: TriggerType, since: OffsetDateTime) =
+        occurrences.count { o ->
+            val scenario = scenarios.getValue(o.scenarioSeq)
+            o.sessionSeq == sessionSeq && !o.occurredDttm.isBefore(since) && scenario.triggerContext == context && scenario.triggerType == type
+        }
+
+    /** 정렬은 기본값(최근 발생 먼저 = PK desc)만 흉내 낸다 */
+    override fun findPage(sessionSeq: Long, status: OccurrenceStatus?, pageable: Pageable): Page<EventOccurrence> {
+        val all = occurrences.filter { it.sessionSeq == sessionSeq && (status == null || it.status == status) }.sortedByDescending { it.occurrenceSeq }
+        return PageImpl(all.drop(pageable.offset.toInt()).take(pageable.pageSize), pageable, all.size.toLong())
+    }
+
+    override fun countEvents(sessionSeq: Long): EventCounts {
+        val closed = occurrences.filter { it.sessionSeq == sessionSeq && !it.isPending }
+        return EventCounts(total = closed.size, resolved = closed.count { it.status == OccurrenceStatus.RESOLVED })
+    }
+
+    /** 시드와 같은 번호·정답의 시나리오 몇 개 */
+    fun stockScenarios() {
+        listOf(
+            EventScenario(
+                1, "물그릇을 엎었어요", "목이 마를 텐데", TriggerContext.HOME, TriggerType.RANDOM, ActionCode.WATER, weight = 2,
+                resolveEffects = mapOf("hydration" to 10, "calmness" to 5), resultText = "시원하게 마셨어요.",
+                neglectEffects = mapOf("hydration" to -20, "calmness" to -5), neglectText = "물을 채워 줬어야 해요.",
+            ),
+            EventScenario(
+                5, "쿠션을 물어뜯어요", "심심해 보여요", TriggerContext.HOME, TriggerType.RANDOM, ActionCode.PLAY, speciesScope = SpeciesScope.DOG,
+                resolveEffects = mapOf("bond" to 5, "calmness" to 10, "satiety" to -5, "energy" to -10), resultText = "신나게 놀았어요.",
+                neglectEffects = mapOf("calmness" to -15, "bond" to -5), neglectText = "놀아 줬어야 해요.",
+            ),
+            EventScenario(
+                7, "헤어볼을 토했어요", "털이 많이 빠져요", TriggerContext.HOME, TriggerType.RANDOM, ActionCode.BATHE, speciesScope = SpeciesScope.CAT,
+                resolveEffects = mapOf("cleanliness" to 5, "health" to 5, "calmness" to -5), neglectEffects = mapOf("health" to -10),
+            ),
+            EventScenario(
+                8, "축 처져 있어요", "평소와 달라요", TriggerContext.HOME, TriggerType.CONDITION, ActionCode.VET_VISIT,
+                triggerCondition = mapOf("stat" to "health", "op" to "<", "value" to 40), cooldownHours = 24, resolveCost = 30_000,
+                resolveEffects = mapOf("health" to 30, "calmness" to -10), resultText = "진단서: 가벼운 장염", neglectEffects = mapOf("health" to -15),
+            ),
+            EventScenario(
+                13, "헥헥거려요", "혀를 내밀어요", TriggerContext.WALK, TriggerType.RANDOM, ActionCode.GIVE_WATER, speciesScope = SpeciesScope.DOG,
+                resolveEffects = mapOf("hydration" to 10), neglectEffects = mapOf("hydration" to -15),
+            ),
+        ).forEach { scenarios[it.scenarioSeq] = it }
+    }
 
     override fun countWalks(sessionSeq: Long) = walkCounts[sessionSeq] ?: 0
 
@@ -252,25 +323,50 @@ class FakeSimulationStore :
         ).forEach { shopItems[it.itemSeq] = it }
     }
 
-    fun assembler() = SimulationSessionDetailAssembler(this, this, this)
+    fun assembler() = SimulationSessionDetailAssembler(this, this, this, this, this)
 
     /** 종료 시 발행된 내부 이벤트 */
     val published = mutableListOf<Any>()
 
-    fun reportCalculator(properties: SimulationProperties) = ReportCalculator(this, this, this, properties)
+    fun reportCalculator(properties: SimulationProperties) = ReportCalculator(this, this, this, this, properties)
 
     fun terminator(properties: SimulationProperties) =
-        SessionTerminator(this, this, this, reportCalculator(properties), ApplicationEventPublisher { published += it })
+        SessionTerminator(this, this, this, this, reportCalculator(properties), ApplicationEventPublisher { published += it })
 
     /** 고정 시각 now 기준 진행(지연 계산·종료 판정) */
     fun progress(properties: SimulationProperties, now: OffsetDateTime) = SessionProgress(
-        SessionStatRefresher(StatCalculator(properties.stats, properties.tick), Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul"))),
+        refresher(properties, now),
         terminator(properties),
+        events(properties),
     )
+
+    fun refresher(properties: SimulationProperties, now: OffsetDateTime) =
+        SessionStatRefresher(StatCalculator(properties.stats, properties.tick), Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul")))
+
+    fun events(properties: SimulationProperties = DEFAULT_PROPERTIES, random: RandomGenerator = ScriptedRandom()) =
+        SessionEvents(this, this, this, this, properties, random)
 
     companion object {
         val MALTESE = BreedInfo(21, "말티즈", CatalogSpeciesCode.DOG, Personality.FRIENDLY, "https://cdn/breeds/maltese.png")
         val KOREAN_SHORTHAIR = BreedInfo(31, "코리안 숏헤어", CatalogSpeciesCode.CAT, Personality.TIMID, null)
         val ETC = BreedInfo(90, "기타", CatalogSpeciesCode.ETC, Personality.TIMID, null)
+
+        /** 이벤트 테스트용 기본 설정(1시간 tick, 7일, 이벤트 설정 기본값) */
+        val DEFAULT_PROPERTIES = SimulationProperties(java.time.Duration.ofHours(1), java.time.Duration.ofDays(7), com.ssafy.animal.simulation.domain.StatCalculatorTest.RULES)
     }
+}
+
+/**
+ * 정해진 값을 차례로 돌려주는 난수(RANDOM 이벤트 테스트용). 값이 떨어지면 nextDouble은 0.999(발생 안 함), nextInt는 0.
+ * 기본 생성자는 언제나 발생하지 않는다.
+ */
+class ScriptedRandom(doubles: List<Double> = emptyList(), ints: List<Int> = emptyList()) : RandomGenerator {
+    private val doubles = ArrayDeque(doubles)
+    private val ints = ArrayDeque(ints)
+
+    override fun nextLong(): Long = 0L
+
+    override fun nextDouble(): Double = doubles.removeFirstOrNull() ?: 0.999
+
+    override fun nextInt(bound: Int): Int = (ints.removeFirstOrNull() ?: 0).also { require(it in 0 until bound) { "nextInt($bound) 범위 밖: $it" } }
 }
