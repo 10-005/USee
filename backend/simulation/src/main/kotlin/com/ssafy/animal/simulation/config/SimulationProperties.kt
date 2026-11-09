@@ -1,5 +1,6 @@
 package com.ssafy.animal.simulation.config
 
+import com.ssafy.animal.simulation.domain.ShopRules
 import com.ssafy.animal.simulation.domain.StatRules
 import org.springframework.boot.context.properties.ConfigurationProperties
 import java.time.Duration
@@ -12,4 +13,5 @@ data class SimulationProperties(
     /** 세션 길이. 예정 종료 = 시작 + 이 값(M2) */
     val sessionDuration: Duration,
     val stats: StatRules,
+    val shop: ShopRules = ShopRules(),
 )
