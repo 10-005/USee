@@ -9,59 +9,87 @@ import {
 import { parseWalkVoiceCommand } from './voiceCommand';
 import { getWalkSpeechErrorMessage } from './speechFeedback';
 
-type SpeechResult = { status: string; transcript: string; reason?: string };
+type SpeechResult = { status: string; transcript: string; reason?: string; requestId: number };
 const speech = NativeModules.WalkSpeech;
+let nextAttemptId = 0;
 
 export function useWalkVoice(active: boolean, petName = '') {
-  const [enabled, setEnabled] = useState(true);
-  const [message, setMessage] = useState('음성 명령 준비 중');
-  const [isRecognizing, setIsRecognizing] = useState(false);
-  const [isHearing, setIsHearing] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
   const [actionRequest, setActionRequest] = useState('');
-  const requestId = useRef(0);
+  const commandId = useRef(0);
+  const startRef = useRef<() => Promise<void>>(async () => {});
+
   useEffect(() => {
-    setIsRecognizing(false);
-    setIsHearing(false);
-    if (!active || !enabled) {
-      return;
-    }
-    if (Platform.OS !== 'android' || !speech) {
-      setMessage('이 기기에서는 음성 명령을 지원하지 않습니다.');
-      return;
-    }
     let disposed = false;
-    let lifecycleVersion = 0;
-    const subscription = new NativeEventEmitter(speech).addListener('WalkSpeechResult', event => {
-      const { status, transcript, reason } = event as SpeechResult;
-      if (disposed || AppState.currentState !== 'active') {
+    let attempt = 0;
+    let busy = false;
+    let listening = false;
+    const stop = () => {
+      attempt = 0;
+      busy = false;
+      listening = false;
+      setIsStarting(false);
+      setIsListening(false);
+      setMessage('');
+      speech?.stop();
+    };
+    const fail = (text: string) => {
+      stop();
+      setError(text);
+    };
+    setIsListening(false);
+    setIsStarting(false);
+    setMessage('');
+    if (!active) {
+      startRef.current = async () => {};
+      return;
+    }
+    const subscription =
+      speech && Platform.OS === 'android'
+        ? new NativeEventEmitter(speech).addListener('WalkSpeechResult', value => {
+            const event = value as SpeechResult;
+            if (
+              disposed ||
+              !listening ||
+              event.requestId !== attempt ||
+              AppState.currentState !== 'active'
+            ) {
+              return;
+            }
+            const { status, transcript, reason } = event;
+            if (status === 'recognized') {
+              const command = parseWalkVoiceCommand(transcript, petName);
+              stop();
+              if (command) {
+                setActionRequest(`${++commandId.current}:${command}`);
+              }
+            } else if (status === 'partial') {
+              setMessage(transcript ? `“${transcript}”` : '');
+            } else if (status === 'permissionDenied') {
+              fail('설정에서 마이크 권한을 허용해주세요');
+            } else if (status === 'unavailable') {
+              fail('음성 인식 서비스 설정을 확인해주세요');
+            } else if (status === 'error' || status === 'waiting') {
+              fail(getWalkSpeechErrorMessage(reason));
+            }
+          })
+        : undefined;
+    startRef.current = async () => {
+      if (disposed || busy || AppState.currentState !== 'active') {
         return;
       }
-      setIsHearing(status === 'hearing');
-      if (status === 'recognized') {
-        setIsRecognizing(false);
-        setMessage(transcript ? `“${transcript}”` : '앉아 / 멈춰 / 가자 / 돌아');
-        const command = parseWalkVoiceCommand(transcript, petName);
-        if (command) {
-          setActionRequest(`${++requestId.current}:${command}`);
-        }
-      } else if (status === 'hearing') {
-        setIsRecognizing(true);
-      } else if (status === 'permissionDenied') {
-        setIsRecognizing(false);
-        setMessage('설정에서 마이크 권한을 허용해주세요');
-      } else if (status === 'unavailable') {
-        setIsRecognizing(false);
-        setMessage('음성 인식 서비스 설정을 확인해주세요');
-      } else if (status === 'error') {
-        setIsRecognizing(false);
-        setMessage(getWalkSpeechErrorMessage(reason));
-      } else if (status === 'retrying') {
-        setIsRecognizing(false);
-        setMessage(getWalkSpeechErrorMessage(reason, true));
+      setError('');
+      if (Platform.OS !== 'android' || !speech) {
+        setError('이 기기에서는 음성 명령을 지원하지 않습니다.');
+        return;
       }
-    });
-    const start = async () => {
-      const version = ++lifecycleVersion;
+      busy = true;
+      const current = ++nextAttemptId;
+      attempt = current;
+      setIsStarting(true);
       try {
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
@@ -72,51 +100,43 @@ export function useWalkVoice(active: boolean, petName = '') {
             buttonPositive: '확인',
           },
         );
-        if (disposed || version !== lifecycleVersion || AppState.currentState !== 'active') {
+        if (disposed || current !== attempt || AppState.currentState !== 'active') {
           return;
         }
-        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-          setIsRecognizing(true);
-          setMessage('듣는 중 · 앉아 / 멈춰 / 가자 / 돌아');
-          speech.start();
-        } else {
-          setIsRecognizing(false);
-          setMessage('설정에서 마이크 권한을 허용해주세요');
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          fail('설정에서 마이크 권한을 허용해주세요');
+          return;
         }
+        listening = true;
+        setIsStarting(false);
+        setIsListening(true);
+        setMessage('');
+        speech.start(current);
       } catch {
-        if (!disposed) {
-          setIsRecognizing(false);
-          setMessage('마이크 권한 확인 실패 · 다시 켜주세요');
+        if (!disposed && current === attempt) {
+          fail('음성 인식을 시작하지 못했어요. 버튼을 다시 눌러주세요.');
         }
       }
     };
-    if (AppState.currentState === 'active') {
-      start();
-    }
     const appState = AppState.addEventListener('change', state => {
-      if (state === 'active') {
-        start();
-      } else {
-        setIsHearing(false);
-        setIsRecognizing(false);
-        lifecycleVersion++;
-        speech.stop();
+      if (state !== 'active') {
+        stop();
       }
     });
     return () => {
       disposed = true;
-      lifecycleVersion++;
-      subscription.remove();
+      subscription?.remove();
       appState.remove();
-      speech.stop();
+      stop();
     };
-  }, [active, enabled, petName]);
+  }, [active, petName]);
+
   return {
-    enabled,
-    setEnabled,
-    isHearing: active && enabled && isHearing,
+    startListening: () => startRef.current(),
+    isListening: active && isListening,
+    isStarting: active && isStarting,
     message,
+    error,
     actionRequest,
-    isRecognizing: active && enabled && isRecognizing,
   };
 }

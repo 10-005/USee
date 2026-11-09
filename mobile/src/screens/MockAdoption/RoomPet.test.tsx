@@ -119,7 +119,9 @@ test('fetch runs to the toy, picks it up, carries it home and drops it', async (
   const completions: Array<(result: { finished: boolean }) => void> = [];
   const timing = jest.spyOn(Animated, 'timing').mockReturnValue({
     start: callback => {
-      if (callback) {completions.push(callback);}
+      if (callback) {
+        completions.push(callback);
+      }
     },
     stop: jest.fn(),
     reset: jest.fn(),
@@ -162,3 +164,56 @@ test('fetch runs to the toy, picks it up, carries it home and drops it', async (
   AppState.currentState = previous;
   jest.useRealTimers();
 });
+
+test.each(['food', 'water'] as const)(
+  'turns before returning from %s and completes after arrival',
+  async kind => {
+    jest.useFakeTimers();
+    const previous = AppState.currentState;
+    AppState.currentState = 'active';
+    mockFocused = true;
+    const listener = jest
+      .spyOn(AppState, 'addEventListener')
+      .mockReturnValue({ remove: jest.fn() });
+    const completions: Array<(result: { finished: boolean }) => void> = [];
+    const timing = jest.spyOn(Animated, 'timing').mockReturnValue({
+      start: callback => {
+        if (callback) {
+          completions.push(callback);
+        }
+      },
+      stop: jest.fn(),
+      reset: jest.fn(),
+    });
+    const done = jest.fn();
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    try {
+      await ReactTestRenderer.act(() => {
+        renderer = ReactTestRenderer.create(
+          <RoomPet
+            petId="dog-1"
+            care={{ kind, offset: { x: -50, y: 80 } }}
+            onCareComplete={done}
+          />,
+        );
+      });
+      const motion = () => renderer.root.findByType('RoomPetView' as never).props.careMotion;
+      await ReactTestRenderer.act(() => completions[0]({ finished: true }));
+      expect(motion()).toBe(kind === 'food' ? 'eat' : 'drink');
+      await ReactTestRenderer.act(() => jest.advanceTimersByTime(2000));
+      expect(motion()).toBe('returnTurn');
+      expect(completions).toHaveLength(1);
+      await ReactTestRenderer.act(() => jest.advanceTimersByTime(650));
+      expect(motion()).toBe('return');
+      expect(done).not.toHaveBeenCalled();
+      await ReactTestRenderer.act(() => completions[1]({ finished: true }));
+      expect(done).toHaveBeenCalledTimes(1);
+    } finally {
+      await ReactTestRenderer.act(() => renderer.unmount());
+      listener.mockRestore();
+      timing.mockRestore();
+      AppState.currentState = previous;
+      jest.useRealTimers();
+    }
+  },
+);

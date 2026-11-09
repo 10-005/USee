@@ -36,7 +36,17 @@ internal class DogLeash(private val view: ARSceneView) : AutoCloseable {
     previousTime = time
     // Keep routing input small; reserve rendered segments for rounded detour bends.
     val desired = curve.points(collar, hand, dt)
-    val points = if (body != null) collision.route(desired,body,segments.size) else desired
+    val routed = if (body != null) collision.route(desired,body,segments.size) else desired
+    val blend = 1f - kotlin.math.exp(-dt.coerceIn(0f, 0.1f) / 0.08f)
+    val softened = if (latestPoints.size == routed.size && dt > 0f && dt < 0.25f)
+      routed.mapIndexed { index, point ->
+        if (index == 0 || index == routed.lastIndex) point
+        else latestPoints[index] + (point - latestPoints[index]) * blend
+      } else routed
+    // Never smooth through the body: validate complete rendered segments.
+    val points = if (body == null || softened.zipWithNext().all { (a, b) ->
+      body.capsules.none { it.intersects(a, b) }
+    }) softened else routed
     latestPoints = points
     segments.forEachIndexed { index, segment ->
       if (index + 1 >= points.size) {

@@ -7,6 +7,7 @@ test.each([
   ['language', '한국어'],
   ['rateLimit', '요청이 많아요'],
   ['service', '음성 서비스 오류'],
+  ['timeout', '음성을 듣지 못했어요'],
   [undefined, '인식 중단'],
 ])('provides reason-specific recovery feedback for %s', (reason, expected) => {
   expect(getWalkSpeechErrorMessage(reason)).toContain(expected);

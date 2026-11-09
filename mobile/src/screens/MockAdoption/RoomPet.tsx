@@ -77,10 +77,14 @@ export function RoomPet({
         easing: Easing.linear,
         useNativeDriver: true,
       }).start(({ finished }) => {
-        if (!finished || cancelled) {return;}
+        if (!finished || cancelled) {
+          return;
+        }
         setCareMotion('fetchPick');
         timer = setTimeout(() => {
-          if (cancelled) {return;}
+          if (cancelled) {
+            return;
+          }
           callbacks.current.onFetchPhase?.('carry');
           setCareMotion('fetchCarry');
           Animated.timing(offset, {
@@ -89,11 +93,15 @@ export function RoomPet({
             easing: Easing.linear,
             useNativeDriver: true,
           }).start(({ finished: returned }) => {
-            if (!returned || cancelled) {return;}
+            if (!returned || cancelled) {
+              return;
+            }
             setCareMotion('fetchDrop');
             callbacks.current.onFetchPhase?.('drop');
             timer = setTimeout(() => {
-              if (cancelled) {return;}
+              if (cancelled) {
+                return;
+              }
               setCareMotion('');
               callbacks.current.onCareComplete?.();
             }, 700);
@@ -133,19 +141,25 @@ export function RoomPet({
       setCareMotion(care.kind === 'food' ? 'eat' : 'drink');
       timer = setTimeout(() => {
         callbacks.current.onConsumed?.();
-        setCareMotion('return');
-        Animated.timing(offset, {
-          toValue: { x: 0, y: 0 },
-          duration: 1200,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }).start(({ finished: returned }) => {
-          if (!returned || cancelled) {
+        setCareMotion('returnTurn');
+        timer = setTimeout(() => {
+          if (cancelled) {
             return;
           }
-          setCareMotion('');
-          callbacks.current.onCareComplete?.();
-        });
+          setCareMotion('return');
+          Animated.timing(offset, {
+            toValue: { x: 0, y: 0 },
+            duration: 1200,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }).start(({ finished: returned }) => {
+            if (!returned || cancelled) {
+              return;
+            }
+            setCareMotion('');
+            callbacks.current.onCareComplete?.();
+          });
+        }, 650);
       }, 2000);
     });
     return () => {

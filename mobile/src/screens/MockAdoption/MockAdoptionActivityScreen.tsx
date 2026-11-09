@@ -375,16 +375,16 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         pointerEvents={bathing || bathReturning ? 'none' : 'box-none'}
       >
         <View style={styles.header}>
-          <View style={styles.topActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="뒤로가기"
-              disabled={leaving}
-              onPress={() => hideThenNavigate(() => navigation.goBack())}
-              style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-            >
-              <BackIcon width={24} height={24} />
-            </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="뒤로가기"
+            disabled={leaving}
+            onPress={() => hideThenNavigate(() => navigation.goBack())}
+            style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+          >
+            <BackIcon width={24} height={24} />
+          </Pressable>
+          <View style={styles.actionColumns}>
             <View style={styles.action}>
               <Pressable
                 accessibilityRole="button"
@@ -430,45 +430,34 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                 <Text style={styles.quitLabel}>모의입양 그만두기</Text>
               </Pressable>
             </View>
-          </View>
-          <View style={styles.rightActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="알림"
-              style={styles.iconButton}
-            >
-              <Image
-                source={require('../../assets/images/mock-adoption/img_alarm.png')}
-                resizeMode="contain"
-                style={styles.alarm}
-              />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="상점 열기"
-              disabled={busy || leaving}
-              onPress={() =>
-                hideThenNavigate(() =>
-                  navigation.navigate('PetShop', { petId: route.params.petId }),
-                )
-              }
-              style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
-            >
-              <Image
-                source={require('../../assets/images/mock-adoption/img_shop.png')}
-                resizeMode="contain"
-                style={styles.actionImage}
-              />
-              <Text style={styles.actionCaption}>쇼핑하기</Text>
-            </Pressable>
-            <View style={styles.actionButton}>
-              <Image
-                accessibilityLabel="동물병원"
-                source={require('../../assets/images/mock-adoption/img_veterinary_hospital.png')}
-                resizeMode="contain"
-                style={styles.actionImage}
-              />
-              <Text style={styles.actionCaption}>동물병원</Text>
+            <View style={styles.rightActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="상점 열기"
+                disabled={busy || leaving}
+                onPress={() =>
+                  hideThenNavigate(() =>
+                    navigation.navigate('PetShop', { petId: route.params.petId }),
+                  )
+                }
+                style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
+              >
+                <Image
+                  source={require('../../assets/images/mock-adoption/img_shop.png')}
+                  resizeMode="contain"
+                  style={styles.actionImage}
+                />
+                <Text style={styles.actionCaption}>쇼핑하기</Text>
+              </Pressable>
+              <View style={styles.actionButton}>
+                <Image
+                  accessibilityLabel="동물병원"
+                  source={require('../../assets/images/mock-adoption/img_veterinary_hospital.png')}
+                  resizeMode="contain"
+                  style={styles.actionImage}
+                />
+                <Text style={styles.actionCaption}>동물병원</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -526,6 +515,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       !bathing &&
       (hasTreat || treatActive || care?.kind === 'treat') ? (
         <TreatLauncher
+          dockHidden={!!care || treatActive || bathReturning}
           category={pet.category}
           width={roomSize.width}
           height={roomSize.height}
@@ -551,6 +541,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       ) : null}
       {roomVisible && pet?.category === 'dog' && hasToy && !leaving && !bathing ? (
         <TreatLauncher
+          dockHidden={!!care || treatActive || bathReturning}
           item="toy"
           category="dog"
           bottomOffset={92}
@@ -646,13 +637,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
     paddingHorizontal: 16,
     paddingTop: 8,
   },
   iconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  alarm: { width: 36, height: 36 },
   room: { flex: 1 },
   bowls: {
     position: 'absolute',
@@ -669,14 +658,17 @@ const styles = StyleSheet.create({
   bowlImage: { width: '100%', height: '100%' },
   quit: { justifyContent: 'center', minHeight: 48, paddingHorizontal: 4 },
   quitLabel: { ...typography.bodyRegular14, color: colors.gray700 },
-  topActions: { alignItems: 'flex-start', gap: 4 },
+  actionColumns: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
   actionButton: { width: 60, alignItems: 'center', gap: 4 },
   actionImage: { width: 60, height: 60 },
   actionCaption: { ...typography.captionRegular10, color: colors.gray700, textAlign: 'center' },
   rightActions: { width: 60, alignItems: 'center', gap: 16 },
   action: {
     width: 180,
-    marginTop: 8,
     alignItems: 'flex-start',
     gap: 16,
   },

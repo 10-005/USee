@@ -3,7 +3,7 @@ package com.usee.animal.ar
 import kotlin.math.*
 
 /** Predicts a walking companion's route in AR world coordinates. Model forward is local +Z. */
-internal const val DOG_LEAD_METERS = 1.0f
+internal const val DOG_LEAD_METERS = 1.6f
 internal const val DOG_MODEL_UNITS = 0.825f
 internal const val DOG_BODY_RADIUS = 0.24f
 
@@ -89,7 +89,7 @@ class DogLeader(
   }
 
   fun needsUnrestrictedReturn(cameraX: Float, cameraZ: Float): Boolean = placed && poopStage == null && commandedHold == null && attentionSeconds <= 0f &&
-    (recalling || returning || leashLength >= 2f || hypot(cameraX - x, cameraZ - z) >= 2f)
+    (recalling || returning || leashLength >= 2.6f || hypot(cameraX - x, cameraZ - z) >= 2.6f)
 
   fun requestAction(action: String) {
     if (!placed || poopStage != null) return
@@ -270,21 +270,21 @@ class DogLeader(
 
     // Looking steers intent; measured translation predicts where the walker will be.
     // While backing up, stay on the visible side and face the approaching walker.
-    val lead = if (placed && backing) 1.0f else DOG_LEAD_METERS
+    val lead = if (placed && backing) 1.3f else DOG_LEAD_METERS
     val prediction = if (placed) 0.55f else 0f
     userMoving = hypot(velocityX, velocityZ) > 0.15f
     val userDistance = hypot(cameraX - x, cameraZ - z)
     // Rendered rope length includes its vertical span and slack. Horizontal distance
     // remains a fallback until a rope sample is available.
-    if (placed && (leashLength >= 2f || userDistance >= 2f)) returning = true
-    if (returning && userDistance <= 1f && leashLength < 2f) returning = false
+    if (placed && (leashLength >= 2.6f || userDistance >= 2.6f)) returning = true
+    if (returning && userDistance <= DOG_LEAD_METERS + 0.1f && leashLength < 2.6f) returning = false
     val distance = userDistance.coerceAtLeast(0.001f)
-    // Leash recall uses the same one-meter forward position as initial placement.
+    // Leash recall uses the same forward position as initial placement.
     val targetX = if (recalling) cameraX + headingX * DOG_LEAD_METERS
-      else if (returning) cameraX + (x - cameraX) / distance * 0.8f
+      else if (returning) cameraX + (x - cameraX) / distance * 1.5f
       else cameraX + headingX * lead + velocityX * prediction
     val targetZ = if (recalling) cameraZ + headingZ * DOG_LEAD_METERS
-      else if (returning) cameraZ + (z - cameraZ) / distance * 0.8f
+      else if (returning) cameraZ + (z - cameraZ) / distance * 1.5f
       else cameraZ + headingZ * lead + velocityZ * prediction
     if (placed && placementRequested) {
       placementRequested = false

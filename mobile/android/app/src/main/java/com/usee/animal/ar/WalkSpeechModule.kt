@@ -13,16 +13,17 @@ import android.speech.SpeechRecognizer
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 
-/** Foreground walk-only speech sessions. Back off instead of spinning on service errors. */
+/** One button press captures one foreground utterance. */
 class WalkSpeechModule(private val context: ReactApplicationContext) :
   ReactContextBaseJavaModule(context), LifecycleEventListener {
   private val handler = Handler(Looper.getMainLooper())
   private var recognizer: SpeechRecognizer? = null
   private var enabled = false
   private var generation = 0
-  private var failures = 0
+  private var requestId = 0
   private var preferOnDevice = true
   private val restart = Runnable { listen() }
+  private val timeout = Runnable { shutdown(); emit("error", reason = "timeout") }
 
   init { context.addLifecycleEventListener(this) }
   override fun getName() = "WalkSpeech"
@@ -33,6 +34,7 @@ class WalkSpeechModule(private val context: ReactApplicationContext) :
     if (!context.hasActiveReactInstance()) return
     context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
       .emit("WalkSpeechResult", Arguments.createMap().apply {
+        putInt("requestId", requestId)
         putString("status", status)
         putString("transcript", transcript)
         reason?.let { putString("reason", it) }
@@ -40,8 +42,9 @@ class WalkSpeechModule(private val context: ReactApplicationContext) :
       })
   }
 
-  @ReactMethod fun start() { handler.post {
+  @ReactMethod fun start(id: Double) { handler.post {
     if (enabled) return@post
+    requestId = id.toInt()
     if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
       emit("permissionDenied"); return@post
     }
@@ -49,8 +52,8 @@ class WalkSpeechModule(private val context: ReactApplicationContext) :
       emit("unavailable"); return@post
     }
     enabled = true
-    failures = 0
     preferOnDevice = true
+    handler.postDelayed(timeout, 15000)
     listen()
   } }
 
@@ -68,9 +71,9 @@ class WalkSpeechModule(private val context: ReactApplicationContext) :
         override fun onReadyForSpeech(params: Bundle?) { if (session == generation && enabled) emit("listening") }
         override fun onResults(results: Bundle?) {
           if (session != generation || !enabled) return
-          failures = 0
-          emit("recognized", results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty())
-          schedule(350)
+          val transcript = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+          shutdown()
+          emit("recognized", transcript)
         }
         override fun onError(error: Int) {
           if (session != generation || !enabled) return
@@ -84,8 +87,8 @@ class WalkSpeechModule(private val context: ReactApplicationContext) :
           if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
             shutdown(); emit("permissionDenied"); return
           }
-          val idle = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
           val reason = when (error) {
+            SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "timeout"
             SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "network"
             SpeechRecognizer.ERROR_AUDIO -> "audio"
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "busy"
@@ -94,9 +97,8 @@ class WalkSpeechModule(private val context: ReactApplicationContext) :
             SpeechRecognizer.ERROR_SERVER, SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> "service"
             else -> "unknown"
           }
-          if (!idle && ++failures >= 3) { shutdown(); emit("error", reason = reason, errorCode = error); return }
-          emit(if (idle) "waiting" else "retrying", reason = reason, errorCode = error)
-          schedule(if (idle) 500 else (1000L * failures).coerceAtMost(5000))
+          shutdown()
+          emit("error", reason = reason, errorCode = error)
         }
         override fun onBeginningOfSpeech() {
           if (session == generation && enabled) emit("hearing")
@@ -104,13 +106,16 @@ class WalkSpeechModule(private val context: ReactApplicationContext) :
         override fun onRmsChanged(rmsdB: Float) = Unit
         override fun onBufferReceived(buffer: ByteArray?) = Unit
         override fun onEndOfSpeech() = Unit
-        override fun onPartialResults(partialResults: Bundle?) = Unit
+        override fun onPartialResults(partialResults: Bundle?) {
+          if (session != generation || !enabled) return
+          emit("partial", partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty())
+        }
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
       })
       speech.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
-        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
       })
     } catch (_: Exception) { shutdown(); emit("error") }
@@ -126,6 +131,7 @@ class WalkSpeechModule(private val context: ReactApplicationContext) :
     enabled = false
     generation++
     handler.removeCallbacks(restart)
+    handler.removeCallbacks(timeout)
     recognizer?.cancel()
     recognizer?.destroy()
     recognizer = null

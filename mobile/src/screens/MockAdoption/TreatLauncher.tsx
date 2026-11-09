@@ -11,6 +11,7 @@ type Props = {
   height: number;
   target: { x: number; y: number };
   disabled: boolean;
+  dockHidden?: boolean;
   onBusyChange: (busy: boolean) => void;
   onLanded: (point: { x: number; y: number }) => void;
 };
@@ -43,14 +44,18 @@ export function TreatLauncher(props: Props) {
             x: latest.current.width - 20 - 72 + locationX - 36,
             y: latest.current.height - bottom - 72 + locationY - 36,
           };
-          if (latest.current.disabled) {return;}
+          if (latest.current.disabled) {
+            return;
+          }
           position.setValue(point.current);
           phaseRef.current = 'drag';
           setPhase('drag');
           latest.current.onBusyChange(true);
         },
         onPanResponderMove: (_event, gesture) => {
-          if (phaseRef.current !== 'drag') {return;}
+          if (phaseRef.current !== 'drag') {
+            return;
+          }
           position.setValue({ x: point.current.x + gesture.dx, y: point.current.y + gesture.dy });
         },
         onPanResponderRelease: (_event, gesture) => {
@@ -125,7 +130,10 @@ export function TreatLauncher(props: Props) {
         accessibilityLabel={
           props.item === 'toy' ? '잡아서 위로 던져 공놀이하기' : '잡아서 위로 던져 간식 주기'
         }
-        style={[styles.dock, { bottom }]}
+        pointerEvents={props.dockHidden ? 'none' : 'auto'}
+        accessibilityElementsHidden={props.dockHidden}
+        importantForAccessibility={props.dockHidden ? 'no-hide-descendants' : 'auto'}
+        style={[styles.dock, { bottom }, props.dockHidden && styles.hidden]}
       >
         <Image
           source={source}

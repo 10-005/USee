@@ -27,6 +27,9 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
   private val density = resources.displayMetrics.density
   private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val bag = BitmapFactory.decodeResource(resources, R.drawable.img_poop_bag)
+  // Match the 60dp microphone button; keep the carried bag smaller than its dock.
+  private val bagDockScale = 60f * density / maxOf(bag.width, bag.height)
+  private val bagDragScale = minOf(imageScale, bagDockScale * 0.65f)
   private val filledBag = BitmapFactory.decodeResource(resources, R.drawable.img_poop_in_bag)
   private val poopOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }.also {
     context.assets.open("models/img_poop.png").use { stream -> BitmapFactory.decodeStream(stream, null, it) }
@@ -99,8 +102,8 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
   @Suppress("DEPRECATION")
   private val bagY get() = height - maxOf(24f * density,
     rootWindowInsets?.systemWindowInsetBottom?.toFloat() ?: 0f) - bagHitHeight
-  private val bagHitWidth get() = maxOf(bag.width * imageScale / 2f, 32f * density)
-  private val bagHitHeight get() = maxOf(bag.height * imageScale / 2f, 32f * density)
+  private val bagHitWidth get() = maxOf(bag.width * bagDockScale / 2f, 32f * density)
+  private val bagHitHeight get() = maxOf(bag.height * bagDockScale / 2f, 32f * density)
 
   init {
     setWillNotDraw(false)
@@ -192,11 +195,11 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
     // Let Android release these Canvas bitmaps once those references are gone.
   }
 
-  private fun image(canvas: Canvas, bitmap: Bitmap, x: Float, y: Float, alpha: Int = 255) {
+  private fun image(canvas: Canvas, bitmap: Bitmap, x: Float, y: Float, alpha: Int = 255, scale: Float = imageScale) {
     paint.alpha = alpha
     paint.isFilterBitmap = true
-    imageBounds.set(x - bitmap.width * imageScale / 2f, y - bitmap.height * imageScale / 2f,
-      x + bitmap.width * imageScale / 2f, y + bitmap.height * imageScale / 2f)
+    imageBounds.set(x - bitmap.width * scale / 2f, y - bitmap.height * scale / 2f,
+      x + bitmap.width * scale / 2f, y + bitmap.height * scale / 2f)
     canvas.drawBitmap(bitmap, null, imageBounds, paint)
     paint.alpha = 255
   }
@@ -208,7 +211,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
     if (thrownAt == 0L && collectionRequestId == 0L) {
       paint.colorFilter = if (bagAvailable) null else dimFilter
       image(canvas, bag, if (dragging) dragX else bagX, if (dragging) dragY else bagY,
-        if (bagAvailable) 255 else 180)
+        if (bagAvailable) 255 else 180, scale = if (dragging) bagDragScale else bagDockScale)
       paint.colorFilter = null
     }
     if (!tracking || !state.pending) return
@@ -218,7 +221,7 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
       if (elapsed < 350L) {
         val t = elapsed / 350f
         image(canvas, bag, throwX + (targetX - throwX) * t,
-          throwY + (targetY - throwY) * t - 48 * density * 4 * t * (1 - t))
+          throwY + (targetY - throwY) * t - 48 * density * 4 * t * (1 - t), scale = bagDragScale)
       } else if (collecting && elapsed < 850L) {
         poopNode.isVisible = false
         image(canvas, filledBag, targetX, targetY - (elapsed - 350) / 500f * 48 * density,
