@@ -9,6 +9,7 @@ import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SimulationShopItem
 import com.ssafy.animal.simulation.domain.SimulationTransaction
 import com.ssafy.animal.simulation.domain.SpeciesType
+import com.ssafy.animal.simulation.domain.TransactionType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 
@@ -53,7 +54,16 @@ interface ShopItemRepository {
 /** 지출 내역(DB 38). 한 번 쓰고 바꾸지 않는다 */
 interface TransactionRepository {
     fun save(transaction: SimulationTransaction): SimulationTransaction
+
+    /** 18.11 세션 지출 내역. type이 null이면 전체. 정렬은 regDttm만 허용(기본 desc, 동률 PK desc) */
+    fun findPage(sessionSeq: Long, type: TransactionType?, pageable: Pageable): Page<TransactionEntry>
 }
+
+/** 지출 + 구매 물품(EVENT 지출이면 null) */
+data class TransactionEntry(
+    val transaction: SimulationTransaction,
+    val item: SimulationShopItem?,
+)
 
 /** 세션별 보유 물품. 호출하는 쪽이 세션 행을 잠근 상태(FOR UPDATE)에서 쓴다 */
 interface InventoryRepository {

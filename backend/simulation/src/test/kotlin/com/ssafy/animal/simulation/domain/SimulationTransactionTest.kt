@@ -33,6 +33,26 @@ class SimulationTransactionTest {
     }
 
     @Test
+    fun `진료비 기록은 EVENT 유형에 이벤트 번호·금액·잔액을 남기고 물품은 없다`() {
+        val transaction = SimulationTransaction.event(3001L, occurrenceSeq = 90001L, amount = 30_000, balanceAfter = 80_000, scenarioTitle = "축 처져 있어요")
+
+        assertEquals(TransactionType.EVENT, transaction.transactionType)
+        assertEquals(90001L, transaction.occurrenceSeq)
+        assertNull(transaction.itemSeq)
+        assertEquals(1, transaction.quantity)
+        assertEquals(30_000, transaction.amount)
+        assertEquals(80_000, transaction.balanceAfter)
+        assertEquals("동물병원 진료비 · 축 처져 있어요", transaction.description)
+    }
+
+    @Test
+    fun `진료비 표시 문구는 200자로 자른다`() {
+        val transaction = SimulationTransaction.event(3001L, 90001L, 30_000, 80_000, "가".repeat(300))
+
+        assertEquals(200, transaction.description!!.length)
+    }
+
+    @Test
     fun `잔액은 음수까지 내려갈 수 있다`() {
         val session = session(expectedCost = 10_000)
 

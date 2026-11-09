@@ -2,10 +2,8 @@ package com.ssafy.animal.simulation.adapter.out.persistence
 
 import com.querydsl.jpa.impl.JPAQueryFactory
 import com.ssafy.animal.simulation.application.port.out.ShopItemRepository
-import com.ssafy.animal.simulation.application.port.out.TransactionRepository
 import com.ssafy.animal.simulation.domain.QSimulationShopItem.Companion.simulationShopItem
 import com.ssafy.animal.simulation.domain.SimulationShopItem
-import com.ssafy.animal.simulation.domain.SimulationTransaction
 import com.ssafy.animal.simulation.domain.SpeciesScope
 import com.ssafy.animal.simulation.domain.SpeciesType
 import org.springframework.data.jpa.repository.JpaRepository
@@ -13,8 +11,6 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Repository
 
 interface SimulationShopItemJpaRepository : JpaRepository<SimulationShopItem, Long>
-
-interface SimulationTransactionJpaRepository : JpaRepository<SimulationTransaction, Long>
 
 @Repository
 class ShopItemPersistenceAdapter(
@@ -34,12 +30,4 @@ class ShopItemPersistenceAdapter(
     }
 
     override fun findByItemSeq(itemSeq: Long): SimulationShopItem? = shopItemJpaRepository.findByIdOrNull(itemSeq)
-}
-
-@Repository
-class TransactionPersistenceAdapter(
-    private val transactionJpaRepository: SimulationTransactionJpaRepository,
-) : TransactionRepository {
-
-    override fun save(transaction: SimulationTransaction): SimulationTransaction = transactionJpaRepository.save(transaction)
 }
