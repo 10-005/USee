@@ -35,7 +35,7 @@ import { TreatLauncher } from './TreatLauncher';
 import { PetStatsDialog, type PetStats } from './PetStatsDialog';
 import { useShopSession } from '../shop/useShopSession';
 import { useShopStore } from '../../stores/shopStore';
-import { consumeCareSupplies } from '../../services/shop/consumption';
+import { consumeCareSupplies, findCareSupply } from '../../services/shop/consumption';
 import { availableProducts } from '../../services/shop/catalog';
 import { SuddenEventDialog } from './SuddenEventDialog';
 import { VetVisitDialog } from './VetVisitDialog';
@@ -72,6 +72,10 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
   const toilet = useToilet(route.params.petId, pet?.category ?? 'dog');
   const petProducts = availableProducts(pet?.category ?? 'dog');
+  const ownsServer = (category: string) =>
+    petProducts.some(product => product.serverCategory === category && owns(product.id));
+  const careItemSeq = (action: 'food' | 'treat' | 'clean' | 'bath' | 'play') =>
+    pet ? findCareSupply(pet.category, action)?.itemSeq : undefined;
   const hasTreat = petProducts.some(p => p.category === '간식' && owns(p.id));
   const hasToy = petProducts.some(p => p.category === '놀이' && p.kind === 'durable' && owns(p.id));
   const [statsVisible, setStatsVisible] = useState(false);
@@ -297,7 +301,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     if (careBusy.current || bathingRef.current || leaving || busy || !roomVisible) {
       return;
     }
-    const recorded = await recordCare(SimulationCareAction.Bathe);
+    const recorded = await recordCare(SimulationCareAction.Bathe, careItemSeq('bath'));
     if (recorded !== true) {
       showToast(recorded);
       return;
@@ -332,6 +336,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     }
     const recorded = await recordCare(
       kind === 'food' ? SimulationCareAction.Feed : SimulationCareAction.Water,
+      kind === 'food' ? careItemSeq('food') : undefined,
     );
     if (recorded !== true) {
       showToast(recorded);
@@ -429,7 +434,11 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           onHidden={onPetHidden}
         />
       ) : null}
-      {pet && !bathing && (pet.category === 'dog' ? purchased('pads') : owns('litterBox')) ? (
+      {pet &&
+      !bathing &&
+      (pet.category === 'dog'
+        ? purchased('pads') || ownsServer('LITTER')
+        : owns('litterBox') || ownsServer('LITTER_BOX')) ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
@@ -447,7 +456,10 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
               return;
             }
             try {
-              const recorded = await recordCare(SimulationCareAction.CleanLitter);
+              const recorded = await recordCare(
+                SimulationCareAction.CleanLitter,
+                careItemSeq('clean'),
+              );
               if (recorded !== true) {
                 showToast(recorded);
                 return;
@@ -620,7 +632,8 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         <View style={styles.room} pointerEvents="box-none">
           <View style={styles.bowls}>
             {(['food', 'water'] as const).map(kind =>
-              owns(kind === 'food' ? 'bowl' : 'waterBowl') ? (
+              owns(kind === 'food' ? 'bowl' : 'waterBowl') ||
+              ownsServer(kind === 'food' ? 'FOOD_BOWL' : 'WATER_BOWL') ? (
                 <Pressable
                   key={kind}
                   accessibilityRole="button"
@@ -685,7 +698,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           }}
           onLanded={async () => {
             setTreatActive(false);
-            const recorded = await recordCare(SimulationCareAction.Snack);
+            const recorded = await recordCare(SimulationCareAction.Snack, careItemSeq('treat'));
             if (recorded !== true) {
               careBusy.current = false;
               showToast(recorded);
@@ -718,7 +731,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
             setTreatActive(active);
           }}
           onLanded={async point => {
-            const recorded = await recordCare(SimulationCareAction.Play);
+            const recorded = await recordCare(SimulationCareAction.Play, careItemSeq('play'));
             if (recorded !== true) {
               careBusy.current = false;
               setTreatActive(false);
