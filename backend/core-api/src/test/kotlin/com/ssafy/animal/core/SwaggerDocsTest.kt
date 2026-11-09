@@ -6,6 +6,8 @@ import com.ssafy.animal.core.auth.application.port.`in`.AuthUseCase
 import com.ssafy.animal.core.auth.application.port.`in`.KakaoRegisterUseCase
 import com.ssafy.animal.core.auth.application.port.`in`.LocalLoginUseCase
 import com.ssafy.animal.core.auth.application.port.`in`.WithdrawUseCase
+import com.ssafy.animal.core.catalog.application.port.`in`.CatalogQueryUseCase
+import com.ssafy.animal.core.catalog.application.port.`in`.GeocodeUseCase
 import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
 import com.ssafy.animal.core.sample.application.port.`in`.SampleUseCase
 import com.ssafy.animal.core.user.application.port.`in`.UserProfileUseCase
@@ -72,6 +74,12 @@ abstract class SwaggerDocsTestBase {
 
     @MockitoBean
     lateinit var withdrawUseCase: WithdrawUseCase
+
+    @MockitoBean
+    lateinit var catalogQueryUseCase: CatalogQueryUseCase
+
+    @MockitoBean
+    lateinit var geocodeUseCase: GeocodeUseCase
 
     companion object {
         @JvmStatic
