@@ -1,5 +1,6 @@
 -- 동물 기준정보를 국가동물보호정보시스템(animal.go.kr) 공식 코드표에 맞춘다(S15P31D106-103, DB 명세 v21)
 -- 출처: https://www.animal.go.kr/front/awtis/loss/findFrm.do (추출 2026-11-05T06:55:31.410Z). 종 3, 품종 254, 색상 119, 품종별 허용 색상 1523쌍
+-- 작업용 표는 임시 테이블 대신 core 스키마의 일반 테이블로 만들고 끝에서 지운다. 서버 DB는 PUBLIC의 TEMPORARY 권한을 거둬 core_app이 임시 테이블을 만들 수 없다
 -- 기존 행의 번호(breed_seq·color_seq·combination_seq)는 유지해 이미 등록된 반려동물·신고·보호동물·모의 입양이 그대로 보이게 한다
 
 -- 1. 품종 코드: 기타 축종에 공식 코드, 이름이 공식과 다른 품종은 공식 표기로
@@ -310,8 +311,8 @@ INSERT INTO animal_colors (color_name, color_code) VALUES
 ON CONFLICT (color_name) DO UPDATE SET color_code = EXCLUDED.color_code;
 
 -- 4. 옛 가안 색상을 쓰는 데이터는 같은 품종의 대응 공식 색상 조합으로 옮긴다
-CREATE TEMP TABLE old_color_map (species_code VARCHAR(10), old_name VARCHAR(100), new_name VARCHAR(100)) ON COMMIT DROP;
-INSERT INTO old_color_map VALUES
+CREATE TABLE tmp_old_color_map (species_code VARCHAR(10), old_name VARCHAR(100), new_name VARCHAR(100));
+INSERT INTO tmp_old_color_map VALUES
     ('*', '검은색', '검정색'),
     ('*', '황색', '노란색'),
     ('*', '블랙탄', '검정&황갈색'),
@@ -328,34 +329,34 @@ INSERT INTO old_color_map VALUES
     ('*', '턱시도', '흰색/검은색 얼룩무늬'),
     ('*', '카오스', '오렌지브라운/흑색'),
     ('*', '포인트', '고동색말단');
-CREATE TEMP TABLE combo_move ON COMMIT DROP AS
+CREATE TABLE tmp_combo_move AS
 SELECT oc.combination_seq AS old_seq, oc.breed_seq, nc.color_seq AS new_color_seq
 FROM animal_combinations oc
 JOIN animal_colors o ON o.color_seq = oc.color_seq AND o.color_code IS NULL
 JOIN animal_breeds b ON b.breed_seq = oc.breed_seq
 JOIN animal_species s ON s.species_seq = b.species_seq
 JOIN LATERAL (
-    SELECT m.new_name FROM old_color_map m
+    SELECT m.new_name FROM tmp_old_color_map m
     WHERE m.old_name = o.color_name AND m.species_code IN (s.species_code, '*')
     ORDER BY (m.species_code = '*')
     LIMIT 1
 ) m ON TRUE
 JOIN animal_colors nc ON nc.color_name = m.new_name;
 INSERT INTO animal_combinations (breed_seq, color_seq)
-SELECT DISTINCT breed_seq, new_color_seq FROM combo_move
+SELECT DISTINCT breed_seq, new_color_seq FROM tmp_combo_move
 ON CONFLICT (breed_seq, color_seq) DO NOTHING;
-CREATE TEMP TABLE combo_remap ON COMMIT DROP AS
+CREATE TABLE tmp_combo_remap AS
 SELECT m.old_seq, c.combination_seq AS new_seq
-FROM combo_move m JOIN animal_combinations c ON c.breed_seq = m.breed_seq AND c.color_seq = m.new_color_seq;
-UPDATE pets t SET combination_seq = r.new_seq FROM combo_remap r WHERE t.combination_seq = r.old_seq;
-UPDATE missing_reports t SET combination_seq = r.new_seq FROM combo_remap r WHERE t.combination_seq = r.old_seq;
-UPDATE found_reports t SET combination_seq = r.new_seq FROM combo_remap r WHERE t.combination_seq = r.old_seq;
-UPDATE shelter_animals t SET combination_seq = r.new_seq FROM combo_remap r WHERE t.combination_seq = r.old_seq;
+FROM tmp_combo_move m JOIN animal_combinations c ON c.breed_seq = m.breed_seq AND c.color_seq = m.new_color_seq;
+UPDATE pets t SET combination_seq = r.new_seq FROM tmp_combo_remap r WHERE t.combination_seq = r.old_seq;
+UPDATE missing_reports t SET combination_seq = r.new_seq FROM tmp_combo_remap r WHERE t.combination_seq = r.old_seq;
+UPDATE found_reports t SET combination_seq = r.new_seq FROM tmp_combo_remap r WHERE t.combination_seq = r.old_seq;
+UPDATE shelter_animals t SET combination_seq = r.new_seq FROM tmp_combo_remap r WHERE t.combination_seq = r.old_seq;
 
 -- 5. 조합을 공식 품종별 허용 색상으로: 공식 조합을 넣고, 공식에 없고 아무 데이터도 쓰지 않는 조합은 지운다
 --    (데이터가 쓰는 비공식 조합은 남긴다. 외래 키가 지우지 못하게 막는다)
-CREATE TEMP TABLE official_pairs (breed_code VARCHAR(60), color_code VARCHAR(10)) ON COMMIT DROP;
-INSERT INTO official_pairs VALUES
+CREATE TABLE tmp_official_pairs (breed_code VARCHAR(60), color_code VARCHAR(10));
+INSERT INTO tmp_official_pairs VALUES
     ('000001', '000001'),
     ('000001', '000002'),
     ('000001', '000003'),
@@ -1877,13 +1878,13 @@ INSERT INTO official_pairs VALUES
     ('215', '000007');
 INSERT INTO animal_combinations (breed_seq, color_seq)
 SELECT b.breed_seq, c.color_seq
-FROM official_pairs p
+FROM tmp_official_pairs p
 JOIN animal_breeds b ON b.breed_code = p.breed_code
 JOIN animal_colors c ON c.color_code = p.color_code
 ON CONFLICT (breed_seq, color_seq) DO NOTHING;
 DELETE FROM animal_combinations ac
 WHERE NOT EXISTS (
-        SELECT 1 FROM official_pairs p
+        SELECT 1 FROM tmp_official_pairs p
         JOIN animal_breeds b ON b.breed_code = p.breed_code
         JOIN animal_colors c ON c.color_code = p.color_code
         WHERE b.breed_seq = ac.breed_seq AND c.color_seq = ac.color_seq)
@@ -1896,3 +1897,4 @@ WHERE NOT EXISTS (
 DELETE FROM animal_colors WHERE color_code IS NULL;
 ALTER TABLE animal_colors ALTER COLUMN color_code SET NOT NULL;
 ALTER TABLE animal_colors ADD CONSTRAINT uq_animal_color_code UNIQUE (color_code);
+DROP TABLE tmp_official_pairs, tmp_combo_remap, tmp_combo_move, tmp_old_color_map;
