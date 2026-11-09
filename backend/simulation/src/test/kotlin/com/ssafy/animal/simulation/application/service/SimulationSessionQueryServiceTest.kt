@@ -3,6 +3,7 @@ package com.ssafy.animal.simulation.application.service
 import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.simulation.application.service.FakeSimulationStore.Companion.KOREAN_SHORTHAIR
 import com.ssafy.animal.simulation.application.service.FakeSimulationStore.Companion.MALTESE
+import com.ssafy.animal.simulation.config.SimulationProperties
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationErrorCode
@@ -13,10 +14,8 @@ import com.ssafy.animal.simulation.domain.StatCalculatorTest
 import com.ssafy.animal.simulation.domain.Stats
 import org.springframework.data.domain.PageRequest
 import org.springframework.test.util.ReflectionTestUtils
-import java.time.Clock
 import java.time.Duration
 import java.time.OffsetDateTime
-import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -31,12 +30,14 @@ class SimulationSessionQueryServiceTest {
     private val calculator = StatCalculator(StatCalculatorTest.RULES, Duration.ofHours(1))
     private val start = OffsetDateTime.of(2026, 11, 1, 14, 0, 0, 0, ZoneOffset.ofHours(9))
 
+    private val properties = SimulationProperties(Duration.ofHours(1), Duration.ofDays(7), StatCalculatorTest.RULES)
+
     private fun serviceAt(now: OffsetDateTime) = SimulationSessionQueryService(
         sessionRepository = store,
         breedReader = store,
         detailReader = store,
         detailAssembler = store.assembler(),
-        statRefresher = SessionStatRefresher(calculator, Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul"))),
+        progress = store.progress(properties, now),
     )
 
     private var startedCount = 0L
@@ -158,23 +159,38 @@ class SimulationSessionQueryServiceTest {
     }
 
     @Test
-    fun `예정 종료가 지나도 스탯은 예정 종료 시각까지만 계산하고 진행 중으로 둔다`() {
+    fun `예정 종료가 지났으면 예정 종료까지 계산하고 COMPLETED로 끝낸 상세를 한 번 돌려준 뒤 다음 조회는 null`() {
         val session = startSession(endsAt = start.plusHours(5))
 
-        serviceAt(start.plusHours(10)).getActive(17)
+        val detail = assertNotNull(serviceAt(start.plusHours(10)).getActive(17))
 
+        assertEquals(SessionStatus.COMPLETED, detail.session.status)
+        assertEquals(start.plusHours(5), session.endedDttm)
         assertEquals(start.plusHours(5), session.statsCalculatedDttm)
-        assertEquals(SessionStatus.IN_PROGRESS, session.status)
+        assertEquals(session.sessionSeq, store.reports.single().sessionSeq)
+        assertNull(serviceAt(start.plusHours(11)).getActive(17))
     }
 
     @Test
-    fun `돌봄 없이 건강이 0이 되면 그 시각에서 계산을 멈추고 진행 중으로 둔다`() {
+    fun `돌봄 없이 건강이 0이 되면 그 시각을 종료 시각으로 FAILED 처리한다`() {
         val session = startSession()
 
-        serviceAt(start.plusDays(6)).getActive(17)
+        val detail = assertNotNull(serviceAt(start.plusDays(6)).getActive(17))
 
+        assertEquals(SessionStatus.FAILED, detail.session.status)
         assertEquals(0, session.stats().health)
         assertTrue(session.statsCalculatedDttm.isBefore(start.plusDays(6)))
-        assertEquals(SessionStatus.IN_PROGRESS, session.status)
+        assertEquals(session.statsCalculatedDttm, session.endedDttm)
+        assertEquals(0, store.reports.single().finalStatsJsonb["health"])
+    }
+
+    @Test
+    fun `18_4도 조회 시 종료 조건이면 끝낸다`() {
+        val session = startSession(endsAt = start.plusHours(5))
+
+        val detail = serviceAt(start.plusHours(6)).getDetail(17, session.sessionSeq!!)
+
+        assertEquals(SessionStatus.COMPLETED, detail.session.status)
+        assertEquals(1, store.reports.size)
     }
 }

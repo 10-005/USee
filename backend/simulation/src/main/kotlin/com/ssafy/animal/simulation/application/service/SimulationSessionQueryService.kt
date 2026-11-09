@@ -20,14 +20,17 @@ class SimulationSessionQueryService(
     private val breedReader: BreedReader,
     private val detailReader: SessionDetailReader,
     private val detailAssembler: SimulationSessionDetailAssembler,
-    private val statRefresher: SessionStatRefresher,
+    private val progress: SessionProgress,
 ) : SimulationSessionQueryUseCase {
 
-    // 조회지만 지연 계산 결과를 저장하므로 쓰기 트랜잭션이다. 행동과 겹치지 않도록 세션 행을 잠근다
+    /**
+     * 조회지만 지연 계산·종료 처리를 저장하므로 쓰기 트랜잭션이다. 행동과 겹치지 않도록 세션 행을 잠근다.
+     * 이번 조회에서 끝났으면 바뀐 상태(COMPLETED·FAILED)로 한 번 돌려주고, 다음 조회부터는 진행 중 세션이 없어 null이다.
+     */
     @Transactional
     override fun getActive(userSeq: Long): SimulationSessionDetail? {
         val session = sessionRepository.findActiveForUpdate(Math.toIntExact(userSeq)) ?: return null
-        statRefresher.refresh(session)
+        progress.catchUp(session)
         return detailAssembler.assemble(session)
     }
 
@@ -36,7 +39,7 @@ class SimulationSessionQueryService(
         val session = sessionRepository.findByIdForUpdate(sessionSeq)
             ?.takeIf { it.userSeq.toLong() == userSeq }
             ?: throw BusinessException(SimulationErrorCode.SIMULATION_NOT_FOUND)
-        statRefresher.refresh(session)
+        progress.catchUp(session)
         return detailAssembler.assemble(session)
     }
 

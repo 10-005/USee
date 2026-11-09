@@ -29,13 +29,17 @@ class PurchaseServiceTest {
     private val properties = SimulationProperties(
         Duration.ofHours(1), Duration.ofDays(7), StatCalculatorTest.RULES, ShopRules(mapOf(22L to 12, 30L to 10, 31L to 10)),
     )
-    private val service = PurchaseService(
+    private val start = OffsetDateTime.of(2026, 11, 1, 14, 0, 0, 0, ZoneOffset.ofHours(9))
+
+    private fun serviceAt(now: OffsetDateTime) = PurchaseService(
         sessionRepository = store,
         shopItemRepository = store,
         transactionRepository = store,
         inventory = SimulationInventory(store, properties),
+        progress = store.progress(properties, now),
     )
-    private val start = OffsetDateTime.of(2026, 11, 1, 14, 0, 0, 0, ZoneOffset.ofHours(9))
+
+    private val service = serviceAt(start)
 
     private val session = startSession(SpeciesType.DOG, expectedCost = 30_000)
     private val sessionSeq = session.sessionSeq!!
@@ -120,6 +124,17 @@ class PurchaseServiceTest {
         ReflectionTestUtils.setField(session, "endedDttm", start.plusDays(7))
         assertError(SimulationErrorCode.SIMULATION_NOT_IN_PROGRESS) { service.purchase(17, sessionSeq, PurchaseCommand(22, 1)) }
         assertTrue(store.transactions.isEmpty())
+    }
+
+    @Test
+    fun `사려는데 그 사이 세션이 끝났으면 종료 처리하고 409, 돈과 지출은 그대로다`() {
+        // 돌봄 없이 8일: 건강이 0이 되어 FAILED
+        assertError(SimulationErrorCode.SIMULATION_NOT_IN_PROGRESS) { serviceAt(start.plusDays(8)).purchase(17, sessionSeq, PurchaseCommand(22, 1)) }
+
+        assertEquals(SessionStatus.FAILED, session.status)
+        assertEquals(30_000, session.balance)
+        assertTrue(store.transactions.isEmpty())
+        assertEquals(1, store.reports.size)
     }
 
     private fun assertError(expected: ErrorCode, block: () -> Unit) {

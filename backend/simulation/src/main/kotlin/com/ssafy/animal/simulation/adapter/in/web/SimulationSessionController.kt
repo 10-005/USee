@@ -156,7 +156,9 @@ class SimulationSessionController(
             "- 같은 1시간 안에서 여러 번 불러도 스탯이 더 떨어지지 않는다.\n" +
             "- `equipment`는 수량 1 이상 보유한 기구(밥그릇·물그릇·화장실·장난감), `activeWalkSeq`는 진행 중 산책 번호(없으면 null).\n" +
             "- `pendingEvent`는 이벤트 기능 전까지 항상 null.\n" +
-            "- 예정 종료가 지났거나 건강이 0이면 스탯 계산은 그 시점에서 멈춘다(종료 처리는 세션 상태 관리 작업에서 추가).",
+            "- 건강이 0이 됐으면 FAILED(돌봄 부족, 종료 시각 = 건강이 0이 된 시각), 예정 종료가 지났으면 COMPLETED(종료 시각 = 예정 종료)로 " +
+            "그 자리에서 끝내고 리포트를 만든다. 이렇게 끝난 세션은 **이번 응답에서 한 번만** 바뀐 `status`로 돌려주고, 다음 조회부터는 `data: null`. " +
+            "앱은 `status`가 IN_PROGRESS가 아니면 리포트 화면으로 이동한다.",
     )
     @ApiResponses(
         ApiResponse(
@@ -282,7 +284,8 @@ class SimulationSessionController(
         summary = "모의 입양 상세",
         description = "- 본인 세션만. 남의 세션·없는 세션은 보호소를 포함해 404 `SIMULATION_NOT_FOUND`(존재를 감춤)\n" +
             "- 응답은 진행 중 조회와 같은 형식이다.\n" +
-            "- 진행 중이면 조회 시점까지 스탯을 계산해 저장한다. 종료된 세션은 종료 시점 값 그대로.\n" +
+            "- 진행 중이면 조회 시점까지 스탯을 계산해 저장하고, 건강 0·예정 종료 경과면 그 자리에서 FAILED·COMPLETED로 끝낸다. " +
+            "종료된 세션은 종료 시점 값 그대로.\n" +
             "- 보호소는 세션 상세가 아니라 종료 리포트만 본다.",
     )
     @ApiResponses(

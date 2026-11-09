@@ -51,6 +51,7 @@ class CareActionController(
         summary = "돌봄 행동",
         description = "- 본인 진행 중 세션만. 남의 세션·없는 세션은 보호소를 포함해 404 `SIMULATION_NOT_FOUND`, 진행 중이 아니면 409\n" +
             "- 행동 전에 지난 시간만큼 스탯을 먼저 계산하고, 그다음 효과를 더한다(0~100으로 자름).\n" +
+            "- 계산해 보니 건강 0·예정 종료 경과면 세션을 그 자리에서 끝내고(종료는 저장됨) 409 `SIMULATION_NOT_IN_PROGRESS`. 앱은 진행 중 조회를 다시 불러 리포트로 이동한다.\n" +
             "- 지원 행동과 조건:\n" +
             "  - `FEED`: 밥그릇 보유 + 사료(FOOD) 1개, `itemSeq` 필수\n" +
             "  - `WATER`: 물그릇 보유, 물은 무료(수분 +50, 가안), `itemSeq` 생략\n" +

@@ -35,8 +35,13 @@ import com.ssafy.animal.simulation.domain.TransactionType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
+import com.ssafy.animal.simulation.config.SimulationProperties
+import com.ssafy.animal.simulation.domain.StatCalculator
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.test.util.ReflectionTestUtils
+import java.time.Clock
 import java.time.OffsetDateTime
+import java.time.ZoneId
 
 /** 서비스 테스트용 메모리 저장소. 포트 계약만 흉내 낸다 */
 class FakeSimulationStore :
@@ -218,6 +223,18 @@ class FakeSimulationStore :
     }
 
     fun assembler() = SimulationSessionDetailAssembler(this, this, this)
+
+    /** 종료 시 발행된 내부 이벤트 */
+    val published = mutableListOf<Any>()
+
+    fun terminator(properties: SimulationProperties) =
+        SessionTerminator(this, this, this, this, properties, ApplicationEventPublisher { published += it })
+
+    /** 고정 시각 now 기준 진행(지연 계산·종료 판정) */
+    fun progress(properties: SimulationProperties, now: OffsetDateTime) = SessionProgress(
+        SessionStatRefresher(StatCalculator(properties.stats, properties.tick), Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul"))),
+        terminator(properties),
+    )
 
     companion object {
         val MALTESE = BreedInfo(21, "말티즈", CatalogSpeciesCode.DOG, Personality.FRIENDLY, "https://cdn/breeds/maltese.png")

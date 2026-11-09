@@ -55,6 +55,7 @@ class CareActionServiceTest {
         actionLogRepository = store,
         inventory = inventory,
         statRefresher = SessionStatRefresher(calculator, Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul"))),
+        progress = store.progress(properties, now),
         properties = properties,
     )
 
@@ -313,6 +314,20 @@ class CareActionServiceTest {
         ReflectionTestUtils.setField(session, "status", SessionStatus.ABANDONED)
         ReflectionTestUtils.setField(session, "endedDttm", start)
         assertError(SimulationErrorCode.SIMULATION_NOT_IN_PROGRESS) { act(ActionCode.WATER) }
+    }
+
+    @Test
+    fun `행동하려는데 그 사이 세션이 끝났으면 종료 처리하고 409 SIMULATION_NOT_IN_PROGRESS`() {
+        buy(2)
+
+        // 돌봄 없이 8일: 예정 종료 전에 건강이 0이 되어 FAILED
+        assertError(SimulationErrorCode.SIMULATION_NOT_IN_PROGRESS) { act(ActionCode.WATER, at = start.plusDays(8)) }
+
+        assertEquals(SessionStatus.FAILED, session.status)
+        assertTrue(session.endedDttm!!.isBefore(start.plusDays(7)))
+        assertEquals(1, store.reports.size)
+        // 행동 로그는 없고 SESSION_END만 남는다
+        assertEquals(listOf(ActionCode.SESSION_END), store.logs.map { it.actionCode })
     }
 
     @Test
