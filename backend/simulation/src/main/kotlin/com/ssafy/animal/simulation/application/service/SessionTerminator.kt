@@ -1,5 +1,6 @@
 package com.ssafy.animal.simulation.application.service
 
+import com.ssafy.animal.simulation.application.port.out.EventOccurrenceRepository
 import com.ssafy.animal.simulation.application.port.out.ReportRepository
 import com.ssafy.animal.simulation.application.port.out.SessionClosingRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationActionLogRepository
@@ -23,6 +24,7 @@ import java.time.OffsetDateTime
 @Component
 class SessionTerminator(
     private val closingRepository: SessionClosingRepository,
+    private val occurrenceRepository: EventOccurrenceRepository,
     private val actionLogRepository: SimulationActionLogRepository,
     private val reportRepository: ReportRepository,
     private val reportCalculator: ReportCalculator,
@@ -32,7 +34,7 @@ class SessionTerminator(
     fun end(session: SimulationSession, status: SessionStatus, endedAt: OffsetDateTime): SimulationReport {
         val sessionSeq = checkNotNull(session.sessionSeq) { "저장 전 세션입니다." }
         closingRepository.endActiveWalks(sessionSeq, endedAt)
-        closingRepository.expirePendingEvents(sessionSeq)
+        occurrenceRepository.findPending(sessionSeq)?.expire()
         session.end(status, endedAt)
 
         val report = reportRepository.save(reportCalculator.calculate(session))

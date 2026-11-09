@@ -1,6 +1,7 @@
 package com.ssafy.animal.simulation.config
 
 import com.ssafy.animal.simulation.domain.CareConfig
+import com.ssafy.animal.simulation.domain.EventConfig
 import com.ssafy.animal.simulation.domain.ShopRules
 import com.ssafy.animal.simulation.domain.StatRules
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -17,6 +18,7 @@ data class SimulationProperties(
     val shop: ShopRules = ShopRules(),
     val care: CareConfig = CareConfig(),
     val report: ReportConfig = ReportConfig(),
+    val event: EventConfig = EventConfig(),
 )
 
 /** 리포트 요약 설정(Q444·Q487 [가안]) */

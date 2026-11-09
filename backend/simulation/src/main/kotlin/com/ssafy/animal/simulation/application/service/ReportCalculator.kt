@@ -1,5 +1,6 @@
 package com.ssafy.animal.simulation.application.service
 
+import com.ssafy.animal.simulation.application.port.out.EventOccurrenceRepository
 import com.ssafy.animal.simulation.application.port.out.SessionClosingRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationActionLogRepository
 import com.ssafy.animal.simulation.application.port.out.TransactionRepository
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Component
 @Component
 class ReportCalculator(
     private val closingRepository: SessionClosingRepository,
+    private val occurrenceRepository: EventOccurrenceRepository,
     private val transactionRepository: TransactionRepository,
     private val actionLogRepository: SimulationActionLogRepository,
     private val properties: SimulationProperties,
@@ -25,7 +27,7 @@ class ReportCalculator(
 
     fun calculate(session: SimulationSession): SimulationReport {
         val sessionSeq = checkNotNull(session.sessionSeq) { "저장 전 세션입니다." }
-        val events = closingRepository.countEvents(sessionSeq)
+        val events = occurrenceRepository.countEvents(sessionSeq)
         return ReportAggregator.aggregate(
             ReportSource(
                 session = session,
