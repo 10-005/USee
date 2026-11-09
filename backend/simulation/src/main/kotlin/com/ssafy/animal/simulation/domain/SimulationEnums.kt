@@ -22,6 +22,9 @@ enum class ActionCode(val type: ActionType) {
     SNACK(ActionType.CARE),
     MEDICINE(ActionType.CARE),
     VET_VISIT(ActionType.CARE),
+
+    /** 캣닢 주기(S15P31D106-246, 명세 18.6 행동 추가). action_code 컬럼은 CHECK가 없어 스키마 변경 없음 */
+    GIVE_CATNIP(ActionType.CARE),
     WALK_START(ActionType.WALK),
     WALK_END(ActionType.WALK),
     GIVE_WATER(ActionType.WALK),

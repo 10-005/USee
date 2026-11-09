@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources
 import org.springframework.boot.env.YamlPropertySourceLoader
 import org.springframework.core.io.ClassPathResource
+import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -28,9 +29,11 @@ class CareRulesTest {
     }
 
     @Test
-    fun `간식·약은 기구 없이 소모품 1개를 쓰고 그 효과를 쓴다`() {
+    fun `간식·약·캣닢은 기구 없이 소모품 1개를 쓰고 그 효과를 쓴다`() {
         assertEquals(CareRule(ActionCode.SNACK, null, ItemCategory.SNACK, EffectSource.CONSUMED_ITEM), CareRules.of(ActionCode.SNACK))
         assertEquals(CareRule(ActionCode.MEDICINE, null, ItemCategory.MEDICINE, EffectSource.CONSUMED_ITEM), CareRules.of(ActionCode.MEDICINE))
+        assertEquals(CareRule(ActionCode.GIVE_CATNIP, null, ItemCategory.CATNIP, EffectSource.CONSUMED_ITEM), CareRules.of(ActionCode.GIVE_CATNIP))
+        assertEquals(ActionType.CARE, ActionCode.GIVE_CATNIP.type)
     }
 
     @Test
@@ -66,6 +69,9 @@ class CareRulesTest {
             .care
 
         assertEquals(StatEffect(mapOf(Stat.HYDRATION to 50)), care.waterEffect)
+        assertEquals(Duration.ofHours(6), care.catnipOveruseWindow)
+        assertEquals(StatEffect(mapOf(Stat.CALMNESS to -20)), care.catnipOveruseEffect)
         assertFailsWith<IllegalArgumentException> { CareConfig(mapOf("thirst" to 50)) }
+        assertFailsWith<IllegalArgumentException> { CareConfig(catnipOveruseWindow = Duration.ZERO) }
     }
 }

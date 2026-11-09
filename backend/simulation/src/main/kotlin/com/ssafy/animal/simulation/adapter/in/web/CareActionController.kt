@@ -36,7 +36,7 @@ import org.springframework.web.bind.annotation.RestController
 internal const val CARE_TAG = "모의 입양 돌봄"
 internal const val CARE_TAG_DESC = "밥·물·배변·목욕 등 돌봄 행동과 행동 이력. 행동마다 필요한 기구를 보유해야 하고, 소모품은 1개씩 쓴다"
 internal const val ACTION_TYPE_DESC = "행동 분류. CARE: 돌봄, WALK: 산책, EVENT: 이벤트 만료, SYSTEM: 세션 시작·종료"
-internal const val ACTION_CODE_DESC = "행동 코드. CARE: FEED·WATER·CLEAN_LITTER·BATHE·PLAY·SNACK·MEDICINE·VET_VISIT, " +
+internal const val ACTION_CODE_DESC = "행동 코드. CARE: FEED·WATER·CLEAN_LITTER·BATHE·PLAY·SNACK·MEDICINE·GIVE_CATNIP·VET_VISIT, " +
     "WALK: WALK_START·WALK_END·GIVE_WATER·GIVE_SNACK, EVENT: EVENT_EXPIRE, SYSTEM: SESSION_START·SESSION_END"
 
 @Tag(name = CARE_TAG, description = CARE_TAG_DESC)
@@ -59,6 +59,8 @@ class CareActionController(
             "  - `SNACK`: 기구 없이 간식(SNACK) 1개, `itemSeq` 필수\n" +
             "  - `MEDICINE`: 기구 없이 약(MEDICINE) 1개, `itemSeq` 필수\n" +
             "  - `PLAY`: 장난감 1개 이상 보유, 소모 없이 무제한. `itemSeq`로 보유한 장난감을 고르면 그 효과, 생략하면 보유한 첫 번째 장난감 효과\n" +
+            "  - `GIVE_CATNIP`: 기구 없이 캣닢(CATNIP, 고양이 전용) 1개, `itemSeq` 필수. 평소 효과는 활력 +15·친밀도 +3·안정감 -5(가안). " +
+            "직전 캣닢 뒤 6시간 안에 또 주면 남용으로 보고 캣닢 효과 대신 안정감 -20만 들어간다(가안, 캣닢은 그래도 1개 쓴다)\n" +
             "- 그 밖의 코드(VET_VISIT·산책·시스템)는 아직 400.\n" +
             "- `statDelta`는 실제로 바뀐 양만 담는다(포만감 90에 +30이면 +10, 이미 100이면 빠짐).\n" +
             "- 돈은 쓰지 않는다. 마지막 행동 시각이 갱신되고 행동 이력(CARE)이 1건 남는다.\n" +
@@ -75,6 +77,7 @@ class CareActionController(
                     examples = [
                         ExampleObject(name = "밥 주기(사료 사용)", value = FEED_SUCCESS),
                         ExampleObject(name = "물 주기(소모품 없음)", value = WATER_SUCCESS),
+                        ExampleObject(name = "캣닢 남용(6시간 안에 또 줌)", value = CATNIP_OVERUSE_SUCCESS),
                     ],
                 ),
             ],
@@ -162,6 +165,11 @@ class CareActionController(
                 """"consumedItem":null,"statDelta":{"hydration":42},""" +
                 """"stats":{"satiety":64,"hydration":100,"cleanliness":77,"bond":31,"calmness":46,"health":90,"energy":55,"calculatedDttm":"2026-11-01T17:00:00+09:00"},""" +
                 """"balance":118000,"resolvedEvent":null},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+        const val CATNIP_OVERUSE_SUCCESS =
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"actionLogSeq":50003,"actionType":"CARE","actionCode":"GIVE_CATNIP",""" +
+                """"consumedItem":{"itemSeq":33,"itemName":"향긋한 캣닢","remainingQuantity":2},"statDelta":{"calmness":-20},""" +
+                """"stats":{"satiety":64,"hydration":58,"cleanliness":77,"bond":34,"calmness":21,"health":90,"energy":70,"calculatedDttm":"2026-11-01T19:00:00+09:00"},""" +
+                """"balance":118000,"resolvedEvent":null},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val UNSUPPORTED_ACTION =
             """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"actionCode","reason":"지원하지 않는 돌봄 행동입니다: VET_VISIT"}],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val ITEM_REQUIRED =
@@ -173,11 +181,11 @@ class CareActionController(
 
 /** actionCode는 DB action_code 값(FEED 등). 응답·18.7의 actionType(CARE 등 분류)과 다른 필드다 */
 data class CareActionRequest(
-    @field:Schema(description = "돌봄 행동 코드. 지금은 FEED·WATER·CLEAN_LITTER·BATHE·SNACK·MEDICINE·PLAY", example = "FEED")
+    @field:Schema(description = "돌봄 행동 코드. 지금은 FEED·WATER·CLEAN_LITTER·BATHE·SNACK·MEDICINE·PLAY·GIVE_CATNIP", example = "FEED")
     @field:NotNull
     val actionCode: ActionCode?,
     @field:Schema(
-        description = "쓸 물품 번호(인벤토리 값). FEED·CLEAN_LITTER·SNACK·MEDICINE은 소모품 필수, PLAY는 고를 장난감(선택, 생략 시 첫 번째), " +
+        description = "쓸 물품 번호(인벤토리 값). FEED·CLEAN_LITTER·SNACK·MEDICINE·GIVE_CATNIP은 소모품 필수, PLAY는 고를 장난감(선택, 생략 시 첫 번째), " +
             "WATER·BATHE는 생략(보내도 무시)",
         nullable = true,
         example = "22",

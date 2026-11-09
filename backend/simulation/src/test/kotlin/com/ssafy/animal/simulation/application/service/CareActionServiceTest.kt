@@ -37,8 +37,12 @@ class CareActionServiceTest {
         tick = Duration.ofHours(1),
         sessionDuration = Duration.ofDays(7),
         stats = StatCalculatorTest.RULES,
-        shop = ShopRules(mapOf(22L to 12, 23L to 5, 30L to 10, 31L to 10, 35L to 3)),
-        care = CareConfig(mapOf("hydration" to 50)),
+        shop = ShopRules(mapOf(22L to 12, 23L to 5, 30L to 10, 31L to 10, 33L to 4, 35L to 3)),
+        care = CareConfig(
+            waterEffects = mapOf("hydration" to 50),
+            catnipOveruseWindow = Duration.ofHours(6),
+            catnipOveruseEffects = mapOf("calmness" to -20),
+        ),
     )
     private val calculator = StatCalculator(properties.stats, properties.tick)
     private val inventory = SimulationInventory(store, properties)
@@ -202,6 +206,53 @@ class CareActionServiceTest {
         assertError(SimulationErrorCode.SIMULATION_SHOP_ITEM_NOT_FOUND) { act(ActionCode.PLAY, itemSeq = 999) }
         assertError(SimulationErrorCode.SIMULATION_ITEM_NOT_IN_INVENTORY) { act(ActionCode.PLAY, itemSeq = 20) }
         assertTrue(store.logs.isEmpty())
+    }
+
+    /** 고양이 세션에서 캣닢 주기. 로그 시각을 행동 시각에 맞춘다 */
+    private fun giveCatnip(catSeq: Long, at: OffsetDateTime) = run {
+        store.now = at
+        serviceAt(at).act(18, catSeq, CareActionCommand(ActionCode.GIVE_CATNIP, 33))
+    }
+
+    @Test
+    fun `캣닢은 활력·친밀도는 오르고 안정감은 조금 떨어지며 캣닢 1개를 쓴다`() {
+        val cat = startSession(SpeciesType.CAT, userSeq = 18).sessionSeq!!
+        buy(33, seq = cat)
+
+        val result = giveCatnip(cat, start)
+
+        assertEquals(mapOf(Stat.BOND to 3, Stat.CALMNESS to -5, Stat.ENERGY to 15), result.statDelta)
+        assertEquals(3, result.consumedItem!!.remainingQuantity)
+        assertEquals(ActionCode.GIVE_CATNIP, store.logs.single().actionCode)
+    }
+
+    @Test
+    fun `직전 캣닢 뒤 6시간 안에 또 주면 남용으로 안정감만 크게 떨어진다`() {
+        val cat = startSession(SpeciesType.CAT, userSeq = 18).sessionSeq!!
+        buy(33, seq = cat)
+        giveCatnip(cat, start)
+
+        val overused = giveCatnip(cat, start.plusHours(5))
+
+        assertEquals(mapOf(Stat.CALMNESS to -20), overused.statDelta)
+        // 남용이어도 캣닢은 쓴다
+        assertEquals(2, overused.consumedItem!!.remainingQuantity)
+    }
+
+    @Test
+    fun `직전 캣닢에서 6시간이 지나면 다시 평소 효과다`() {
+        val cat = startSession(SpeciesType.CAT, userSeq = 18).sessionSeq!!
+        buy(33, seq = cat)
+        giveCatnip(cat, start)
+
+        val result = giveCatnip(cat, start.plusHours(6))
+
+        assertEquals(mapOf(Stat.BOND to 3, Stat.CALMNESS to -5, Stat.ENERGY to 15), result.statDelta)
+    }
+
+    @Test
+    fun `캣닢은 고양이 전용이라 개 세션은 409`() {
+        assertError(SimulationErrorCode.SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES) { act(ActionCode.GIVE_CATNIP, itemSeq = 33) }
     }
 
     @Test

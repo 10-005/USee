@@ -76,6 +76,10 @@ simulation:
     # 물 주기 효과(가안). 물은 무료라 물품 효과 대신 설정에 둔다. 수분은 시간당 5씩 줄어 한 번에 약 10시간분
     water-effects:
       hydration: 50
+    # 캣닢 남용(가안): 직전 캣닢 뒤 6시간 안에 또 주면 캣닢 효과 대신 안정감만 크게 떨어진다(과흥분)
+    catnip-overuse-window: 6h
+    catnip-overuse-effects:
+      calmness: -20
   shop:
     # 묶음 물품: item_seq → 1개 구매 시 인벤토리 증가량(없으면 1). 번호는 시드(V20261109_1110)와 짝을 맞춘다
     uses-per-purchase:

@@ -69,6 +69,8 @@ object CareRules {
         // 246: 기구 없이 소모품만 쓰는 행동
         CareRule(ActionCode.SNACK, requiredEquipment = null, consumable = ItemCategory.SNACK, effectSource = EffectSource.CONSUMED_ITEM),
         CareRule(ActionCode.MEDICINE, requiredEquipment = null, consumable = ItemCategory.MEDICINE, effectSource = EffectSource.CONSUMED_ITEM),
+        // 246: 캣닢은 고양이 전용 물품(종은 물품 적용 종으로 막힘). 남용 판정은 CareActionService가 행동 이력으로 한다
+        CareRule(ActionCode.GIVE_CATNIP, requiredEquipment = null, consumable = ItemCategory.CATNIP, effectSource = EffectSource.CONSUMED_ITEM),
     ).associateBy { it.actionCode }
 
     /** 지원하는 돌봄 행동이 아니면 null(산책·시스템 코드, 아직 만들지 않은 행동) */
