@@ -1,5 +1,7 @@
 package com.ssafy.animal.simulation.domain
 
+import io.swagger.v3.oas.annotations.media.Schema
+
 /**
  * 펫샵 물품 분류 14종(DB 36 category, M9 + S15P31D106-240). 기구는 한 번 사면 세션 내 영구, 나머지는 소모품.
  * 240에서 FURNITURE·LEASH·GROOMING_KIT(기구)와 POOP_BAG·CATNIP(소모품)을 추가했다.
@@ -25,11 +27,15 @@ enum class ItemCategory(val isEquipment: Boolean) {
     CATNIP(false),
 }
 
-/** 보유 기구(메인 화면 오브젝트 활성 여부). 명세 18.0 SimulationEquipment */
+/** 보유 기구(메인 화면 오브젝트 활성 여부). 명세 18.0 SimulationEquipment. 응답에 그대로 나가 문서 설명을 단다 */
 data class Equipment(
+    @field:Schema(description = "밥그릇 보유. 있어야 밥 주기(FEED) 가능", example = "true")
     val foodBowl: Boolean,
+    @field:Schema(description = "물그릇 보유. 있어야 물 주기(WATER) 가능", example = "true")
     val waterBowl: Boolean,
+    @field:Schema(description = "화장실(고양이 화장실·강아지 배변판) 보유. 있어야 배변 치우기(CLEAN_LITTER) 가능", example = "false")
     val litterBox: Boolean,
+    @field:Schema(description = "장난감 1개 이상 보유", example = "false")
     val toy: Boolean,
 ) {
     companion object {
