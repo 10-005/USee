@@ -27,7 +27,8 @@ spring:
 
 security:
   # 2.1 kakao/verify·2.5 kakao/register·2.2 local/login·2.3 refresh는 토큰 없이 호출. logout은 로그인 필요
-  permit-paths: /api/core/v1/auth/kakao/**,/api/core/v1/auth/local/login,/api/core/v1/auth/refresh
+  # 닉네임 중복 확인은 가입 단계(access 토큰 없음)에서도 쓰므로 토큰 없이 허용(있으면 본인 제외 판정)
+  permit-paths: /api/core/v1/auth/kakao/**,/api/core/v1/auth/local/login,/api/core/v1/auth/refresh,/api/core/v1/users/nickname-availability
 
 auth:
   # 2.2 LOCAL 로그인 실패 제한(Q445 가안). 연속 실패 max-failures회면 lock-duration 동안 429

@@ -130,6 +130,27 @@ class UserProfileServiceTest {
         assertEquals(0, flushed)
     }
 
+    // 닉네임 중복 확인(명세 외)
+
+    @Test
+    fun `닉네임 중복 확인은 다른 활성 USER가 쓰면 false, 본인·탈퇴 회원 것은 true, 대소문자 무시`() {
+        assertEquals(false, service.isNicknameAvailable("발견도우미", null))
+        assertEquals(true, service.isNicknameAvailable("새닉네임", null))
+        assertEquals(false, service.isNicknameAvailable("반려가족", null)) // 비로그인은 본인 제외 없음
+        assertEquals(true, service.isNicknameAvailable("반려가족", 1)) // 본인 현재 닉네임
+        user(3, "Bori", "01055556666")
+        assertEquals(false, service.isNicknameAvailable("bori", null))
+        ReflectionTestUtils.setField(other, "isDeleted", true)
+        assertEquals(true, service.isNicknameAvailable("발견도우미", null))
+    }
+
+    @Test
+    fun `닉네임 중복 확인도 형식이 틀리거나 비어 있으면 400 COMMON_INVALID_INPUT`() {
+        assertCode(CommonErrorCode.COMMON_INVALID_INPUT) { service.isNicknameAvailable("a", null) }
+        assertCode(CommonErrorCode.COMMON_INVALID_INPUT) { service.isNicknameAvailable("", null) }
+        assertCode(CommonErrorCode.COMMON_INVALID_INPUT) { service.isNicknameAvailable("공백 있음", null) }
+    }
+
     @Test
     fun `닉네임 형식 오류는 400 COMMON_INVALID_INPUT`() {
         assertCode(CommonErrorCode.COMMON_INVALID_INPUT) { service.updateMe(1, UpdateMyProfileCommand(nickname = Optional.of("a"))) }

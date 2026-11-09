@@ -70,5 +70,14 @@ data class PublicProfileResponse(
 }
 
 // Swagger 문서 전용 성공 응답 미러(런타임 미사용)
+/** 닉네임 중복 확인 결과 */
+data class NicknameAvailabilityResponse(
+    @field:Schema(description = "확인한 닉네임(요청값 그대로)", example = "반려가족")
+    val nickname: String,
+    @field:Schema(description = "true면 사용 가능. false면 다른 회원이 쓰는 중(대소문자 구분 없음)", example = "true")
+    val available: Boolean,
+)
+
 abstract class MyProfileSuccessSchema : SuccessResponseSchema<MyProfileResponse>()
+abstract class NicknameAvailabilitySuccessSchema : SuccessResponseSchema<NicknameAvailabilityResponse>()
 abstract class PublicProfileSuccessSchema : SuccessResponseSchema<PublicProfileResponse>()
