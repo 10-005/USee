@@ -31,14 +31,13 @@ export const styles = StyleSheet.create({
   },
   walkTimer: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
+    right: 20,
+    alignItems: 'flex-end',
   },
   walkTimerText: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '400',
     fontVariant: ['tabular-nums'],
   },
   message: {

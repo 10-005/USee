@@ -21,6 +21,8 @@ import type { RootStackParamList } from '../../app/navigation/types';
 
 import { styles } from './ArWalkScreen.styles';
 import { useWalkVoice } from './useWalkVoice';
+import { useWalkRoute } from './useWalkRoute';
+import { WalkRouteMap } from './components/WalkRouteMap';
 import { VoiceListeningDots } from './components/VoiceListeningDots';
 import { VoiceMicrophone } from './components/VoiceMicrophone';
 import { VoiceGlowText } from './components/VoiceGlowText';
@@ -131,6 +133,8 @@ export function ArWalkScreen({
   const [loadingDots, setLoadingDots] = useState(2);
   const [walkStartedAt, setWalkStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [routeVisible, setRouteVisible] = useState(false);
+  const walkRoute = useWalkRoute(isFocused && walkStartedAt !== null);
   const voice = useWalkVoice(
     isFocused && hasPermission && status === 'anchored' && !bagPurchaseVisible,
     route?.params?.petName ?? '',
@@ -188,7 +192,7 @@ export function ArWalkScreen({
     if (next.visible && next.onScreen) {
       setHasSeenDog(true);
     }
-    if (isFocused && next.status === 'anchored' && next.userMoving) {
+    if (isFocused && next.status === 'anchored' && next.visible && next.onScreen) {
       setWalkStartedAt(current => current ?? Date.now());
     }
     setCanReposition(
@@ -229,11 +233,25 @@ export function ArWalkScreen({
           <Text style={styles.messageText}>강아지와 산책하려면 카메라 권한이 필요합니다.</Text>
         </View>
       )}
-      <View pointerEvents="none" style={[styles.walkTimer, { top: insets.top + 16 }]}>
+      <View style={[styles.walkTimer, { top: headerHeight + 8 }]}>
         <Text accessibilityLabel={`산책 시간 ${walkTime}`} style={styles.walkTimerText}>
           {walkTime}
         </Text>
+        <Text style={styles.walkTimerText}>{(walkRoute.meters / 1000).toFixed(2)} km</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="산책 경로 보기"
+          onPress={() => setRouteVisible(true)}
+          style={{ paddingVertical: 8 }}
+        >
+          <Text style={styles.walkTimerText}>경로 보기</Text>
+        </Pressable>
       </View>
+      <WalkRouteMap
+        visible={routeVisible}
+        onClose={() => setRouteVisible(false)}
+        route={walkRoute}
+      />
       {isRecognizing && (
         <View pointerEvents="none" style={styles.loadingOverlay}>
           <ActivityIndicator color="#FFFFFF" size="small" />
@@ -248,7 +266,10 @@ export function ArWalkScreen({
         </View>
       )}
       {hasPermission && (
-        <View pointerEvents="box-none" style={[styles.displayControls, { top: headerHeight + 8 }]}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.displayControls, { top: headerHeight + 112 }]}
+        >
           <Pressable
             accessibilityRole="switch"
             accessibilityLabel="이동 가능 영역 표시"

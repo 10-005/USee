@@ -24,6 +24,10 @@ jest.mock('react-native-vision-camera', () => ({
 jest.mock('./components/ArFloorView', () => ({ ArFloorView: 'ArFloorView' }));
 jest.mock('./components/VoiceGlowText', () => ({ VoiceGlowText: 'VoiceGlowText' }));
 jest.mock('./components/VoiceMicrophone', () => ({ VoiceMicrophone: 'VoiceMicrophone' }));
+jest.mock('./useWalkRoute', () => ({
+  useWalkRoute: () => ({ segments: [], meters: 0, message: '' }),
+}));
+jest.mock('./components/WalkRouteMap', () => ({ WalkRouteMap: 'WalkRouteMap' }));
 
 test('water uses a tap and treats require an upward drag', async () => {
   const panResponder = jest.spyOn(PanResponder, 'create');
@@ -188,7 +192,7 @@ test('deducts a bag once per cleanup request and acknowledges only a saved deduc
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
-test('walk timer starts on user movement and keeps elapsed time through stops', async () => {
+test('walk timer starts when the dog is first recognized and keeps elapsed time through stops', async () => {
   jest.useFakeTimers();
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
   try {
@@ -206,14 +210,14 @@ test('walk timer starts on user movement and keeps elapsed time through stops', 
     };
     await tracking(false);
     await ReactTestRenderer.act(() => jest.advanceTimersByTime(5000));
-    expect(time('00:00').length).toBeGreaterThan(0);
+    expect(time('00:05').length).toBeGreaterThan(0);
     await tracking(true);
     await ReactTestRenderer.act(() => jest.advanceTimersByTime(61000));
-    expect(time('01:01').length).toBeGreaterThan(0);
+    expect(time('01:06').length).toBeGreaterThan(0);
     await tracking(false);
     await tracking(true);
     await ReactTestRenderer.act(() => jest.advanceTimersByTime(2000));
-    expect(time('01:03').length).toBeGreaterThan(0);
+    expect(time('01:08').length).toBeGreaterThan(0);
   } finally {
     await ReactTestRenderer.act(() => renderer?.unmount());
     jest.useRealTimers();
