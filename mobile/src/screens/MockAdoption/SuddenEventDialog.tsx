@@ -10,10 +10,10 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { typography } from '../../theme';
-import type { MockAdoptionEvent } from '../../services/storage/mockAdoptionEvents';
+import type { SimulationEvent } from '../../services/simulation/events';
 
 type Props = {
-  event: MockAdoptionEvent;
+  event: SimulationEvent;
   image: ImageSourcePropType;
   petName: string;
   onClose: () => void;
@@ -38,9 +38,9 @@ export function SuddenEventDialog({ event, image, petName, onClose }: Props) {
           </View>
           <ScrollView style={styles.card} contentContainerStyle={styles.cardContent}>
             <Text accessibilityRole="header" style={styles.title}>
-              {event.title.replaceAll('{petName}', petName)}
+              {event.scenario.title}
             </Text>
-            <Text style={styles.body}>{event.body.replaceAll('{petName}', petName)}</Text>
+            <Text style={styles.body}>{event.scenario.description}</Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="돌발 이벤트 확인"

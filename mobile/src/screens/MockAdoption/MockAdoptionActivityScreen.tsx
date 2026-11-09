@@ -27,11 +27,12 @@ import { consumeCareSupplies } from '../../services/shop/consumption';
 import { availableProducts } from '../../services/shop/catalog';
 import { SuddenEventDialog } from './SuddenEventDialog';
 import {
-  takeMockAdoptionEvent,
-  hasPendingTreatment,
-  completeMockAdoptionTreatment,
-  type MockAdoptionEvent,
-} from '../../services/storage/mockAdoptionEvents';
+  getVetVisit,
+  SimulationEventStatus,
+  SimulationTriggerContext,
+  SimulationTriggerType,
+  type SimulationEvent,
+} from '../../services/simulation/events';
 
 // Temporary preview values until the server provides the selected pet's stats.
 const mockPetStats: PetStats = {
@@ -61,35 +62,10 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const hasTreat = petProducts.some(p => p.category === '간식' && owns(p.id));
   const hasToy = petProducts.some(p => p.category === '놀이' && p.kind === 'durable' && owns(p.id));
   const [statsVisible, setStatsVisible] = useState(false);
-  const [suddenEvent, setSuddenEvent] = useState<MockAdoptionEvent | null>(null);
-  const [needsTreatment, setNeedsTreatment] = useState(false);
-  const [previewIllness, setPreviewIllness] = useState(false);
-  const [treatmentBusy, setTreatmentBusy] = useState(false);
-  const treatmentPending = useRef(false);
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      if (session) {
-        takeMockAdoptionEvent(session, () => active)
-          .then(async event => {
-            const pending = await hasPendingTreatment(session);
-            if (active) {
-              setSuddenEvent(event);
-              setNeedsTreatment(pending);
-            }
-          })
-          .catch(() => {
-            // Leave the pending event available for the next entry if storage fails.
-          });
-      }
-      return () => {
-        active = false;
-        setSuddenEvent(null);
-        setNeedsTreatment(false);
-        setPreviewIllness(false);
-      };
-    }, [session]),
-  );
+  // TODO: refresh from the current session on entry / EVENT push, then apply server status.
+  const [pendingEvent, setPendingEvent] = useState<SimulationEvent | null>(null);
+  const [suddenEvent, setSuddenEvent] = useState<SimulationEvent | null>(null);
+  const vetVisit = getVetVisit(pendingEvent);
   const walkPending = useRef(false);
   const [care, setCare] = useState<{
     kind: 'food' | 'water' | 'treat' | 'fetch';
@@ -237,39 +213,10 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     toastTimer.current = setTimeout(() => setToast(''), 2500);
   };
   const confirmTreatment = () => {
-    if (treatmentPending.current) {
-      return;
+    if (vetVisit) {
+      // TODO: send 18.6 VET_VISIT; update only from the successful server response.
+      Alert.alert('동물병원', '진료 기능은 준비 중이에요.');
     }
-    if (!needsTreatment && !previewIllness) {
-      Alert.alert('동물병원', '현재 치료가 필요한 돌발 이벤트가 없어요.');
-      return;
-    }
-    Alert.alert('동물병원', '병원 처리가 완료되었나요?', [
-      { text: '아직이에요', style: 'cancel' },
-      {
-        text: '치료 완료',
-        onPress: async () => {
-          if (treatmentPending.current || (needsTreatment && !session)) {
-            return;
-          }
-          treatmentPending.current = true;
-          setTreatmentBusy(true);
-          try {
-            if (needsTreatment && session) {
-              await completeMockAdoptionTreatment(session);
-            }
-            setNeedsTreatment(false);
-            setPreviewIllness(false);
-            showToast('병원 처리가 완료되었어요.');
-          } catch {
-            Alert.alert('동물병원', '치료 완료 상태를 저장하지 못했어요. 다시 시도해주세요.');
-          } finally {
-            treatmentPending.current = false;
-            setTreatmentBusy(false);
-          }
-        },
-      },
-    ]);
   };
   const startBath = () => {
     if (careBusy.current || bathingRef.current || leaving || busy || !roomVisible) {
@@ -464,15 +411,26 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                   disabled={busy || leaving || !!care || treatActive}
                   onPress={() => {
                     setStatsVisible(false);
-                    setPreviewIllness(true);
-                    setSuddenEvent({
-                      id: 'dev-preview',
-                      kind: 'illness',
-                      petId: pet.id,
-                      sessionStartedAt: session?.startedAt ?? 0,
-                      title: '{petName}가 아픕니다!',
-                      body: '{petName}를 동물병원에 데려가주세요!',
-                    });
+                    const preview: SimulationEvent = {
+                      occurrenceSeq: 90001,
+                      scenario: {
+                        scenarioSeq: 5,
+                        title: '축 처져 있어요',
+                        description: '밥을 잘 안 먹고 구석에서 움직이지 않아요. 어떻게 해줘야 할까요?',
+                        triggerContext: SimulationTriggerContext.Home,
+                        triggerType: SimulationTriggerType.Condition,
+                      },
+                      vetVisit: { cost: 30000 },
+                      walkSeq: null,
+                      status: SimulationEventStatus.Pending,
+                      occurredDttm: new Date().toISOString(),
+                      expiresDttm: new Date(Date.now() + 21600000).toISOString(),
+                      resolvedDttm: null,
+                      resolvedActionCode: null,
+                      resultText: null,
+                    };
+                    setPendingEvent(preview);
+                    setSuddenEvent(preview);
                   }}
                   style={({ pressed }) => [styles.previewButton, pressed && styles.pressed]}
                 >
@@ -546,15 +504,15 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                 accessibilityRole="button"
                 accessibilityLabel="동물병원"
                 accessibilityValue={{
-                  text: needsTreatment || previewIllness ? '치료 필요' : '치료 대기 없음',
+                  text: vetVisit !== null ? '치료 필요' : '치료 대기 없음',
                 }}
-                disabled={busy || leaving || !!care || treatActive || treatmentBusy}
+                disabled={busy || leaving || !!care || treatActive || !vetVisit}
                 onPress={confirmTreatment}
                 style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
               >
                 <Image
                   source={
-                    needsTreatment || previewIllness
+                    vetVisit !== null
                       ? require('../../assets/images/mock-adoption/img_veterinary_hospital_with_red_dot.png')
                       : require('../../assets/images/mock-adoption/img_veterinary_hospital.png')
                   }

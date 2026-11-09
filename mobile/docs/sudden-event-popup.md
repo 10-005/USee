@@ -1,48 +1,15 @@
-# 모의입양 돌발 이벤트 팝업
+# Simulation event integration scaffold
 
-- 이슈: S15P31D106-257
-- 브랜치: feature/S15P31D106-257-sudden-event-popup
-- 병합 대상: develop-mobile
-- 커밋 형식: `feat: 모의입양 돌발 이벤트 팝업 구현` + 빈 줄 + `S15P31D106-257`
-
-## FCM 연결 지점
-
-Android FCM SDK 및 포그라운드/백그라운드 수신부가 연결되어 있다.
-`src/services/notifications/remoteMessage.ts`에서 모의입양 돌발 이벤트를 구분하고 아래 내부 형식으로 변환한다.
-이 형식은 서버의 확정된 payload 규격이 아니다.
-
-```ts
-await receiveMockAdoptionEvent({
-  id: 'unique-server-event-id',
-  kind: 'illness', // 질병 이벤트. 그 외는 'other'
-  petId: 'dog-5',
-  sessionStartedAt: 1234567890, // 이벤트가 속한 모의입양 회차의 startedAt
-  title: '{petName}가 아픕니다!',
-  body: '{petName}를 동물병원에 데려가주세요!',
-});
-```
-
-함수 위치: `src/services/storage/mockAdoptionEvents.ts`.
-FCM 어댑터에서 실제 서버 회차 ID와 로컬 모의입양 회차의 매핑이 필요하다.
-수신 즉시 팝업을 띄우지 않고, 다음 모의입양 활동 화면 진입 시 대기 이벤트 하나를 표시한다.
-각 이벤트는 회차·동물·이벤트 ID 기준으로 최초 한 번만 표시한다.
-확인 및 Android 뒤로가기는 팝업을 닫는다. 확인 버튼의 서버 응답 전송이나 병원 이동은 포함하지 않는다.
-
-질병 이벤트는 팝업 노출 여부와 별도로 치료 대기 상태를 저장한다.
-치료 전에는 빨간 점이 있는 병원 이미지를 표시하고, 재진입해도 유지한다.
-현재 병원 화면/API가 없어 병원 버튼 → 완료 여부 확인 → `치료 완료`로 로컬 상태를 해제한다.
-실제 치료 API를 연결할 때는 성공 응답 후 `completeMockAdoptionTreatment(session)`을 호출한다.
-팝업을 닫거나 병원 버튼을 누르는 것만으로는 상태가 해제되지 않는다.
-개발용 팝업 미리보기 역시 빨간 점을 표시하며, 치료 완료 시 복원된다(미리보기 상태는 저장하지 않음).
-
-## 디자인 및 확인
-
-개발 빌드에서는 모의입양 활동 화면의 `돌발 팝업 미리보기` 버튼으로 반복 확인할 수 있다.
-미리보기는 이벤트 저장소를 변경하지 않으며, 릴리스 빌드에서는 버튼이 표시되지 않는다.
-
-선택한 동물의 기존 PNG를 스티커로 사용한다. 원형 배경은 기존 방 이미지의 블러와
-반투명 흰색 레이어로 유리 질감을 표현한다. 실시간 배경 블러는 아니다.
-이벤트 제목과 본문의 `{petName}`은 사용자가 지정한 이름으로 치환한다.
-
-기기에서 수신 함수를 호출한 뒤 화면 진입 → 확인 → 재진입 → 앱 재시작 순으로 중복 표시 여부를 확인한다.
-추가로 다른 동물, 이전 회차 이벤트, 큰 글꼴 및 작은 화면에서 확인한다.
+DTOs and enums: src/services/simulation/events.ts.
+GET /simulations/{sessionSeq}/events accepts optional status, page, size and occurredDttm sorting.
+FCM EVENT indicates a HOME event. Payload keys, session identifier and page envelope are not specified; no parser is assumed.
+On integration, refresh the current session on screen entry and EVENT push. Persist first display by occurrenceSeq at that point. Currently only the development preview is wired.
+Display scenario.title and description without choices or the correct action.
+Enable the hospital and show cost/red dot only for PENDING with vetVisit.
+Later send 18.6 VET_VISIT and apply resolvedEvent on success. RESOLVED/EXPIRED restores the original icon.
+No local treatment completion, illness queue, API calls, cost deductions or expiry penalties are implemented.
+18.6 care actions and itemSeq requirements are defined in src/services/simulation/actions.ts.
+FEED, CLEAN_LITTER, BATHE, SNACK and MEDICINE require itemSeq; PLAY accepts an optional itemSeq; WATER and VET_VISIT omit it.
+Required equipment: FEED uses FOOD_BOWL, WATER uses WATER_BOWL, CLEAN_LITTER uses LITTER_BOX, and PLAY requires at least one TOY.
+The server validates inventory, consumes supplies and charges the event cost. VET_VISIT without the corresponding PENDING event returns 409 SIMULATION_VET_NOT_NEEDED.
+The resolvedEvent response schema still needs specification.
