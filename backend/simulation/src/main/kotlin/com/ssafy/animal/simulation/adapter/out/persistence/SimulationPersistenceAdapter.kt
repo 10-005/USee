@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 
@@ -43,6 +44,8 @@ class SimulationPersistenceAdapter(
         sessionJpaRepository.findFirstByUserSeqAndStatus(userSeq, SessionStatus.IN_PROGRESS)
 
     override fun findByIdForUpdate(sessionSeq: Long): SimulationSession? = sessionJpaRepository.findByIdForUpdate(sessionSeq)
+
+    override fun findById(sessionSeq: Long): SimulationSession? = sessionJpaRepository.findByIdOrNull(sessionSeq)
 
     override fun findPageByUser(userSeq: Int, status: SessionStatus?, pageable: Pageable): Page<SimulationSession> {
         val condition = simulationSession.userSeq.eq(userSeq)

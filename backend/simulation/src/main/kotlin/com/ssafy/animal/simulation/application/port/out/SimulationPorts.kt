@@ -18,6 +18,9 @@ interface SimulationSessionRepository {
     /** 세션을 행 잠금(FOR UPDATE)으로 조회한다. 진행 중이면 지연 계산 결과를 쓰기 때문. 없으면 null */
     fun findByIdForUpdate(sessionSeq: Long): SimulationSession?
 
+    /** 잠그지 않는 조회(스탯을 쓰지 않는 읽기 전용 API용). 없으면 null */
+    fun findById(sessionSeq: Long): SimulationSession?
+
     /** 18.3 사용자 세션 목록(종료 포함). status가 null이면 전체. 정렬은 startedDttm(기본)·endedDttm만 허용 */
     fun findPageByUser(userSeq: Int, status: SessionStatus?, pageable: Pageable): Page<SimulationSession>
 
