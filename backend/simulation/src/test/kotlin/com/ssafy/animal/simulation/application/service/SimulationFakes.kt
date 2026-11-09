@@ -7,7 +7,9 @@ import com.ssafy.animal.simulation.application.port.out.InventoryEntry
 import com.ssafy.animal.simulation.application.port.out.InventoryRepository
 import com.ssafy.animal.simulation.application.port.out.SessionDetailReader
 import com.ssafy.animal.simulation.application.port.out.SimulationActionLogRepository
+import com.ssafy.animal.simulation.application.port.out.ShopItemRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationSessionRepository
+import com.ssafy.animal.simulation.application.port.out.TransactionRepository
 import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.Personality
@@ -16,7 +18,9 @@ import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SimulationInventoryItem
 import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SimulationShopItem
+import com.ssafy.animal.simulation.domain.SimulationTransaction
 import com.ssafy.animal.simulation.domain.SpeciesScope
+import com.ssafy.animal.simulation.domain.SpeciesType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
@@ -28,7 +32,9 @@ class FakeSimulationStore :
     SimulationActionLogRepository,
     BreedReader,
     SessionDetailReader,
-    InventoryRepository {
+    InventoryRepository,
+    ShopItemRepository,
+    TransactionRepository {
 
     val sessions = mutableListOf<SimulationSession>()
     val logs = mutableListOf<SimulationActionLog>()
@@ -38,6 +44,18 @@ class FakeSimulationStore :
     val reported = mutableSetOf<Long>()
     val shopItems = mutableMapOf<Long, SimulationShopItem>()
     val inventory = mutableListOf<SimulationInventoryItem>()
+    val transactions = mutableListOf<SimulationTransaction>()
+
+    override fun findActive(speciesType: SpeciesType?) = shopItems.values
+        .filter { it.isActive && (speciesType == null || it.speciesScope.includes(speciesType)) }
+        .sortedWith(compareBy<SimulationShopItem> { it.displayOrder }.thenBy { it.itemSeq })
+
+    override fun findByItemSeq(itemSeq: Long) = shopItems[itemSeq]
+
+    override fun save(transaction: SimulationTransaction) = transaction.also {
+        ReflectionTestUtils.setField(it, "transactionSeq", 7000L + transactions.size + 1)
+        transactions += it
+    }
 
     override fun findActiveForUpdate(userSeq: Int) =
         sessions.firstOrNull { it.userSeq == userSeq && it.status == SessionStatus.IN_PROGRESS }
@@ -97,6 +115,8 @@ class FakeSimulationStore :
             SimulationShopItem(1, "밥그릇", ItemCategory.FOOD_BOWL, 10_000, SpeciesScope.ALL, displayOrder = 1),
             SimulationShopItem(11, "탐색 장난감", ItemCategory.TOY, 4_100, SpeciesScope.ALL, effects = mapOf("bond" to 3), displayOrder = 11),
             SimulationShopItem(22, "균형 잡힌 사료", ItemCategory.FOOD, 10_600, SpeciesScope.ALL, effects = mapOf("satiety" to 30), displayOrder = 22),
+            SimulationShopItem(30, "배변패드", ItemCategory.LITTER, 2_600, SpeciesScope.DOG, effects = mapOf("cleanliness" to 30), displayOrder = 30),
+            SimulationShopItem(90, "단종된 간식", ItemCategory.SNACK, 1_000, SpeciesScope.ALL, displayOrder = 90, isActive = false),
             SimulationShopItem(
                 31, "화장실 모래", ItemCategory.LITTER, 7_200, SpeciesScope.CAT,
                 effects = mapOf("cleanliness" to 30), imageKey = "simulation/items/litter.png", displayOrder = 31,

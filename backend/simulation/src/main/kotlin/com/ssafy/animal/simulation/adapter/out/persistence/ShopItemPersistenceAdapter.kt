@@ -33,7 +33,7 @@ class ShopItemPersistenceAdapter(
             .fetch()
     }
 
-    override fun findById(itemSeq: Long): SimulationShopItem? = shopItemJpaRepository.findByIdOrNull(itemSeq)
+    override fun findByItemSeq(itemSeq: Long): SimulationShopItem? = shopItemJpaRepository.findByIdOrNull(itemSeq)
 }
 
 @Repository

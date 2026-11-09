@@ -47,7 +47,7 @@ interface ShopItemRepository {
     fun findActive(speciesType: SpeciesType?): List<SimulationShopItem>
 
     /** 판매 중단 물품도 포함해 단건 조회. 없으면 null */
-    fun findById(itemSeq: Long): SimulationShopItem?
+    fun findByItemSeq(itemSeq: Long): SimulationShopItem?
 }
 
 /** 지출 내역(DB 38). 한 번 쓰고 바꾸지 않는다 */

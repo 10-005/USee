@@ -28,6 +28,8 @@ class ShopQueryServiceTest {
             requested += speciesType
             return items.filter { speciesType == null || it.speciesScope.includes(speciesType) }
         }
+
+        override fun findByItemSeq(itemSeq: Long) = items.firstOrNull { it.itemSeq == itemSeq }
     }
 
     private val service = ShopQueryService(
