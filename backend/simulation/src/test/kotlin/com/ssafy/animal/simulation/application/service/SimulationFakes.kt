@@ -195,6 +195,10 @@ class FakeSimulationStore :
                 13, "헥헥거려요", "혀를 내밀어요", TriggerContext.WALK, TriggerType.RANDOM, ActionCode.GIVE_WATER, speciesScope = SpeciesScope.DOG,
                 resolveEffects = mapOf("hydration" to 10), neglectEffects = mapOf("hydration" to -15),
             ),
+            EventScenario(
+                16, "길에서 똥을 쌌어요", "그냥 두고 갈 수는 없죠", TriggerContext.WALK, TriggerType.RANDOM, ActionCode.CLEAN_UP_POOP, speciesScope = SpeciesScope.DOG,
+                resolveEffects = mapOf("bond" to 2), resultText = "깨끗이 치웠어요.", neglectEffects = mapOf("calmness" to -5, "bond" to -3),
+            ),
         ).forEach { scenarios[it.scenarioSeq] = it }
     }
 
@@ -338,6 +342,8 @@ class FakeSimulationStore :
                 effects = mapOf("energy" to 15, "bond" to 3, "calmness" to -5), displayOrder = 33,
             ),
             SimulationShopItem(35, "기본 상비약", ItemCategory.MEDICINE, 15_000, SpeciesScope.ALL, effects = mapOf("health" to 20), displayOrder = 35),
+            SimulationShopItem(9, "하네스와 리드줄", ItemCategory.LEASH, 14_900, SpeciesScope.DOG, displayOrder = 9),
+            SimulationShopItem(32, "배변봉투", ItemCategory.POOP_BAG, 500, SpeciesScope.DOG, displayOrder = 32),
             SimulationShopItem(90, "단종된 간식", ItemCategory.SNACK, 1_000, SpeciesScope.ALL, displayOrder = 90, isActive = false),
             SimulationShopItem(
                 31, "화장실 모래", ItemCategory.LITTER, 7_200, SpeciesScope.CAT,
@@ -367,7 +373,7 @@ class FakeSimulationStore :
         SessionStatRefresher(StatCalculator(properties.stats, properties.tick), Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul")))
 
     fun events(properties: SimulationProperties = DEFAULT_PROPERTIES, random: RandomGenerator = ScriptedRandom()) =
-        SessionEvents(this, this, this, this, properties, random)
+        SessionEvents(this, this, this, this, this, properties, random)
 
     companion object {
         val MALTESE = BreedInfo(21, "말티즈", CatalogSpeciesCode.DOG, Personality.FRIENDLY, "https://cdn/breeds/maltese.png")
