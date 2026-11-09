@@ -38,6 +38,11 @@ storage:
 simulation:
   tick: 1h
   session-duration: 7d
+  # 진행 중 세션 스탯 계산·종료 판정 주기(S8, 가안 10분). 인스턴스 1개 전제
+  scheduler:
+    enabled: true
+    interval: PT10M
+    initial-delay: PT1M
   stats:
     initial:
       satiety: 70

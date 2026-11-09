@@ -46,6 +46,7 @@ class PurchaseController(
     @Operation(
         summary = "펫샵 물품 구매",
         description = "- 본인 진행 중 세션만. 남의 세션·없는 세션은 보호소를 포함해 404 `SIMULATION_NOT_FOUND`, 진행 중이 아니면 409\n" +
+            "- 사기 전에 세션을 지금 시각까지 진행시켜, 건강 0·예정 종료 경과면 그 자리에서 끝내고(종료는 저장됨) 409 `SIMULATION_NOT_IN_PROGRESS`.\n" +
             "- 금액 = 가격 × 수량을 잔액에서 뺀다. 잔액이 모자라도 사고 잔액은 음수가 된다.\n" +
             "- 소모품은 수량 × 묶음 수만큼 인벤토리가 늘어난다(사료 2개 = 24끼). 다 쓴 뒤 다시 살 수 있다.\n" +
             "- 기구는 수량 1만, 이미 보유했으면 409 `SIMULATION_EQUIPMENT_ALREADY_OWNED`(돈·기록 변화 없음).\n" +

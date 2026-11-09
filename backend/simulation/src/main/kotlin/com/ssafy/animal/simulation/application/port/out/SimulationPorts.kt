@@ -8,10 +8,12 @@ import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SimulationInventoryItem
+import com.ssafy.animal.simulation.domain.SimulationReport
 import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SimulationShopItem
 import com.ssafy.animal.simulation.domain.SimulationTransaction
 import com.ssafy.animal.simulation.domain.SpeciesType
+import com.ssafy.animal.simulation.domain.SpendRecord
 import com.ssafy.animal.simulation.domain.TransactionType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -26,6 +28,9 @@ interface SimulationSessionRepository {
 
     /** 잠그지 않는 조회(스탯을 쓰지 않는 읽기 전용 API용). 없으면 null */
     fun findById(sessionSeq: Long): SimulationSession?
+
+    /** 스케줄러가 돌 진행 중 세션 번호 전체 */
+    fun findInProgressSessionSeqs(): List<Long>
 
     /** 18.3 사용자 세션 목록(종료 포함). status가 null이면 전체. 정렬은 startedDttm(기본)·endedDttm만 허용 */
     fun findPageByUser(userSeq: Int, status: SessionStatus?, pageable: Pageable): Page<SimulationSession>
@@ -45,7 +50,39 @@ interface SimulationActionLogRepository {
 
     /** 그 세션에서 그 행동을 마지막으로 한 시각(캣닢 남용 판정 등). 없으면 null */
     fun findLastActionDttm(sessionSeq: Long, actionCode: ActionCode): OffsetDateTime?
+
+    /** 리포트 actionCount용. 그 분류들의 로그 수 */
+    fun countByTypes(sessionSeq: Long, types: Collection<ActionType>): Int
 }
+
+/** 종료 리포트(DB 44). 세션당 1건 */
+interface ReportRepository {
+    fun save(report: SimulationReport): SimulationReport
+
+    fun findBySessionSeq(sessionSeq: Long): SimulationReport?
+}
+
+/**
+ * 세션 종료 시 산책·이벤트 정리와 리포트 카운트. 산책·이벤트 엔티티는 각 기능 작업(252·256)에서 만들므로
+ * 그 전까지 테이블을 직접 다룬다.
+ */
+interface SessionClosingRepository {
+    /** 진행 중 산책을 ENDED로 닫는다(산책 효과 없음). 닫은 수 */
+    fun endActiveWalks(sessionSeq: Long, endedAt: OffsetDateTime): Int
+
+    /** PENDING 이벤트를 방치 효과 없이 EXPIRED로 닫는다(Q486). 닫은 수 */
+    fun expirePendingEvents(sessionSeq: Long): Int
+
+    fun countEvents(sessionSeq: Long): EventCounts
+
+    fun countWalks(sessionSeq: Long): Int
+}
+
+/** 발생 이벤트 수(해결 + 만료)와 해결 수 */
+data class EventCounts(
+    val total: Int,
+    val resolved: Int,
+)
 
 /** 행동 로그 + 쓴 물품(물품을 쓰지 않은 행동이면 null) */
 data class ActionLogEntry(
@@ -73,6 +110,9 @@ interface TransactionRepository {
 
     /** 18.11 세션 지출 내역. type이 null이면 전체. 정렬은 regDttm만 허용(기본 desc, 동률 PK desc) */
     fun findPage(sessionSeq: Long, type: TransactionType?, pageable: Pageable): Page<TransactionEntry>
+
+    /** 리포트 집계용 세션 지출 전체(분류 키는 물품 분류, 진료비는 EVENT) */
+    fun findSpends(sessionSeq: Long): List<SpendRecord>
 }
 
 /** 지출 + 구매 물품(EVENT 지출이면 null) */

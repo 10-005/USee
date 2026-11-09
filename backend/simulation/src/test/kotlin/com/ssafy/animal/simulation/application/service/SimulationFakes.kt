@@ -4,6 +4,9 @@ import com.ssafy.animal.simulation.application.port.out.ActionLogEntry
 import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.port.out.BreedReader
 import com.ssafy.animal.simulation.application.port.out.CatalogSpeciesCode
+import com.ssafy.animal.simulation.application.port.out.EventCounts
+import com.ssafy.animal.simulation.application.port.out.ReportRepository
+import com.ssafy.animal.simulation.application.port.out.SessionClosingRepository
 import com.ssafy.animal.simulation.application.port.out.InventoryEntry
 import com.ssafy.animal.simulation.application.port.out.InventoryRepository
 import com.ssafy.animal.simulation.application.port.out.SessionDetailReader
@@ -17,6 +20,9 @@ import com.ssafy.animal.simulation.domain.ActionType
 import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.Personality
+import com.ssafy.animal.simulation.domain.ReportAggregator
+import com.ssafy.animal.simulation.domain.SimulationReport
+import com.ssafy.animal.simulation.domain.SpendRecord
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SimulationInventoryItem
@@ -29,8 +35,13 @@ import com.ssafy.animal.simulation.domain.TransactionType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
+import com.ssafy.animal.simulation.config.SimulationProperties
+import com.ssafy.animal.simulation.domain.StatCalculator
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.test.util.ReflectionTestUtils
+import java.time.Clock
 import java.time.OffsetDateTime
+import java.time.ZoneId
 
 /** 서비스 테스트용 메모리 저장소. 포트 계약만 흉내 낸다 */
 class FakeSimulationStore :
@@ -40,7 +51,37 @@ class FakeSimulationStore :
     SessionDetailReader,
     InventoryRepository,
     ShopItemRepository,
-    TransactionRepository {
+    TransactionRepository,
+    ReportRepository,
+    SessionClosingRepository {
+
+    val reports = mutableListOf<SimulationReport>()
+    val pendingEvents = mutableSetOf<Long>()
+    val eventCounts = mutableMapOf<Long, EventCounts>()
+    val walkCounts = mutableMapOf<Long, Int>()
+
+    override fun save(report: SimulationReport) = report.also {
+        ReflectionTestUtils.setField(it, "reportSeq", 9000L + reports.size + 1)
+        reports += it
+    }
+
+    override fun findBySessionSeq(sessionSeq: Long) = reports.firstOrNull { it.sessionSeq == sessionSeq }
+
+    override fun endActiveWalks(sessionSeq: Long, endedAt: OffsetDateTime) = if (activeWalks.remove(sessionSeq) != null) 1 else 0
+
+    override fun expirePendingEvents(sessionSeq: Long) = if (pendingEvents.remove(sessionSeq)) 1 else 0
+
+    override fun countEvents(sessionSeq: Long) = eventCounts[sessionSeq] ?: EventCounts(0, 0)
+
+    override fun countWalks(sessionSeq: Long) = walkCounts[sessionSeq] ?: 0
+
+    override fun countByTypes(sessionSeq: Long, types: Collection<ActionType>) =
+        logs.count { it.sessionSeq == sessionSeq && it.actionType in types }
+
+    override fun findSpends(sessionSeq: Long) = transactions.filter { it.sessionSeq == sessionSeq }.map {
+        val key = if (it.transactionType == TransactionType.EVENT) ReportAggregator.EVENT_KEY else shopItems.getValue(it.itemSeq!!).category.name
+        SpendRecord(key, it.amount, checkNotNull(it.regDttm) { "테스트 지출에 regDttm이 없습니다" })
+    }
 
     val sessions = mutableListOf<SimulationSession>()
     val logs = mutableListOf<SimulationActionLog>()
@@ -60,6 +101,7 @@ class FakeSimulationStore :
 
     override fun save(transaction: SimulationTransaction) = transaction.also {
         ReflectionTestUtils.setField(it, "transactionSeq", 7000L + transactions.size + 1)
+        now?.let { at -> ReflectionTestUtils.setField(it, "regDttm", at) }
         transactions += it
     }
 
@@ -77,6 +119,8 @@ class FakeSimulationStore :
     override fun findByIdForUpdate(sessionSeq: Long) = sessions.firstOrNull { it.sessionSeq == sessionSeq }
 
     override fun findById(sessionSeq: Long) = findByIdForUpdate(sessionSeq)
+
+    override fun findInProgressSessionSeqs() = sessions.filter { it.status == SessionStatus.IN_PROGRESS }.mapNotNull { it.sessionSeq }
 
     /** 정렬은 기본값(startedDttm desc, PK desc)만 흉내 낸다. 정렬 화이트리스트는 어댑터 테스트에서 본다 */
     override fun findPageByUser(userSeq: Int, status: SessionStatus?, pageable: Pageable): Page<SimulationSession> {
@@ -181,6 +225,18 @@ class FakeSimulationStore :
     }
 
     fun assembler() = SimulationSessionDetailAssembler(this, this, this)
+
+    /** 종료 시 발행된 내부 이벤트 */
+    val published = mutableListOf<Any>()
+
+    fun terminator(properties: SimulationProperties) =
+        SessionTerminator(this, this, this, this, properties, ApplicationEventPublisher { published += it })
+
+    /** 고정 시각 now 기준 진행(지연 계산·종료 판정) */
+    fun progress(properties: SimulationProperties, now: OffsetDateTime) = SessionProgress(
+        SessionStatRefresher(StatCalculator(properties.stats, properties.tick), Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul"))),
+        terminator(properties),
+    )
 
     companion object {
         val MALTESE = BreedInfo(21, "말티즈", CatalogSpeciesCode.DOG, Personality.FRIENDLY, "https://cdn/breeds/maltese.png")

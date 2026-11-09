@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.ssafy.animal.common.config.CommonWebAutoConfiguration
 import com.ssafy.animal.simulation.adapter.`in`.web.WebTestTokens
+import com.ssafy.animal.simulation.application.port.`in`.AbandonSimulationUseCase
 import com.ssafy.animal.simulation.application.port.`in`.ActionLogQueryUseCase
 import com.ssafy.animal.simulation.application.port.`in`.CareActionUseCase
 import com.ssafy.animal.simulation.application.port.`in`.InventoryQueryUseCase
@@ -53,6 +54,7 @@ class SimulationSwaggerDocsTest {
     // 문서에 실제 컨트롤러가 잡히도록 컨트롤러는 띄우고 유스케이스만 목으로 둔다
     @MockitoBean lateinit var startSimulationUseCase: StartSimulationUseCase
     @MockitoBean lateinit var sessionQueryUseCase: SimulationSessionQueryUseCase
+    @MockitoBean lateinit var abandonUseCase: AbandonSimulationUseCase
     @MockitoBean lateinit var shopQueryUseCase: ShopQueryUseCase
     @MockitoBean lateinit var purchaseUseCase: PurchaseUseCase
     @MockitoBean lateinit var inventoryQueryUseCase: InventoryQueryUseCase
@@ -75,8 +77,8 @@ class SimulationSwaggerDocsTest {
     fun `모든 API에 요약과 태그와 401 응답 문서가 있다`() {
         val operations = operations(apiDocs())
 
-        // 18.1~18.4, 18.6~18.11
-        assertTrue(operations.size >= 10, "simulation API 문서 수: ${operations.size}")
+        // 18.1~18.11
+        assertTrue(operations.size >= 11, "simulation API 문서 수: ${operations.size}")
         operations.forEach { (name, op) ->
             assertTrue(op["summary"]?.asText().orEmpty().isNotBlank(), "$name: summary 없음")
             assertTrue(op["tags"]?.size() ?: 0 > 0, "$name: 태그 없음")

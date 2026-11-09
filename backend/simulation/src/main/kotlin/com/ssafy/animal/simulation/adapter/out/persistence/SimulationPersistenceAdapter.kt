@@ -53,6 +53,14 @@ class SimulationPersistenceAdapter(
 
     override fun findById(sessionSeq: Long): SimulationSession? = sessionJpaRepository.findByIdOrNull(sessionSeq)
 
+    override fun findInProgressSessionSeqs(): List<Long> =
+        queryFactory.select(simulationSession.sessionSeq)
+            .from(simulationSession)
+            .where(simulationSession.status.eq(SessionStatus.IN_PROGRESS))
+            .orderBy(simulationSession.sessionSeq.asc())
+            .fetch()
+            .filterNotNull()
+
     override fun findPageByUser(userSeq: Int, status: SessionStatus?, pageable: Pageable): Page<SimulationSession> {
         val condition = simulationSession.userSeq.eq(userSeq)
             .let { base -> status?.let { base.and(simulationSession.status.eq(it)) } ?: base }
@@ -65,6 +73,14 @@ class SimulationPersistenceAdapter(
         val total = queryFactory.select(simulationSession.count()).from(simulationSession).where(condition).fetchOne() ?: 0L
         return PageImpl(content, pageable, total)
     }
+
+    override fun countByTypes(sessionSeq: Long, types: Collection<ActionType>): Int =
+        (
+            queryFactory.select(simulationActionLog.count())
+                .from(simulationActionLog)
+                .where(simulationActionLog.sessionSeq.eq(sessionSeq), simulationActionLog.actionType.`in`(types))
+                .fetchOne() ?: 0L
+            ).toInt()
 
     // (session_seq, reg_dttm DESC) 인덱스로 그 세션의 최근 로그 중에서 찾는다
     override fun findLastActionDttm(sessionSeq: Long, actionCode: ActionCode): OffsetDateTime? =

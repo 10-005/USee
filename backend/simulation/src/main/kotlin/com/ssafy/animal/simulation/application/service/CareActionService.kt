@@ -17,7 +17,6 @@ import com.ssafy.animal.simulation.domain.CareRule
 import com.ssafy.animal.simulation.domain.CareRules
 import com.ssafy.animal.simulation.domain.EffectSource
 import com.ssafy.animal.simulation.domain.ItemCategory
-import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SimulationErrorCode
 import com.ssafy.animal.simulation.domain.SimulationSession
@@ -34,19 +33,24 @@ class CareActionService(
     private val actionLogRepository: SimulationActionLogRepository,
     private val inventory: SimulationInventory,
     private val statRefresher: SessionStatRefresher,
+    private val progress: SessionProgress,
     private val properties: SimulationProperties,
 ) : CareActionUseCase {
 
-    /** 명세 21.5의 3: 세션 잠금 → 지연 계산 → 기구·소모품 검사 → 수량 -1 → 효과 반영 → CARE 로그 → last_action_dttm */
-    @Transactional
+    /**
+     * 명세 21.5의 3: 세션 잠금 → 지연 계산(종료 조건이면 종료) → 기구·소모품 검사 → 수량 -1 → 효과 반영 → CARE 로그 → last_action_dttm.
+     *
+     * 도메인 오류(BusinessException)는 롤백하지 않는다. 오류는 모두 수량 차감 전에 나므로 그때까지의 쓰기는 지연 계산과
+     * 종료 처리뿐이고, 이 둘은 조회와 마찬가지로 남아야 한다(행동 중 세션이 끝나 409가 나도 종료는 저장).
+     */
+    @Transactional(noRollbackFor = [BusinessException::class])
     override fun act(userSeq: Long, sessionSeq: Long, command: CareActionCommand): CareActionResult {
         val session = sessionRepository.findByIdForUpdate(sessionSeq)
             ?.takeIf { it.userSeq.toLong() == userSeq }
             ?: throw BusinessException(SimulationErrorCode.SIMULATION_NOT_FOUND)
-        if (session.status != SessionStatus.IN_PROGRESS) throw BusinessException(SimulationErrorCode.SIMULATION_NOT_IN_PROGRESS)
+        progress.catchUp(session)
+        if (!session.isInProgress) throw BusinessException(SimulationErrorCode.SIMULATION_NOT_IN_PROGRESS)
         val rule = CareRules.of(command.actionCode) ?: throw invalid("actionCode", "지원하지 않는 돌봄 행동입니다: ${command.actionCode}")
-
-        statRefresher.refresh(session)
 
         val equipment = rule.requiredEquipment?.let { category ->
             val owned = inventoryRepository.findOwnedByCategory(sessionSeq, category)

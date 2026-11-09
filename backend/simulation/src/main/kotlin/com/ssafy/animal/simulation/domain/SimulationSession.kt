@@ -139,6 +139,19 @@ class SimulationSession(
         return result
     }
 
+    /**
+     * 세션을 끝낸다(M6). COMPLETED는 예정 종료 시각, FAILED는 건강이 0이 된 시각, ABANDONED는 포기 시각.
+     * 리포트·로그·산책·이벤트 정리는 SessionTerminator가 같은 트랜잭션에서 한다.
+     */
+    fun end(status: SessionStatus, at: OffsetDateTime) {
+        check(this.status == SessionStatus.IN_PROGRESS) { "이미 끝난 세션입니다: ${this.status}" }
+        require(status != SessionStatus.IN_PROGRESS) { "종료 상태가 아닙니다: $status" }
+        this.status = status
+        endedDttm = at
+    }
+
+    val isInProgress: Boolean get() = status == SessionStatus.IN_PROGRESS
+
     /** CARE·WALK 행동 시각을 남긴다(표시·통계용, Q481). SYSTEM·EVENT_EXPIRE 로그는 부르지 않는다 */
     fun recordAction(at: OffsetDateTime) {
         check(status == SessionStatus.IN_PROGRESS) { "진행 중인 세션만 행동합니다: $status" }
