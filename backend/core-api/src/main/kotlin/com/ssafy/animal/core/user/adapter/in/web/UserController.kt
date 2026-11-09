@@ -20,6 +20,9 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.RequestParam
+import io.swagger.v3.oas.annotations.security.SecurityRequirements
+import com.ssafy.animal.common.auth.Role
 
 @Tag(name = "사용자 프로필", description = "내 프로필 조회·수정, 다른 회원의 공개 프로필. 탈퇴는 '회원 탈퇴' 태그")
 @RestController
@@ -85,6 +88,65 @@ class UserController(
     @PreAuthorize("hasRole('USER')")
     fun getMe(@Parameter(hidden = true) @AuthenticationPrincipal user: AuthUser) =
         MyProfileResponse.from(userProfileUseCase.getMe(user.userSeq))
+
+    /** 닉네임 중복 확인(명세 외). 가입(2.5)·프로필 수정(3.2) 화면에서 제출 전에 쓴다 */
+    @Operation(
+        summary = "닉네임 중복 확인",
+        description = "- 🔓 로그인 없이 호출할 수 있다(카카오 가입 단계에는 access 토큰이 없음).\n" +
+            "- 형식은 가입·수정과 같다: 2~10자, 한글·영문·숫자와 `.` `_`만. 틀리거나 비어 있으면 400.\n" +
+            "- 중복 판정도 같다: 탈퇴하지 않은 USER의 닉네임과 대소문자 구분 없이 비교한다.\n" +
+            "- USER로 로그인해 호출하면 본인의 현재 닉네임은 `available=true`(3.2에 그대로 보내도 409가 아님).\n" +
+            "- 결과는 확인 시점 기준이다. 제출할 때 다른 사람이 먼저 쓰면 2.5·3.2가 409 `USER_DUPLICATE_NICKNAME`을 낸다.",
+    )
+    @SecurityRequirements
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "200",
+            description = "형식이 맞음. `available`로 사용 가능 여부",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = NicknameAvailabilitySuccessSchema::class),
+                    examples = [
+                        ExampleObject(
+                            name = "사용 가능",
+                            value = """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"nickname":"반려가족","available":true},"errors":null,"traceId":"8f3a2c1d9e7b4a60"}""",
+                        ),
+                        ExampleObject(
+                            name = "이미 사용 중",
+                            value = """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"nickname":"반려가족","available":false},"errors":null,"traceId":"8f3a2c1d9e7b4a60"}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "400",
+            description = "닉네임이 없거나 형식이 틀림. 입력을 고친 뒤 다시 호출",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [
+                        ExampleObject(
+                            name = "형식 오류",
+                            value = """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"nickname","reason":"닉네임은 2~10자의 한글·영문·숫자와 . _만 쓸 수 있습니다."}],"traceId":"8f3a2c1d9e7b4a60"}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+    )
+    @GetMapping("/nickname-availability")
+    fun checkNickname(
+        @Parameter(hidden = true) @AuthenticationPrincipal user: AuthUser?,
+        @Parameter(description = "확인할 닉네임. 2~10자, 한글·영문·숫자와 . _만", example = "반려가족", required = true)
+        @RequestParam(required = false) nickname: String?,
+    ): NicknameAvailabilityResponse {
+        val value = nickname.orEmpty()
+        val self = user?.takeIf { it.role == Role.USER }?.userSeq
+        return NicknameAvailabilityResponse(value, userProfileUseCase.isNicknameAvailable(value, self))
+    }
 
     /** 3.2 내 프로필 부분 갱신 */
     @Operation(

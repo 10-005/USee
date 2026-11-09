@@ -33,6 +33,7 @@ import java.time.LocalDate
 import java.util.Base64
 import java.util.Date
 import java.util.Optional
+import com.ssafy.animal.common.exception.CommonErrorCode
 
 @WebMvcTest(UserController::class)
 @ImportAutoConfiguration(CommonWebAutoConfiguration::class)
@@ -130,6 +131,36 @@ class UserControllerTest {
             status { isOk() }
             jsonPath("$.data.profileImage.imageSeq") { value(1301) }
             jsonPath("$.data.profileImage.displayOrder") { value(1) }
+        }
+    }
+
+    @Test
+    fun `닉네임 중복 확인은 토큰 없이 호출되고, USER 토큰이면 본인을 빼고 확인한다`() {
+        given(userProfileUseCase.isNicknameAvailable("반려가족", null)).willReturn(false)
+        given(userProfileUseCase.isNicknameAvailable("반려가족", 42)).willReturn(true)
+
+        mockMvc.get("/api/core/v1/users/nickname-availability?nickname=반려가족").andExpect {
+            status { isOk() }
+            jsonPath("$.data.nickname") { value("반려가족") }
+            jsonPath("$.data.available") { value(false) }
+        }
+        mockMvc.get("/api/core/v1/users/nickname-availability?nickname=반려가족") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
+            status { isOk() }
+            jsonPath("$.data.available") { value(true) }
+        }
+        // SHELTER 토큰은 본인 제외 없이 판정(SHELTER는 닉네임이 없음)
+        mockMvc.get("/api/core/v1/users/nickname-availability?nickname=반려가족") { header(HttpHeaders.AUTHORIZATION, SHELTER_TOKEN) }.andExpect {
+            jsonPath("$.data.available") { value(false) }
+        }
+    }
+
+    @Test
+    fun `닉네임 중복 확인에서 nickname을 빼면 빈 값으로 넘겨 형식 오류 400이 된다`() {
+        given(userProfileUseCase.isNicknameAvailable("", null))
+            .willThrow(BusinessException(CommonErrorCode.COMMON_INVALID_INPUT))
+        mockMvc.get("/api/core/v1/users/nickname-availability").andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("COMMON_INVALID_INPUT") }
         }
     }
 

@@ -26,6 +26,14 @@ class UserProfileService(
     @Transactional(readOnly = true)
     override fun getMe(userSeq: Long) = myProfile(load(userSeq))
 
+    @Transactional(readOnly = true)
+    override fun isNicknameAvailable(nickname: String, exceptUserSeq: Long?): Boolean {
+        if (!UserProfilePolicy.isValidNickname(nickname)) {
+            throw BusinessException(CommonErrorCode.COMMON_INVALID_INPUT, errors = listOf(ErrorDetail("nickname", UserProfilePolicy.NICKNAME_RULE)))
+        }
+        return !userRepository.existsActiveNickname(nickname, exceptUserSeq?.let(Math::toIntExact))
+    }
+
     @Transactional
     override fun updateMe(userSeq: Long, command: UpdateMyProfileCommand): MyProfile {
         val user = load(userSeq)

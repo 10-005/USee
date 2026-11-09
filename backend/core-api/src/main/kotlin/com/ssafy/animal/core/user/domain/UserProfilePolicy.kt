@@ -12,6 +12,9 @@ import java.time.LocalDate
 object UserProfilePolicy {
 
     private val NICKNAME = Regex("^[가-힣a-zA-Z0-9._]{2,10}$")
+    const val NICKNAME_RULE = "닉네임은 2~10자의 한글·영문·숫자와 . _만 쓸 수 있습니다."
+
+    fun isValidNickname(nickname: String) = NICKNAME.matches(nickname)
     private const val NAME_MAX = 100
     private const val PHONE_MAX = 30
 
@@ -23,7 +26,7 @@ object UserProfilePolicy {
         if (missing.isNotEmpty()) throw BusinessException(UserErrorCode.USER_REQUIRED_PROFILE_MISSING, errors = missing)
 
         val invalid = buildList {
-            if (!NICKNAME.matches(nickname!!)) add(ErrorDetail("nickname", "닉네임은 2~10자의 한글·영문·숫자와 . _만 쓸 수 있습니다."))
+            if (!isValidNickname(nickname!!)) add(ErrorDetail("nickname", NICKNAME_RULE))
             if (name!!.length > NAME_MAX) add(ErrorDetail("name", "이름은 ${NAME_MAX}자 이하입니다."))
             if (phone!!.length > PHONE_MAX) add(ErrorDetail("phone", "전화번호는 ${PHONE_MAX}자 이하입니다."))
         }
