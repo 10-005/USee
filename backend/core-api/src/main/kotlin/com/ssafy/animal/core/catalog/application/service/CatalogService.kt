@@ -2,12 +2,18 @@ package com.ssafy.animal.core.catalog.application.service
 
 import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.core.catalog.application.port.`in`.AnimalClassification
+import com.ssafy.animal.core.catalog.application.port.`in`.BreedView
+import com.ssafy.animal.core.catalog.application.port.`in`.CatalogQueryUseCase
+import com.ssafy.animal.core.catalog.application.port.`in`.ColorView
+import com.ssafy.animal.core.catalog.application.port.`in`.DistrictView
 import com.ssafy.animal.core.catalog.application.port.`in`.CatalogUseCase
 import com.ssafy.animal.core.catalog.application.port.`in`.GeocodeCandidate
 import com.ssafy.animal.core.catalog.application.port.`in`.GeocodeUseCase
+import com.ssafy.animal.core.catalog.application.port.`in`.SpeciesView
 import com.ssafy.animal.core.catalog.application.port.out.CatalogRepository
 import com.ssafy.animal.core.catalog.application.port.out.GeocodingClient
 import com.ssafy.animal.core.catalog.domain.CatalogErrorCode
+import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -16,7 +22,8 @@ import org.springframework.transaction.annotation.Transactional
 @Transactional(readOnly = true)
 class CatalogService(
     private val catalogRepository: CatalogRepository,
-) : CatalogUseCase {
+    private val imageUseCase: ImageUseCase,
+) : CatalogUseCase, CatalogQueryUseCase {
 
     override fun requireClassification(combinationSeq: Int): AnimalClassification =
         catalogRepository.findClassifications(listOf(combinationSeq)).firstOrNull()
@@ -29,6 +36,26 @@ class CatalogService(
     override fun requireDistrict(districtCode: String) {
         if (!catalogRepository.existsDistrict(districtCode)) throw BusinessException(CatalogErrorCode.CATALOG_INVALID_DISTRICT_CODE)
     }
+
+    override fun findSpecies() = catalogRepository.findAllSpecies().map { SpeciesView(it.speciesSeq, it.speciesCode, it.speciesName) }
+
+    // ponytail: 대표 이미지가 있는 품종마다 이미지 1건 조회. 시드 이미지가 늘어 느려지면 일괄 조회 포트를 추가
+    override fun findBreeds(speciesSeq: Int) = catalogRepository.findBreeds(speciesSeq).map {
+        BreedView(
+            breedSeq = it.breedSeq,
+            speciesSeq = it.speciesSeq,
+            breedName = it.breedName,
+            personality = it.personality,
+            representativeImageUrl = it.representativeImageSeq?.let(imageUseCase::findSummary)?.imageUrl,
+        )
+    }
+
+    override fun findColors() = catalogRepository.findAllColors().map { ColorView(it.colorSeq, it.colorName) }
+
+    override fun findCombinations(breedSeq: Int?, colorSeq: Int?) = catalogRepository.findCombinations(breedSeq, colorSeq)
+
+    override fun findDistricts(sidoName: String?) =
+        catalogRepository.findDistricts(sidoName).map { DistrictView(it.districtCode, it.sidoName, it.sigunguName) }
 }
 
 /** 트랜잭션을 걸지 않는다: 외부 호출을 DB 커넥션을 쥔 채 기다리지 않도록(명세 21.1 2단계) */

@@ -5,8 +5,18 @@ import com.ssafy.animal.core.catalog.application.port.`in`.AnimalClassification
 import com.ssafy.animal.core.catalog.application.port.`in`.GeocodeCandidate
 import com.ssafy.animal.core.catalog.application.port.out.CatalogRepository
 import com.ssafy.animal.core.catalog.application.port.out.GeocodingClient
+import com.ssafy.animal.core.catalog.domain.AnimalBreed
+import com.ssafy.animal.core.catalog.domain.AnimalColor
+import com.ssafy.animal.core.catalog.domain.AnimalSpecies
 import com.ssafy.animal.core.catalog.domain.CatalogErrorCode
+import com.ssafy.animal.core.catalog.domain.District
+import com.ssafy.animal.core.catalog.domain.Personality
 import com.ssafy.animal.core.catalog.domain.SpeciesCode
+import com.ssafy.animal.core.image.application.port.`in`.ImageSummary
+import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
+import org.mockito.BDDMockito.given
+import org.mockito.Mockito.mock
+import org.springframework.test.util.ReflectionTestUtils
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -20,7 +30,18 @@ class CatalogServiceTest {
     private val repository = object : CatalogRepository {
         override fun findClassifications(combinationSeqs: Collection<Int>) = listOf(maltese).filter { it.combinationSeq in combinationSeqs }
         override fun existsDistrict(districtCode: String) = districtCode in districts
+        override fun findAllSpecies() = emptyList<AnimalSpecies>()
+        override fun findBreeds(speciesSeq: Int) = breeds.filter { it.speciesSeq == speciesSeq }
+        override fun findAllColors() = emptyList<AnimalColor>()
+        override fun findCombinations(breedSeq: Int?, colorSeq: Int?) = emptyList<AnimalClassification>()
+        override fun findDistricts(sidoName: String?) = emptyList<District>()
     }
+
+    private val breeds = listOf(
+        AnimalBreed(21, 1, "말티즈", Personality.FRIENDLY).also { ReflectionTestUtils.setField(it, "representativeImageSeq", 7L) },
+        AnimalBreed(22, 1, "진도견", Personality.ACTIVE),
+    )
+    private val imageUseCase = mock(ImageUseCase::class.java)
 
     private var legalCode: () -> String? = { null }
     private val client = object : GeocodingClient {
@@ -28,7 +49,7 @@ class CatalogServiceTest {
         override fun reverseLegalCode(latitude: Double, longitude: Double) = legalCode()
     }
 
-    private val catalog = CatalogService(repository)
+    private val catalog = CatalogService(repository, imageUseCase)
     private val geocode = GeocodeService(client, repository)
 
     @Test
@@ -36,6 +57,17 @@ class CatalogServiceTest {
         assertEquals("말티즈", catalog.requireClassification(88).breedName)
         assertCode(CatalogErrorCode.CATALOG_COMBINATION_NOT_FOUND) { catalog.requireClassification(99) }
         assertEquals(setOf(88), catalog.findClassifications(listOf(88, 99)).keys)
+    }
+
+    @Test
+    fun `5_2 품종 대표 이미지는 이미지 URL로, 없으면 null`() {
+        given(imageUseCase.findSummary(7)).willReturn(ImageSummary(7, "https://cdn/images/seed/breeds/000072.jpg"))
+
+        val result = catalog.findBreeds(1)
+
+        assertEquals(listOf("https://cdn/images/seed/breeds/000072.jpg", null), result.map { it.representativeImageUrl })
+        assertEquals(Personality.FRIENDLY, result[0].personality)
+        assertEquals(emptyList(), catalog.findBreeds(99))
     }
 
     @Test
