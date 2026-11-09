@@ -26,6 +26,7 @@ import { useShopStore } from '../../stores/shopStore';
 import { consumeCareSupplies } from '../../services/shop/consumption';
 import { availableProducts } from '../../services/shop/catalog';
 import { SuddenEventDialog } from './SuddenEventDialog';
+import { VetVisitDialog } from './VetVisitDialog';
 import {
   getVetVisit,
   SimulationEventStatus,
@@ -63,7 +64,11 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const hasToy = petProducts.some(p => p.category === '놀이' && p.kind === 'durable' && owns(p.id));
   const [statsVisible, setStatsVisible] = useState(false);
   // TODO: refresh from the current session on entry / EVENT push, then apply server status.
-  const [pendingEvent, setPendingEvent] = useState<SimulationEvent | null>(null);
+  const [hospitalVisible, setHospitalVisible] = useState(false);
+  const hospitalEvents = (shop.hospitalEvents ?? []).filter(
+    event => getVetVisit(event) && Date.now() < Date.parse(event.expiresDttm),
+  );
+  const pendingEvent = hospitalEvents[0] ?? null;
   const [suddenEvent, setSuddenEvent] = useState<SimulationEvent | null>(null);
   const vetVisit = getVetVisit(pendingEvent);
   const walkPending = useRef(false);
@@ -162,6 +167,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         setFullBowl({ food: false, water: false });
         setRoomVisible(false);
         setStatsVisible(false);
+        setHospitalVisible(false);
       };
     }, [hideThenNavigate, navigation, bathScreenOpacity]),
   );
@@ -213,9 +219,21 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     toastTimer.current = setTimeout(() => setToast(''), 2500);
   };
   const confirmTreatment = () => {
-    if (vetVisit) {
-      // TODO: send 18.6 VET_VISIT; update only from the successful server response.
-      Alert.alert('동물병원', '진료 기능은 준비 중이에요.');
+    setHospitalVisible(true);
+  };
+  const resolveTreatment = (pay: boolean) => {
+    if (!pendingEvent) {
+      return;
+    }
+    if (!shop.resolveHospitalEvent(pendingEvent.occurrenceSeq, pay)) {
+      Alert.alert(
+        '동물병원',
+        useShopStore.getState().error ?? '진료를 처리하지 못했어요. 다시 시도해주세요.',
+      );
+      return;
+    }
+    if (hospitalEvents.length <= 1) {
+      setHospitalVisible(false);
     }
   };
   const startBath = () => {
@@ -412,15 +430,16 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                   onPress={() => {
                     setStatsVisible(false);
                     const preview: SimulationEvent = {
-                      occurrenceSeq: 90001,
+                      occurrenceSeq: Date.now(),
                       scenario: {
                         scenarioSeq: 5,
                         title: '축 처져 있어요',
-                        description: '밥을 잘 안 먹고 구석에서 움직이지 않아요. 어떻게 해줘야 할까요?',
+                        description:
+                          '밥을 잘 안 먹고 구석에서 움직이지 않아요. 어떻게 해줘야 할까요?',
                         triggerContext: SimulationTriggerContext.Home,
                         triggerType: SimulationTriggerType.Condition,
                       },
-                      vetVisit: { cost: 30000 },
+                      vetVisit: { cost: 120000 },
                       walkSeq: null,
                       status: SimulationEventStatus.Pending,
                       occurredDttm: new Date().toISOString(),
@@ -429,7 +448,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                       resolvedActionCode: null,
                       resultText: null,
                     };
-                    setPendingEvent(preview);
+                    shop.enqueueHospitalEvent(preview);
                     setSuddenEvent(preview);
                   }}
                   style={({ pressed }) => [styles.previewButton, pressed && styles.pressed]}
@@ -668,6 +687,16 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
               opacity: bathScreenOpacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
             },
           ]}
+        />
+      ) : null}
+      {pet && pendingEvent && hospitalVisible ? (
+        <VetVisitDialog
+          key={pendingEvent.occurrenceSeq}
+          event={pendingEvent}
+          remaining={hospitalEvents.length}
+          onClose={() => setHospitalVisible(false)}
+          onPay={() => resolveTreatment(true)}
+          onIgnore={() => resolveTreatment(false)}
         />
       ) : null}
       {pet && suddenEvent ? (
