@@ -191,6 +191,19 @@ class SwaggerDocsDevHubTest : SwaggerDocsTestBase() {
             jsonPath("$params[?(@.name in ['userSeq', 'role', 'shelterSeq'])]") { value(empty<Any>()) }
         }
     }
+
+    @Test
+    fun `부분 수정 요청의 is로 시작하는 Optional 필드도 스키마에 나온다`() {
+        val schemas = "$.components.schemas"
+        mockMvc.get("/api/core/v3/api-docs").andExpect {
+            status { isOk() }
+            jsonPath("$schemas.UpdatePetRequest.properties.isNeutered") { exists() }
+            jsonPath("$schemas.UpdateMissingRequest.properties.isNeutered") { exists() }
+            jsonPath("$schemas.UpdateFoundReportRequest.properties.isNeutered") { exists() }
+            jsonPath("$schemas.UpdateFoundReportRequest.properties.isPhonePublic") { exists() }
+            jsonPath("$schemas.UpdateAnimalRequest.properties.isNeutered") { exists() }
+        }
+    }
 }
 
 private const val AUTH_USER_DOCS_PATH = "/api/core/v1/test-docs/auth-user"

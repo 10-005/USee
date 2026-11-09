@@ -1,5 +1,6 @@
 package com.ssafy.animal.core.missing.adapter.`in`.web
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.ssafy.animal.common.docs.SuccessResponseSchema
 import com.ssafy.animal.common.response.PageResponse
 import com.ssafy.animal.core.catalog.application.port.`in`.AnimalClassification
@@ -78,6 +79,7 @@ data class UpdateMissingRequest(
     @field:Schema(description = "몸무게. 최대 30자. 생략하면 유지, null을 보내면 지운다", nullable = true, example = "4.5kg")
     val weight: Optional<String>? = null,
     @field:Schema(description = "중성화 여부. 생략하면 유지, null을 보내면 모름으로 바꾼다", nullable = true, example = "true")
+    @get:JsonProperty("isNeutered")
     val isNeutered: Optional<Boolean>? = null,
     @field:Schema(description = "마이크로칩 번호. 최대 30자. 생략하면 유지, null을 보내면 지운다", nullable = true, example = "410100012345678")
     val microchipNumber: Optional<String>? = null,
