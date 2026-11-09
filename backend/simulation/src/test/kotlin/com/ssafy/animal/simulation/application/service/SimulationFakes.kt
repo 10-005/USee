@@ -146,6 +146,8 @@ class FakeSimulationStore :
                 effects = mapOf("cleanliness" to 40, "calmness" to -5), displayOrder = 10,
             ),
             SimulationShopItem(11, "탐색 장난감", ItemCategory.TOY, 4_100, SpeciesScope.ALL, effects = mapOf("bond" to 3), displayOrder = 11),
+            SimulationShopItem(12, "통통 놀이공", ItemCategory.TOY, 8_900, SpeciesScope.ALL, effects = mapOf("bond" to 4, "calmness" to 3), displayOrder = 12),
+            SimulationShopItem(20, "꼬마 쥐 장난감", ItemCategory.TOY, 2_000, SpeciesScope.CAT, effects = mapOf("bond" to 3, "calmness" to 2), displayOrder = 20),
             SimulationShopItem(22, "균형 잡힌 사료", ItemCategory.FOOD, 10_600, SpeciesScope.ALL, effects = mapOf("satiety" to 30), displayOrder = 22),
             SimulationShopItem(
                 23, "바삭한 미니 비스킷", ItemCategory.SNACK, 4_500, SpeciesScope.ALL,

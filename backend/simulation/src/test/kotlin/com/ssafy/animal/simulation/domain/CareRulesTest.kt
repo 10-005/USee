@@ -34,6 +34,17 @@ class CareRulesTest {
     }
 
     @Test
+    fun `놀아 주기는 장난감을 골라 쓰고 소모하지 않는다`() {
+        val play = CareRules.of(ActionCode.PLAY)!!
+
+        assertEquals(CareRule(ActionCode.PLAY, ItemCategory.TOY, null, EffectSource.SELECTED_EQUIPMENT), play)
+        assertTrue(play.selectsEquipment)
+        assertFalse(play.needsItem)
+        assertFailsWith<IllegalArgumentException> { CareRule(ActionCode.PLAY, null, null, EffectSource.SELECTED_EQUIPMENT) }
+        assertFailsWith<IllegalArgumentException> { CareRule(ActionCode.PLAY, ItemCategory.TOY, ItemCategory.SNACK, EffectSource.SELECTED_EQUIPMENT) }
+    }
+
+    @Test
     fun `아직 만들지 않은 돌봄과 산책·시스템 코드는 규칙이 없다`() {
         listOf(ActionCode.VET_VISIT, ActionCode.GIVE_WATER, ActionCode.SESSION_START)
             .forEach { assertNull(CareRules.of(it), it.name) }

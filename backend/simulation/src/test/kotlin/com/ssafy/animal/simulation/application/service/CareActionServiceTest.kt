@@ -166,6 +166,45 @@ class CareActionServiceTest {
     }
 
     @Test
+    fun `놀아 주기는 장난감을 고르지 않으면 보유한 첫 번째 장난감 효과를 쓰고 장난감은 줄지 않는다`() {
+        buy(12)
+        buy(11)
+
+        val result = act(ActionCode.PLAY)
+
+        assertEquals(mapOf(Stat.BOND to 3), result.statDelta)
+        assertNull(result.consumedItem)
+        assertEquals(11L, store.logs.single().itemSeq)
+        assertEquals(1, store.find(sessionSeq, 11)!!.quantity)
+    }
+
+    @Test
+    fun `놀아 주기는 itemSeq로 보유한 장난감을 고를 수 있다`() {
+        buy(11)
+        buy(12)
+
+        val result = act(ActionCode.PLAY, itemSeq = 12)
+
+        assertEquals(mapOf(Stat.BOND to 4, Stat.CALMNESS to 3), result.statDelta)
+        assertEquals(12L, store.logs.single().itemSeq)
+    }
+
+    @Test
+    fun `놀아 주기의 장난감 오류`() {
+        assertError(SimulationErrorCode.SIMULATION_EQUIPMENT_MISSING) { act(ActionCode.PLAY) }
+
+        buy(11)
+        buy(22)
+        // 장난감이 아닌 물품은 400, 없는 물품 404, 사지 않은 장난감 409
+        val notToy = assertFailsWith<BusinessException> { act(ActionCode.PLAY, itemSeq = 22) }
+        assertEquals(CommonErrorCode.COMMON_INVALID_INPUT, notToy.errorCode)
+        assertEquals("itemSeq", notToy.errors.single().field)
+        assertError(SimulationErrorCode.SIMULATION_SHOP_ITEM_NOT_FOUND) { act(ActionCode.PLAY, itemSeq = 999) }
+        assertError(SimulationErrorCode.SIMULATION_ITEM_NOT_IN_INVENTORY) { act(ActionCode.PLAY, itemSeq = 20) }
+        assertTrue(store.logs.isEmpty())
+    }
+
+    @Test
     fun `간식·약의 물품 오류(누락·분류 불일치·종 불일치·미보유)`() {
         buy(1)
         val missing = assertFailsWith<BusinessException> { act(ActionCode.SNACK) }

@@ -58,7 +58,8 @@ class CareActionController(
             "  - `BATHE`: 위생 관리 키트 보유, 소모 없이 무제한(키트 효과), `itemSeq` 생략\n" +
             "  - `SNACK`: 기구 없이 간식(SNACK) 1개, `itemSeq` 필수\n" +
             "  - `MEDICINE`: 기구 없이 약(MEDICINE) 1개, `itemSeq` 필수\n" +
-            "- 그 밖의 코드(PLAY·VET_VISIT·산책·시스템)는 아직 400.\n" +
+            "  - `PLAY`: 장난감 1개 이상 보유, 소모 없이 무제한. `itemSeq`로 보유한 장난감을 고르면 그 효과, 생략하면 보유한 첫 번째 장난감 효과\n" +
+            "- 그 밖의 코드(VET_VISIT·산책·시스템)는 아직 400.\n" +
             "- `statDelta`는 실제로 바뀐 양만 담는다(포만감 90에 +30이면 +10, 이미 100이면 빠짐).\n" +
             "- 돈은 쓰지 않는다. 마지막 행동 시각이 갱신되고 행동 이력(CARE)이 1건 남는다.\n" +
             "- `resolvedEvent`는 돌발 이벤트 기능 전까지 항상 null.",
@@ -80,7 +81,8 @@ class CareActionController(
         ),
         ApiResponse(
             responseCode = "400",
-            description = "actionCode 누락·지원하지 않는 행동, 소모품 행동에 itemSeq 누락·행동과 맞지 않는 물품, 없는 코드(본문 형식 오류), 세션 번호 타입 오류",
+            description = "actionCode 누락·지원하지 않는 행동, 소모품 행동에 itemSeq 누락·행동과 맞지 않는 물품(PLAY에 장난감이 아닌 물품 포함), " +
+                "없는 코드(본문 형식 오류), 세션 번호 타입 오류",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -126,7 +128,7 @@ class CareActionController(
         ),
         ApiResponse(
             responseCode = "409",
-            description = "진행 중이 아닌 세션, 필요 기구 없음(펫샵에서 구매 안내), 소모품 미보유·다 씀, 세션 종과 맞지 않는 물품",
+            description = "진행 중이 아닌 세션, 필요 기구 없음(펫샵에서 구매 안내), 소모품 미보유·다 씀·고른 장난감 미보유, 세션 종과 맞지 않는 물품",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -171,10 +173,15 @@ class CareActionController(
 
 /** actionCode는 DB action_code 값(FEED 등). 응답·18.7의 actionType(CARE 등 분류)과 다른 필드다 */
 data class CareActionRequest(
-    @field:Schema(description = "돌봄 행동 코드. 지금은 FEED·WATER·CLEAN_LITTER·BATHE·SNACK·MEDICINE", example = "FEED")
+    @field:Schema(description = "돌봄 행동 코드. 지금은 FEED·WATER·CLEAN_LITTER·BATHE·SNACK·MEDICINE·PLAY", example = "FEED")
     @field:NotNull
     val actionCode: ActionCode?,
-    @field:Schema(description = "쓸 소모품 번호(인벤토리 값). FEED·CLEAN_LITTER·SNACK·MEDICINE은 필수, WATER·BATHE는 생략(보내도 무시)", nullable = true, example = "22")
+    @field:Schema(
+        description = "쓸 물품 번호(인벤토리 값). FEED·CLEAN_LITTER·SNACK·MEDICINE은 소모품 필수, PLAY는 고를 장난감(선택, 생략 시 첫 번째), " +
+            "WATER·BATHE는 생략(보내도 무시)",
+        nullable = true,
+        example = "22",
+    )
     val itemSeq: Long?,
 ) {
     fun toCommand() = CareActionCommand(actionCode!!, itemSeq)
