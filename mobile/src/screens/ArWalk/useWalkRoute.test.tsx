@@ -59,6 +59,19 @@ test('continuous fixes preserve distance across a long stop and stop watching on
     expect(route.segments[0]).toHaveLength(2);
     await emit(55, 38);
     expect(route.segments[0]).toHaveLength(2);
+    const gpsMeters = route.meters;
+    await ReactTestRenderer.act(() => {
+      route.onPose({ segment: 1, time: 1000, x: 0, z: 0, alignment: Math.PI / 2 });
+      route.onPose({ segment: 1, time: 1250, x: 0, z: -0.5, alignment: Math.PI / 2 });
+    });
+    expect(route.meters).toBeCloseTo(gpsMeters + 0.5);
+    expect(route.mapPosition!.longitude).toBeGreaterThan(127);
+    await emit(55.5, 37.00004);
+    expect(route.meters).toBeCloseTo(gpsMeters + 0.5);
+    await ReactTestRenderer.act(() => {
+      route.onPose({ segment: 2, time: 2000, x: 20, z: 20 });
+    });
+    expect(route.meters).toBeCloseTo(gpsMeters + 0.5);
   } finally {
     await ReactTestRenderer.act(() => renderer.unmount());
     expect(Geolocation.clearWatch).toHaveBeenCalledWith(1);

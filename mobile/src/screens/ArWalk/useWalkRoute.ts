@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState, PermissionsAndroid, Platform } from 'react-native';
 import Geolocation, { type GeolocationResponse } from '@react-native-community/geolocation';
+import type { WalkPose } from './components/ArFloorView';
 
 type Point = { latitude: number; longitude: number; timestamp: number };
 
@@ -10,6 +11,59 @@ export function useWalkRoute(enabled: boolean) {
   const [mapPosition, setMapPosition] = useState<Point | null>(null);
   const [message, setMessage] = useState('강아지를 인식하면 이동 경로를 기록합니다.');
   const previous = useRef<Point | null>(null);
+  const motion = useRef<WalkPose | null>(null);
+  const lastPose = useRef<WalkPose | null>(null);
+  const lastPoseAt = useRef(0);
+  const alignment = useRef<number | undefined>(undefined);
+  const foreground = useRef(false);
+  const routeTip = useRef<Point | null>(null);
+  const gpsWasFallback = useRef(false);
+  const onPose = (pose: WalkPose) => {
+    if (!enabled || !foreground.current) return;
+    const old = motion.current;
+    const last = lastPose.current;
+    lastPose.current = pose;
+    lastPoseAt.current = Date.now();
+    if (
+      !old ||
+      !last ||
+      last.segment !== pose.segment ||
+      pose.time <= last.time ||
+      pose.time - last.time > 1500 ||
+      Math.hypot(pose.x - last.x, pose.z - last.z) >
+        Math.max(0.8, (pose.time - last.time) * 0.005) ||
+      gpsWasFallback.current
+    ) {
+      motion.current = pose;
+      alignment.current = pose.alignment;
+      if (last && last.segment !== pose.segment) previous.current = null;
+      gpsWasFallback.current = false;
+      return;
+    }
+    if (pose.alignment !== undefined) alignment.current = pose.alignment;
+    const dx = pose.x - old.x;
+    const dz = pose.z - old.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance < 0.4) return;
+    motion.current = pose;
+    setMeters(value => value + distance);
+    const tip = routeTip.current;
+    const angle = alignment.current;
+    if (!tip || angle === undefined) return;
+    const east = dx * Math.cos(angle) - dz * Math.sin(angle);
+    const north = -dx * Math.sin(angle) - dz * Math.cos(angle);
+    const degreesPerMeter = 180 / (Math.PI * 6371000);
+    const point = {
+      latitude: tip.latitude + north * degreesPerMeter,
+      longitude:
+        tip.longitude +
+        (east * degreesPerMeter) / Math.max(0.001, Math.cos((tip.latitude * Math.PI) / 180)),
+      timestamp: Date.now(),
+    };
+    routeTip.current = point;
+    setMapPosition(point);
+    setSegments(value => [...value.slice(0, -1), [...value[value.length - 1], point]]);
+  };
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     if (!enabled) return;
@@ -18,6 +72,11 @@ export function useWalkRoute(enabled: boolean) {
     let generation = 0;
     let lastFixAt = 0;
     const stop = () => {
+      foreground.current = false;
+      lastPose.current = null;
+      motion.current = null;
+      routeTip.current = null;
+      lastPoseAt.current = 0;
       generation++;
       if (watch !== null) Geolocation.clearWatch(watch);
       watch = null;
@@ -26,6 +85,7 @@ export function useWalkRoute(enabled: boolean) {
     };
     const start = async () => {
       stop();
+      foreground.current = true;
       const current = generation;
       let received = 0;
       const report = (
@@ -104,10 +164,15 @@ export function useWalkRoute(enabled: boolean) {
           const disconnected = lastFixAt > 0 && timestamp - lastFixAt > 30000;
           lastFixAt = timestamp;
           setMessage('');
-          if (!last || disconnected) {
+          const arActive = lastPoseAt.current > 0 && Date.now() - lastPoseAt.current < 1500;
+          const switchingToGps = !arActive && lastPoseAt.current > 0 && !gpsWasFallback.current;
+          if (!last || disconnected || switchingToGps) {
+            gpsWasFallback.current = !arActive;
             report(source, disconnected ? 'gap' : 'start', coords.accuracy, age);
             setMapPosition(point);
             previous.current = point;
+            routeTip.current = point;
+            motion.current = lastPose.current;
             setSegments(value => [...value, [point]]);
             return;
           }
@@ -120,6 +185,24 @@ export function useWalkRoute(enabled: boolean) {
               Math.cos(point.latitude * radians) *
               Math.sin(((point.longitude - last.longitude) * radians) / 2) ** 2;
           const distance = 6371000 * 2 * Math.asin(Math.sqrt(Math.min(1, a)));
+          if (arActive && alignment.current !== undefined && routeTip.current) {
+            const tip = routeTip.current;
+            const offset =
+              6371000 *
+              radians *
+              Math.hypot(
+                point.latitude - tip.latitude,
+                (point.longitude - tip.longitude) * Math.cos(point.latitude * radians),
+              );
+            if (offset > Math.max(10, coords.accuracy * 2) && distance / seconds <= 8) {
+              routeTip.current = point;
+              motion.current = lastPose.current;
+              setMapPosition(point);
+              setSegments(value => [...value, [point]]);
+            }
+            previous.current = point;
+            return;
+          }
           if (
             distance < Math.max(2, Math.min(5, coords.accuracy * 0.15)) ||
             distance / seconds > 8
@@ -135,8 +218,12 @@ export function useWalkRoute(enabled: boolean) {
           }
           report(source, 'accepted', coords.accuracy, age, distance);
           previous.current = point;
+          routeTip.current = point;
           setMapPosition(point);
-          setMeters(value => value + distance);
+          if (!arActive) {
+            gpsWasFallback.current = true;
+            setMeters(value => value + distance);
+          }
           setSegments(value => [...value.slice(0, -1), [...value[value.length - 1], point]]);
         };
         const onError = () => {
@@ -185,5 +272,12 @@ export function useWalkRoute(enabled: boolean) {
       subscription.remove();
     };
   }, [enabled, retry]);
-  return { segments, meters, mapPosition, message, retry: () => setRetry(value => value + 1) };
+  return {
+    segments,
+    meters,
+    mapPosition,
+    message,
+    onPose,
+    retry: () => setRetry(value => value + 1),
+  };
 }

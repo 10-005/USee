@@ -221,6 +221,8 @@ export function ArWalkScreen({
           collapsable={false}
           style={styles.camera}
           onTracking={onTracking}
+          onWalkPose={event => walkRoute.onPose(event.nativeEvent)}
+          compassRegion={walkRoute.mapPosition ? `${walkRoute.mapPosition.latitude.toFixed(1)},${walkRoute.mapPosition.longitude.toFixed(1)}` : undefined}
           bagAvailable={shop.ready && Date.now() < shop.expiresAt && (shop.inventory.bags ?? 0) > 0}
           cleanupResponse={cleanupResponse}
           onBagPurchase={openBagPurchase}
