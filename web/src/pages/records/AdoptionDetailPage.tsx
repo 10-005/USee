@@ -8,10 +8,12 @@ import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import clock from '@/shared/assets/icons/review-clock.svg';
+import './simulation-reports.css';
 
 export function AdoptionDetailPage() {
   const { id } = useParams();
-  const listUrl = '/adoptions' + useLocation().search;
+  const { search } = useLocation();
+  const listUrl = '/adoptions' + search;
   const record = useAdoption(id);
   const animal = useAnimal(record?.animalId);
   const review = useReviewAdoption();
@@ -134,6 +136,15 @@ export function AdoptionDetailPage() {
               inert={!openSections.includes(i)}
             >
               <div>
+                {i === 0 && (
+                  <LinkButton
+                    className="simulation-entry"
+                    variant="soft"
+                    to={`/adoptions/${record.id}/simulation-reports${search}`}
+                  >
+                    모의 입양 리포트 보기
+                  </LinkButton>
+                )}
                 <InfoRows rows={question.rows} />
               </div>
             </div>

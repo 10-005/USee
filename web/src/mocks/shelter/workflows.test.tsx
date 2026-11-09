@@ -37,6 +37,24 @@ afterEach(() => {
   Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
 });
 describe('예시 업무 흐름', () => {
+  it('신청서에서 모의 입양 리포트 상세까지 왕복하며 목록 필터를 보존한다', () => {
+    open('/adoptions/A-1029-01?page=2');
+    fireEvent.click(screen.getByRole('link', { name: '모의 입양 리포트 보기' }));
+    fireEvent.click(screen.getByRole('link', { name: '상세 보기' }));
+    expect(screen.getByRole('heading', { name: '모의 입양 리포트 상세' })).toBeVisible();
+    expect(screen.getByText('6일차')).toBeVisible();
+    expect(screen.getByText('55%')).toBeVisible();
+    fireEvent.click(screen.getByRole('link', { name: '리포트 목록' }));
+    fireEvent.click(screen.getByRole('link', { name: '입양신청 상세' }));
+    expect(screen.getByRole('link', { name: '이전' })).toHaveAttribute('href', '/adoptions?page=2');
+  });
+  it('다른 신청서에서 같은 리포트 주소를 열면 빈 목록으로 돌아갈 수 있다', () => {
+    open('/adoptions/A-1029-02/simulation-reports/choco-20261108');
+    expect(screen.getByRole('heading', { name: '정보를 찾을 수 없습니다' })).toBeVisible();
+    fireEvent.click(screen.getByRole('link', { name: '이전' }));
+    expect(screen.getByText('아직 완료된 모의 입양 리포트가 없습니다')).toBeVisible();
+    expect(screen.queryByText('초코 (말티즈)')).not.toBeInTheDocument();
+  });
   it('수정 화면에서 삭제를 취소하거나 확인할 수 있다', async () => {
     const original = useShelterDemo.getState().animals[1]!;
     const adoptions = useShelterDemo.getState().adoptions;

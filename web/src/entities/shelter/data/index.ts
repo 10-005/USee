@@ -34,6 +34,9 @@ export type AnimalRecord = ShelterAnimalRecord;
 
 // The current adapter uses fixed fixtures; API adapters can supply live records and dates.
 import { initialReports } from '@/mocks/shelter/reports';
+import { simulationReports } from '@/mocks/shelter/simulationReports';
+export const getSimulationReports = (applicationId: string) =>
+  simulationReports.filter((report) => report.applicationId === applicationId);
 export const useReports = () => initialReports;
 export type { Report } from '../report';
 export { sampleReferenceDate as referenceDate } from '@/mocks/shelter/animals';

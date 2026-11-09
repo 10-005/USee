@@ -1,0 +1,349 @@
+.application-question__content .simulation-entry {
+  float: right;
+  margin: 24px 0 8px 12px;
+  background: #eaf3ff;
+  color: #115bcc;
+  border-color: transparent;
+}
+.application-question__content .simulation-entry:hover {
+  background-color: #d8eaff;
+  border-color: var(--ui-blue);
+  color: #104ca6;
+}
+.application-question__content .simulation-entry:focus-visible {
+  outline: var(--focus-width) solid #115bcc;
+  outline-offset: -2px;
+}
+.work-page:has(.sim-reports) {
+  max-width: 1170px;
+  margin-inline: auto;
+}
+.work-page:has(.sim-reports) h1 {
+  font-size: clamp(24px, 3vw, 32px);
+}
+.sim-applicant {
+  margin: 0;
+  color: #53524d;
+}
+.sim-reports {
+  display: grid;
+  gap: 22px;
+  margin-top: 32px;
+}
+.sim-reports h2,
+.sim-reports h3,
+.sim-reports dl,
+.sim-reports dd {
+  margin: 0;
+}
+.sim-reports h2 {
+  font-size: 22px;
+}
+.sim-reports h3 {
+  font-size: 18px;
+}
+.sim-reports small,
+.sim-list-row span,
+.sim-total span {
+  color: #53524d;
+}
+.sim-total .sim-over-budget {
+  color: #fa705b;
+  font-weight: 700;
+}
+.sim-card {
+  min-width: 0;
+  padding: 26px;
+  background: var(--color-surface);
+  border: 1px solid #e2e5eb;
+  border-radius: 16px;
+}
+.sim-card h2 small {
+  font-size: 16px;
+  margin-left: 8px;
+  color: var(--color-primary);
+}
+.sim-summary h2 {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 6px;
+}
+.sim-summary p:last-child,
+.sim-list-row,
+.sim-empty,
+.sim-charts {
+  border-top: 1px solid #ebeae5;
+  padding-top: 20px;
+  margin-top: 20px;
+}
+.sim-summary p:last-child {
+  margin-bottom: 0;
+}
+.sim-total,
+.sim-event-labels {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.sim-total {
+  margin-top: 12px;
+}
+.sim-total strong {
+  font-size: 30px;
+}
+.sim-charts,
+.sim-bottom {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.sim-breakdown {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) minmax(160px, 1fr);
+  align-items: center;
+  gap: 16px;
+  margin-top: 22px;
+}
+.sim-donut {
+  aspect-ratio: 1;
+  width: 100%;
+  max-width: 194px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.sim-donut > div {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 4px;
+  background: white;
+  border-radius: 50%;
+  width: 76%;
+  height: 76%;
+}
+.sim-donut strong {
+  font-size: clamp(15px, 1.6vw, 22px);
+}
+.sim-donut small {
+  font-size: 12px;
+}
+.sim-legend,
+.sim-state,
+.sim-care {
+  display: grid;
+  gap: 12px;
+}
+.sim-legend > div,
+.sim-state > div,
+.sim-care > div,
+.sim-event-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sim-legend {
+  font-size: 14px;
+}
+.sim-legend dt,
+.sim-state dt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sim-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.sim-zero {
+  font-size: 12px;
+  color: #72716c;
+  margin-top: 6px;
+}
+.sim-bars {
+  display: flex;
+  list-style: none;
+  padding: 0;
+  margin: 22px 0 0;
+  gap: 2px;
+}
+.sim-bars li {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 13px;
+}
+.sim-bar-track {
+  height: 215px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-bottom: 1px solid #d7d6cf;
+  background: repeating-linear-gradient(
+    to top,
+    transparent 0 calc(40% - 1px),
+    #ebeae5 calc(40% - 1px) 40%
+  );
+}
+.sim-bar {
+  position: relative;
+  width: 48%;
+  max-width: 28px;
+  background: #b9b8b0;
+  border-radius: 3px 3px 0 0;
+}
+.sim-bar[data-peak='true'] {
+  background: var(--ui-primary);
+}
+.sim-bar small {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: clamp(10px, 1vw, 12px);
+  margin-bottom: 5px;
+}
+.sim-bars li > span {
+  display: block;
+  margin-top: 8px;
+}
+.sim-bottom .sim-state,
+.sim-bottom .sim-care {
+  margin-top: 24px;
+}
+.sim-state > div {
+  min-height: 28px;
+}
+.sim-state dt {
+  min-width: 94px;
+}
+.sim-state img {
+  width: 18px;
+  height: 18px;
+}
+.sim-state dd {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 12px;
+}
+.sim-state [data-level='low'] {
+  --gauge-start: #fa705b;
+  --gauge-end: #ce4836;
+  --gauge-text: #a63828;
+}
+.sim-state [data-level='medium'] {
+  --gauge-start: #fab45b;
+  --gauge-end: #df8726;
+  --gauge-text: #89500e;
+}
+.sim-state [data-level='high'] {
+  --gauge-start: var(--action-green);
+  --gauge-end: var(--ui-primary);
+  --gauge-text: #08753f;
+}
+.sim-state strong {
+  color: var(--gauge-text);
+  min-width: 42px;
+  text-align: right;
+}
+.sim-gauge {
+  --segment-gap: 3px;
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: var(--segment-gap);
+  flex: 1;
+}
+.sim-gauge i,
+.sim-event-track {
+  border-radius: 3px;
+  background: #ebeae5;
+  height: 14px;
+  overflow: hidden;
+}
+.sim-gauge b,
+.sim-event-track b {
+  display: block;
+  height: 100%;
+}
+.sim-gauge b {
+  background-image: linear-gradient(to right, var(--gauge-start), var(--gauge-end));
+  background-repeat: no-repeat;
+  background-color: var(--gauge-end);
+}
+.sim-care > div {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #ebeae5;
+}
+.sim-care dd {
+  font-size: 20px;
+  font-weight: 700;
+}
+.sim-care + h3 {
+  margin-top: 24px;
+}
+.sim-event-track {
+  margin: 18px 0 10px;
+  height: 9px;
+}
+.sim-event-track b {
+  background: var(--ui-primary);
+}
+.sim-list-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.3fr 1fr auto;
+  align-items: center;
+  gap: 16px;
+}
+.sim-list-row > div {
+  display: grid;
+  gap: 6px;
+}
+.sim-list-row small {
+  margin-bottom: 6px;
+}
+.sim-empty {
+  text-align: center;
+  padding-block: 60px;
+}
+.sim-empty p {
+  color: #72716c;
+}
+@container work-page (max-width: 860px) {
+  .sim-charts,
+  .sim-bottom {
+    grid-template-columns: 1fr;
+  }
+  .sim-breakdown {
+    grid-template-columns: minmax(120px, 194px) 1fr;
+  }
+}
+@container work-page (max-width: 590px) {
+  .sim-card {
+    padding: 18px;
+  }
+  .sim-list-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .sim-breakdown {
+    grid-template-columns: 1fr;
+  }
+  .sim-donut {
+    justify-self: center;
+  }
+  .sim-state dt {
+    min-width: 78px;
+  }
+  .sim-state dd {
+    gap: 5px;
+  }
+  .sim-bars li > span {
+    font-size: 12px;
+  }
+}

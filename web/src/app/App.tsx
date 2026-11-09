@@ -8,6 +8,7 @@ import { AnimalDetailPage } from '@/pages/animals/AnimalDetailPage';
 import { AnimalFormPage } from '@/pages/animals/AnimalFormPage';
 import { RecordsPage } from '@/pages/records/RecordsPage';
 import { AdoptionDetailPage } from '@/pages/records/AdoptionDetailPage';
+import { SimulationReportsPage } from '@/pages/records/SimulationReportsPage';
 import { RescueDetailPage, RescueFormPage } from '@/pages/records/RescuePages';
 import { ReportsPage } from '@/pages/records/ReportsPage';
 import { ProfilePage } from '@/pages/profile/ProfilePage';
@@ -48,6 +49,10 @@ export function App() {
         <Route path="/animals/:id/edit" element={<AnimalFormPage />} />
         <Route path="/adoptions" element={<RecordsPage kind="adoptions" />} />
         <Route path="/adoptions/:id" element={<AdoptionDetailPage />} />
+        <Route
+          path="/adoptions/:id/simulation-reports/:reportId?"
+          element={<SimulationReportsPage />}
+        />
         <Route path="/rescues" element={<RecordsPage kind="rescues" />} />
         <Route path="/rescues/new" element={<RescueFormPage />} />
         <Route path="/rescues/:id" element={<RescueDetailPage />} />
