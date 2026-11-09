@@ -22,7 +22,9 @@ class SimulationConfig {
      */
     /** 돌발 이벤트 RANDOM 발생 판정·시나리오 추첨용 난수. 테스트는 정해진 값을 돌려주는 구현으로 바꾼다 */
     @Bean
-    fun eventRandom(): RandomGenerator = RandomGenerator.getDefault()
+    // RandomGenerator.getDefault()(L32X64MixRandom)는 jdk.random 모듈에 있어 런타임 JRE 이미지에서 찾지 못하고 기동이 실패한다.
+    // java.util.Random은 java.base에 있고 RandomGenerator를 구현한다
+    fun eventRandom(): RandomGenerator = java.util.Random()
 
     @Bean
     fun clock(): Clock = Clock.tick(Clock.system(ZoneId.of("Asia/Seoul")), Duration.of(1, ChronoUnit.MICROS))
