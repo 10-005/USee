@@ -1,9 +1,11 @@
 import { open, type DB } from '@op-engineering/op-sqlite';
 import seed from './products.json';
+import type { SimulationEvent } from '../simulation/events';
 import type { Product } from './catalog';
 
 export type OwnedItem = { id: string; productId: string; capacity: number; remaining: number };
 export type ShopSnapshot = {
+  hospitalEvents?: SimulationEvent[];
   sessionKey: string;
   budget: number;
   expiresAt: number;
@@ -150,6 +152,9 @@ export function getShopDatabase(): DB {
     if (version < 4) {
       migrateShopOwnedItemsV4(db);
     }
+    db.executeSync(`CREATE TABLE IF NOT EXISTS hospital_events (
+      session_id TEXT PRIMARY KEY REFERENCES shop_sessions(id) ON DELETE CASCADE,
+      events TEXT NOT NULL)`);
     database = db;
     return db;
   } catch (error) {
@@ -194,6 +199,12 @@ export function readShopSnapshot(sessionKey: string): ShopSnapshot | null {
     [sessionKey],
   ).rows;
   return {
+    hospitalEvents: JSON.parse(
+      String(
+        db.executeSync('SELECT events FROM hospital_events WHERE session_id = ?', [sessionKey])
+          .rows[0]?.events ?? '[]',
+      ),
+    ),
     sessionKey,
     budget: Number(row.budget),
     spent: Number(row.spent),
@@ -220,6 +231,11 @@ export function writeShopSnapshot(state: ShopSnapshot): void {
       `INSERT INTO shop_sessions VALUES (?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET budget=excluded.budget, spent=excluded.spent, expires_at=excluded.expires_at`,
       [state.sessionKey, state.budget, state.spent, state.expiresAt],
+    );
+    db.executeSync(
+      `INSERT INTO hospital_events VALUES (?, ?)
+      ON CONFLICT(session_id) DO UPDATE SET events=excluded.events`,
+      [state.sessionKey, JSON.stringify(state.hospitalEvents ?? [])],
     );
     db.executeSync('DELETE FROM cart_items WHERE session_id = ?', [state.sessionKey]);
     db.executeSync('DELETE FROM inventory_items WHERE session_id = ?', [state.sessionKey]);

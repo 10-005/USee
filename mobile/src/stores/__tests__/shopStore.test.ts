@@ -3,6 +3,31 @@ import * as shopDatabase from '../../services/shop/shopDatabase';
 import { useShopStore, cartTotal } from '../shopStore';
 import { filterProducts, products } from '../../services/shop/catalog';
 import { consumeCareSupplies } from '../../services/shop/consumption';
+import {
+  SimulationEventStatus,
+  SimulationTriggerContext,
+  SimulationTriggerType,
+  type SimulationEvent,
+} from '../../services/simulation/events';
+
+const hospitalEvent = (id: number, time = Date.now()): SimulationEvent => ({
+  occurrenceSeq: id,
+  scenario: {
+    scenarioSeq: 1,
+    title: '진료 필요',
+    description: '진료 안내',
+    triggerContext: SimulationTriggerContext.Home,
+    triggerType: SimulationTriggerType.Condition,
+  },
+  vetVisit: { cost: 30000 },
+  walkSeq: null,
+  status: SimulationEventStatus.Pending,
+  occurredDttm: new Date(time).toISOString(),
+  expiresDttm: new Date(time + 3600000).toISOString(),
+  resolvedDttm: null,
+  resolvedActionCode: null,
+  resultText: null,
+});
 
 const session = {
   petId: 'dog-poodle',
@@ -15,6 +40,35 @@ beforeEach(() => {
   getShopDatabase().executeSync('DELETE FROM shop_sessions');
   useShopStore.setState({ sessionKey: '', ready: false });
   shop().open(session);
+});
+
+it('orders hospital issues, persists payment and ignore, and prevents duplicate charges', () => {
+  const time = Date.now();
+  expect(shop().enqueueHospitalEvent(hospitalEvent(2, time))).toBe(true);
+  expect(shop().enqueueHospitalEvent(hospitalEvent(1, time - 1000))).toBe(true);
+  expect(shop().hospitalEvents?.map(event => event.occurrenceSeq)).toEqual([1, 2]);
+  expect(shop().resolveHospitalEvent(1, true)).toBe(true);
+  expect(shop().budget - shop().spent).toBe(20000);
+  expect(shop().resolveHospitalEvent(1, true)).toBe(false);
+  expect(shop().resolveHospitalEvent(2, false)).toBe(true);
+  shop().open(session);
+  expect(shop().spent).toBe(30000);
+  expect(
+    shop().hospitalEvents?.every(event => event.status === SimulationEventStatus.Resolved),
+  ).toBe(true);
+  expect(shop().enqueueHospitalEvent(hospitalEvent(1))).toBe(false);
+});
+
+it('keeps the hospital issue pending and budget unchanged when saving fails', () => {
+  shop().enqueueHospitalEvent(hospitalEvent(1));
+  const save = jest.spyOn(shopDatabase, 'writeShopSnapshot').mockImplementationOnce(() => {
+    throw new Error('disk full');
+  });
+  expect(shop().resolveHospitalEvent(1, true)).toBe(false);
+  save.mockRestore();
+  shop().open(session);
+  expect(shop().spent).toBe(0);
+  expect(shop().hospitalEvents?.[0].status).toBe(SimulationEventStatus.Pending);
 });
 
 it('contains all 32 products with valid prices and species filters', () => {

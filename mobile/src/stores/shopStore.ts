@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { SimulationEventStatus, type SimulationEvent } from '../services/simulation/events';
 import {
   availableProducts,
   findProduct,
@@ -19,6 +20,8 @@ export type ShopSession = {
   expiresAt: number;
 };
 type ShopState = ShopSnapshot & {
+  enqueueHospitalEvent: (event: SimulationEvent) => boolean;
+  resolveHospitalEvent: (id: number, pay: boolean) => boolean;
   ready: boolean;
   error: string | null;
   open: (session: ShopSession) => void;
@@ -50,6 +53,7 @@ export const useShopStore = create<ShopState>((set, get) => {
     }
   };
   return {
+    hospitalEvents: [],
     sessionKey: '',
     budget: 0,
     expiresAt: 0,
@@ -65,6 +69,7 @@ export const useShopStore = create<ShopState>((set, get) => {
       const sessionKey = `${session.petId}:${session.startedAt}`;
       const saved = readShopSnapshot(sessionKey);
       const snapshot: ShopSnapshot = {
+        hospitalEvents: saved?.hospitalEvents ?? [],
         sessionKey,
         budget: saved?.budget ?? session.weeklyBudget,
         expiresAt: session.expiresAt,
@@ -76,6 +81,55 @@ export const useShopStore = create<ShopState>((set, get) => {
       };
       writeShopSnapshot(snapshot);
       set({ ...snapshot, ready: true, error: null });
+    },
+    enqueueHospitalEvent: event => {
+      const state = get();
+      if (
+        !state.ready ||
+        Date.now() >= state.expiresAt ||
+        event.status !== SimulationEventStatus.Pending ||
+        !event.vetVisit ||
+        !Number.isSafeInteger(event.vetVisit.cost) ||
+        event.vetVisit.cost < 0 ||
+        !Number.isFinite(Date.parse(event.occurredDttm)) ||
+        !(Date.parse(event.expiresDttm) > Date.now()) ||
+        (state.hospitalEvents ?? []).some(item => item.occurrenceSeq === event.occurrenceSeq)
+      ) {
+        return false;
+      }
+      return commit({
+        hospitalEvents: [...(state.hospitalEvents ?? []), event].sort(
+          (a, b) =>
+            Date.parse(a.occurredDttm) - Date.parse(b.occurredDttm) ||
+            a.occurrenceSeq - b.occurrenceSeq,
+        ),
+      });
+    },
+    resolveHospitalEvent: (id, pay) => {
+      const state = get();
+      const event = state.hospitalEvents?.find(item => item.occurrenceSeq === id);
+      if (
+        !state.ready ||
+        Date.now() >= state.expiresAt ||
+        !event?.vetVisit ||
+        event.status !== SimulationEventStatus.Pending ||
+        !(Date.parse(event.expiresDttm) > Date.now())
+      ) {
+        return false;
+      }
+      return commit({
+        spent: state.spent + (pay ? event.vetVisit.cost : 0),
+        hospitalEvents: state.hospitalEvents?.map(item =>
+          item.occurrenceSeq === id
+            ? {
+                ...item,
+                status: SimulationEventStatus.Resolved,
+                resolvedDttm: new Date().toISOString(),
+                resultText: pay ? '병원비 지불 완료' : '무시함',
+              }
+            : item,
+        ),
+      });
     },
     setQuantity: (id, quantity, species) => {
       const state = get();

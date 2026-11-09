@@ -10,9 +10,51 @@ import { Animated, BackHandler, StyleSheet } from 'react-native';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { MockAdoptionActivityScreen } from './MockAdoptionActivityScreen';
 import { PetStatsDialog } from './PetStatsDialog';
+import { VetVisitDialog } from './VetVisitDialog';
 import { useShopStore } from '../../stores/shopStore';
 
 jest.mock('./RoomPet', () => ({ RoomPet: 'RoomPet' }));
+
+test('hospital close preserves issues, payment debits budget, and ignore advances the queue', async () => {
+  await AsyncStorage.clear();
+  const session = await startMockAdoption('dog-1', 50000);
+  useShopStore.getState().open(session);
+  const props = {
+    navigation: {},
+    route: { key: 'hospital', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  const hospital = () => renderer.root.findAllByProps({ accessibilityLabel: '동물병원' })[0];
+  expect(hospital().props.disabled).toBe(true);
+  await ReactTestRenderer.act(() =>
+    renderer.root
+      .findAllByProps({ accessibilityLabel: '돌발 이벤트 팝업 미리보기' })[0]
+      .props.onPress(),
+  );
+  const event = useShopStore.getState().hospitalEvents![0];
+  await ReactTestRenderer.act(() => {
+    useShopStore
+      .getState()
+      .enqueueHospitalEvent({ ...event, occurrenceSeq: event.occurrenceSeq + 1 });
+    hospital().props.onPress();
+  });
+  expect(renderer.root.findByType(VetVisitDialog).props.remaining).toBe(2);
+  await ReactTestRenderer.act(() => renderer.root.findByType(VetVisitDialog).props.onClose());
+  expect(renderer.root.findAllByType(VetVisitDialog)).toHaveLength(0);
+  expect(useShopStore.getState().spent).toBe(0);
+  await ReactTestRenderer.act(() => hospital().props.onPress());
+  await ReactTestRenderer.act(() => renderer.root.findByType(VetVisitDialog).props.onPay());
+  expect(useShopStore.getState().spent).toBe(120000);
+  expect(renderer.root.findByType(VetVisitDialog).props.remaining).toBe(1);
+  await ReactTestRenderer.act(() => renderer.root.findByType(VetVisitDialog).props.onIgnore());
+  expect(useShopStore.getState().spent).toBe(120000);
+  expect(hospital().props.disabled).toBe(true);
+  expect(renderer.root.findAllByType(VetVisitDialog)).toHaveLength(0);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
 let mockFocusRoom: () => () => void;
 jest.mock('@react-navigation/native', () => ({
   useFocusEffect: (effect: () => () => void) => {
