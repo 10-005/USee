@@ -15,13 +15,18 @@ import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
+import com.ssafy.animal.common.response.PageResponse
+import org.springframework.data.domain.Pageable
+import org.springframework.data.web.PageableDefault
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
-/** 18.18 리포트. 본인은 종료·중간 리포트, 보호소는 종료 리포트만(Q483) */
+/** 18.18~18.20 리포트. 본인은 종료·중간 리포트와 내 목록, 보호소는 종료 리포트와 전체 목록(Q483) */
 @Tag(
     name = "모의 입양 리포트",
     description = "세션이 끝나면 한 번 만들어 영구 보존하는 종료 리포트(지출·최종 스탯·행동·이벤트 수·요약). " +
@@ -106,8 +111,165 @@ class SimulationReportController(
         @Parameter(description = "세션 번호", example = "3001") @PathVariable sessionSeq: Long,
     ) = SimulationReportResponse.from(reportQueryUseCase.getReport(user.userSeq, user.role, sessionSeq))
 
+    /** 18.19 내 종료 리포트 목록 */
+    @Operation(
+        summary = "내 모의 입양 리포트 목록",
+        description = "- USER만(보호소 계정은 403 `AUTH_FORBIDDEN`)\n" +
+            "- 끝난 세션(COMPLETED·ABANDONED·FAILED)의 종료 리포트만 준다. 진행 중 세션은 리포트가 없어 나오지 않는다(진행 중은 진행 중 조회·리포트 조회로 본다).\n" +
+            "- 항목은 요약 정보만이고, 지출 내역·스탯·요약 문구는 리포트 조회로 본다.\n" +
+            "- size 기본 20. sort 허용 필드는 `endedDttm`뿐(기본 `endedDttm,desc`).",
+    )
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "200",
+            description = "조회 성공. 리포트가 없으면 content가 빈 배열",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = ReportListPageSuccessSchema::class),
+                    examples = [ExampleObject(name = "조회 성공", value = MY_LIST_SUCCESS)],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "400",
+            description = "허용 밖 정렬 필드",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [ExampleObject(name = "정렬 필드 오류", value = SORT_ENDED_DTTM_ONLY)],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "401",
+            description = "access 토큰 없음·만료·무효. 만료면 토큰 갱신 후 재시도",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [
+                        ExampleObject(name = "AUTH_UNAUTHORIZED", value = FailExamples.AUTH_UNAUTHORIZED),
+                        ExampleObject(name = "AUTH_TOKEN_EXPIRED", value = FailExamples.AUTH_TOKEN_EXPIRED),
+                        ExampleObject(name = "AUTH_TOKEN_INVALID", value = FailExamples.AUTH_TOKEN_INVALID),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "보호소(SHELTER) 계정. 보호소는 보호소용 리포트 목록을 쓴다",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [ExampleObject(name = "AUTH_FORBIDDEN", value = FailExamples.AUTH_FORBIDDEN)],
+                ),
+            ],
+        ),
+    )
+    @GetMapping("/reports")
+    @PreAuthorize("hasRole('USER')")
+    fun getMyReports(
+        @Parameter(hidden = true) @AuthenticationPrincipal user: AuthUser,
+        @PageableDefault(size = 20) pageable: Pageable,
+    ) = PageResponse.of(reportQueryUseCase.getMyReports(user.userSeq, pageable).map(ReportListItemResponse::from))
+
+    /** 18.20 보호소용 종료 리포트 전체 목록(Q483) */
+    @Operation(
+        summary = "보호소용 모의 입양 리포트 목록",
+        description = "- SHELTER만(일반 회원은 403 `AUTH_FORBIDDEN`)\n" +
+            "- 끝난 세션의 종료 리포트를 누구 것이든 준다(소속·보호동물과 무관). 진행 중 세션은 나오지 않는다.\n" +
+            "- `userSeq`를 주면 그 회원의 리포트만(입양 신청자 확인용). 생략하면 전체.\n" +
+            "- `user`는 회원 표시 정보. 탈퇴한 회원의 리포트도 남아 있으며 이때 `displayName`은 `(탈퇴한 사용자)`, `profileImage`는 null.\n" +
+            "- 상세(지출·스탯·요약)는 리포트 조회로 본다.\n" +
+            "- size 기본 20. sort 허용 필드는 `endedDttm`뿐(기본 `endedDttm,desc`).",
+    )
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "200",
+            description = "조회 성공. 리포트가 없으면 content가 빈 배열",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = ShelterReportListPageSuccessSchema::class),
+                    examples = [ExampleObject(name = "조회 성공", value = SHELTER_LIST_SUCCESS)],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "400",
+            description = "회원 번호가 숫자가 아님, 허용 밖 정렬 필드",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [
+                        ExampleObject(name = "회원 번호 타입 오류", value = USER_SEQ_TYPE_MISMATCH),
+                        ExampleObject(name = "정렬 필드 오류", value = SORT_ENDED_DTTM_ONLY),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "401",
+            description = "access 토큰 없음·만료·무효. 만료면 토큰 갱신 후 재시도",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [
+                        ExampleObject(name = "AUTH_UNAUTHORIZED", value = FailExamples.AUTH_UNAUTHORIZED),
+                        ExampleObject(name = "AUTH_TOKEN_EXPIRED", value = FailExamples.AUTH_TOKEN_EXPIRED),
+                        ExampleObject(name = "AUTH_TOKEN_INVALID", value = FailExamples.AUTH_TOKEN_INVALID),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "일반 회원(USER) 계정. 재시도하지 않는다",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [ExampleObject(name = "AUTH_FORBIDDEN", value = FailExamples.AUTH_FORBIDDEN)],
+                ),
+            ],
+        ),
+    )
+    @GetMapping("/reports/shelter")
+    @PreAuthorize("hasRole('SHELTER')")
+    fun getReportsForShelter(
+        @Parameter(description = "회원 번호. 주면 그 회원의 리포트만, 생략하면 전체", example = "17")
+        @RequestParam(required = false) userSeq: Long?,
+        @PageableDefault(size = 20) pageable: Pageable,
+    ) = PageResponse.of(reportQueryUseCase.getReportsForShelter(userSeq, pageable).map(ShelterReportListItemResponse::from))
+
     private companion object {
         // 문서 예시 전용
+        const val LIST_ITEM_FIELDS =
+            """"animalName":"초코","breed":""" + SimulationDocExamples.BREED_JSON +
+                ""","status":"COMPLETED","startedDttm":"2026-11-01T14:00:00+09:00","endedDttm":"2026-11-08T14:00:00+09:00",""" +
+                """"expectedCost":150000,"totalSpent":182000,"difference":-32000"""
+        const val MY_LIST_SUCCESS =
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"content":[{"sessionSeq":3001,""" + LIST_ITEM_FIELDS + """}],""" +
+                """"page":0,"size":20,"totalElements":1,"totalPages":1,"hasNext":false},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+        const val SHELTER_LIST_SUCCESS =
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"content":[""" +
+                """{"sessionSeq":3001,"user":{"userSeq":17,"displayName":"반려가족","role":"USER",""" +
+                """"profileImage":{"imageSeq":1301,"imageUrl":"https://storage.example.com/images/2026/11/3f1c2a9e.jpg"}},""" + LIST_ITEM_FIELDS + """},""" +
+                """{"sessionSeq":2950,"user":{"userSeq":18,"displayName":"(탈퇴한 사용자)","role":"USER","profileImage":null},""" +
+                """"animalName":"나비","breed":{"breedSeq":31,"breedName":"코리안 숏헤어","speciesType":"CAT","representativeImageUrl":null},""" +
+                """"status":"ABANDONED","startedDttm":"2026-10-20T10:00:00+09:00","endedDttm":"2026-10-22T09:30:00+09:00",""" +
+                """"expectedCost":120000,"totalSpent":45000,"difference":75000}],""" +
+                """"page":0,"size":20,"totalElements":2,"totalPages":1,"hasNext":false},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+        const val SORT_ENDED_DTTM_ONLY =
+            """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"sort","reason":"정렬할 수 없는 필드입니다: startedDttm (허용: endedDttm)"}],"traceId":"4f2c9e1a7b3d4c5e"}"""
+        const val USER_SEQ_TYPE_MISMATCH =
+            """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"userSeq","reason":"타입이 올바르지 않습니다."}],"traceId":"4f2c9e1a7b3d4c5e"}"""
+
         const val SUMMARY_TEXT = "2일째에 돌봄을 그만뒀어요. 예상보다 97,200원 덜 썼고, 가장 많이 쓴 곳은 사료(21,200원)예요."
         const val FINAL_SUCCESS =
             """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":""" +

@@ -60,7 +60,35 @@ interface ReportRepository {
     fun save(report: SimulationReport): SimulationReport
 
     fun findBySessionSeq(sessionSeq: Long): SimulationReport?
+
+    /**
+     * 18.19·18.20 종료 리포트 목록(리포트가 있는 = 끝난 세션만). userSeq가 null이면 전체.
+     * 정렬은 endedDttm만 허용(기본 desc, 동률 세션 번호 desc)
+     */
+    fun findPage(userSeq: Int?, pageable: Pageable): Page<ReportListEntry>
 }
+
+/** 리포트 목록 한 줄: 세션 + 저장된 리포트 */
+data class ReportListEntry(
+    val session: SimulationSession,
+    val report: SimulationReport,
+)
+
+/** core.users 읽기 전용 조회(18.20 신청자 표시, Q420). 잠그지 않는다 */
+interface UserReader {
+    /** 없는 회원은 결과 맵에서 빠진다(탈퇴 회원은 isDeleted=true로 들어 있다) */
+    fun findUsers(userSeqs: Collection<Int>): Map<Int, UserInfo>
+}
+
+/** 표시용 회원 정보. 프로필 사진 URL은 변환된 값(없으면 null) */
+data class UserInfo(
+    val userSeq: Int,
+    val nickname: String?,
+    val role: String,
+    val isDeleted: Boolean,
+    val profileImageSeq: Long?,
+    val profileImageUrl: String?,
+)
 
 /**
  * 세션 종료 시 산책·이벤트 정리와 리포트 카운트. 산책·이벤트 엔티티는 각 기능 작업(252·256)에서 만들므로

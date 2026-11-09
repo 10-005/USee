@@ -44,4 +44,20 @@ class SimulationPersistenceAdapterTest {
         assertEquals(CommonErrorCode.COMMON_INVALID_INPUT, error.errorCode)
         assertEquals("sort", error.errors.single().field)
     }
+
+    @Test
+    fun `18_19·18_20 정렬은 endedDttm만 허용하고 기본은 endedDttm desc, 동률은 세션 번호 desc`() {
+        val policy = ReportPersistenceAdapter.LIST_SORT_POLICY
+
+        assertEquals(
+            listOf(simulationSession.endedDttm.desc(), simulationSession.sessionSeq.desc()),
+            policy.toOrderSpecifiers(Sort.unsorted()).toList(),
+        )
+        assertEquals(
+            listOf(simulationSession.endedDttm.asc(), simulationSession.sessionSeq.desc()),
+            policy.toOrderSpecifiers(Sort.by(Sort.Order.asc("endedDttm"))).toList(),
+        )
+        val error = assertFailsWith<BusinessException> { policy.toOrderSpecifiers(Sort.by("startedDttm")) }
+        assertEquals(CommonErrorCode.COMMON_INVALID_INPUT, error.errorCode)
+    }
 }
