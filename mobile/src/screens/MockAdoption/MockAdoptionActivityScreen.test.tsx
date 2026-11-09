@@ -2,6 +2,7 @@ import { STORAGE_KEYS } from '../../constants/storageKeys';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiClientError } from '../../services/api';
 import { abandonSimulation } from '../../services/simulation/abandon';
+import { performCareAction } from '../../services/simulation/care';
 import {
   getActiveMockAdoption,
   startMockAdoption,
@@ -14,6 +15,14 @@ import { MockAdoptionActivityScreen } from './MockAdoptionActivityScreen';
 import { PetStatsDialog } from './PetStatsDialog';
 import { VetVisitDialog } from './VetVisitDialog';
 import { useShopStore } from '../../stores/shopStore';
+
+jest.mock('../../services/simulation/care', () => {
+  const actual = jest.requireActual('../../services/simulation/care');
+  return {
+    ...actual,
+    performCareAction: jest.fn(),
+  };
+});
 
 jest.mock('../../services/simulation/abandon', () => {
   const actual = jest.requireActual('../../services/simulation/abandon');
@@ -372,6 +381,48 @@ test.each(['food', 'water'] as const)(
     jest.useRealTimers();
   },
 );
+
+test('records water on the server and keeps feed local until an item id exists', async () => {
+  await AsyncStorage.clear();
+  jest.mocked(performCareAction).mockReset();
+  jest.mocked(performCareAction).mockResolvedValue({} as never);
+  const session = await startMockAdoption('dog-1', 35000, '초코', 3001);
+  useShopStore.getState().open(session);
+  useShopStore.getState().setQuantity('food', 1, 'dog');
+  useShopStore.getState().setQuantity('bowl', 1, 'dog');
+  useShopStore.getState().setQuantity('waterBowl', 1, 'dog');
+  useShopStore.getState().checkout('dog');
+  const props = {
+    navigation: {},
+    route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />, {
+      createNodeMock: () => ({
+        measureInWindow: (callback: (...args: number[]) => void) => callback(20, 500, 80, 80),
+      }),
+    });
+  });
+  await ReactTestRenderer.act(() =>
+    renderer.root
+      .findAll(node => typeof node.props.onLayout === 'function')[0]
+      .props.onLayout({ nativeEvent: { layout: { width: 390, height: 844 } } }),
+  );
+  const pet = () => renderer.root.findByType('RoomPet' as never);
+  await ReactTestRenderer.act(() =>
+    renderer.root.findAllByProps({ accessibilityLabel: '물그릇' })[0].props.onPress(),
+  );
+  expect(performCareAction).toHaveBeenCalledWith(3001, { actionCode: 'WATER' });
+  await ReactTestRenderer.act(() => pet().props.onConsumed());
+  await ReactTestRenderer.act(() => pet().props.onCareComplete());
+  await ReactTestRenderer.act(() =>
+    renderer.root.findAllByProps({ accessibilityLabel: '사료 그릇' })[0].props.onPress(),
+  );
+  expect(performCareAction).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(() => renderer.unmount());
+  await AsyncStorage.clear();
+});
 
 test('shows purchased room items only and hides depleted consumable controls', async () => {
   await AsyncStorage.clear();

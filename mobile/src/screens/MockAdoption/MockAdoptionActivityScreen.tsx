@@ -21,6 +21,12 @@ import {
   getSimulationAbandonErrorMessage,
   isSimulationAlreadyClosed,
 } from '../../services/simulation/abandon';
+import { SimulationCareAction } from '../../services/simulation/actions';
+import {
+  careRequest,
+  getCareActionErrorMessage,
+  performCareAction,
+} from '../../services/simulation/care';
 import { endMockAdoption, getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { mockAdoptionPets } from './data';
 import { RoomPet } from './RoomPet';
@@ -244,9 +250,31 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const confirmTreatment = () => {
     setHospitalVisible(true);
   };
-  const resolveTreatment = (pay: boolean) => {
+  const recordCare = async (actionCode: SimulationCareAction, itemSeq?: number) => {
+    const request = careRequest(actionCode, itemSeq);
+    const active = request ? await getActiveMockAdoption() : null;
+    if (!request || !active?.sessionSeq) {
+      return true as const;
+    }
+    try {
+      await performCareAction(active.sessionSeq, request);
+      return true as const;
+    } catch (error) {
+      return error instanceof ApiClientError
+        ? getCareActionErrorMessage(error)
+        : '돌봄을 진행하지 못했어요. 다시 시도해주세요.';
+    }
+  };
+  const resolveTreatment = async (pay: boolean) => {
     if (!pendingEvent) {
       return;
+    }
+    if (pay) {
+      const recorded = await recordCare(SimulationCareAction.VetVisit);
+      if (recorded !== true) {
+        Alert.alert('동물병원', recorded);
+        return;
+      }
     }
     if (!shop.resolveHospitalEvent(pendingEvent.occurrenceSeq, pay)) {
       Alert.alert(
@@ -265,8 +293,13 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       setHospitalVisible(false);
     }
   };
-  const startBath = () => {
+  const startBath = async () => {
     if (careBusy.current || bathingRef.current || leaving || busy || !roomVisible) {
+      return;
+    }
+    const recorded = await recordCare(SimulationCareAction.Bathe);
+    if (recorded !== true) {
+      showToast(recorded);
       return;
     }
     bathingRef.current = true;
@@ -288,13 +321,20 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       });
     }, 3000);
   };
-  const provide = (kind: 'food' | 'water') => {
+  const provide = async (kind: 'food' | 'water') => {
     if (careBusy.current || bathingRef.current || leaving || busy || !pet) {
       return;
     }
     const nextStreak = { kind, count: streak.current.kind === kind ? streak.current.count + 1 : 1 };
     if (nextStreak.count >= 5) {
       showToast(kind === 'food' ? '지금은 배불러요' : '지금은 목마르지 않아요');
+      return;
+    }
+    const recorded = await recordCare(
+      kind === 'food' ? SimulationCareAction.Feed : SimulationCareAction.Water,
+    );
+    if (recorded !== true) {
+      showToast(recorded);
       return;
     }
     if (kind === 'food' && !consumeCareSupplies(pet.id, pet.category, 'food')) {
@@ -407,6 +447,11 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
               return;
             }
             try {
+              const recorded = await recordCare(SimulationCareAction.CleanLitter);
+              if (recorded !== true) {
+                showToast(recorded);
+                return;
+              }
               if (await toilet.clean(() => consumeCareSupplies(pet.id, pet.category, 'clean'))) {
                 showToast('깨끗해져서 좋아요!');
               } else if (useShopStore.getState().error) {
@@ -638,8 +683,14 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
             careBusy.current = active;
             setTreatActive(active);
           }}
-          onLanded={() => {
+          onLanded={async () => {
             setTreatActive(false);
+            const recorded = await recordCare(SimulationCareAction.Snack);
+            if (recorded !== true) {
+              careBusy.current = false;
+              showToast(recorded);
+              return;
+            }
             if (!consumeCareSupplies(pet.id, pet.category, 'treat')) {
               careBusy.current = false;
               showToast(useShopStore.getState().error || '간식을 사용할 수 없어요.');
@@ -666,7 +717,14 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
             careBusy.current = active;
             setTreatActive(active);
           }}
-          onLanded={point => {
+          onLanded={async point => {
+            const recorded = await recordCare(SimulationCareAction.Play);
+            if (recorded !== true) {
+              careBusy.current = false;
+              setTreatActive(false);
+              showToast(recorded);
+              return;
+            }
             setTreatActive(false);
             setToyGround(point);
             setCare({
