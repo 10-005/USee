@@ -334,9 +334,15 @@ class FakeSimulationStore :
 
     /** 고정 시각 now 기준 진행(지연 계산·종료 판정) */
     fun progress(properties: SimulationProperties, now: OffsetDateTime) = SessionProgress(
-        SessionStatRefresher(StatCalculator(properties.stats, properties.tick), Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul"))),
+        refresher(properties, now),
         terminator(properties),
+        events(),
     )
+
+    fun refresher(properties: SimulationProperties, now: OffsetDateTime) =
+        SessionStatRefresher(StatCalculator(properties.stats, properties.tick), Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul")))
+
+    fun events() = SessionEvents(this, this, this)
 
     companion object {
         val MALTESE = BreedInfo(21, "말티즈", CatalogSpeciesCode.DOG, Personality.FRIENDLY, "https://cdn/breeds/maltese.png")

@@ -1,6 +1,9 @@
 package com.ssafy.animal.simulation.application.service
 
 import com.ssafy.animal.simulation.config.SimulationProperties
+import com.ssafy.animal.simulation.domain.ActionCode
+import com.ssafy.animal.simulation.domain.EventOccurrence
+import com.ssafy.animal.simulation.domain.OccurrenceStatus
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationSession
@@ -84,5 +87,70 @@ class SessionProgressTest {
         assertEquals(start.plusHours(4).plusMinutes(30), session.endedDttm)
         assertEquals(start.plusHours(4), session.statsCalculatedDttm)
         assertEquals(1, store.reports.size)
+    }
+
+    // ===== 돌발 이벤트 만료(Q486) =====
+
+    private fun pendingEvent(session: SimulationSession, scenarioSeq: Long, occurredAt: OffsetDateTime, expiresAt: OffsetDateTime) =
+        store.save(EventOccurrence.occur(session, store.scenarios.getValue(scenarioSeq), occurredAt, expiresAt))
+
+    @Test
+    fun `시한이 지난 대기 이벤트는 만료 시각까지 계산한 스탯에 방치 효과를 더하고 EVENT_EXPIRE를 남긴다`() {
+        store.stockScenarios()
+        val session = session()
+        // 1번(물그릇): 방치 시 수분 -20·안정감 -5. 시한 = 시작 + 2시간
+        val occurrence = pendingEvent(session, 1, start, start.plusHours(2))
+        val atExpiry = StatCalculator(properties.stats, properties.tick)
+            .advance(session.stats(), session.personality, start, start, start.plusHours(2)).stats
+
+        assertNull(store.progress(properties, start.plusHours(5)).catchUp(session))
+
+        assertEquals(OccurrenceStatus.EXPIRED, occurrence.status)
+        val log = store.logs.single { it.actionCode == ActionCode.EVENT_EXPIRE }
+        assertEquals(occurrence.occurrenceSeq, log.occurrenceSeq)
+        assertEquals(mapOf("hydration" to -20, "calmness" to -5), log.statDeltaJsonb)
+        assertEquals(atExpiry.hydration - 20, log.statsAfterJsonb["hydration"])
+        // 만료 뒤 남은 3시간도 이어서 계산한다
+        assertEquals(start.plusHours(5), session.statsCalculatedDttm)
+    }
+
+    @Test
+    fun `시한 전이면 대기 이벤트를 건드리지 않는다`() {
+        store.stockScenarios()
+        val session = session()
+        val occurrence = pendingEvent(session, 1, start, start.plusHours(6))
+
+        store.progress(properties, start.plusHours(5)).catchUp(session)
+
+        assertTrue(occurrence.isPending)
+        assertTrue(store.logs.none { it.actionCode == ActionCode.EVENT_EXPIRE })
+    }
+
+    @Test
+    fun `방치 효과로 건강이 0이 되면 만료 시각에 FAILED로 끝낸다`() {
+        store.stockScenarios()
+        // 7번(헤어볼): 방치 시 건강 -10
+        val session = session(stats = Stats(satiety = 90, hydration = 90, cleanliness = 90, bond = 50, calmness = 90, health = 8, energy = 90))
+        val occurrence = pendingEvent(session, 7, start, start.plusHours(1))
+
+        assertNotNull(store.progress(properties, start.plusHours(3)).catchUp(session))
+
+        assertEquals(SessionStatus.FAILED, session.status)
+        assertEquals(start.plusHours(1), session.endedDttm)
+        assertEquals(OccurrenceStatus.EXPIRED, occurrence.status)
+        assertEquals(0, session.stats().health)
+    }
+
+    @Test
+    fun `예정 종료 뒤에 시한이 오는 이벤트는 방치 효과 없이 종료 처리에서 만료된다`() {
+        store.stockScenarios()
+        val session = session(endsAt = start.plusHours(2))
+        val occurrence = pendingEvent(session, 1, start.plusHours(1), start.plusHours(7))
+
+        store.progress(properties, start.plusHours(8)).catchUp(session)
+
+        assertEquals(SessionStatus.COMPLETED, session.status)
+        assertEquals(OccurrenceStatus.EXPIRED, occurrence.status)
+        assertTrue(store.logs.none { it.actionCode == ActionCode.EVENT_EXPIRE })
     }
 }
