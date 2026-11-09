@@ -30,6 +30,49 @@ api:
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
 
+# 품종 대표 이미지 URL 변환용(core-api와 같은 값). imageUrl = {public-base-url}/{image_key}
+storage:
+  public-base-url: ${STORAGE_PUBLIC_BASE_URL:}
+
+# 모의 입양 코드 설정값(API 명세 18.0 [가안], Q429). DB에 두지 않으며 플레이 테스트 후 조정한다
+simulation:
+  tick: 1h
+  session-duration: 7d
+  stats:
+    initial:
+      satiety: 70
+      hydration: 70
+      cleanliness: 80
+      bond: 30
+      calmness: 50
+      health: 90
+      energy: 60
+    # tick당 감소량(양수). 건강은 기본 감소 없이 health-penalty로만 떨어진다
+    decrease-per-tick:
+      satiety: 4
+      hydration: 5
+      cleanliness: 2
+      bond: 1
+      calmness: 2
+      health: 0
+      energy: 3
+    # 성격별 감소 배율(M4). 회복 배율(친밀도·산책 회복)은 돌봄·산책 작업에서 추가한다
+    personality-decrease:
+      active:
+        energy: 1.3
+        satiety: 1.3
+      timid:
+        calmness: 1.5
+      aggressive:
+        bond: 1.3
+      friendly:
+        calmness: 1.3   # "방치 시 안정감 감소 1.3"
+    health-penalty:
+      basic-need-below: 20      # 포만감·수분·청결도 중 하나라도 20 미만이면
+      basic-need-amount: 3      # 건강 -3
+      calmness-at-or-below: 20  # 안정감 20 이하면
+      calmness-amount: 2        # 건강 추가 -2
+
 management:
   endpoints:
     web:
