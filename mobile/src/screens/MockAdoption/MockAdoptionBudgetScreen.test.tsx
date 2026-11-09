@@ -3,9 +3,21 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReactTestRenderer from 'react-test-renderer';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { Button, TextInput } from '../../components/common';
+import { ApiClientError } from '../../services/api';
+import { startSimulationSession } from '../../services/simulation/session';
 import { getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { getBudgetError } from './budget';
 import { MockAdoptionBudgetScreen } from './MockAdoptionBudgetScreen';
+
+jest.mock('../../services/simulation/session', () => {
+  const actual = jest.requireActual('../../services/simulation/session');
+  return {
+    ...actual,
+    startSimulationSession: jest.fn(),
+  };
+});
+
+const startSession = startSimulationSession as jest.MockedFunction<typeof startSimulationSession>;
 
 jest.mock(
   'react-native-safe-area-context',
@@ -24,6 +36,8 @@ test.each(['10000', '100000000', '035000'])('accepts valid budget %s', value => 
 
 test('accepts digits only and persists only when starting, with retry on save failure', async () => {
   await AsyncStorage.clear();
+  startSession.mockReset();
+  startSession.mockResolvedValue({ sessionSeq: 3001 });
   const reset = jest.fn();
   const props = {
     navigation: { reset, goBack: jest.fn() },
@@ -63,9 +77,16 @@ test('accepts digits only and persists only when starting, with retry on save fa
   await ReactTestRenderer.act(() => input().props.onChangeText('35a000'));
   expect(input().props.value).toBe('35,000');
   await expect(getActiveMockAdoption()).resolves.toBeNull();
+  expect(startSession).not.toHaveBeenCalled();
   const save = jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('disk full'));
   await ReactTestRenderer.act(async () => {
     await button().props.onPress();
+  });
+  expect(startSession).toHaveBeenCalledTimes(1);
+  expect(startSession).toHaveBeenCalledWith({
+    breedSeq: '000018',
+    animalName: '초코',
+    expectedCost: 35000,
   });
   expect(reset).not.toHaveBeenCalled();
   expect(button().props.loading).toBe(false);
@@ -75,6 +96,7 @@ test('accepts digits only and persists only when starting, with retry on save fa
   await ReactTestRenderer.act(async () => {
     await button().props.onPress();
   });
+  expect(startSession).toHaveBeenCalledTimes(1);
   expect(reset).toHaveBeenCalledWith({
     index: 1,
     routes: [
@@ -86,7 +108,87 @@ test('accepts digits only and persists only when starting, with retry on save fa
     petId: 'dog-1',
     weeklyBudget: 35000,
     petName: '초코',
+    sessionSeq: 3001,
   });
   save.mockRestore();
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('does not reuse a server response after leaving the budget screen', async () => {
+  await AsyncStorage.clear();
+  startSession.mockReset();
+  startSession.mockResolvedValue({ sessionSeq: 3001 });
+  const props = {
+    navigation: { reset: jest.fn(), goBack: jest.fn() },
+    route: {
+      key: 'budget',
+      name: 'MockAdoptionBudget',
+      params: { petId: 'dog-1', petName: '초코' },
+    },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionBudget'>;
+  const save = jest.spyOn(AsyncStorage, 'setItem').mockRejectedValue(new Error('disk full'));
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionBudgetScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.root.findByType(TextInput).props.onChangeText('35000');
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(Button).props.onPress();
+  });
+  await ReactTestRenderer.act(() => renderer.unmount());
+  save.mockRestore();
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionBudgetScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.root.findByType(TextInput).props.onChangeText('35000');
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(Button).props.onPress();
+  });
+  expect(startSession).toHaveBeenCalledTimes(2);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('does not open the activity when the server already has a session', async () => {
+  await AsyncStorage.clear();
+  startSession.mockReset();
+  startSession.mockRejectedValue(
+    new ApiClientError({
+      code: 'SIMULATION_ACTIVE_ALREADY_EXISTS',
+      message: 'exists',
+    }),
+  );
+  const reset = jest.fn();
+  const props = {
+    navigation: { reset, goBack: jest.fn() },
+    route: {
+      key: 'budget',
+      name: 'MockAdoptionBudget',
+      params: { petId: 'cat-4', petName: '나비' },
+    },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionBudget'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionBudgetScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.root.findByType(TextInput).props.onChangeText('20000');
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(Button).props.onPress();
+  });
+  expect(startSession).toHaveBeenCalledWith({
+    breedSeq: '00214',
+    animalName: '나비',
+    expectedCost: 20000,
+  });
+  expect(reset).not.toHaveBeenCalled();
+  await expect(getActiveMockAdoption()).resolves.toBeNull();
+  expect(
+    renderer.root.findAllByProps({ children: '이미 진행 중인 모의입양이 있어요.' }).length,
+  ).toBeGreaterThan(0);
   await ReactTestRenderer.act(() => renderer.unmount());
 });

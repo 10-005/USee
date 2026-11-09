@@ -13,6 +13,7 @@ export type MockAdoptionSession = {
   weeklyBudget: number;
   startedAt: number;
   expiresAt: number;
+  sessionSeq?: number;
 };
 
 export async function getActiveMockAdoption(): Promise<MockAdoptionSession | null> {
@@ -25,6 +26,10 @@ export async function getActiveMockAdoption(): Promise<MockAdoptionSession | nul
     (session.petName !== undefined &&
       (typeof session.petName !== 'string' || Boolean(getPetNameError(session.petName)))) ||
     !mockAdoptionPets.some(pet => pet.id === session.petId) ||
+    (session.sessionSeq !== undefined &&
+      (typeof session.sessionSeq !== 'number' ||
+        !Number.isInteger(session.sessionSeq) ||
+        session.sessionSeq <= 0)) ||
     typeof session.weeklyBudget !== 'number' ||
     getBudgetError(String(session.weeklyBudget)) ||
     !Number.isFinite(session.startedAt) ||
@@ -37,15 +42,23 @@ export async function getActiveMockAdoption(): Promise<MockAdoptionSession | nul
   return session;
 }
 
-export async function startMockAdoption(petId: string, weeklyBudget: number, petName?: string) {
+export async function startMockAdoption(
+  petId: string,
+  weeklyBudget: number,
+  petName?: string,
+  sessionSeq?: number,
+) {
   if (!mockAdoptionPets.some(pet => pet.id === petId) || getBudgetError(String(weeklyBudget))) {
     throw new Error('Invalid mock adoption settings');
   }
   if (petName !== undefined && getPetNameError(petName)) {
     throw new Error('Invalid pet name');
   }
+  if (sessionSeq !== undefined && (!Number.isInteger(sessionSeq) || sessionSeq <= 0)) {
+    throw new Error('Invalid simulation session');
+  }
   const active = await getActiveMockAdoption();
-  if (active) {
+  if (active && (sessionSeq === undefined || active.sessionSeq === sessionSeq)) {
     return active;
   }
   const startedAt = Date.now();
@@ -53,6 +66,7 @@ export async function startMockAdoption(petId: string, weeklyBudget: number, pet
     version: 1,
     petId,
     ...(petName === undefined ? {} : { petName }),
+    ...(sessionSeq === undefined ? {} : { sessionSeq }),
     weeklyBudget,
     startedAt,
     expiresAt: startedAt + WEEK_MS,

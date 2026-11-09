@@ -13,15 +13,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../app/navigation/types';
 import DownArrowIcon from '../../assets/icons/common/filter-arrow.svg';
+import { AppHeader, Button, KeyboardAwareInputProvider, TextInput } from '../../components/common';
+import { ApiClientError } from '../../services/api';
 import {
-  AppHeader,
-  Button,
-  KeyboardAwareInputProvider,
-  TextInput,
-} from '../../components/common';
+  getSimulationStartErrorMessage,
+  startSimulationSession,
+  type SimulationSession,
+} from '../../services/simulation/session';
 import { startMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { colors, radius, typography } from '../../theme';
 import { getBudgetError } from './budget';
+import { getPetNameError } from './petName';
 import { mockAdoptionPets } from './data';
 import { costGroupLabels, getInitialCostTotal, initialCostItems } from './initialCosts';
 
@@ -42,18 +44,37 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string>();
   const submitting = useRef(false);
+  const pendingSession = useRef<{ key: string; session: SimulationSession } | null>(null);
   const error = getBudgetError(value);
+  const animalName = route.params.petName ?? '';
+  const nameError = getPetNameError(animalName);
 
   const start = async () => {
     setTouched(true);
-    if (error || !pet || submitting.current) {
+    if (error || nameError || !pet || submitting.current) {
       return;
     }
     submitting.current = true;
     setSaving(true);
     setSaveError(undefined);
+    const request = {
+      breedSeq: pet.breedCode,
+      animalName,
+      expectedCost: Number(value),
+    };
+    const requestKey = `${request.breedSeq}|${request.animalName}|${request.expectedCost}`;
     try {
-      const session = await startMockAdoption(pet.id, Number(value), route.params.petName);
+      const remote =
+        pendingSession.current?.key === requestKey
+          ? pendingSession.current.session
+          : await startSimulationSession(request);
+      pendingSession.current = { key: requestKey, session: remote };
+      const session = await startMockAdoption(
+        pet.id,
+        request.expectedCost,
+        request.animalName,
+        remote.sessionSeq,
+      );
       navigation.reset({
         index: 1,
         routes: [
@@ -62,8 +83,12 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
           { name: 'MockAdoptionActivity', params: { petId: session.petId } },
         ],
       });
-    } catch {
-      setSaveError('예산을 저장하지 못했어요. 다시 시도해주세요.');
+    } catch (caught) {
+      setSaveError(
+        caught instanceof ApiClientError
+          ? getSimulationStartErrorMessage(caught)
+          : '예산을 저장하지 못했어요. 다시 시도해주세요.',
+      );
     } finally {
       submitting.current = false;
       setSaving(false);
@@ -81,151 +106,155 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
           <ScrollView
             ref={scrollRef}
             automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-          contentContainerStyle={styles.content}
-          decelerationRate="fast"
-          keyboardShouldPersistTaps="handled"
-        >
-          <Text style={styles.step}>예산 설정</Text>
-          <Text style={styles.title}>초기 비용을 포함한{'\n'}예상 예산을 입력해주세요!</Text>
-          <Text style={styles.subtitle}>
-            처음 맞이하는 준비부터 함께하는 일주일까지 예산을 세워보세요.
-          </Text>
-          {pet ? (
-            <View style={styles.pet}>
-              <Image source={pet.image} style={styles.petImage} resizeMode="contain" />
-              <Text style={styles.petName}>{route.params.petName ?? pet.name}</Text>
-            </View>
-          ) : (
-            <Text style={styles.error}>
-              선택한 동물을 찾을 수 없어요. 이전 화면에서 다시 선택해주세요.
+            contentContainerStyle={styles.content}
+            decelerationRate="fast"
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={styles.step}>예산 설정</Text>
+            <Text style={styles.title}>초기 비용을 포함한{'\n'}예상 예산을 입력해주세요!</Text>
+            <Text style={styles.subtitle}>
+              처음 맞이하는 준비부터 함께하는 일주일까지 예산을 세워보세요.
             </Text>
-          )}
-          <Text style={styles.inputLabel}>첫 주 예산 (초기 준비 비용 포함)</Text>
-          <View style={styles.amountField}>
-            <TextInput
-              accessibilityLabel="첫 주 예산 (초기 준비 비용 포함)"
-              placeholder="0"
-              style={styles.amountInput}
-              keyboardType="number-pad"
-              inputMode="numeric"
-              editable={!saving}
-              value={value.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              onChangeText={text => {
-                const digits = text.replace(/,/g, '');
-                if (/^[0-9]*$/.test(digits)) {
-                  setValue(digits);
-                  setSaveError(undefined);
-                }
-              }}
-              onBlur={() => setTouched(true)}
-              aria-invalid={Boolean((touched || value) && error)}
-            />
-            <View pointerEvents="none" style={styles.currencyWrap}>
-              <Text style={styles.currency}>원</Text>
-            </View>
-          </View>
-          {(touched || value) && error ? (
-            <Text accessibilityLiveRegion="polite" style={styles.error}>
-              {error}
-            </Text>
-          ) : null}
-          <View style={styles.incrementRow}>
-            {budgetIncrements.map(increment => (
-              <Pressable
-                key={increment.amount}
-                accessibilityRole="button"
-                accessibilityLabel={`${increment.amount.toLocaleString('ko-KR')}원 추가`}
-                accessibilityState={{ disabled: saving }}
-                disabled={saving}
-                onPress={() => {
-                  setTouched(true);
-                  setSaveError(undefined);
-                  setValue(current => {
-                    const next = Number(current || '0') + increment.amount;
-                    return Number.isSafeInteger(next) ? String(next) : current;
-                  });
+            {pet ? (
+              <View style={styles.pet}>
+                <Image source={pet.image} style={styles.petImage} resizeMode="contain" />
+                <Text style={styles.petName}>{route.params.petName ?? pet.name}</Text>
+              </View>
+            ) : (
+              <Text style={styles.error}>
+                선택한 동물을 찾을 수 없어요. 이전 화면에서 다시 선택해주세요.
+              </Text>
+            )}
+            <Text style={styles.inputLabel}>첫 주 예산 (초기 준비 비용 포함)</Text>
+            <View style={styles.amountField}>
+              <TextInput
+                accessibilityLabel="첫 주 예산 (초기 준비 비용 포함)"
+                placeholder="0"
+                style={styles.amountInput}
+                keyboardType="number-pad"
+                inputMode="numeric"
+                editable={!saving}
+                value={value.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                onChangeText={text => {
+                  const digits = text.replace(/,/g, '');
+                  if (/^[0-9]*$/.test(digits)) {
+                    setValue(digits);
+                    setSaveError(undefined);
+                  }
                 }}
-                style={({ pressed }) => [
-                  styles.incrementButton,
-                  pressed && styles.pressed,
-                  saving && styles.disabled,
-                ]}
-              >
-                <Text style={styles.incrementLabel}>{increment.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <Text style={styles.helper}>최소 10,000원부터 입력할 수 있어요.</Text>
-          {pet ? (
-            <View style={styles.guide}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="초기 준비 비용 참고하기"
-                accessibilityState={{ expanded: guideExpanded }}
-                onPress={() => setGuideExpanded(current => !current)}
-                style={({ pressed }) => [styles.guideToggle, pressed && styles.pressed]}
-              >
-                <View style={styles.guideHeading}>
-                  <Text style={styles.guideTitle}>초기 준비 비용 참고하기</Text>
-                  <Text style={styles.description}>
-                    {costGroupLabels[pet.costGroup]} 기준 · 참고용 추정치
-                  </Text>
-                </View>
-                <View style={[styles.toggleIcon, guideExpanded && styles.toggleIconExpanded]}>
-                  <DownArrowIcon width={20} height={20} />
-                </View>
-              </Pressable>
-              {guideExpanded ? (
-                <View style={styles.guideDetails}>
-                  <View style={styles.costSummary}>
-                    <Text style={styles.detailTitle}>
-                      {costGroupLabels[pet.costGroup]} 초기 준비 비용
-                    </Text>
-                    <Text style={styles.amount}>
-                      약 {getInitialCostTotal(pet.costGroup).toLocaleString('ko-KR')}원
+                onBlur={() => setTouched(true)}
+                aria-invalid={Boolean((touched || value) && error)}
+              />
+              <View pointerEvents="none" style={styles.currencyWrap}>
+                <Text style={styles.currency}>원</Text>
+              </View>
+            </View>
+            {(touched || value) && error ? (
+              <Text accessibilityLiveRegion="polite" style={styles.error}>
+                {error}
+              </Text>
+            ) : null}
+            <View style={styles.incrementRow}>
+              {budgetIncrements.map(increment => (
+                <Pressable
+                  key={increment.amount}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${increment.amount.toLocaleString('ko-KR')}원 추가`}
+                  accessibilityState={{ disabled: saving }}
+                  disabled={saving}
+                  onPress={() => {
+                    setTouched(true);
+                    setSaveError(undefined);
+                    setValue(current => {
+                      const next = Number(current || '0') + increment.amount;
+                      return Number.isSafeInteger(next) ? String(next) : current;
+                    });
+                  }}
+                  style={({ pressed }) => [
+                    styles.incrementButton,
+                    pressed && styles.pressed,
+                    saving && styles.disabled,
+                  ]}
+                >
+                  <Text style={styles.incrementLabel}>{increment.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.helper}>최소 10,000원부터 입력할 수 있어요.</Text>
+            {pet ? (
+              <View style={styles.guide}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="초기 준비 비용 참고하기"
+                  accessibilityState={{ expanded: guideExpanded }}
+                  onPress={() => setGuideExpanded(current => !current)}
+                  style={({ pressed }) => [styles.guideToggle, pressed && styles.pressed]}
+                >
+                  <View style={styles.guideHeading}>
+                    <Text style={styles.guideTitle}>초기 준비 비용 참고하기</Text>
+                    <Text style={styles.description}>
+                      {costGroupLabels[pet.costGroup]} 기준 · 참고용 추정치
                     </Text>
                   </View>
-                  <Text style={styles.description}>
-                    처음 반려동물을 맞이할 때 준비하는 항목별 예상 금액이에요.
-                  </Text>
-                  {initialCostItems.map(item => (
-                    <View key={item.label} style={styles.costRow}>
-                      <Text style={[styles.description, styles.costLabel]}>{item.label}</Text>
-                      <Text style={[styles.description, styles.costValue]}>
-                        {item.amounts[pet.costGroup].toLocaleString('ko-KR')}원
+                  <View style={[styles.toggleIcon, guideExpanded && styles.toggleIconExpanded]}>
+                    <DownArrowIcon width={20} height={20} />
+                  </View>
+                </Pressable>
+                {guideExpanded ? (
+                  <View style={styles.guideDetails}>
+                    <View style={styles.costSummary}>
+                      <Text style={styles.detailTitle}>
+                        {costGroupLabels[pet.costGroup]} 초기 준비 비용
+                      </Text>
+                      <Text style={styles.amount}>
+                        약 {getInitialCostTotal(pet.costGroup).toLocaleString('ko-KR')}원
                       </Text>
                     </View>
-                  ))}
-                  <View style={[styles.costRow, styles.totalRow]}>
-                    <Text style={styles.guideTitle}>합계</Text>
-                    <Text style={styles.totalAmount}>
-                      {getInitialCostTotal(pet.costGroup).toLocaleString('ko-KR')}원
-                    </Text>
-                  </View>
-                  <Text style={styles.description}>
-                    서비스에서 설정한 참고용 추정치로, 매주 반복되는 지출이나 최소 필수 금액은
-                    아니에요. 건강 상태와 이미 갖춘 용품, 진료 여부에 따라 실제 비용은 달라져요.
-                  </Text>
-                  {pet.id === 'dog-3' ? (
                     <Text style={styles.description}>
-                      푸들은 토이·미니어처 기준의 소형견 예산을 적용했어요.
+                      처음 반려동물을 맞이할 때 준비하는 항목별 예상 금액이에요.
                     </Text>
-                  ) : null}
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-          <Text style={styles.helper}>시작하면 선택한 동물과 예산이 7일간 저장돼요.</Text>
+                    {initialCostItems.map(item => (
+                      <View key={item.label} style={styles.costRow}>
+                        <Text style={[styles.description, styles.costLabel]}>{item.label}</Text>
+                        <Text style={[styles.description, styles.costValue]}>
+                          {item.amounts[pet.costGroup].toLocaleString('ko-KR')}원
+                        </Text>
+                      </View>
+                    ))}
+                    <View style={[styles.costRow, styles.totalRow]}>
+                      <Text style={styles.guideTitle}>합계</Text>
+                      <Text style={styles.totalAmount}>
+                        {getInitialCostTotal(pet.costGroup).toLocaleString('ko-KR')}원
+                      </Text>
+                    </View>
+                    <Text style={styles.description}>
+                      서비스에서 설정한 참고용 추정치로, 매주 반복되는 지출이나 최소 필수 금액은
+                      아니에요. 건강 상태와 이미 갖춘 용품, 진료 여부에 따라 실제 비용은 달라져요.
+                    </Text>
+                    {pet.id === 'dog-3' ? (
+                      <Text style={styles.description}>
+                        푸들은 토이·미니어처 기준의 소형견 예산을 적용했어요.
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+            <Text style={styles.helper}>시작하면 선택한 동물과 예산이 7일간 저장돼요.</Text>
           </ScrollView>
           <View style={styles.footer}>
-          {saveError ? (
-            <Text accessibilityLiveRegion="polite" style={styles.error}>
-              {saveError}
-            </Text>
-          ) : null}
-          <Button disabled={Boolean(error) || !pet} loading={saving} onPress={start}>
-            모의입양 시작하기
-          </Button>
+            {saveError ? (
+              <Text accessibilityLiveRegion="polite" style={styles.error}>
+                {saveError}
+              </Text>
+            ) : null}
+            <Button
+              disabled={Boolean(error) || Boolean(nameError) || !pet}
+              loading={saving}
+              onPress={start}
+            >
+              모의입양 시작하기
+            </Button>
           </View>
         </KeyboardAvoidingView>
       </KeyboardAwareInputProvider>

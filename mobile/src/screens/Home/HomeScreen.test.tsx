@@ -161,7 +161,14 @@ test('selection keeps one pet across categories and opens budget', async () => {
     renderer.root
       .findAllByProps({ accessibilityRole: 'radio' })
       .filter(node => node.parent?.props.accessibilityRole !== 'radio');
-  expect(options()).toHaveLength(6);
+  expect(options().map(node => node.props.accessibilityLabel)).toEqual([
+    '비숑 프리제',
+    '도베르만',
+    '푸들',
+    '골든 리트리버',
+    '시바',
+    '시츄',
+  ]);
   expect(startButton().props.disabled).toBe(true);
   await ReactTestRenderer.act(() => startButton().props.onPress());
   expect(mockNavigate).not.toHaveBeenCalled();
@@ -173,7 +180,14 @@ test('selection keeps one pet across categories and opens budget', async () => {
       .filter(node => node.parent?.props.accessibilityRole !== 'tab')[1]
       .props.onPress();
   });
-  expect(options()).toHaveLength(6);
+  expect(options().map(node => node.props.accessibilityLabel)).toEqual([
+    '브리티시 쇼트헤어',
+    '러시안 블루',
+    '사바나캣',
+    '페르시안',
+    '스핑크스',
+    '샴',
+  ]);
   expect(options().every(node => !node.props.accessibilityState.checked)).toBe(true);
   await ReactTestRenderer.act(() => options()[1].props.onPress());
   expect(options().filter(node => node.props.accessibilityState.checked)).toHaveLength(1);
@@ -186,5 +200,25 @@ test('selection keeps one pet across categories and opens budget', async () => {
   expect(options().every(node => !node.props.accessibilityState.checked)).toBe(true);
   await ReactTestRenderer.act(() => startButton().props.onPress());
   expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionName', { petId: 'cat-2' });
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('selection starts empty again after leaving the creation flow', async () => {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionScreen />);
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.root.findAllByProps({ accessibilityRole: 'radio' })[0].props.onPress();
+  });
+  expect(renderer.root.findByType(Button).props.disabled).toBe(false);
+  await ReactTestRenderer.act(() => renderer.unmount());
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionScreen />);
+  });
+  expect(renderer.root.findByType(Button).props.disabled).toBe(true);
+  expect(
+    renderer.root.findAllByProps({ children: '함께할 반려동물 한 마리를 선택해주세요.' }).length,
+  ).toBeGreaterThan(0);
   await ReactTestRenderer.act(() => renderer.unmount());
 });
