@@ -1,10 +1,27 @@
 package com.ssafy.animal.simulation.adapter.`in`.web
 
 import com.ssafy.animal.common.auth.AuthUser
+import com.ssafy.animal.common.docs.FailExamples
+import com.ssafy.animal.common.docs.FailResponseSchema
+import com.ssafy.animal.common.docs.SuccessResponseSchema
+import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SESSION_SEQ_TYPE_MISMATCH
+import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_EQUIPMENT_ALREADY_OWNED
+import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_NOT_FOUND
+import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_NOT_IN_PROGRESS
+import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES
+import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_SHOP_ITEM_NOT_FOUND
 import com.ssafy.animal.simulation.application.port.`in`.PurchaseCommand
 import com.ssafy.animal.simulation.application.port.`in`.PurchaseResult
 import com.ssafy.animal.simulation.application.port.`in`.PurchaseUseCase
 import com.ssafy.animal.simulation.domain.ItemCategory
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.ExampleObject
+import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
+import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
@@ -18,6 +35,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
+@Tag(name = SHOP_TAG, description = SHOP_TAG_DESC)
 @RestController
 @RequestMapping("/api/simulation/v1/simulations/{sessionSeq}")
 class PurchaseController(
@@ -25,19 +43,114 @@ class PurchaseController(
 ) {
 
     /** 18.9 펫샵 구매. 본인만 사며 그 외(보호소 포함)는 404로 존재를 감추므로 역할 제한을 두지 않는다(Q483) */
+    @Operation(
+        summary = "펫샵 물품 구매",
+        description = "- 본인 진행 중 세션만. 남의 세션·없는 세션은 보호소를 포함해 404 `SIMULATION_NOT_FOUND`, 진행 중이 아니면 409\n" +
+            "- 금액 = 가격 × 수량을 잔액에서 뺀다. 잔액이 모자라도 사고 잔액은 음수가 된다.\n" +
+            "- 소모품은 수량 × 묶음 수만큼 인벤토리가 늘어난다(사료 2개 = 24끼). 다 쓴 뒤 다시 살 수 있다.\n" +
+            "- 기구는 수량 1만, 이미 보유했으면 409 `SIMULATION_EQUIPMENT_ALREADY_OWNED`(돈·기록 변화 없음).\n" +
+            "- 물품 적용 종이 세션 종과 다르면 409, 판매 중단 물품은 404.\n" +
+            "- 수량은 1~99. 구매마다 지출 내역(PURCHASE)이 1건 남는다.",
+    )
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "201",
+            description = "구매 성공",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = PurchaseSuccessSchema::class),
+                    examples = [ExampleObject(name = "구매 성공", value = PURCHASE_SUCCESS)],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "400",
+            description = "필수값 누락·수량 범위 밖, 기구를 2개 이상 구매, 세션 번호 타입 오류, 본문 형식 오류",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [
+                        ExampleObject(name = "수량 범위 밖", value = QUANTITY_OUT_OF_RANGE),
+                        ExampleObject(name = "기구 2개 이상", value = EQUIPMENT_QUANTITY),
+                        ExampleObject(name = "세션 번호 타입 오류", value = SESSION_SEQ_TYPE_MISMATCH),
+                        ExampleObject(name = "COMMON_INVALID_JSON", value = FailExamples.COMMON_INVALID_JSON),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "401",
+            description = "access 토큰 없음·만료·무효. 만료면 토큰 갱신 후 재시도",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [
+                        ExampleObject(name = "AUTH_UNAUTHORIZED", value = FailExamples.AUTH_UNAUTHORIZED),
+                        ExampleObject(name = "AUTH_TOKEN_EXPIRED", value = FailExamples.AUTH_TOKEN_EXPIRED),
+                        ExampleObject(name = "AUTH_TOKEN_INVALID", value = FailExamples.AUTH_TOKEN_INVALID),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "없는 세션·남의 세션(보호소 포함), 없는 물품·판매 중단 물품",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [
+                        ExampleObject(name = "SIMULATION_NOT_FOUND", value = SIMULATION_NOT_FOUND),
+                        ExampleObject(name = "SIMULATION_SHOP_ITEM_NOT_FOUND", value = SIMULATION_SHOP_ITEM_NOT_FOUND),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "진행 중이 아닌 세션, 세션 종과 맞지 않는 물품, 이미 보유한 기구",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [
+                        ExampleObject(name = "SIMULATION_NOT_IN_PROGRESS", value = SIMULATION_NOT_IN_PROGRESS),
+                        ExampleObject(name = "SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES", value = SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES),
+                        ExampleObject(name = "SIMULATION_EQUIPMENT_ALREADY_OWNED", value = SIMULATION_EQUIPMENT_ALREADY_OWNED),
+                    ],
+                ),
+            ],
+        ),
+    )
     @PostMapping("/purchases")
     @ResponseStatus(HttpStatus.CREATED)
     fun purchase(
-        @AuthenticationPrincipal user: AuthUser,
-        @PathVariable sessionSeq: Long,
+        @Parameter(hidden = true) @AuthenticationPrincipal user: AuthUser,
+        @Parameter(description = "세션 번호", example = "3001") @PathVariable sessionSeq: Long,
         @Valid @RequestBody request: PurchaseRequest,
     ) = PurchaseResponse.from(purchaseUseCase.purchase(user.userSeq, sessionSeq, request.toCommand()))
+
+    private companion object {
+        // 문서 예시 전용
+        const val PURCHASE_SUCCESS =
+            """{"status":201,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"transactionSeq":70001,"item":{"itemSeq":22,"itemName":"균형 잡힌 사료","category":"FOOD"},""" +
+                """"quantity":2,"amount":21200,"balanceAfter":128800,"inventoryQuantity":24},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+        const val QUANTITY_OUT_OF_RANGE =
+            """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"quantity","reason":"1 이상이어야 합니다"}],"traceId":"4f2c9e1a7b3d4c5e"}"""
+        const val EQUIPMENT_QUANTITY =
+            """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"quantity","reason":"기구는 1개만 살 수 있습니다."}],"traceId":"4f2c9e1a7b3d4c5e"}"""
+    }
 }
 
 /** 누락도 400 COMMON_INVALID_INPUT이 되도록 nullable로 받아 검증한다 */
 data class PurchaseRequest(
+    @field:Schema(description = "물품 번호(펫샵 목록 값)", example = "22")
     @field:NotNull
     val itemSeq: Long?,
+    @field:Schema(description = "구매 수량 1~99. 기구는 1만. 묶음 물품은 묶음 개수", example = "2")
     @field:NotNull
     @field:Min(1)
     // 명세에 상한은 없지만 금액·잔액 정수 범위를 넘지 않도록 한 번에 살 수 있는 수를 막아 둔다
@@ -52,17 +165,25 @@ data class PurchaseRequest(
 }
 
 data class PurchaseResponse(
+    @field:Schema(description = "지출 내역 번호", example = "70001")
     val transactionSeq: Long,
+    @field:Schema(description = "산 물품")
     val item: PurchasedItem,
+    @field:Schema(description = "구매 수량", example = "2")
     val quantity: Int,
+    @field:Schema(description = "지출액(원) = 가격 × 수량", example = "21200")
     val amount: Int,
+    @field:Schema(description = "구매 후 잔액(원). 음수가 될 수 있다", example = "128800")
     val balanceAfter: Int,
-    /** 구매 후 보유 수량(묶음 물품은 남은 사용 횟수) */
+    @field:Schema(description = "구매 후 보유 수량(묶음 물품은 남은 사용 횟수)", example = "24")
     val inventoryQuantity: Int,
 ) {
     data class PurchasedItem(
+        @field:Schema(description = "물품 번호", example = "22")
         val itemSeq: Long,
+        @field:Schema(description = "물품 이름", example = "균형 잡힌 사료")
         val itemName: String,
+        @field:Schema(description = ITEM_CATEGORY_DESC, example = "FOOD")
         val category: ItemCategory,
     )
 
@@ -77,3 +198,6 @@ data class PurchaseResponse(
         )
     }
 }
+
+// Swagger 문서 전용 성공 응답 미러(런타임 미사용)
+abstract class PurchaseSuccessSchema : SuccessResponseSchema<PurchaseResponse>()
