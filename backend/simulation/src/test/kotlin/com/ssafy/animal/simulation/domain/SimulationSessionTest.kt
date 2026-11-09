@@ -42,6 +42,26 @@ class SimulationSessionTest {
     }
 
     @Test
+    fun `효과를 적용하면 스탯이 바뀌고 지연 계산 기준 시각은 그대로다`() {
+        val session = start()
+
+        val result = session.applyEffect(StatEffect.fromJson(mapOf("satiety" to 50, "calmness" to -5)))
+
+        assertEquals(100, session.stats().satiety)
+        assertEquals(45, session.stats().calmness)
+        assertEquals(mapOf(Stat.SATIETY to 30, Stat.CALMNESS to -5), result.delta)
+        assertEquals(start, session.statsCalculatedDttm)
+    }
+
+    @Test
+    fun `종료된 세션에는 효과를 적용하지 않는다`() {
+        val session = start()
+        ReflectionTestUtils.setField(session, "status", SessionStatus.FAILED)
+
+        assertFailsWith<IllegalStateException> { session.applyEffect(StatEffect.fromJson(mapOf("health" to 20))) }
+    }
+
+    @Test
     fun `SYSTEM 로그는 분류를 코드에서 정하고 그 시점 스탯 7종을 남긴다`() {
         val session = start().also { ReflectionTestUtils.setField(it, "sessionSeq", 3001L) }
 
