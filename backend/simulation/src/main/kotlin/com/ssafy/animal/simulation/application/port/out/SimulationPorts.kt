@@ -1,6 +1,7 @@
 package com.ssafy.animal.simulation.application.port.out
 
 import com.ssafy.animal.simulation.domain.Equipment
+import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationActionLog
@@ -76,6 +77,9 @@ interface InventoryRepository {
 
     /** 세션 상세의 보유 기구(수량 1 이상인 기구 분류) */
     fun findEquipment(sessionSeq: Long): Equipment
+
+    /** 그 분류의 물품 중 수량 1 이상 보유한 것(돌봄 행동의 필요 기구 확인·기구 효과). 물품 display_order 순 */
+    fun findOwnedByCategory(sessionSeq: Long, category: ItemCategory): List<InventoryEntry>
 }
 
 data class InventoryEntry(

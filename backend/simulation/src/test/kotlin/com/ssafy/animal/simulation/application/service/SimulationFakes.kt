@@ -115,6 +115,9 @@ class FakeSimulationStore :
         .map { InventoryEntry(it, shopItems.getValue(it.itemSeq)) }
         .sortedWith(compareBy<InventoryEntry> { it.shopItem.displayOrder }.thenBy { it.shopItem.itemSeq })
 
+    override fun findOwnedByCategory(sessionSeq: Long, category: ItemCategory) =
+        findAllWithItems(sessionSeq).filter { it.inventoryItem.quantity > 0 && it.shopItem.category == category }
+
     override fun findEquipment(sessionSeq: Long) = Equipment.of(
         findAllWithItems(sessionSeq).filter { it.inventoryItem.quantity > 0 && !it.shopItem.isConsumable }.mapTo(mutableSetOf()) { it.shopItem.category },
     )
