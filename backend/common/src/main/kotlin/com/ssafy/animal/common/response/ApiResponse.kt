@@ -2,6 +2,7 @@ package com.ssafy.animal.common.response
 
 import com.ssafy.animal.common.exception.ErrorCode
 import com.ssafy.animal.common.web.TraceIdFilter
+import io.swagger.v3.oas.annotations.media.Schema
 import org.slf4j.MDC
 
 /**
@@ -33,6 +34,8 @@ data class ApiResponse<T>(
 }
 
 data class ErrorDetail(
+    @field:Schema(description = "문제가 된 필드·파라미터 이름. 객체 전체 오류면 null", nullable = true, example = "nickname")
     val field: String?,
+    @field:Schema(description = "실패 사유", example = "필수 입력값입니다.")
     val reason: String,
 )

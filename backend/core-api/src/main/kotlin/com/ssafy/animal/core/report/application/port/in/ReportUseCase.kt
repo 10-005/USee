@@ -1,6 +1,7 @@
 package com.ssafy.animal.core.report.application.port.`in`
 
 import com.ssafy.animal.core.report.domain.ReportStatus
+import io.swagger.v3.oas.annotations.media.Schema
 
 interface ReportUseCase {
     /** 15.1 신고 접수 */
@@ -15,6 +16,8 @@ data class ReportCommand(
 )
 
 data class ReportReceipt(
+    @field:Schema(description = "신고 번호", example = "601")
     val reportSeq: Long,
+    @field:Schema(description = "처리 상태. 현재는 항상 PENDING(접수됨)", example = "PENDING")
     val status: ReportStatus,
 )

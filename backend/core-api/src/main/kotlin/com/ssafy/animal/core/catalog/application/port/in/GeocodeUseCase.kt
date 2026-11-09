@@ -1,5 +1,7 @@
 package com.ssafy.animal.core.catalog.application.port.`in`
 
+import io.swagger.v3.oas.annotations.media.Schema
+
 interface GeocodeUseCase {
 
     /** 5.6 주소 검색. 0건이면 빈 목록, 외부 호출 실패는 503 CATALOG_GEOCODE_UNAVAILABLE */
@@ -14,8 +16,12 @@ interface GeocodeUseCase {
 
 /** 네이버 응답의 roadAddress·jibunAddress·y·x를 그대로 옮긴다(5.6) */
 data class GeocodeCandidate(
+    @field:Schema(description = "도로명 주소. 없으면 null", nullable = true, example = "대구광역시 중구 동성로 1")
     val roadAddress: String?,
+    @field:Schema(description = "지번 주소. 없으면 null", nullable = true, example = "대구광역시 중구 동성로2가 1")
     val jibunAddress: String?,
+    @field:Schema(description = "위도", example = "35.8714")
     val latitude: Double,
+    @field:Schema(description = "경도", example = "128.6014")
     val longitude: Double,
 )

@@ -11,6 +11,7 @@ import com.ssafy.animal.core.found.domain.FoundReportContent
 import com.ssafy.animal.core.found.domain.FoundStatus
 import com.ssafy.animal.core.found.domain.Gender
 import com.ssafy.animal.core.image.application.port.`in`.ImageSummary
+import io.swagger.v3.oas.annotations.media.Schema
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import java.time.LocalDate
@@ -149,11 +150,28 @@ data class FoundReportItem(
     val representativeImageUrl: String?,
 )
 
-/** 1.4 ImageRef */
-data class ImageRef(val imageSeq: Long, val imageUrl: String?, val displayOrder: Int)
+/** 1.4 ImageRef. 문서 스키마 이름은 animal 패키지 ImageRef와 겹치지 않게 따로 둔다 */
+@Schema(name = "FoundImageRef", description = "발견 신고 사진")
+data class ImageRef(
+    @field:Schema(description = "이미지 번호", example = "1201")
+    val imageSeq: Long,
+    @field:Schema(description = "공개 고정 URL. 이미지 행이 없으면 null", nullable = true, example = "https://storage.example.com/images/1201.jpg")
+    val imageUrl: String?,
+    @field:Schema(description = "표시 순서. 0부터, 0이 대표 사진", example = "0")
+    val displayOrder: Int,
+)
 
 /** 1.4 ActorSummary. 발견 신고 작성자는 USER뿐이라 표시 이름은 닉네임 */
-data class ActorSummary(val userSeq: Long, val displayName: String?, val role: Role, val profileImage: ImageSummary?)
+data class ActorSummary(
+    @field:Schema(description = "작성자 회원 번호", example = "17")
+    val userSeq: Long,
+    @field:Schema(description = "표시 이름(닉네임). 탈퇴한 회원이면 (탈퇴한 사용자)", nullable = true, example = "반려가족")
+    val displayName: String?,
+    @field:Schema(description = "역할. 발견 신고 작성자는 항상 USER", example = "USER")
+    val role: Role,
+    @field:Schema(description = "프로필 사진. 없거나 탈퇴한 회원이면 null", nullable = true)
+    val profileImage: ImageSummary?,
+)
 
 data class FoundReportDetail(
     val item: FoundReportItem,
@@ -167,7 +185,12 @@ data class FoundReportDetail(
 )
 
 /** 8.8·10.2 보호소 화면용 신고자: users.name 실명 + 신고 연락처(Q470) */
-data class ReporterContact(val name: String?, val phone: String)
+data class ReporterContact(
+    @field:Schema(description = "신고자 실명(users.name). 탈퇴한 회원이면 (탈퇴한 사용자)", nullable = true, example = "김가람")
+    val name: String?,
+    @field:Schema(description = "신고에 적은 연락처. 공개 여부와 관계없이 담당 보호소에 준다", example = "01012345678")
+    val phone: String,
+)
 
 data class AssignedFoundReportItem(
     val item: FoundReportItem,

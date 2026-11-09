@@ -11,6 +11,7 @@ import com.ssafy.animal.core.rescue.domain.RescueContent
 import com.ssafy.animal.core.rescue.domain.RescueReasonCode
 import com.ssafy.animal.core.rescue.domain.RescueRecord
 import com.ssafy.animal.core.rescue.domain.RescueStatus
+import io.swagger.v3.oas.annotations.media.Schema
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import java.time.OffsetDateTime
@@ -90,13 +91,21 @@ data class UpdateRescueCommand(
 
 /** 10.1 목록 항목의 동물 정보. REPORT는 발견 신고, DIRECT는 연결 보호동물 중 가장 먼저 등록된 1마리. 없으면 null */
 data class RescueAnimal(
+    @field:Schema(description = "축종 이름", nullable = true, example = "고양이")
     val speciesName: String?,
+    @field:Schema(description = "품종 이름", nullable = true, example = "코리안숏헤어")
     val breedName: String?,
+    @field:Schema(description = "나이(자유 텍스트)", nullable = true, example = "0살")
     val age: String?,
+    @field:Schema(description = "성별. MALE=수컷, FEMALE=암컷, UNKNOWN=모름", example = "UNKNOWN")
     val gender: String,
+    @get:Schema(name = "isNeutered", description = "중성화 여부. null=모름", nullable = true)
     val isNeutered: Boolean?,
+    @field:Schema(description = "색상 이름", nullable = true, example = "흰색")
     val colorName: String?,
+    @field:Schema(description = "몸무게(자유 텍스트)", nullable = true, example = "약 3kg")
     val weight: String?,
+    @field:Schema(description = "대표 사진 URL(첫 번째 사진). 사진이 없으면 null", nullable = true, example = "https://cdn.example.com/images/1701.jpg")
     val representativeImageUrl: String?,
 )
 
@@ -107,16 +116,27 @@ data class RescuePage(val statusCounts: Map<RescueStatus, Long>, val page: Page<
 
 /** 10.2 foundReportSummary. 신고가 삭제되었어도 남은 정보로 채운다 */
 data class FoundReportSummary(
+    @field:Schema(description = "발견 신고 번호", example = "210")
     val foundReportSeq: Int,
+    @field:Schema(description = "종·품종·색상 분류(1.4 AnimalClassification 전체형). 조합을 찾지 못하면 null", nullable = true)
     val classification: AnimalClassification?,
+    @field:Schema(description = "나이(자유 텍스트)", nullable = true, example = "0살")
     val age: String?,
+    @field:Schema(description = "성별. MALE=수컷, FEMALE=암컷, UNKNOWN=모름", example = "UNKNOWN")
     val gender: String,
+    @get:Schema(name = "isNeutered", description = "중성화 여부. null=모름", nullable = true)
     val isNeutered: Boolean?,
+    @field:Schema(description = "몸무게(자유 텍스트)", nullable = true, example = "약 3kg")
     val weight: String?,
+    @field:Schema(description = "발견 장소", example = "구미시 인동동 123-123 구미아파트")
     val address: String,
+    @field:Schema(description = "발견 일시", example = "2026-10-19T18:30:00+09:00")
     val occurredDttm: OffsetDateTime,
+    @field:Schema(description = "대표 사진 URL(첫 번째 사진). 사진이 없으면 null", nullable = true, example = "https://cdn.example.com/images/1601.jpg")
     val representativeImageUrl: String?,
+    @field:Schema(description = "신고자 실명·전화번호. 접수한 보호소에 공개한다. 탈퇴한 신고자는 name이 '(탈퇴한 사용자)'")
     val reporter: ReporterContact,
+    @field:Schema(description = "발견 신고 상태. ACTIVE=진행 중, CLOSED=종료", example = "ACTIVE")
     val status: String,
 )
 

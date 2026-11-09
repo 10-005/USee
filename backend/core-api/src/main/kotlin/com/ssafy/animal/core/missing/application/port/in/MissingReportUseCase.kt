@@ -6,6 +6,7 @@ import com.ssafy.animal.core.image.application.port.`in`.ImageSummary
 import com.ssafy.animal.core.missing.domain.MissingGender
 import com.ssafy.animal.core.missing.domain.MissingReport
 import com.ssafy.animal.core.missing.domain.MissingStatus
+import io.swagger.v3.oas.annotations.media.Schema
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import java.time.LocalDate
@@ -99,7 +100,23 @@ data class MissingDetail(
 )
 
 /** 명세 1.4 ImageRef */
-data class MissingImageRef(val imageSeq: Long, val imageUrl: String?, val displayOrder: Int)
+data class MissingImageRef(
+    @field:Schema(description = "이미지 번호", example = "1001")
+    val imageSeq: Long,
+    @field:Schema(description = "공개 고정 URL. 이미지 행이 없으면 null", nullable = true, example = "https://storage.example.com/images/1001.jpg")
+    val imageUrl: String?,
+    @field:Schema(description = "표시 순서. 1부터, 1이 대표 사진", example = "1")
+    val displayOrder: Int,
+)
 
 /** 명세 1.4 ActorSummary */
-data class MissingAuthor(val userSeq: Long, val displayName: String?, val role: Role, val profileImage: ImageSummary?)
+data class MissingAuthor(
+    @field:Schema(description = "작성자 회원 번호", example = "17")
+    val userSeq: Long,
+    @field:Schema(description = "표시 이름(닉네임)", nullable = true, example = "반려가족")
+    val displayName: String?,
+    @field:Schema(description = "역할. 실종 신고 작성자는 USER", example = "USER")
+    val role: Role,
+    @field:Schema(description = "프로필 사진. 없으면 null", nullable = true)
+    val profileImage: ImageSummary?,
+)
