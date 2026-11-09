@@ -12,8 +12,10 @@ import com.facebook.react.uimanager.UIManagerHelper
 import com.facebook.react.uimanager.events.Event
 import com.google.ar.core.Config
 import com.google.ar.core.Frame
+import com.google.ar.core.Pose
 import com.google.ar.core.Session
 import com.google.ar.core.TrackingState
+import com.google.android.filament.LightManager
 import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.math.Direction
 import io.github.sceneview.math.Position
@@ -22,6 +24,7 @@ import io.github.sceneview.math.Scale
 import io.github.sceneview.math.Size
 import io.github.sceneview.math.colorOf
 import io.github.sceneview.node.CylinderNode
+import io.github.sceneview.node.LightNode
 import io.github.sceneview.node.ModelNode
 
 /**
@@ -30,7 +33,7 @@ import io.github.sceneview.node.ModelNode
 class ArFloorView(
   private val reactContext: ReactContext,
 ) : SceneHostView(reactContext) {
-  private var sceneView: ARSceneView? = null
+  private var sceneView: FloorSceneView? = null
   private val modelLoad = SceneModelLoad()
   private var cleanup: WalkCleanupView? = null
   private val careNodes = mutableMapOf<String, OwnedImageNode>()
@@ -350,6 +353,7 @@ class ArFloorView(
     camera.getViewMatrix(viewMatrix, 0)
     camera.getProjectionMatrix(projectionMatrix, 0, 0.1f, 100f)
     val cameraPose = camera.displayOrientedPose
+    if (camera.trackingState == TrackingState.TRACKING) sceneView?.updateFillLight(cameraPose)
     leashCamera = LeashPoint(cameraPose.tx(), cameraPose.ty(), cameraPose.tz())
     val screenRight = cameraPose.rotateVector(floatArrayOf(1f, 0f, 0f))
     leashCameraRight = LeashPoint(screenRight[0], screenRight[1], screenRight[2])
@@ -522,6 +526,21 @@ class ArFloorView(
     sharedLifecycle = sharedLifecycle,
     sessionConfiguration = sessionConfiguration,
   ) {
+    // Keep the camera-facing side readable when the estimated key light is behind the dog.
+    private val fillLight = LightNode(engine, LightManager.Type.DIRECTIONAL) {
+      direction(0f, 0f, -1f)
+      color(1f, 1f, 1f)
+      intensity(24_000f)
+      castShadows(false)
+    }.also { addChildNode(it) }
+    private val fillDirection = floatArrayOf(0f, 0f, -1f)
+    private val worldFillDirection = FloatArray(3)
+
+    fun updateFillLight(cameraPose: Pose) {
+      cameraPose.rotateVector(fillDirection, 0, worldFillDirection, 0)
+      fillLight.lightDirection = Direction(worldFillDirection[0], worldFillDirection[1], worldFillDirection[2])
+    }
+
     var beforeDestroy: (() -> Unit)? = null
     var onFrameFailure: (() -> Unit)? = null
     private var frameFailed = false
@@ -542,6 +561,8 @@ class ArFloorView(
       onSessionUpdated = null
       beforeDestroy?.invoke()
       beforeDestroy = null
+      removeChildNode(fillLight)
+      fillLight.destroy()
       // SceneView destroys its material loader before user-created renderables.
       // Detach also calls destroy(), so release the shadow here for every exit path.
       childNodes.filterIsInstance<CylinderNode>().forEach { shadow ->
