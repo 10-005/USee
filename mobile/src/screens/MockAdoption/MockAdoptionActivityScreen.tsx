@@ -222,7 +222,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         }
       }
       await endMockAdoption();
-      hideThenNavigate(() => navigation.replace('MockAdoptionSelection'));
+      hideThenNavigate(() => navigation.navigate('Home', { tab: 'mockAdoption' }));
     } catch (caught) {
       Alert.alert(
         '모의입양',

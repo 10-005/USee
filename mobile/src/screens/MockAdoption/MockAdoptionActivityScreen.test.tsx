@@ -177,9 +177,9 @@ test('activity screen has one action connected to the existing AR walk', async (
 test('quitting clears the session and replaces the main screen with fresh selection', async () => {
   await AsyncStorage.clear();
   await startMockAdoption('dog-1', 35000);
-  const replace = jest.fn();
+  const navigate = jest.fn();
   const props = {
-    navigation: { replace },
+    navigation: { navigate },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -191,7 +191,7 @@ test('quitting clears the session and replaces the main screen with fresh select
       .findAllByProps({ accessibilityLabel: '모의입양 그만두기' })[0]
       .props.onPress();
   });
-  expect(replace).toHaveBeenCalledWith('MockAdoptionSelection');
+  expect(navigate).toHaveBeenCalledWith('Home', { tab: 'mockAdoption' });
   expect(abandonSimulation).not.toHaveBeenCalled();
   await expect(getActiveMockAdoption()).resolves.toBeNull();
   await expect(startMockAdoption('cat-2', 50000)).resolves.toMatchObject({
@@ -211,9 +211,9 @@ test('quitting abandons the server session before leaving the activity', async (
     report: { summary: null },
   });
   await startMockAdoption('dog-1', 35000, '초코', 3001);
-  const replace = jest.fn();
+  const navigate = jest.fn();
   const props = {
-    navigation: { replace },
+    navigation: { navigate },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -226,7 +226,7 @@ test('quitting abandons the server session before leaving the activity', async (
       .props.onPress();
   });
   expect(abandonSimulation).toHaveBeenCalledWith(3001);
-  expect(replace).toHaveBeenCalledWith('MockAdoptionSelection');
+  expect(navigate).toHaveBeenCalledWith('Home', { tab: 'mockAdoption' });
   await expect(getActiveMockAdoption()).resolves.toBeNull();
   await ReactTestRenderer.act(() => renderer.unmount());
   await AsyncStorage.clear();
@@ -240,9 +240,9 @@ test('quitting leaves when the server session is already closed', async () => {
       new ApiClientError({ code: 'SIMULATION_NOT_IN_PROGRESS', message: 'server' }),
     );
   await startMockAdoption('dog-1', 35000, '초코', 3001);
-  const replace = jest.fn();
+  const navigate = jest.fn();
   const props = {
-    navigation: { replace },
+    navigation: { navigate },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -254,7 +254,7 @@ test('quitting leaves when the server session is already closed', async () => {
       .findAllByProps({ accessibilityLabel: '모의입양 그만두기' })[0]
       .props.onPress();
   });
-  expect(replace).toHaveBeenCalledWith('MockAdoptionSelection');
+  expect(navigate).toHaveBeenCalledWith('Home', { tab: 'mockAdoption' });
   await expect(getActiveMockAdoption()).resolves.toBeNull();
   await ReactTestRenderer.act(() => renderer.unmount());
   await AsyncStorage.clear();
@@ -265,9 +265,9 @@ test('quitting keeps the session when abandon fails', async () => {
   jest.mocked(abandonSimulation).mockRejectedValue(new Error('offline'));
   const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   await startMockAdoption('dog-1', 35000, '초코', 3001);
-  const replace = jest.fn();
+  const navigate = jest.fn();
   const props = {
-    navigation: { replace },
+    navigation: { navigate },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -279,7 +279,7 @@ test('quitting keeps the session when abandon fails', async () => {
       .findAllByProps({ accessibilityLabel: '모의입양 그만두기' })[0]
       .props.onPress();
   });
-  expect(replace).not.toHaveBeenCalled();
+  expect(navigate).not.toHaveBeenCalled();
   expect(alert).toHaveBeenCalledWith(
     '모의입양',
     '진행 상태를 초기화하지 못했어요. 다시 시도해주세요.',

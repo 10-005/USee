@@ -113,7 +113,7 @@ const navigationItems = [
   },
 ] as const;
 
-export function HomeScreen({ navigation }: Props) {
+export function HomeScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = (screenWidth - 52) / 2;
@@ -133,6 +133,13 @@ export function HomeScreen({ navigation }: Props) {
   const [selectedTab, setSelectedTab] = useState<
     (typeof navigationItems)[number]['key'] | 'mockAdoption'
   >('adoption');
+  useEffect(() => {
+    if (route.params?.tab !== 'mockAdoption') {
+      return;
+    }
+    setSelectedTab('mockAdoption');
+    navigation.setParams({ tab: undefined });
+  }, [navigation, route.params?.tab]);
   const animals = useMemo(() => {
     const filtered = adoptionAnimals.filter(item => {
       const queryMatched = `${item.name} ${item.location} ${item.summary}`

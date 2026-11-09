@@ -94,6 +94,21 @@ test('mock adoption selects one pet across categories and preserves adoption fil
   await ReactTestRenderer.act(() => renderer.unmount());
 }, 20000);
 
+test('opens the mock adoption overview from a home tab request', async () => {
+  const setParams = jest.fn();
+  const props = {
+    navigation: { navigate: mockNavigate, setParams },
+    route: { key: 'home', name: 'Home', params: { tab: 'mockAdoption' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'Home'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<HomeScreen {...props} />);
+  });
+  expect(renderer.root.findAllByProps({ children: '받은 레포트' }).length).toBeGreaterThan(0);
+  expect(setParams).toHaveBeenCalledWith({ tab: undefined });
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
 test('my page resumes an active adoption without asking for the budget again', async () => {
   await startMockAdoption('dog-3', 35000, '초코');
   const props = {
