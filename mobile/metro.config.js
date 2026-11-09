@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
 
 /**
@@ -17,6 +19,22 @@ const config = {
     blockList: [/[/\\]android[/\\](?:.*[/\\])?(?:build|\.gradle|\.cxx)(?:[/\\]|$)/],
     assetExts: assetExts.filter(ext => ext !== 'svg'),
     sourceExts: [...sourceExts, 'svg'],
+    resolveRequest: (context, moduleName, platform) => {
+      if (moduleName === './accessToken.local') {
+        const localFile = path.join(path.dirname(context.originModulePath), 'accessToken.local.ts');
+        if (!fs.existsSync(localFile)) {
+          return {
+            filePath: path.join(
+              path.dirname(context.originModulePath),
+              'accessToken.local.stub.ts',
+            ),
+            type: 'sourceFile',
+          };
+        }
+      }
+
+      return context.resolveRequest(context, moduleName, platform);
+    },
   },
 };
 

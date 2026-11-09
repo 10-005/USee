@@ -1,3 +1,4 @@
+import { TEMP_ACCESS_TOKEN } from './accessToken';
 import { createApiClient } from './apiClient';
 import type { AccessTokenProvider, ApiService } from './types';
 import { API_SERVICES } from './types';
@@ -5,7 +6,7 @@ import { API_SERVICES } from './types';
 export const API_ORIGIN = 'https://k15d106.p.ssafy.io';
 
 const accessTokenProvider: { current: AccessTokenProvider } = {
-  current: () => null,
+  current: () => TEMP_ACCESS_TOKEN,
 };
 
 export function setAccessTokenProvider(provider: AccessTokenProvider) {

@@ -1,10 +1,11 @@
 import type { InternalAxiosRequestConfig } from 'axios';
 import { AxiosError } from 'axios';
 
+import { TEMP_ACCESS_TOKEN } from '../accessToken';
 import { createApiClient } from '../apiClient';
-import { API_SERVICES } from '../types';
-import { serviceBaseUrl } from '../client';
+import { serviceBaseUrl, simulationClient } from '../client';
 import { readApiData } from '../response';
+import { API_SERVICES } from '../types';
 
 const success = <T>(data: T) => ({
   status: 200,
@@ -112,6 +113,24 @@ describe('createApiClient', () => {
       status: 500,
       traceId: 'header-trace',
     });
+  });
+});
+
+describe('simulationClient', () => {
+  it('sends the temporary access token', async () => {
+    const previous = simulationClient.defaults.adapter;
+    let authorization: unknown;
+    simulationClient.defaults.adapter = async config => {
+      authorization = config.headers.get('Authorization');
+      return { config, data: success(null), headers: {}, status: 200, statusText: 'OK' };
+    };
+    try {
+      await simulationClient.get('/simulations/current');
+    } finally {
+      simulationClient.defaults.adapter = previous;
+    }
+
+    expect(authorization).toBe(TEMP_ACCESS_TOKEN ? `Bearer ${TEMP_ACCESS_TOKEN}` : undefined);
   });
 });
 
