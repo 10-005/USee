@@ -45,11 +45,14 @@ internal class LeashCurve {
   }
 
   companion object {
-    fun handInCamera(inverseProjection: FloatArray, depth: Float = 0.35f): LeashPoint {
-      // Unproject homogeneous NDC (0,-1,0,1); division by W cancels when fixing Z.
-      val x = -inverseProjection[4] + inverseProjection[12]
-      val y = -inverseProjection[5] + inverseProjection[13]
-      val z = -inverseProjection[6] + inverseProjection[14]
+    fun handInCamera(inverseProjection: FloatArray, depth: Float = 0.35f): LeashPoint =
+      screenPointInCamera(inverseProjection, 0f, -1f, depth)
+
+    fun screenPointInCamera(inverseProjection: FloatArray, ndcX: Float, ndcY: Float, depth: Float): LeashPoint {
+      // Division by W cancels when fixing Z.
+      val x = ndcX * inverseProjection[0] + ndcY * inverseProjection[4] + inverseProjection[12]
+      val y = ndcX * inverseProjection[1] + ndcY * inverseProjection[5] + inverseProjection[13]
+      val z = ndcX * inverseProjection[2] + ndcY * inverseProjection[6] + inverseProjection[14]
       val scale = -depth / z
       return LeashPoint(x * scale, y * scale, -depth)
     }

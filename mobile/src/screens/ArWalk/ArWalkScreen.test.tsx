@@ -1,6 +1,12 @@
 import ReactTestRenderer from 'react-test-renderer';
+import {
+  PanResponder,
+  type GestureResponderEvent,
+  type PanResponderGestureState,
+} from 'react-native';
 
 import { ArWalkScreen } from './ArWalkScreen';
+import { styles } from './ArWalkScreen.styles';
 import { AppDialog } from '../../components/common/AppDialog';
 import { useShopStore } from '../../stores/shopStore';
 import { ArFloorView, type FloorTracking } from './components/ArFloorView';
@@ -18,6 +24,42 @@ jest.mock('react-native-vision-camera', () => ({
 jest.mock('./components/ArFloorView', () => ({ ArFloorView: 'ArFloorView' }));
 jest.mock('./components/VoiceGlowText', () => ({ VoiceGlowText: 'VoiceGlowText' }));
 jest.mock('./components/VoiceMicrophone', () => ({ VoiceMicrophone: 'VoiceMicrophone' }));
+
+test('water uses a tap and treats require an upward drag', async () => {
+  const panResponder = jest.spyOn(PanResponder, 'create');
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  try {
+    await ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(<ArWalkScreen />);
+    });
+    const native = () => renderer.root.findByType(ArFloorView);
+    const waterButton = () => renderer.root.findAllByProps({ accessibilityLabel: '물 주기' });
+    expect(waterButton()).toHaveLength(0);
+    await ReactTestRenderer.act(() => {
+      renderer.root.findAllByProps({ style: styles.screen })[0].props.onLayout({
+        nativeEvent: { layout: { width: 400, height: 800 } },
+      });
+      native().props.onTracking({ nativeEvent: { status: 'anchored', canGiveCare: true } });
+    });
+    await ReactTestRenderer.act(() => waterButton()[0].props.onPress());
+    expect(native().props.careRequest).toMatch(/^1:drink:/);
+
+    const gesture = panResponder.mock.calls.at(-1)![0];
+    const release = (dy: number) => {
+      gesture.onPanResponderRelease!(
+        {} as GestureResponderEvent,
+        { dx: 12, dy } as PanResponderGestureState,
+      );
+    };
+    await ReactTestRenderer.act(() => release(0));
+    expect(native().props.careRequest).toMatch(/^1:drink:/);
+    await ReactTestRenderer.act(() => release(-70));
+    expect(native().props.careRequest).toBe('2:eat:0.6025:0.85125');
+  } finally {
+    await ReactTestRenderer.act(() => renderer?.unmount());
+    panResponder.mockRestore();
+  }
+});
 
 test('speech button waits for placement and subtitles exist only while listening', async () => {
   const startListening = jest.fn();

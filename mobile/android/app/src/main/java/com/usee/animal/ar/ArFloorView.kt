@@ -18,6 +18,7 @@ import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.math.Direction
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
+import io.github.sceneview.math.Scale
 import io.github.sceneview.math.Size
 import io.github.sceneview.math.colorOf
 import io.github.sceneview.node.CylinderNode
@@ -33,7 +34,8 @@ class ArFloorView(
   private val modelLoad = SceneModelLoad()
   private var cleanup: WalkCleanupView? = null
   private val careNodes = mutableMapOf<String, OwnedImageNode>()
-  private var pendingCare: String? = null
+  private data class CareRequest(val action: String, val x: Float, val y: Float)
+  private var pendingCare: CareRequest? = null
   private var lastCareRequest = ""
   private var lastCanGiveCare = false
 
@@ -142,7 +144,10 @@ class ArFloorView(
   fun requestCare(request: String) {
     if (!active || request.isEmpty() || request == lastCareRequest) return
     lastCareRequest = request
-    pendingCare = request.substringAfter(':')
+    val parts = request.split(':')
+    val x = parts.getOrNull(2)?.toFloatOrNull() ?: return
+    val y = parts.getOrNull(3)?.toFloatOrNull() ?: return
+    if (x in 0f..1f && y in 0f..1f) pendingCare = CareRequest(parts[1], x, y)
   }
 
   fun setActive(next: Boolean) {
@@ -366,9 +371,13 @@ class ArFloorView(
     val careAvailable = camera.trackingState == TrackingState.TRACKING && onScreen && leader.canGiveCare
     val careRequest = pendingCare
     pendingCare = null
-    if (careAvailable && careRequest != null) {
-      val origin = if (careRequest == "eat") leashHand else leashCamera
-      if (origin != null) leader.giveCare(careRequest, origin)
+    if (careAvailable && careRequest != null && leashHand != null) {
+      val launch = LeashCurve.screenPointInCamera(
+        inverseProjection, 2f * careRequest.x - 1f, 1f - 2f * careRequest.y, 0.35f,
+      )
+      val origin = cameraPose.transformPoint(floatArrayOf(launch.x, launch.y, launch.z))
+      leader.giveCare(careRequest.action, LeashPoint(origin[0], origin[1], origin[2]),
+        cameraPose.tx(), cameraPose.tz())
     }
     updateCareItem(cameraPose.tx(), cameraPose.tz())
     val node = dogNode
@@ -381,10 +390,10 @@ class ArFloorView(
       shadow?.isVisible = shown.dog.visible
       if (shown.dog.visible) {
         node.position = Position(shown.dog.x, shown.dog.y + pawLift(node), shown.dog.z)
-        node.rotation = Rotation(y = if (shown.dog.spinning) dogHeading.snap(shown.dog.yawDegrees)
+        node.rotation = Rotation(y = if (shown.dog.spinning || shown.dog.scriptedFacing) dogHeading.snap(shown.dog.yawDegrees)
           else dogHeading.update(shown.dog.yawDegrees, rotationDt))
         shadow?.position = Position(shown.dog.x, shown.dog.y + 0.006f, shown.dog.z)
-        node.play(DogAnimation(shown.dog.clip, shown.dog.clipLoop, shown.dog.animationRevision))
+        node.play(DogAnimation(shown.dog.clip, shown.dog.clipLoop, shown.dog.animationRevision, shown.dog.animationPlaybackRate))
       } else {
         dogHeading.pause()
       }
@@ -421,16 +430,17 @@ class ArFloorView(
 
   private fun updateCareItem(cameraX: Float, cameraZ: Float) {
     val item = leader.careItem
-    careNodes.forEach { (action, node) -> node.isVisible = action == item?.first }
+    careNodes.forEach { (action, node) -> node.isVisible = action == item?.action }
     if (item == null) return
     val scene = sceneView ?: return
-    val (action, point) = item
+    val (action, point, scale) = item
     val node = careNodes.getOrPut(action) {
       val bowl = action == "drink"
       OwnedImageNode(
         materialLoader = scene.materialLoader,
-        imageFileLocation = if (bowl) "models/img_walk_water.png" else "models/img_walk_treat.png",
-        size = if (bowl) Size(0.28f, 0.18f, 0f) else Size(0.15f, 0.1f, 0f),
+        imageFileLocation = if (bowl) "images/mock-adoption/img_full_water_bowl.png"
+          else "images/mock-adoption/img_dog_treats.png",
+        size = if (bowl) Size(0.24f, 0.186f, 0f) else Size(0.16f, 0.16f, 0f),
         normal = Direction(0f, 0f, 1f),
       ).apply {
         isShadowCaster = false
@@ -438,7 +448,8 @@ class ArFloorView(
         scene.addChildNode(this)
       }
     }
-    node.position = Position(point.x, point.y + if (action == "drink") 0.07f else 0.04f, point.z)
+    node.position = Position(point.x, point.y, point.z)
+    node.scale = Scale(scale, scale, scale)
     node.rotation = Rotation(y = Math.toDegrees(
       kotlin.math.atan2(cameraX - point.x, cameraZ - point.z).toDouble(),
     ).toFloat())

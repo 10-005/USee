@@ -93,8 +93,8 @@ class DogAnimationControllerTest {
       assertEquals(expected, controller.current.clip)
     }
     for ((rate, angle, expected) in listOf(
-      Triple(-1f, -1f, "TurnLeft"), Triple(1f, 1f, "TurnRight"),
-      Triple(-1f, -2f, "TurnLeft180"), Triple(1f, 2f, "TurnRight180"),
+      Triple(-1f, -1f, "TurnRight"), Triple(1f, 1f, "TurnLeft"),
+      Triple(-1f, -2f, "TurnRight180"), Triple(1f, 2f, "TurnLeft180"),
     )) {
       val controller = DogAnimationController()
       controller.update(0.02f, 0f, 0f, 0f, 0f, rate, angle)

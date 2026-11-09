@@ -157,9 +157,11 @@ internal class DogModelNode(
   private var revision = -1
   private var startedAt = 0L
   private var looping = true
+  private var playbackRate = 1f
   private var previous = -1
   private var previousStartedAt = 0L
   private var previousLooping = true
+  private var previousPlaybackRate = 1f
   private var transitionStartedAt = 0L
 
   fun play(state: DogAnimation) {
@@ -169,13 +171,15 @@ internal class DogModelNode(
     previous = current
     previousStartedAt = startedAt
     previousLooping = looping
+    previousPlaybackRate = playbackRate
     transitionStartedAt = now
     if (current >= 0) stopAnimation(current)
     current = next
     revision = state.revision
     startedAt = now
     looping = state.loop
-    if (manualPlayback) {
+    playbackRate = state.playbackRate
+    if (manualPlayback || playbackRate != 1f) {
       // Never expose the bind pose while waiting for the next SceneView frame.
       applyPose(now)
     } else {
@@ -186,7 +190,7 @@ internal class DogModelNode(
   override fun onFrame(frameTimeNanos: Long) {
     restoreAttentionBones()
     super.onFrame(frameTimeNanos)
-    if (manualPlayback) {
+    if (manualPlayback || playbackRate != 1f) {
       applyPose(frameTimeNanos)
       if (applyAttention(frameTimeNanos)) animator.updateBoneMatrices()
       onPoseUpdated?.invoke(this, frameTimeNanos)
@@ -200,7 +204,7 @@ internal class DogModelNode(
   private fun applyPose(frameTimeNanos: Long) {
     if (current < 0) return
     val elapsed = (frameTimeNanos - startedAt) / 1_000_000_000f
-    animator.applyAnimation(current, sampleAnimationTime(elapsed, animator.getAnimationDuration(current), looping))
+    animator.applyAnimation(current, sampleAnimationTime(elapsed * playbackRate, animator.getAnimationDuration(current), looping))
     blendPrevious(frameTimeNanos)
     animator.updateBoneMatrices()
   }
@@ -213,8 +217,8 @@ internal class DogModelNode(
       return false
     }
     val duration = animator.getAnimationDuration(previous).coerceAtLeast(0.001f)
-    val elapsed = ((frameTimeNanos - previousStartedAt) / 1_000_000_000f).coerceAtLeast(0f)
-    val time = if (manualPlayback) sampleAnimationTime(elapsed, duration, previousLooping)
+    val elapsed = ((frameTimeNanos - previousStartedAt) / 1_000_000_000f).coerceAtLeast(0f) * previousPlaybackRate
+    val time = if (manualPlayback || previousPlaybackRate != 1f) sampleAnimationTime(elapsed, duration, previousLooping)
       else if (previousLooping) elapsed % duration else elapsed.coerceAtMost(duration)
     animator.applyCrossFade(previous, time, alpha)
     return true

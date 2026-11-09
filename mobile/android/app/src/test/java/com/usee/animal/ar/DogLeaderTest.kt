@@ -5,28 +5,50 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
-  @Test fun waterApproachAndTreatThrowRunOnlyFromSeatedPose() {
+  @Test fun seatedDogStandsAndTurnsInPlaceBeforeDrinkingOrEating() {
     val leader = DogLeader()
     fun frame() = leader.update(0.05f, 0f, 0f, 0f, -1f, floor)
     val start = frame()
     val camera = LeashPoint(0f, 1f, 0f)
-    assertFalse(leader.giveCare("drink", camera))
+    assertFalse(leader.giveCare("drink", camera, camera.x, camera.z))
     leader.requestAction("sit")
     repeat(25) { frame() }
     assertTrue(leader.canGiveCare)
-    assertTrue(leader.giveCare("drink", camera))
-    assertFalse(leader.giveCare("eat", camera))
+    assertTrue(leader.giveCare("drink", camera, camera.x, camera.z))
+    assertFalse(leader.giveCare("eat", camera, camera.x, camera.z))
+    assertEquals(camera, leader.careItem!!.point)
+    repeat(5) { frame() }
+    val bowlInFlight = leader.careItem!!.point
+    repeat(8) { frame() }
+    val bowl = leader.careItem!!.point
+    assertEquals(0.4f, hypot(bowl.x - start.x, bowl.z - start.z), 0.001f)
+    assertTrue(bowlInFlight.z in bowl.z..camera.z)
+    assertEquals(start.z + 0.4f, bowl.z, 0.001f)
     val waterFrames = List(190) { frame() }
-    assertTrue(waterFrames.any { it.clip == "Walk" && it.z > start.z })
+    assertTrue(waterFrames.all { it.x == start.x && it.z == start.z })
+    assertEquals("SitEnd", waterFrames.first().clip)
+    assertEquals(0.8f, waterFrames.first().animationPlaybackRate, 0.001f)
+    val turnIndex = waterFrames.indexOfFirst { it.clip == "TurnLeft180" }
+    val drinkIndex = waterFrames.indexOfFirst { it.clip == "EatDrinkStart" }
+    assertTrue(turnIndex > 0 && drinkIndex > turnIndex)
+    assertEquals(180f, abs(waterFrames[drinkIndex].yawDegrees - start.yawDegrees), 0.001f)
     assertTrue(waterFrames.any { it.clip == "Drink" })
     assertTrue(leader.canGiveCare)
 
-    assertTrue(leader.giveCare("eat", camera))
-    val launch = leader.careItem!!.second
+    // The drag-release point is separate from the camera position.
+    assertTrue(leader.giveCare("eat", camera, start.x + 1f, start.z))
+    val launch = leader.careItem!!.point
     repeat(6) { frame() }
-    val inFlight = leader.careItem!!.second
+    val inFlight = leader.careItem!!.point
     assertTrue(inFlight.z < launch.z)
-    val treatFrames = List(170) { frame() }
+    repeat(7) { frame() }
+    val treat = leader.careItem!!.point
+    assertEquals(start.x + 0.4f, treat.x, 0.001f)
+    assertEquals(start.z, treat.z, 0.001f)
+    val treatFrames = List(190) { frame() }
+    assertTrue(treatFrames.all { it.x == start.x && it.z == start.z })
+    assertTrue(treatFrames.any { it.clip == "TurnLeft" })
+    assertEquals(90f, treatFrames.first { it.clip == "EatDrinkStart" }.yawDegrees, 0.001f)
     assertTrue(treatFrames.any { it.clip == "Eat" || it.clip == "EatTear" })
     assertNull(leader.careItem)
     assertTrue(leader.canGiveCare)
@@ -46,7 +68,7 @@ class DogLeaderTest {
       previousYaw = dog.yawDegrees
       assertEquals(initial.x, dog.x, 0.0001f)
       assertEquals(initial.z, dog.z, 0.0001f)
-      if (i == 75) assertEquals("TurnRight", dog.clip)
+      if (i == 75) assertEquals("TurnLeft", dog.clip)
     }
     assertEquals(360f, turned, 0.02f)
     assertFalse(dog.spinning)

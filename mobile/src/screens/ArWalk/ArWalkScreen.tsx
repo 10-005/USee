@@ -1,10 +1,12 @@
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useIsFocused } from '@react-navigation/native';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Image,
+  PanResponder,
   Pressable,
   Text,
   View,
@@ -35,18 +37,45 @@ const STARTUP_ERRORS: Partial<Record<FloorTrackingStatus, string>> = {
   error: 'AR 산책을 시작하지 못했습니다. 카메라 권한을 확인해 주세요.',
 };
 
-const CARE_ACTIONS = [
-  {
-    action: 'drink',
-    label: '물 주기',
-    image: require('../../../android/app/src/main/assets/models/img_walk_water.png'),
-  },
-  {
-    action: 'eat',
-    label: '간식 던지기',
-    image: require('../../../android/app/src/main/assets/models/img_walk_treat.png'),
-  },
-] as const;
+const waterBowl = require('../../assets/images/mock-adoption/img_full_water_bowl.png');
+const dogTreat = require('../../assets/images/mock-adoption/img_dog_treats.png');
+
+function WalkTreat({ onThrow }: { onThrow: (dx: number, dy: number) => void }) {
+  const offset = useRef(new Animated.ValueXY()).current;
+  const latestThrow = useRef(onThrow);
+  latestThrow.current = onThrow;
+  const responder = useMemo(() => {
+    const reset = () => offset.setValue({ x: 0, y: 0 });
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, { dx, dy }) => offset.setValue({ x: dx, y: dy }),
+      onPanResponderRelease: (_, { dx, dy }) => {
+        if (dy <= -40) latestThrow.current(dx, dy);
+        else reset();
+      },
+      onPanResponderTerminate: reset,
+    });
+  }, [offset]);
+
+  return (
+    <View
+      {...responder.panHandlers}
+      accessible
+      accessibilityLabel="간식 잡아서 위로 던지기"
+      accessibilityActions={[{ name: 'activate', label: '간식 던지기' }]}
+      onAccessibilityAction={({ nativeEvent }) => {
+        if (nativeEvent.actionName === 'activate') onThrow(0, -60);
+      }}
+      style={styles.careButton}
+    >
+      <Animated.Image
+        pointerEvents="none"
+        source={dogTreat}
+        style={[styles.careIcon, { transform: offset.getTranslateTransform() }]}
+      />
+    </View>
+  );
+}
 
 export function ArWalkScreen({
   route,
@@ -86,6 +115,17 @@ export function ArWalkScreen({
   const [canGiveCare, setCanGiveCare] = useState(false);
   const [careRequest, setCareRequest] = useState('');
   const careRequestId = useRef(0);
+  const viewport = useRef({ width: 0, height: 0 });
+  const careBottom = insets.bottom + 24;
+  const sendCare = (action: 'drink' | 'eat', dx = 0, dy = 0) => {
+    const { width, height } = viewport.current;
+    if (width <= 0 || height <= 0) return;
+    const dockOffset = (styles.careButton.width + styles.careActions.gap) / 2;
+    const x = (width / 2 + (action === 'drink' ? -dockOffset : dockOffset) + dx) / width;
+    const y = (height - careBottom - styles.careButton.height / 2 + dy) / height;
+    const clamp = (value: number) => Math.max(0, Math.min(1, value));
+    setCareRequest(`${++careRequestId.current}:${action}:${clamp(x)}:${clamp(y)}`);
+  };
   const [showTraversalDebug, setShowTraversalDebug] = useState(false);
   const [hasSeenDog, setHasSeenDog] = useState(false);
   const [loadingDots, setLoadingDots] = useState(2);
@@ -164,7 +204,12 @@ export function ArWalkScreen({
     .padStart(2, '0')}:${(elapsedSeconds % 60).toString().padStart(2, '0')}`;
 
   return (
-    <View style={styles.screen}>
+    <View
+      style={styles.screen}
+      onLayout={({ nativeEvent }) => {
+        viewport.current = nativeEvent.layout;
+      }}
+    >
       {hasPermission ? (
         <ArFloorView
           active={isFocused}
@@ -248,18 +293,16 @@ export function ArWalkScreen({
         </Pressable>
       )}
       {hasPermission && isFocused && canGiveCare && !bagPurchaseVisible && (
-        <View style={[styles.careActions, { bottom: insets.bottom + 24 }]}>
-          {CARE_ACTIONS.map(({ action, label, image }) => (
-            <Pressable
-              key={action}
-              accessibilityRole="button"
-              accessibilityLabel={label}
-              onPress={() => setCareRequest(`${++careRequestId.current}:${action}`)}
-              style={styles.careButton}
-            >
-              <Image source={image} style={styles.careIcon} />
-            </Pressable>
-          ))}
+        <View style={[styles.careActions, { bottom: careBottom }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="물 주기"
+            onPress={() => sendCare('drink')}
+            style={styles.careButton}
+          >
+            <Image source={waterBowl} style={styles.careIcon} />
+          </Pressable>
+          <WalkTreat onThrow={(dx, dy) => sendCare('eat', dx, dy)} />
         </View>
       )}
       {hasPermission && canReposition && (

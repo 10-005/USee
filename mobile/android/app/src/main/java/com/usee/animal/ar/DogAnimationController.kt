@@ -4,7 +4,12 @@ import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.random.Random
 
-data class DogAnimation(val clip: String = "Idle", val loop: Boolean = true, val revision: Int = 0)
+data class DogAnimation(
+  val clip: String = "Idle",
+  val loop: Boolean = true,
+  val revision: Int = 0,
+  val playbackRate: Float = 1f,
+)
 
 class DogAnimationController(
   private val durations: Map<String, Float> = emptyMap(),
@@ -47,7 +52,8 @@ class DogAnimationController(
     if (action in ACTIONS) requested = action
   }
 
-  internal fun carePose(clip: String, loop: Boolean = false) = change(clip, loop)
+  internal fun carePose(clip: String, playbackRate: Float = 1f) =
+    change(clip, loop = false, playbackRate = playbackRate)
 
   internal fun clipSeconds(clip: String) = durations[clip] ?: 1f
 
@@ -62,7 +68,7 @@ class DogAnimationController(
     requested = null
     steps = emptyList()
     heldSitSeconds = null
-    change("TurnRight", true)
+    change(turnClip(1f, halfTurn = false), true)
   }
 
   fun pause() {
@@ -95,11 +101,7 @@ class DogAnimationController(
       requested = null
       val clip = when {
         moving -> movementClip(dogSpeed, forwardSpeed, rightSpeed)
-        turning -> if (turnRate > 0f) {
-          if (abs(turnRemaining) > 1.8f) "TurnRight180" else "TurnRight"
-        } else {
-          if (abs(turnRemaining) > 1.8f) "TurnLeft180" else "TurnLeft"
-        }
+        turning -> turnClip(turnRate, halfTurn = abs(turnRemaining) > 1.8f)
         else -> "Idle"
       }
       settleMotion(clip, dt)
@@ -207,13 +209,19 @@ class DogAnimationController(
     plan.firstOrNull()?.let { change(it.clip, it.loop, force = true) }
   }
 
-  private fun change(clip: String, loop: Boolean, force: Boolean = false) {
-    if (force || current.clip != clip || current.loop != loop) {
-      current = DogAnimation(clip, loop, current.revision + 1)
+  private fun change(clip: String, loop: Boolean, force: Boolean = false, playbackRate: Float = 1f) {
+    if (force || current.clip != clip || current.loop != loop || current.playbackRate != playbackRate) {
+      current = DogAnimation(clip, loop, current.revision + 1, playbackRate)
     }
   }
 
   companion object {
+    // Positive world yaw turns the +Z-facing model toward its anatomical left.
+    internal fun turnClip(yawDelta: Float, halfTurn: Boolean): String {
+      val side = if (yawDelta > 0f) "TurnLeft" else "TurnRight"
+      return if (halfTurn) "${side}180" else side
+    }
+
     private val IDLE_CLIPS = listOf("Idle2", "Idle3", "Idle4", "Idle5", "Idle6", "Idle7", "ScratchEar")
     val ACTIONS = setOf("bark", "sit", "lie", "bellyLie", "jumpPlace", "jumpForward", "jumpRun", "jumpHigh", "eat", "drink", "dig", "crouch", "scratch", "pee", "poop")
     fun isLocomotion(clip: String) = clip.startsWith("Walk") || clip.startsWith("Trot") ||

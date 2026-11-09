@@ -19,12 +19,17 @@ class DogLeader(
   private var poopTargetX = 0f
   private var poopTargetZ = 0f
   private var poopDeposited = false
-  private enum class CareStage { STAND, APPROACH, CONSUME }
   private data class Care(
     val action: String,
     val origin: LeashPoint,
-    var target: LeashPoint,
-    var stage: CareStage = CareStage.STAND,
+    val target: LeashPoint,
+    val travelSeconds: Float,
+    val startYaw: Float,
+    val turnAngle: Float,
+    val turnClip: String,
+    val standSeconds: Float,
+    val turnSeconds: Float,
+    var consuming: Boolean = false,
     var seconds: Float = 0f,
   )
   private var care: Care? = null
@@ -32,36 +37,51 @@ class DogLeader(
     get() = placed && care == null && spinElapsed == null && poopStage == null &&
       (animations.current.clip == "SitIdle" || animations.current.clip == "SitIdle2")
 
-  internal fun giveCare(action: String, origin: LeashPoint): Boolean {
+  internal fun giveCare(action: String, origin: LeashPoint, cameraX: Float, cameraZ: Float): Boolean {
     if (!canGiveCare || (action != "drink" && action != "eat")) return false
-    val dx = origin.x - x
-    val dz = origin.z - z
-    val distance = hypot(dx, dz)
-    if (distance < 0.45f) return false
-    val offset = if (action == "drink") (distance - 0.4f).coerceIn(0.4f, 1.5f) else 0.4f
-    care = Care(action, origin, LeashPoint(x + dx / distance * offset, y, z + dz / distance * offset))
+    val cameraDx = cameraX - x
+    val cameraDz = cameraZ - z
+    val turnAngle = when {
+      action == "drink" -> PI.toFloat()
+      hypot(cameraDx, cameraDz) < 0.01f -> 0f
+      else -> wrap(atan2(cameraDx, cameraDz) - yaw)
+    }
+    val targetYaw = yaw + turnAngle
+    val frontX = x + sin(targetYaw) * 0.4f
+    val frontZ = z + cos(targetYaw) * 0.4f
+    val ground = trustedGround(frontX, frontZ)?.takeIf { abs(it - y) <= 0.08f } ?: y
+    val target = LeashPoint(frontX, ground + if (action == "drink") 0.09f else 0.08f, frontZ)
+    val turnClip = DogAnimationController.turnClip(turnAngle, halfTurn = abs(turnAngle) > 1.8f)
+    care = Care(
+      action = action,
+      origin = origin,
+      target = target,
+      travelSeconds = if (action == "drink") 0.55f else 0.65f,
+      startYaw = yaw,
+      turnAngle = turnAngle,
+      turnClip = turnClip,
+      standSeconds = animations.clipSeconds("SitEnd") / CARE_STAND_RATE,
+      turnSeconds = if (abs(turnAngle) < 0.05f) 0f else animations.clipSeconds(turnClip),
+    )
     commandedHold = "sit"
     attentionSeconds = 0f
     animations.pause()
-    animations.carePose("SitEnd")
+    animations.carePose("SitEnd", playbackRate = CARE_STAND_RATE)
     return true
   }
 
-  internal val careItem: Pair<String, LeashPoint>?
+  internal data class CareItem(val action: String, val point: LeashPoint, val scale: Float)
+
+  internal val careItem: CareItem?
     get() = care?.let { current ->
-      if (current.action == "drink") {
-        if (current.stage == CareStage.STAND) null else current.action to current.target
-      } else if (current.stage == CareStage.CONSUME && animations.current.clip != "EatDrinkStart") {
+      if (current.action == "eat" && current.consuming && animations.current.clip != "EatDrinkStart") {
         null
       } else {
-        val t = (current.seconds / 0.65f).coerceIn(0f, 1f)
-        val start = current.origin
-        val end = current.target
-        current.action to LeashPoint(
-          start.x + (end.x - start.x) * t,
-          start.y + (end.y - start.y) * t + 1.6f * t * (1f - t),
-          start.z + (end.z - start.z) * t,
-        )
+        val t = (current.seconds / current.travelSeconds).coerceIn(0f, 1f)
+        val progress = if (current.action == "drink") t * t * (3f - 2f * t) else t
+        val arc = if (current.action == "eat") 1.6f * t * (1f - t) else 0f
+        val point = current.origin * (1f - progress) + current.target * progress
+        CareItem(current.action, point.copy(y = point.y + arc), 0.18f + 0.82f * progress)
       }
     }
 
@@ -288,7 +308,7 @@ class DogLeader(
     previousCameraX = cameraX
     previousCameraZ = cameraZ
     hasCamera = true
-    care?.let { return updateCare(it, dt, cameraX, cameraZ, floorAt) }
+    care?.let { return updateCare(it, dt) }
     spinElapsed?.let { elapsed ->
       val next = (elapsed + deltaSeconds.coerceIn(0f, 0.25f)).coerceAtMost(3f)
       spinElapsed = next
@@ -547,67 +567,32 @@ class DogLeader(
     return frame(true, speed)
   }
 
-  private fun updateCare(
-    current: Care,
-    dt: Float,
-    cameraX: Float,
-    cameraZ: Float,
-    floorAt: (Float, Float) -> Float?,
-  ): DogFrame {
+  private fun updateCare(current: Care, dt: Float): DogFrame {
     current.seconds += dt
     speed = 0f
     moving = false
     blocked = false
     userMoving = hypot(velocityX, velocityZ) > 0.15f
     stopReason = ""
-    val dx = current.target.x - x
-    val dz = current.target.z - z
-    val distance = hypot(dx, dz)
-    when (current.stage) {
-      CareStage.STAND -> if (current.seconds >= animations.clipSeconds("SitEnd") &&
-        (current.action == "drink" || current.seconds >= 0.65f)) {
-        yaw = atan2(dx, dz)
-        val ground = if (current.action == "drink") stepFloor(dx / distance, dz / distance, distance, floorAt) else y
-        if (ground == null || !canPlaceAt(x, z, current.target.x, current.target.z, y)) {
-          finishCare(dt)
-        } else {
-          current.target = current.target.copy(y = ground)
-          current.stage = CareStage.APPROACH
-        }
+    if (current.consuming) {
+      if (!animations.advanceConsumption(dt)) {
+        care = null
+        animations.pause()
+        animations.holdPosition(true, dt)
       }
-      CareStage.APPROACH -> {
-        val step = min((distance - 0.4f).coerceAtLeast(0f), 0.7f * dt)
-        if (step <= 0f) {
-          if (distance <= 0.401f) {
-            current.stage = CareStage.CONSUME
-            animations.beginConsumption(current.action)
-          }
-        } else {
-          val ux = dx / distance
-          val uz = dz / distance
-          val ground = stepFloor(ux, uz, step, floorAt)
-          if (ground == null || !avoidsWalker(ux, uz, step, cameraX, cameraZ) ||
-            !canPlaceAt(x, z, x + ux * step, z + uz * step, y)) {
-            finishCare(dt)
-          } else {
-            x += ux * step
-            z += uz * step
-            y = ground
-            speed = step / dt
-            moving = true
-            animations.carePose("Walk", loop = true)
-          }
-        }
+    } else if (current.seconds >= current.standSeconds) {
+      val turnProgress = if (current.turnSeconds == 0f) 1f
+        else ((current.seconds - current.standSeconds) / current.turnSeconds).coerceIn(0f, 1f)
+      val easedTurn = turnProgress * turnProgress * (3f - 2f * turnProgress)
+      yaw = wrap(current.startYaw + current.turnAngle * easedTurn)
+      if (turnProgress == 1f && current.seconds >= current.travelSeconds) {
+        current.consuming = true
+        animations.beginConsumption(current.action)
+      } else {
+        animations.carePose(current.turnClip)
       }
-      CareStage.CONSUME -> if (!animations.advanceConsumption(dt)) finishCare(dt)
     }
     return frame(true, speed)
-  }
-
-  private fun finishCare(dt: Float) {
-    care = null
-    animations.pause()
-    animations.holdPosition(true, dt)
   }
 
   private fun avoidsWalker(
@@ -645,6 +630,8 @@ class DogLeader(
   private fun frame(visible: Boolean, actualSpeed: Float) = DogFrame(
     x, y, z, Math.toDegrees(yaw.toDouble()).toFloat(), visible && placed,
     animations.current.clip, actualSpeed, animations.current.loop, animations.current.revision, moving, blocked, userMoving, recalling || returning, floorUncertain, stopReason, poopDeposited, spinElapsed != null,
+    scriptedFacing = care?.let { it.seconds >= it.standSeconds } == true,
+    animationPlaybackRate = animations.current.playbackRate,
   )
 
   private fun wrap(angle: Float): Float {
@@ -655,6 +642,7 @@ class DogLeader(
   }
 
   private companion object {
+    const val CARE_STAND_RATE = 0.8f
     private fun avoidsWalkerSegment(ax: Float, az: Float, bx: Float, bz: Float, cameraX: Float, cameraZ: Float): Boolean {
       val dx = bx - ax
       val dz = bz - az
@@ -684,4 +672,6 @@ data class DogFrame(
   val stopReason: String = "",
   val poopDeposited: Boolean = false,
   val spinning: Boolean = false,
+  val scriptedFacing: Boolean = false,
+  val animationPlaybackRate: Float = 1f,
 )
