@@ -66,6 +66,9 @@ class EventPersistenceAdapter(
                 .fetchOne() ?: 0L
             ).toInt()
 
+    override fun countByWalk(walkSeq: Long): Int =
+        (queryFactory.select(eventOccurrence.count()).from(eventOccurrence).where(eventOccurrence.walkSeq.eq(walkSeq)).fetchOne() ?: 0L).toInt()
+
     // ix_sim_occurrence_scenario (session_seq, scenario_seq, occurred_dttm DESC)
     override fun findLastOccurredAt(sessionSeq: Long, scenarioSeq: Long): OffsetDateTime? =
         queryFactory.select(eventOccurrence.occurredDttm.max())

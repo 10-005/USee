@@ -7,6 +7,7 @@ import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SimulationInventoryItem
 import com.ssafy.animal.simulation.domain.SimulationSession
+import com.ssafy.animal.simulation.domain.SimulationWalk
 import com.ssafy.animal.simulation.domain.SpeciesType
 import com.ssafy.animal.simulation.domain.StatCalculator
 import com.ssafy.animal.simulation.domain.StatCalculatorTest
@@ -37,7 +38,7 @@ class SimulationSessionDetailAssemblerTest {
         listOf(1L to 1, 11L to 1, 22L to 12).forEach { (itemSeq, quantity) ->
             store.save(SimulationInventoryItem(3001L, itemSeq).apply { add(quantity) })
         }
-        store.activeWalks[3001L] = 8001L
+        store.save(SimulationWalk(3001L, start))
 
         val detail = assembler.assemble(session)
 

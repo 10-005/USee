@@ -113,6 +113,24 @@ simulation:
     quiet-start: "22:00"       # 22시~8시에는 RANDOM·CONDITION 이벤트를 만들지 않는다
     quiet-end: "08:00"
     condition-default-cooldown: 24h   # CONDITION 시나리오 cooldown_hours가 비어 있을 때
+  # 산책(S15P31D106-252, 가안). 효과는 10분 단위로 60분까지만, 10분 미만은 효과 없음
+  walk:
+    heartbeat-interval: 60s
+    auto-end-after: 10m        # 하트비트가 이만큼 끊기면 마지막 하트비트 시각으로 자동 종료
+    effect-unit: 10m
+    effect-max-duration: 60m
+    effects-per-unit:
+      energy: 7
+      calmness: 4
+      bond: 1
+      satiety: -2
+      hydration: -3
+      cleanliness: -2
+    water-effects:             # 산책 중 물 주기(집 +50보다 적게)
+      hydration: 20
+    event-chance-per-heartbeat: 0.08
+    event-max-per-walk: 3
+    event-expiry: 5m
 
 management:
   endpoints:

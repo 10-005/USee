@@ -101,7 +101,7 @@ class InventoryController(
         // 문서 예시 전용
         const val INVENTORY_SUCCESS =
             """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"balance":118000,"expectedCost":150000,""" +
-                """"equipment":{"foodBowl":true,"waterBowl":false,"litterBox":false,"toy":false},"items":[""" +
+                """"equipment":{"foodBowl":true,"waterBowl":false,"litterBox":false,"toy":false,"leash":false},"items":[""" +
                 """{"itemSeq":1,"itemName":"밥그릇","category":"FOOD_BOWL","isConsumable":false,"quantity":1,"imageUrl":null},""" +
                 """{"itemSeq":22,"itemName":"균형 잡힌 사료","category":"FOOD","isConsumable":true,"quantity":11,"imageUrl":null},""" +
                 """{"itemSeq":23,"itemName":"바삭한 미니 비스킷","category":"SNACK","isConsumable":true,"quantity":0,"imageUrl":null}""" +

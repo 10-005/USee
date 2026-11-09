@@ -16,6 +16,7 @@ import com.ssafy.animal.simulation.domain.SimulationReport
 import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SimulationShopItem
 import com.ssafy.animal.simulation.domain.SimulationTransaction
+import com.ssafy.animal.simulation.domain.SimulationWalk
 import com.ssafy.animal.simulation.domain.SpeciesType
 import com.ssafy.animal.simulation.domain.SpendRecord
 import com.ssafy.animal.simulation.domain.TransactionType
@@ -110,14 +111,16 @@ data class UserInfo(
     val profileImageUrl: String?,
 )
 
-/**
- * 세션 종료 시 산책 정리와 리포트 산책 수. 산책 엔티티는 산책 작업(252)에서 만들므로 그 전까지 테이블을 직접 다룬다.
- * 이벤트 쪽은 EventOccurrenceRepository(255)로 옮겼다.
- */
-interface SessionClosingRepository {
-    /** 진행 중 산책을 ENDED로 닫는다(산책 효과 없음). 닫은 수 */
-    fun endActiveWalks(sessionSeq: Long, endedAt: OffsetDateTime): Int
+/** 산책(DB 40). 부르는 쪽이 세션 행을 잠근 상태에서 쓴다 */
+interface WalkRepository {
+    fun save(walk: SimulationWalk): SimulationWalk
 
+    /** 세션의 진행 중 산책(부분 UNIQUE라 최대 1건). 없으면 null */
+    fun findActive(sessionSeq: Long): SimulationWalk?
+
+    fun findByWalkSeq(walkSeq: Long): SimulationWalk?
+
+    /** 리포트 walkCount(진행 중 포함 전체) */
     fun countWalks(sessionSeq: Long): Int
 }
 
@@ -137,6 +140,9 @@ interface EventOccurrenceRepository {
 
     /** 세션의 PENDING 이벤트(부분 UNIQUE라 최대 1건). 없으면 null */
     fun findPending(sessionSeq: Long): EventOccurrence?
+
+    /** 그 산책에서 발생한 이벤트 수(산책당 최대 횟수) */
+    fun countByWalk(walkSeq: Long): Int
 
     /** since 이후 발생한 그 장소·유형 이벤트 수(RANDOM 일차당 횟수 제한) */
     fun countOccurredSince(sessionSeq: Long, context: TriggerContext, type: TriggerType, since: OffsetDateTime): Int
@@ -225,9 +231,6 @@ interface BreedReader {
 
 /** 세션 상세·목록에 붙는 파생 정보. 산책·리포트 엔티티가 생기기 전까지 읽기 전용 조회로 둔다 */
 interface SessionDetailReader {
-    /** 진행 중 산책(세션당 최대 1건, 부분 UNIQUE). 없으면 null */
-    fun findActiveWalkSeq(sessionSeq: Long): Long?
-
     /** 종료 리포트가 있는 세션 번호(18.3 hasReport) */
     fun findSessionSeqsWithReport(sessionSeqs: Collection<Long>): Set<Long>
 }

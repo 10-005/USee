@@ -157,7 +157,7 @@ class SimulationSessionController(
             "- 진행 중 세션이 없으면 404가 아니라 200 `data: null`. 앱은 리포트 목록으로 이동한다.\n" +
             "- 조회 시점까지 지난 시간(1시간 단위)만큼 스탯을 계산해 저장한 뒤 돌려준다. `stats.calculatedDttm`은 마지막으로 반영한 시각.\n" +
             "- 같은 1시간 안에서 여러 번 불러도 스탯이 더 떨어지지 않는다.\n" +
-            "- `equipment`는 수량 1 이상 보유한 기구(밥그릇·물그릇·화장실·장난감), `activeWalkSeq`는 진행 중 산책 번호(없으면 null).\n" +
+            "- `equipment`는 수량 1 이상 보유한 기구(밥그릇·물그릇·화장실·장난감·하네스와 리드줄), `activeWalkSeq`는 진행 중 산책 번호(없으면 null).\n" +
             "- `pendingEvent`는 해결 대기 중인 돌발 이벤트(없으면 null, 형식은 돌발 이벤트 목록과 같음). " +
             "시한이 지났으면 이 조회에서 방치 효과를 반영하고 만료돼 null이 된다.\n" +
             "- 건강이 0이 됐으면 FAILED(돌봄 부족, 종료 시각 = 건강이 0이 된 시각), 예정 종료가 지났으면 COMPLETED(종료 시각 = 예정 종료)로 " +
@@ -435,7 +435,7 @@ class SimulationSessionController(
                 ""","speciesType":"DOG","personality":"FRIENDLY","status":"IN_PROGRESS","expectedCost":150000,"balance":150000,""" +
                 """"startedDttm":"2026-11-01T14:00:00+09:00","endsDttm":"2026-11-08T14:00:00+09:00","endedDttm":null,""" +
                 """"stats":{"satiety":70,"hydration":70,"cleanliness":80,"bond":30,"calmness":50,"health":90,"energy":60,"calculatedDttm":"2026-11-01T14:00:00+09:00"},""" +
-                """"lastActionDttm":null,"equipment":{"foodBowl":false,"waterBowl":false,"litterBox":false,"toy":false},"pendingEvent":null,"activeWalkSeq":null},""" +
+                """"lastActionDttm":null,"equipment":{"foodBowl":false,"waterBowl":false,"litterBox":false,"toy":false,"leash":false},"pendingEvent":null,"activeWalkSeq":null},""" +
                 """"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val DETAIL_SUCCESS =
             """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":""" + SESSION_DETAIL_JSON +

@@ -31,9 +31,8 @@ class EventScenarioSeedTest {
         val neglectText: String,
     )
 
-    private val rows: List<SeedRow> = ClassPathResource("db/migration/V20261109_1800__seed_simulation_event_scenarios.sql")
-        .getContentAsString(Charsets.UTF_8)
-        .lines()
+    private val rows: List<SeedRow> = SEED_FILES
+        .flatMap { ClassPathResource("db/migration/$it").getContentAsString(Charsets.UTF_8).lines() }
         .mapNotNull { ROW.matchEntire(it.trim()) }
         .map { m ->
             val g = m.groupValues
@@ -58,11 +57,11 @@ class EventScenarioSeedTest {
         }
 
     @Test
-    fun `시나리오 15개가 1번부터 빈틈없이 있고 장소·유형별 개수가 초안과 같다`() {
-        assertEquals((1L..15L).toList(), rows.map { it.scenarioSeq })
+    fun `시나리오 16개(시드 15 + 산책 배변 1)가 1번부터 빈틈없이 있고 장소·유형별 개수가 초안과 같다`() {
+        assertEquals((1L..16L).toList(), rows.map { it.scenarioSeq })
         assertEquals(7, rows.count { it.context == TriggerContext.HOME && it.type == TriggerType.RANDOM })
         assertEquals(5, rows.count { it.context == TriggerContext.HOME && it.type == TriggerType.CONDITION })
-        assertEquals(3, rows.count { it.context == TriggerContext.WALK })
+        assertEquals(4, rows.count { it.context == TriggerContext.WALK })
     }
 
     @Test
@@ -81,7 +80,7 @@ class EventScenarioSeedTest {
             when (row.context) {
                 TriggerContext.HOME -> assertTrue(row.resolveAction.type == ActionType.CARE && row.resolveAction != ActionCode.GIVE_CATNIP, "${row.scenarioSeq}")
                 TriggerContext.WALK -> {
-                    assertTrue(row.resolveAction in setOf(ActionCode.GIVE_WATER, ActionCode.GIVE_SNACK), "${row.scenarioSeq}")
+                    assertTrue(row.resolveAction.type == ActionType.WALK && row.resolveAction !in setOf(ActionCode.WALK_START, ActionCode.WALK_END), "${row.scenarioSeq}")
                     assertEquals(SpeciesScope.DOG, row.scope, "산책은 개 전용(Q488)")
                 }
             }
@@ -103,6 +102,7 @@ class EventScenarioSeedTest {
         EFFECT.findAll(json).associate { it.groupValues[1] to it.groupValues[2].toInt() }
 
     companion object {
+        private val SEED_FILES = listOf("V20261109_1800__seed_simulation_event_scenarios.sql", "V20261109_2000__walk_poop_scenario.sql")
         private const val TEXT = """'([^']*)'"""
         private const val JSON = """('\{[^']*\}'|NULL)"""
         private const val NUM = """(NULL|\d+)"""

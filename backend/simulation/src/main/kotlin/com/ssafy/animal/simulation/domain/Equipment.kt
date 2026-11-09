@@ -37,16 +37,19 @@ data class Equipment(
     val litterBox: Boolean,
     @field:Schema(description = "장난감 1개 이상 보유", example = "false")
     val toy: Boolean,
+    @field:Schema(description = "하네스와 리드줄 보유. 있어야 산책(18.14)을 시작할 수 있다(Q495)", example = "false")
+    val leash: Boolean = false,
 ) {
     companion object {
         /** 인벤토리가 빈 채로 시작한다(18.1, M5·M9) */
-        val NONE = Equipment(foodBowl = false, waterBowl = false, litterBox = false, toy = false)
+        val NONE = Equipment(foodBowl = false, waterBowl = false, litterBox = false, toy = false, leash = false)
 
         fun of(owned: Set<ItemCategory>) = Equipment(
             foodBowl = ItemCategory.FOOD_BOWL in owned,
             waterBowl = ItemCategory.WATER_BOWL in owned,
             litterBox = ItemCategory.LITTER_BOX in owned,
             toy = ItemCategory.TOY in owned,
+            leash = ItemCategory.LEASH in owned,
         )
     }
 }

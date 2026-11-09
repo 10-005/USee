@@ -16,7 +16,8 @@ import com.ssafy.animal.simulation.application.port.out.ReportListEntry
 import com.ssafy.animal.simulation.application.port.out.ReportRepository
 import com.ssafy.animal.simulation.application.port.out.UserInfo
 import com.ssafy.animal.simulation.application.port.out.UserReader
-import com.ssafy.animal.simulation.application.port.out.SessionClosingRepository
+import com.ssafy.animal.simulation.application.port.out.WalkRepository
+import com.ssafy.animal.simulation.domain.SimulationWalk
 import com.ssafy.animal.simulation.application.port.out.InventoryEntry
 import com.ssafy.animal.simulation.application.port.out.InventoryRepository
 import com.ssafy.animal.simulation.application.port.out.SessionDetailReader
@@ -67,10 +68,9 @@ class FakeSimulationStore :
     UserReader,
     EventScenarioRepository,
     EventOccurrenceRepository,
-    SessionClosingRepository {
+    WalkRepository {
 
     val reports = mutableListOf<SimulationReport>()
-    val walkCounts = mutableMapOf<Long, Int>()
 
     override fun save(report: SimulationReport) = report.also {
         ReflectionTestUtils.setField(it, "reportSeq", 9000L + reports.size + 1)
@@ -103,7 +103,24 @@ class FakeSimulationStore :
 
     override fun findUsers(userSeqs: Collection<Int>) = userSeqs.mapNotNull { users[it] }.associateBy { it.userSeq }
 
-    override fun endActiveWalks(sessionSeq: Long, endedAt: OffsetDateTime) = if (activeWalks.remove(sessionSeq) != null) 1 else 0
+
+    // ===== 산책 =====
+    val walks = mutableListOf<SimulationWalk>()
+
+    override fun save(walk: SimulationWalk) = walk.also {
+        if (it.walkSeq == null) {
+            ReflectionTestUtils.setField(it, "walkSeq", 8000L + walks.size + 1)
+            walks += it
+        }
+    }
+
+    override fun findActive(sessionSeq: Long) = walks.firstOrNull { it.sessionSeq == sessionSeq && it.isInProgress }
+
+    override fun findByWalkSeq(walkSeq: Long) = walks.firstOrNull { it.walkSeq == walkSeq }
+
+    override fun countWalks(sessionSeq: Long) = walks.count { it.sessionSeq == sessionSeq }
+
+    override fun countByWalk(walkSeq: Long) = occurrences.count { it.walkSeq == walkSeq }
 
     // ===== 돌발 이벤트 =====
     val scenarios = mutableMapOf<Long, EventScenario>()
@@ -181,7 +198,6 @@ class FakeSimulationStore :
         ).forEach { scenarios[it.scenarioSeq] = it }
     }
 
-    override fun countWalks(sessionSeq: Long) = walkCounts[sessionSeq] ?: 0
 
     override fun countByTypes(sessionSeq: Long, types: Collection<ActionType>) =
         logs.count { it.sessionSeq == sessionSeq && it.actionType in types }
@@ -195,7 +211,6 @@ class FakeSimulationStore :
     val logs = mutableListOf<SimulationActionLog>()
     val breeds = mutableMapOf<Int, BreedInfo>()
     val breedLookups = mutableListOf<Int>()
-    val activeWalks = mutableMapOf<Long, Long>()
     val reported = mutableSetOf<Long>()
     val shopItems = mutableMapOf<Long, SimulationShopItem>()
     val inventory = mutableListOf<SimulationInventoryItem>()
@@ -272,7 +287,6 @@ class FakeSimulationStore :
 
     override fun findBreeds(breedSeqs: Collection<Int>) = breedSeqs.mapNotNull { breeds[it] }.associateBy { it.breedSeq }
 
-    override fun findActiveWalkSeq(sessionSeq: Long) = activeWalks[sessionSeq]
 
     override fun findSessionSeqsWithReport(sessionSeqs: Collection<Long>) = sessionSeqs.filterTo(mutableSetOf()) { it in reported }
 
