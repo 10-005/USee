@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simulation
+  namespace: app
+  labels:
+    app: simulation
+spec:
+  # 기동 시 Flyway로 simulation 스키마를 마이그레이션하므로 1개로 시작한다
+  replicas: 1
+  selector:
+    matchLabels:
+      app: simulation
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0   # 새 Pod가 준비된 뒤에 옛 Pod를 내린다
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: simulation
+    spec:
+      imagePullSecrets:
+        - name: registry-pull
+      containers:
+        - name: simulation
+          image: k15d106.p.ssafy.io/animal/simulation   # 태그는 overlay(kustomization images)에서 지정
+          ports:
+            - name: http
+              containerPort: 8083
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: dev
+            # 자기 테이블은 simulation 스키마(Flyway가 만든다), core 테이블(users·animal_breeds 등)은 SELECT 권한으로 읽는다
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres.data.svc.cluster.local:5432/animal?currentSchema=simulation
+            - name: SPRING_DATASOURCE_USERNAME
+              value: simulation_app
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: simulation-secrets, key: DB_PASSWORD }
+            - name: JWT_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef: { name: simulation-secrets, key: JWT_PUBLIC_KEY }
+            - name: CORS_ALLOWED_ORIGINS
+              value: http://localhost:5173,http://127.0.0.1:5173,https://s15p31d106-develop-web.vercel.app
+            - name: STORAGE_PUBLIC_BASE_URL
+              value: https://s15p31d106-media-887324111755.s3.ap-northeast-2.amazonaws.com
+            # 지금은 발행하는 이벤트가 없지만 리포트 완료 알림(Q487)을 붙일 때를 위해 core-api·chat·notification과 같게 둔다
+            - name: EVENTS_TRANSPORT
+              value: rabbit
+            - name: RABBITMQ_HOST
+              value: rabbitmq.data.svc.cluster.local
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-app, key: RABBITMQ_USERNAME }
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-app, key: RABBITMQ_PASSWORD }
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 100m, memory: 512Mi }
+            limits: { memory: 768Mi }   # Dockerfile의 MaxRAMPercentage=75 → 힙 약 576MB
