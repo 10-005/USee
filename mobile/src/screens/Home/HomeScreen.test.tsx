@@ -16,6 +16,13 @@ beforeEach(async () => {
   await AsyncStorage.clear();
 });
 
+jest.mock('../../services/simulation/reports', () => ({
+  loadSimulationReports: jest.fn().mockResolvedValue({ reports: [], freshSessionSeqs: [] }),
+  clearSimulationReports: jest.fn(),
+  invalidateSimulationReports: jest.fn(),
+  getSimulationReportErrorMessage: () => '리포트를 불러오지 못했어요. 다시 시도해주세요.',
+}));
+
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => ({ navigate: mockNavigate }),
@@ -76,6 +83,7 @@ test('mock adoption selects one pet across categories and preserves adoption fil
   });
   await ReactTestRenderer.act(async () => {
     await renderer.root.findAllByProps({ accessibilityLabel: '모의입양' })[0].props.onPress();
+    await Promise.resolve();
   });
   expect(renderer!.root.findAllByProps({ accessibilityLabel: '기간 필터' })).toHaveLength(0);
   expect(renderer!.root.findAllByProps({ accessibilityRole: 'radio' })).toHaveLength(0);
@@ -101,8 +109,9 @@ test('opens the mock adoption overview from a home tab request', async () => {
     route: { key: 'home', name: 'Home', params: { tab: 'mockAdoption' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'Home'>;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(() => {
+  await ReactTestRenderer.act(async () => {
     renderer = ReactTestRenderer.create(<HomeScreen {...props} />);
+    await Promise.resolve();
   });
   expect(renderer.root.findAllByProps({ children: '받은 레포트' }).length).toBeGreaterThan(0);
   expect(setParams).toHaveBeenCalledWith({ tab: undefined });
@@ -124,6 +133,7 @@ test('my page resumes an active adoption without asking for the budget again', a
   });
   await ReactTestRenderer.act(async () => {
     await renderer.root.findAllByProps({ accessibilityLabel: '모의입양' })[0].props.onPress();
+    await Promise.resolve();
   });
   expect(mockNavigate).not.toHaveBeenCalled();
   expect(renderer!.root.findAllByType(Button)[0].props.children).toBe('초코 보러가기');

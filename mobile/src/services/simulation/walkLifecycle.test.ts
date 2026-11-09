@@ -6,8 +6,13 @@ import {
   setMockAdoptionExpireHandler,
   startMockAdoption,
 } from '../storage/mockAdoptionStorage';
+import { invalidateSimulationReports } from './reports';
 import { installMockAdoptionWalkExpiry } from './walkLifecycle';
 import { endSimulationWalk } from './walk';
+
+jest.mock('./reports', () => ({
+  invalidateSimulationReports: jest.fn(),
+}));
 
 jest.mock('./walk', () => ({
   endSimulationWalk: jest.fn(),
@@ -31,6 +36,7 @@ describe('mock adoption walk expiry', () => {
       eventCount: 0,
     });
     installMockAdoptionWalkExpiry();
+    jest.mocked(invalidateSimulationReports).mockClear();
     await AsyncStorage.clear();
   });
 
@@ -45,6 +51,7 @@ describe('mock adoption walk expiry', () => {
 
     await expect(getActiveMockAdoption()).resolves.toBeNull();
     expect(endWalk).toHaveBeenCalledWith(3001, 8001);
+    expect(invalidateSimulationReports).toHaveBeenCalledTimes(1);
   });
 
   it('clears an expired session when the walk is already gone', async () => {
@@ -55,6 +62,7 @@ describe('mock adoption walk expiry', () => {
     jest.spyOn(Date, 'now').mockReturnValue(session.expiresAt);
 
     await expect(getActiveMockAdoption()).resolves.toBeNull();
+    expect(invalidateSimulationReports).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the expired session when the walk end can be retried', async () => {
@@ -63,6 +71,7 @@ describe('mock adoption walk expiry', () => {
     jest.spyOn(Date, 'now').mockReturnValue(session.expiresAt);
 
     await expect(getActiveMockAdoption()).rejects.toThrow('offline');
+    expect(invalidateSimulationReports).not.toHaveBeenCalled();
     await expect(AsyncStorage.getItem(STORAGE_KEYS.MOCK_ADOPTION_SESSION)).resolves.toContain(
       '"walkSeq":8001',
     );

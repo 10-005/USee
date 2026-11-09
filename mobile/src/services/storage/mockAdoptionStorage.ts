@@ -2,6 +2,7 @@ import { STORAGE_KEYS } from '../../constants/storageKeys';
 import { getBudgetError } from '../../screens/MockAdoption/budget';
 import { getPetNameError } from '../../screens/MockAdoption/petName';
 import { mockAdoptionPets } from '../../screens/MockAdoption/data';
+import { invalidateSimulationReports } from '../simulation/reports';
 import { getStoredValue, removeStoredValue, setStoredValue } from './jsonStorage';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -56,6 +57,7 @@ export async function getActiveMockAdoption(): Promise<MockAdoptionSession | nul
   if (Date.now() >= session.expiresAt) {
     await expireHandler?.(session);
     await removeStoredValue(STORAGE_KEYS.MOCK_ADOPTION_SESSION);
+    invalidateSimulationReports();
     return null;
   }
   return session;

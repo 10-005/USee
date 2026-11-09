@@ -27,6 +27,7 @@ import {
   getCareActionErrorMessage,
   performCareAction,
 } from '../../services/simulation/care';
+import { invalidateSimulationReports } from '../../services/simulation/reports';
 import { endMockAdoption, getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { mockAdoptionPets } from './data';
 import { RoomPet } from './RoomPet';
@@ -225,10 +226,12 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       if (active?.sessionSeq) {
         try {
           await abandonSimulation(active.sessionSeq);
+          invalidateSimulationReports();
         } catch (error) {
           if (!isSimulationAlreadyClosed(error)) {
             throw error;
           }
+          invalidateSimulationReports();
         }
       }
       await endMockAdoption();

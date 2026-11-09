@@ -1,10 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { invalidateSimulationReports } from '../../simulation/reports';
 import { getActiveMockAdoption, startMockAdoption } from '../mockAdoptionStorage';
+
+jest.mock('../../simulation/reports', () => ({
+  invalidateSimulationReports: jest.fn(),
+}));
 
 describe('mock adoption weekly session', () => {
   beforeEach(async () => {
     jest.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000);
+    jest.mocked(invalidateSimulationReports).mockClear();
     await AsyncStorage.clear();
   });
   afterEach(() => jest.restoreAllMocks());
@@ -17,10 +23,12 @@ describe('mock adoption weekly session', () => {
     );
     jest.spyOn(Date, 'now').mockReturnValue(session.expiresAt - 1);
     await expect(getActiveMockAdoption()).resolves.toEqual(session);
+    expect(invalidateSimulationReports).not.toHaveBeenCalled();
     // Returning to setup must never reset the active week's amount or expiry.
     await expect(startMockAdoption('cat-2', 25000)).resolves.toEqual(session);
     jest.spyOn(Date, 'now').mockReturnValue(session.expiresAt);
     await expect(getActiveMockAdoption()).resolves.toBeNull();
+    expect(invalidateSimulationReports).toHaveBeenCalledTimes(1);
     expect(await AsyncStorage.getItem(STORAGE_KEYS.MOCK_ADOPTION_SESSION)).toBeNull();
     await expect(startMockAdoption('cat-2', 25000)).resolves.toMatchObject({
       petId: 'cat-2',

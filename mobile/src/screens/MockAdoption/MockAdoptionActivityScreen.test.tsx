@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiClientError } from '../../services/api';
 import { abandonSimulation } from '../../services/simulation/abandon';
 import { performCareAction } from '../../services/simulation/care';
+import { invalidateSimulationReports } from '../../services/simulation/reports';
 import {
   getActiveMockAdoption,
   startMockAdoption,
@@ -24,6 +25,10 @@ jest.mock('../../services/simulation/care', () => {
   };
 });
 
+jest.mock('../../services/simulation/reports', () => ({
+  invalidateSimulationReports: jest.fn(),
+}));
+
 jest.mock('../../services/simulation/abandon', () => {
   const actual = jest.requireActual('../../services/simulation/abandon');
   return {
@@ -33,6 +38,10 @@ jest.mock('../../services/simulation/abandon', () => {
 });
 
 jest.mock('./RoomPet', () => ({ RoomPet: 'RoomPet' }));
+
+beforeEach(() => {
+  jest.mocked(invalidateSimulationReports).mockClear();
+});
 
 test('hospital close preserves issues, payment debits budget, and ignore advances the queue', async () => {
   await AsyncStorage.clear();
@@ -202,6 +211,7 @@ test('quitting clears the session and replaces the main screen with fresh select
   });
   expect(navigate).toHaveBeenCalledWith('Home', { tab: 'mockAdoption' });
   expect(abandonSimulation).not.toHaveBeenCalled();
+  expect(invalidateSimulationReports).not.toHaveBeenCalled();
   await expect(getActiveMockAdoption()).resolves.toBeNull();
   await expect(startMockAdoption('cat-2', 50000)).resolves.toMatchObject({
     petId: 'cat-2',
@@ -235,6 +245,7 @@ test('quitting abandons the server session before leaving the activity', async (
       .props.onPress();
   });
   expect(abandonSimulation).toHaveBeenCalledWith(3001);
+  expect(invalidateSimulationReports).toHaveBeenCalledTimes(1);
   expect(navigate).toHaveBeenCalledWith('Home', { tab: 'mockAdoption' });
   await expect(getActiveMockAdoption()).resolves.toBeNull();
   await ReactTestRenderer.act(() => renderer.unmount());
@@ -264,6 +275,7 @@ test('quitting leaves when the server session is already closed', async () => {
       .props.onPress();
   });
   expect(navigate).toHaveBeenCalledWith('Home', { tab: 'mockAdoption' });
+  expect(invalidateSimulationReports).toHaveBeenCalledTimes(1);
   await expect(getActiveMockAdoption()).resolves.toBeNull();
   await ReactTestRenderer.act(() => renderer.unmount());
   await AsyncStorage.clear();
@@ -289,6 +301,7 @@ test('quitting keeps the session when abandon fails', async () => {
       .props.onPress();
   });
   expect(navigate).not.toHaveBeenCalled();
+  expect(invalidateSimulationReports).not.toHaveBeenCalled();
   expect(alert).toHaveBeenCalledWith(
     '모의입양',
     '진행 상태를 초기화하지 못했어요. 다시 시도해주세요.',

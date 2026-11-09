@@ -26,6 +26,7 @@ import {
   useNotificationSettingsStore,
 } from '../../stores/notificationSettingsStore';
 import { usePetStore } from '../../stores/petStore';
+import { clearSimulationReports } from '../../services/simulation/reports';
 import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
 
@@ -94,6 +95,7 @@ export function SettingsScreen({ navigation }: Props) {
   selectedTime.setHours(selectedHour, selectedMinute, 0, 0);
 
   const completeLogout = () => {
+    clearSimulationReports();
     resetUserState();
     setAccountModal(null);
     navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
@@ -101,6 +103,7 @@ export function SettingsScreen({ navigation }: Props) {
 
   const completeWithdrawal = async () => {
     await AsyncStorage.clear();
+    clearSimulationReports();
     resetUserState();
     settings.resetSettings();
     setAccountModal(null);
