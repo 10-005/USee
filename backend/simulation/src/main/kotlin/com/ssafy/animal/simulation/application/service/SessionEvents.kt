@@ -5,6 +5,7 @@ import com.ssafy.animal.simulation.application.port.out.EventOccurrenceRepositor
 import com.ssafy.animal.simulation.application.port.out.EventScenarioRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationActionLogRepository
 import com.ssafy.animal.simulation.application.port.out.TransactionRepository
+import com.ssafy.animal.simulation.config.SimulationProperties
 import com.ssafy.animal.simulation.domain.ActionCode
 import com.ssafy.animal.simulation.domain.EffectResult
 import com.ssafy.animal.simulation.domain.EventOccurrence
@@ -13,8 +14,11 @@ import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SimulationTransaction
 import com.ssafy.animal.simulation.domain.TriggerContext
+import com.ssafy.animal.simulation.domain.TriggerType
 import org.springframework.stereotype.Component
+import java.time.Duration
 import java.time.OffsetDateTime
+import java.util.random.RandomGenerator
 
 /**
  * 세션의 돌발 이벤트 처리(Q486, 명세 18.12). 부르는 쪽이 세션 행을 잠근 상태여야 한다.
@@ -26,6 +30,9 @@ class SessionEvents(
     private val occurrenceRepository: EventOccurrenceRepository,
     private val actionLogRepository: SimulationActionLogRepository,
     private val transactionRepository: TransactionRepository,
+    private val properties: SimulationProperties,
+    /** RANDOM 발생 판정·시나리오 추첨. 테스트는 정해진 값을 돌려주는 구현으로 바꾼다 */
+    private val random: RandomGenerator,
 ) {
 
     /** 대기 중 이벤트와 그 시나리오. 없으면 null */
@@ -63,6 +70,36 @@ class SessionEvents(
             transactionRepository.save(SimulationTransaction.event(checkNotNull(session.sessionSeq), occurrenceSeq, cost, balance, pending.scenario.title))
         }
         return ResolvedEvent(occurrenceSeq, pending.scenario.title, pending.scenario.resultText, eventResult.delta, cost)
+    }
+
+    /**
+     * HOME·RANDOM 이벤트를 확률로 만든다(스케줄러 판정 1회분, M11·사용자 결정 2026-11-09).
+     * 대기 이벤트가 없고, 조용한 시간(22~8시 [가안])이 아니고, 세션 일차(시작 기준 24시간)당 횟수가 남았을 때만
+     * 판정 확률로 발생시키며, 세션의 종·성격에 맞는 시나리오를 가중치로 고른다. 만들었으면 그 이벤트, 아니면 null.
+     */
+    fun triggerRandom(session: SimulationSession, at: OffsetDateTime): EventOccurrence? {
+        val config = properties.event
+        if (!session.isInProgress || config.isQuiet(at) || !at.isBefore(session.endsDttm)) return null
+        val sessionSeq = checkNotNull(session.sessionSeq)
+        if (occurrenceRepository.findPending(sessionSeq) != null) return null
+        val dayStart = session.startedDttm.plusDays(Duration.between(session.startedDttm, at).toDays())
+        if (occurrenceRepository.countOccurredSince(sessionSeq, TriggerContext.HOME, TriggerType.RANDOM, dayStart) >= config.randomMaxPerDay) return null
+        if (random.nextDouble() >= config.randomChancePerCheck) return null
+
+        val candidates = scenarioRepository.findActive(TriggerContext.HOME, TriggerType.RANDOM)
+            .filter { it.appliesTo(session.speciesType, session.personality) }
+        val scenario = pickWeighted(candidates) ?: return null
+        return occurrenceRepository.save(EventOccurrence.occur(session, scenario, at, at.plus(config.homeExpiry)))
+    }
+
+    private fun pickWeighted(candidates: List<EventScenario>): EventScenario? {
+        if (candidates.isEmpty()) return null
+        var roll = random.nextInt(candidates.sumOf { it.weight.toInt() })
+        for (scenario in candidates) {
+            roll -= scenario.weight
+            if (roll < 0) return scenario
+        }
+        return candidates.last()
     }
 
     private fun scenarioOf(occurrence: EventOccurrence) =

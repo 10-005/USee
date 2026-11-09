@@ -52,6 +52,7 @@ import org.springframework.test.util.ReflectionTestUtils
 import java.time.Clock
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.util.random.RandomGenerator
 
 /** 서비스 테스트용 메모리 저장소. 포트 계약만 흉내 낸다 */
 class FakeSimulationStore :
@@ -336,17 +337,36 @@ class FakeSimulationStore :
     fun progress(properties: SimulationProperties, now: OffsetDateTime) = SessionProgress(
         refresher(properties, now),
         terminator(properties),
-        events(),
+        events(properties),
     )
 
     fun refresher(properties: SimulationProperties, now: OffsetDateTime) =
         SessionStatRefresher(StatCalculator(properties.stats, properties.tick), Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul")))
 
-    fun events() = SessionEvents(this, this, this, this)
+    fun events(properties: SimulationProperties = DEFAULT_PROPERTIES, random: RandomGenerator = ScriptedRandom()) =
+        SessionEvents(this, this, this, this, properties, random)
 
     companion object {
         val MALTESE = BreedInfo(21, "말티즈", CatalogSpeciesCode.DOG, Personality.FRIENDLY, "https://cdn/breeds/maltese.png")
         val KOREAN_SHORTHAIR = BreedInfo(31, "코리안 숏헤어", CatalogSpeciesCode.CAT, Personality.TIMID, null)
         val ETC = BreedInfo(90, "기타", CatalogSpeciesCode.ETC, Personality.TIMID, null)
+
+        /** 이벤트 테스트용 기본 설정(1시간 tick, 7일, 이벤트 설정 기본값) */
+        val DEFAULT_PROPERTIES = SimulationProperties(java.time.Duration.ofHours(1), java.time.Duration.ofDays(7), com.ssafy.animal.simulation.domain.StatCalculatorTest.RULES)
     }
+}
+
+/**
+ * 정해진 값을 차례로 돌려주는 난수(RANDOM 이벤트 테스트용). 값이 떨어지면 nextDouble은 0.999(발생 안 함), nextInt는 0.
+ * 기본 생성자는 언제나 발생하지 않는다.
+ */
+class ScriptedRandom(doubles: List<Double> = emptyList(), ints: List<Int> = emptyList()) : RandomGenerator {
+    private val doubles = ArrayDeque(doubles)
+    private val ints = ArrayDeque(ints)
+
+    override fun nextLong(): Long = 0L
+
+    override fun nextDouble(): Double = doubles.removeFirstOrNull() ?: 0.999
+
+    override fun nextInt(bound: Int): Int = (ints.removeFirstOrNull() ?: 0).also { require(it in 0 until bound) { "nextInt($bound) 범위 밖: $it" } }
 }
