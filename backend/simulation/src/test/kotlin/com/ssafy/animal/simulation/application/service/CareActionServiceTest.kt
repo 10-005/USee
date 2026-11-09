@@ -10,8 +10,6 @@ import com.ssafy.animal.simulation.domain.ActionType
 import com.ssafy.animal.simulation.domain.CareConfig
 import com.ssafy.animal.simulation.domain.EventOccurrence
 import com.ssafy.animal.simulation.domain.OccurrenceStatus
-import com.ssafy.animal.simulation.domain.SimulationActionLog
-import com.ssafy.animal.simulation.domain.StatEffect
 import com.ssafy.animal.simulation.domain.TransactionType
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
@@ -304,8 +302,8 @@ class CareActionServiceTest {
     }
 
     @Test
-    fun `아직 만들지 않은 돌봄이나 산책·시스템 코드는 400 COMMON_INVALID_INPUT(actionCode)`() {
-        listOf(ActionCode.VET_VISIT, ActionCode.GIVE_WATER, ActionCode.SESSION_START).forEach { code ->
+    fun `산책·시스템 코드는 400 COMMON_INVALID_INPUT(actionCode)`() {
+        listOf(ActionCode.GIVE_WATER, ActionCode.WALK_START, ActionCode.SESSION_START).forEach { code ->
             val error = assertFailsWith<BusinessException> { act(code) }
             assertEquals(CommonErrorCode.COMMON_INVALID_INPUT, error.errorCode)
             assertEquals("actionCode", error.errors.single().field)
@@ -417,22 +415,71 @@ class CareActionServiceTest {
         assertEquals(OccurrenceStatus.EXPIRED, occurrence.status)
     }
 
+    // ===== 병원 진료(254) =====
+
     @Test
-    fun `해결 비용이 있는 이벤트는 EVENT 지출로 잔액에서 뺀다`() {
+    fun `정답이 병원인 대기 이벤트가 있으면 해결 효과를 넣고 진료비를 EVENT 지출로 뺀다`() {
         store.stockScenarios()
-        // 8번(축 처져 있어요): 병원 30,000원. 병원 행동은 254에서 붙이므로 해결 처리만 직접 부른다
+        // 8번(축 처져 있어요): 건강 +30·안정감 -10, 진료비 30,000원
         val occurrence = pending(8)
-        val log = store.save(SimulationActionLog.care(session, ActionCode.FEED, null, session.applyEffect(StatEffect.NONE)))
-        val events = store.events()
 
-        val resolved = events.resolve(session, assertNotNull(events.pending(session)), log, session.applyEffect(StatEffect.NONE), start)
+        val result = act(ActionCode.VET_VISIT)
 
+        assertEquals(mapOf(Stat.HEALTH to 10, Stat.CALMNESS to -10), result.statDelta) // 건강 90 → 100에서 잘림
+        val resolved = assertNotNull(result.resolvedEvent)
         assertEquals(30_000, resolved.eventCost)
+        assertEquals("진단서: 가벼운 장염", resolved.resultText)
         assertEquals(120_000, session.balance)
+        assertEquals(OccurrenceStatus.RESOLVED, occurrence.status)
+        assertEquals(result.log.actionLogSeq, occurrence.resolvedActionLogSeq)
+        assertEquals(ActionCode.VET_VISIT, result.log.actionCode)
+        assertEquals(ActionType.CARE, result.log.actionType)
+        assertNull(result.log.itemSeq)
+        assertEquals(start, session.lastActionDttm)
         val spend = store.transactions.single()
         assertEquals(TransactionType.EVENT, spend.transactionType)
         assertEquals(occurrence.occurrenceSeq, spend.occurrenceSeq)
         assertEquals(30_000, spend.amount)
+        assertEquals(120_000, spend.balanceAfter)
+    }
+
+    @Test
+    fun `진료비로 잔액이 음수가 되어도 진료한다`() {
+        store.stockScenarios()
+        ReflectionTestUtils.setField(session, "balance", 10_000)
+        pending(8)
+
+        act(ActionCode.VET_VISIT)
+
+        assertEquals(-20_000, session.balance)
+    }
+
+    @Test
+    fun `병원이 정답인 대기 이벤트가 없으면 409이고 로그·지출·마지막 행동 시각을 남기지 않는다`() {
+        store.stockScenarios()
+        // 대기 이벤트 없음
+        assertError(SimulationErrorCode.SIMULATION_VET_NOT_NEEDED) { act(ActionCode.VET_VISIT) }
+        // 정답이 병원이 아닌 이벤트만 있음
+        val water = pending(1)
+        assertError(SimulationErrorCode.SIMULATION_VET_NOT_NEEDED) { act(ActionCode.VET_VISIT) }
+
+        assertTrue(water.isPending)
+        assertTrue(store.logs.none { it.actionCode == ActionCode.VET_VISIT })
+        assertTrue(store.transactions.isEmpty())
+        assertNull(session.lastActionDttm)
+        assertEquals(150_000, session.balance)
+    }
+
+    @Test
+    fun `병원에 가기 전에 시한이 지났으면 만료를 반영하고 409`() {
+        store.stockScenarios()
+        val occurrence = pending(8, expiresAt = start.plusHours(1))
+
+        assertError(SimulationErrorCode.SIMULATION_VET_NOT_NEEDED) { act(ActionCode.VET_VISIT, at = start.plusHours(2)) }
+
+        assertEquals(OccurrenceStatus.EXPIRED, occurrence.status)
+        assertTrue(store.logs.any { it.actionCode == ActionCode.EVENT_EXPIRE })
+        assertTrue(store.transactions.isEmpty())
     }
 
     private fun assertError(expected: ErrorCode, block: () -> Unit) {

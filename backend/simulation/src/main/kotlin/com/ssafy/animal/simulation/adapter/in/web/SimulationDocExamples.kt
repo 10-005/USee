@@ -28,6 +28,9 @@ internal object SimulationDocExamples {
     const val SIMULATION_ITEM_NOT_IN_INVENTORY =
         """{"status":409,"code":"SIMULATION_ITEM_NOT_IN_INVENTORY","message":"보유하지 않았거나 다 쓴 물품입니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
 
+    const val SIMULATION_VET_NOT_NEEDED =
+        """{"status":409,"code":"SIMULATION_VET_NOT_NEEDED","message":"지금은 병원에 갈 필요가 없습니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+
     /** 경로의 세션 번호가 숫자가 아님 */
     const val SESSION_SEQ_TYPE_MISMATCH =
         """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"sessionSeq","reason":"타입이 올바르지 않습니다."}],"traceId":"4f2c9e1a7b3d4c5e"}"""
