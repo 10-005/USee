@@ -175,4 +175,29 @@ notification:deploy:
   variables:
     SERVICE: notification
 
-# simulation 은 매니페스트가 준비되면 위 작업을 복사해 SERVICE 와 경로만 바꾼다
+# ---------- simulation ----------
+
+.simulation-rules:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop-backend"
+      changes:
+        - backend/simulation/**/*
+        - backend/common/**/*
+        - backend/gradle/**/*
+        - backend/*.gradle.kts
+        - backend/gradle.properties
+        - backend/gradlew
+        - backend/.gitlab-ci.yml
+        - .gitlab-ci.yml
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "develop-backend"
+
+simulation:build:
+  extends: [.build-image, .simulation-rules]
+  variables:
+    SERVICE: simulation
+
+simulation:deploy:
+  extends: [.deploy-tag, .simulation-rules]
+  needs: ["simulation:build"]
+  variables:
+    SERVICE: simulation

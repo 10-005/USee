@@ -60,7 +60,7 @@ docker build -f core-api/Dockerfile -t core-api .
 - Gradle 빌드 캐시(`gradle.properties`의 `org.gradle.caching=true`)를 켜 두었다. 입력이 같은 컴파일·테스트는 이전 결과를 재사용한다
   - MR 테스트: `.gradle-home/caches/`(GitLab cache)에 함께 저장
   - 이미지 빌드: Dockerfile의 BuildKit 캐시(`/root/.gradle`)를 서비스끼리 공유 → 먼저 빌드한 서비스가 컴파일한 `common`을 다음 서비스가 재사용
-- 머지 후 테스트를 생략하므로, MR을 만든 뒤 develop-backend가 바뀌었다면 합친 결과는 테스트 없이 배포될 수 있다. 필요하면 파이프라인 화면에서 develop-backend로 수동 실행한다(`backend:test` 후 세 서비스 이미지를 다시 빌드·배포)
+- 머지 후 테스트를 생략하므로, MR을 만든 뒤 develop-backend가 바뀌었다면 합친 결과는 테스트 없이 배포될 수 있다. 필요하면 파이프라인 화면에서 develop-backend로 수동 실행한다(`backend:test` 후 네 서비스 이미지를 다시 빌드·배포)
 - 중간 머지를 여러 개 연달아 할 때는 머지 커밋 메시지에 `[skip ci]`를 붙이고 마지막 머지에서만 배포해도 된다(마지막 배포가 앞 변경을 모두 포함)
 
 ## 패키지 구조 규칙
