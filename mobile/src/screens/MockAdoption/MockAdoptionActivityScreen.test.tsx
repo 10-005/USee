@@ -1,17 +1,27 @@
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ApiClientError } from '../../services/api';
+import { abandonSimulation } from '../../services/simulation/abandon';
 import {
   getActiveMockAdoption,
   startMockAdoption,
 } from '../../services/storage/mockAdoptionStorage';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import ReactTestRenderer from 'react-test-renderer';
-import { Animated, BackHandler, StyleSheet } from 'react-native';
+import { Alert, Animated, BackHandler, StyleSheet } from 'react-native';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { MockAdoptionActivityScreen } from './MockAdoptionActivityScreen';
 import { PetStatsDialog } from './PetStatsDialog';
 import { VetVisitDialog } from './VetVisitDialog';
 import { useShopStore } from '../../stores/shopStore';
+
+jest.mock('../../services/simulation/abandon', () => {
+  const actual = jest.requireActual('../../services/simulation/abandon');
+  return {
+    ...actual,
+    abandonSimulation: jest.fn(),
+  };
+});
 
 jest.mock('./RoomPet', () => ({ RoomPet: 'RoomPet' }));
 
@@ -182,11 +192,100 @@ test('quitting clears the session and replaces the main screen with fresh select
       .props.onPress();
   });
   expect(replace).toHaveBeenCalledWith('MockAdoptionSelection');
+  expect(abandonSimulation).not.toHaveBeenCalled();
   await expect(getActiveMockAdoption()).resolves.toBeNull();
   await expect(startMockAdoption('cat-2', 50000)).resolves.toMatchObject({
     petId: 'cat-2',
     weeklyBudget: 50000,
   });
+  await ReactTestRenderer.act(() => renderer.unmount());
+  await AsyncStorage.clear();
+});
+
+test('quitting abandons the server session before leaving the activity', async () => {
+  await AsyncStorage.clear();
+  jest.mocked(abandonSimulation).mockResolvedValue({
+    sessionSeq: 3001,
+    status: 'ABANDONED',
+    endedDttm: '2026-11-09T18:00:00',
+    report: { summary: null },
+  });
+  await startMockAdoption('dog-1', 35000, '초코', 3001);
+  const replace = jest.fn();
+  const props = {
+    navigation: { replace },
+    route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root
+      .findAllByProps({ accessibilityLabel: '모의입양 그만두기' })[0]
+      .props.onPress();
+  });
+  expect(abandonSimulation).toHaveBeenCalledWith(3001);
+  expect(replace).toHaveBeenCalledWith('MockAdoptionSelection');
+  await expect(getActiveMockAdoption()).resolves.toBeNull();
+  await ReactTestRenderer.act(() => renderer.unmount());
+  await AsyncStorage.clear();
+});
+
+test('quitting leaves when the server session is already closed', async () => {
+  await AsyncStorage.clear();
+  jest
+    .mocked(abandonSimulation)
+    .mockRejectedValue(
+      new ApiClientError({ code: 'SIMULATION_NOT_IN_PROGRESS', message: 'server' }),
+    );
+  await startMockAdoption('dog-1', 35000, '초코', 3001);
+  const replace = jest.fn();
+  const props = {
+    navigation: { replace },
+    route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root
+      .findAllByProps({ accessibilityLabel: '모의입양 그만두기' })[0]
+      .props.onPress();
+  });
+  expect(replace).toHaveBeenCalledWith('MockAdoptionSelection');
+  await expect(getActiveMockAdoption()).resolves.toBeNull();
+  await ReactTestRenderer.act(() => renderer.unmount());
+  await AsyncStorage.clear();
+});
+
+test('quitting keeps the session when abandon fails', async () => {
+  await AsyncStorage.clear();
+  jest.mocked(abandonSimulation).mockRejectedValue(new Error('offline'));
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  await startMockAdoption('dog-1', 35000, '초코', 3001);
+  const replace = jest.fn();
+  const props = {
+    navigation: { replace },
+    route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root
+      .findAllByProps({ accessibilityLabel: '모의입양 그만두기' })[0]
+      .props.onPress();
+  });
+  expect(replace).not.toHaveBeenCalled();
+  expect(alert).toHaveBeenCalledWith(
+    '모의입양',
+    '진행 상태를 초기화하지 못했어요. 다시 시도해주세요.',
+  );
+  await expect(getActiveMockAdoption()).resolves.toMatchObject({ sessionSeq: 3001 });
+  alert.mockRestore();
   await ReactTestRenderer.act(() => renderer.unmount());
   await AsyncStorage.clear();
 });

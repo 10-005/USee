@@ -15,7 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../app/navigation/types';
 import BackIcon from '../../assets/icons/common/left-arrow.svg';
 import { colors, typography } from '../../theme';
-import { endMockAdoption } from '../../services/storage/mockAdoptionStorage';
+import { ApiClientError } from '../../services/api';
+import {
+  abandonSimulation,
+  getSimulationAbandonErrorMessage,
+  isSimulationAlreadyClosed,
+} from '../../services/simulation/abandon';
+import { endMockAdoption, getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { mockAdoptionPets } from './data';
 import { RoomPet } from './RoomPet';
 import { useToilet } from './useToilet';
@@ -205,10 +211,25 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     ending.current = true;
     setBusy(true);
     try {
+      const active = await getActiveMockAdoption();
+      if (active?.sessionSeq) {
+        try {
+          await abandonSimulation(active.sessionSeq);
+        } catch (error) {
+          if (!isSimulationAlreadyClosed(error)) {
+            throw error;
+          }
+        }
+      }
       await endMockAdoption();
       hideThenNavigate(() => navigation.replace('MockAdoptionSelection'));
-    } catch {
-      Alert.alert('모의입양', '진행 상태를 초기화하지 못했어요. 다시 시도해주세요.');
+    } catch (caught) {
+      Alert.alert(
+        '모의입양',
+        caught instanceof ApiClientError
+          ? getSimulationAbandonErrorMessage(caught)
+          : '진행 상태를 초기화하지 못했어요. 다시 시도해주세요.',
+      );
     } finally {
       ending.current = false;
       setBusy(false);
