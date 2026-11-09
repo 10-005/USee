@@ -76,8 +76,8 @@ export const styles = StyleSheet.create({
   voiceButton: {
     position: 'absolute',
     right: 24,
-    width: 60,
-    height: 60,
+    width: 50,
+    height: 50,
     zIndex: 10,
     alignItems: 'center',
     justifyContent: 'center',

@@ -48,7 +48,7 @@ export function VoiceMicrophone({ listening }: { listening: boolean }) {
       {listening ? (
         <>
           <Animated.View style={[styles.glow, pulseStyle]}>
-            <Svg width={60} height={60}>
+            <Svg width={50} height={50}>
               <Defs>
                 <MovingGradient id={`orb-${id}`} animatedProps={gradientProps}>
                   <Stop offset="0" stopColor="#388BFF" />
@@ -56,7 +56,7 @@ export function VoiceMicrophone({ listening }: { listening: boolean }) {
                   <Stop offset="1" stopColor="#FFFFFF" />
                 </MovingGradient>
               </Defs>
-              <Circle cx={30} cy={30} r={30} fill={`url(#orb-${id})`} />
+              <Circle cx={25} cy={25} r={25} fill={`url(#orb-${id})`} />
             </Svg>
           </Animated.View>
           <Svg width={30} height={30}>
