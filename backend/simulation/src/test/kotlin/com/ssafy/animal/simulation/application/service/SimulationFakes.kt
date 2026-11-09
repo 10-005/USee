@@ -126,6 +126,12 @@ class FakeSimulationStore :
     fun stockShop() {
         listOf(
             SimulationShopItem(1, "밥그릇", ItemCategory.FOOD_BOWL, 10_000, SpeciesScope.ALL, displayOrder = 1),
+            SimulationShopItem(2, "물그릇", ItemCategory.WATER_BOWL, 10_000, SpeciesScope.ALL, displayOrder = 2),
+            SimulationShopItem(4, "강아지 배변판", ItemCategory.LITTER_BOX, 15_000, SpeciesScope.DOG, displayOrder = 4),
+            SimulationShopItem(
+                10, "위생 관리 키트", ItemCategory.GROOMING_KIT, 13_800, SpeciesScope.ALL,
+                effects = mapOf("cleanliness" to 40, "calmness" to -5), displayOrder = 10,
+            ),
             SimulationShopItem(11, "탐색 장난감", ItemCategory.TOY, 4_100, SpeciesScope.ALL, effects = mapOf("bond" to 3), displayOrder = 11),
             SimulationShopItem(22, "균형 잡힌 사료", ItemCategory.FOOD, 10_600, SpeciesScope.ALL, effects = mapOf("satiety" to 30), displayOrder = 22),
             SimulationShopItem(30, "배변패드", ItemCategory.LITTER, 2_600, SpeciesScope.DOG, effects = mapOf("cleanliness" to 30), displayOrder = 30),

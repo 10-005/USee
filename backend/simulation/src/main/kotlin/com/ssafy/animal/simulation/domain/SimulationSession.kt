@@ -139,6 +139,12 @@ class SimulationSession(
         return result
     }
 
+    /** CARE·WALK 행동 시각을 남긴다(표시·통계용, Q481). SYSTEM·EVENT_EXPIRE 로그는 부르지 않는다 */
+    fun recordAction(at: OffsetDateTime) {
+        check(status == SessionStatus.IN_PROGRESS) { "진행 중인 세션만 행동합니다: $status" }
+        lastActionDttm = at
+    }
+
     private fun writeStats(stats: Stats) {
         satiety = stats.satiety.toShort()
         hydration = stats.hydration.toShort()
