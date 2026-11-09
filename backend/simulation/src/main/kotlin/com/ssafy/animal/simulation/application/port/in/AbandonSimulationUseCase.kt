@@ -12,9 +12,13 @@ interface AbandonSimulationUseCase {
     fun abandon(userSeq: Long, sessionSeq: Long): SessionReportView
 }
 
-/** 리포트 응답(18.5·18.18)의 원본. 세션 스냅샷·품종·저장된 리포트 */
+/**
+ * 리포트 응답(18.5·18.18)의 원본. 세션 스냅샷·품종·리포트.
+ * isFinal=true면 저장된 종료 리포트, false면 진행 중 세션의 중간 리포트(계산만 하고 저장하지 않음)
+ */
 data class SessionReportView(
     val session: SimulationSession,
     val breed: BreedInfo,
     val report: SimulationReport,
+    val isFinal: Boolean = true,
 )

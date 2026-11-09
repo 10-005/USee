@@ -5,7 +5,10 @@ import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.port.out.BreedReader
 import com.ssafy.animal.simulation.application.port.out.CatalogSpeciesCode
 import com.ssafy.animal.simulation.application.port.out.EventCounts
+import com.ssafy.animal.simulation.application.port.out.ReportListEntry
 import com.ssafy.animal.simulation.application.port.out.ReportRepository
+import com.ssafy.animal.simulation.application.port.out.UserInfo
+import com.ssafy.animal.simulation.application.port.out.UserReader
 import com.ssafy.animal.simulation.application.port.out.SessionClosingRepository
 import com.ssafy.animal.simulation.application.port.out.InventoryEntry
 import com.ssafy.animal.simulation.application.port.out.InventoryRepository
@@ -53,6 +56,7 @@ class FakeSimulationStore :
     ShopItemRepository,
     TransactionRepository,
     ReportRepository,
+    UserReader,
     SessionClosingRepository {
 
     val reports = mutableListOf<SimulationReport>()
@@ -62,10 +66,34 @@ class FakeSimulationStore :
 
     override fun save(report: SimulationReport) = report.also {
         ReflectionTestUtils.setField(it, "reportSeq", 9000L + reports.size + 1)
+        now?.let { at -> ReflectionTestUtils.setField(it, "regDttm", at) }
         reports += it
     }
 
+    override fun updateSummaryIfNull(sessionSeq: Long, summary: String): Boolean {
+        val report = findBySessionSeq(sessionSeq)?.takeIf { it.summary == null } ?: return false
+        ReflectionTestUtils.setField(report, "summary", summary)
+        return true
+    }
+
+    override fun findSessionSeqsWithoutSummary(createdBefore: OffsetDateTime) = reports
+        .filter { it.summary == null && it.regDttm?.isAfter(createdBefore) == false }
+        .sortedBy { it.reportSeq }
+        .map { it.sessionSeq }
+
     override fun findBySessionSeq(sessionSeq: Long) = reports.firstOrNull { it.sessionSeq == sessionSeq }
+
+    /** 정렬은 기본값(endedDttm desc, 세션 번호 desc)만 흉내 낸다. 정렬 화이트리스트는 어댑터 테스트에서 본다 */
+    override fun findPage(userSeq: Int?, pageable: Pageable): Page<ReportListEntry> {
+        val all = reports.map { report -> ReportListEntry(sessions.first { it.sessionSeq == report.sessionSeq }, report) }
+            .filter { userSeq == null || it.session.userSeq == userSeq }
+            .sortedWith(compareByDescending<ReportListEntry> { it.session.endedDttm }.thenByDescending { it.session.sessionSeq })
+        return PageImpl(all.drop(pageable.offset.toInt()).take(pageable.pageSize), pageable, all.size.toLong())
+    }
+
+    val users = mutableMapOf<Int, UserInfo>()
+
+    override fun findUsers(userSeqs: Collection<Int>) = userSeqs.mapNotNull { users[it] }.associateBy { it.userSeq }
 
     override fun endActiveWalks(sessionSeq: Long, endedAt: OffsetDateTime) = if (activeWalks.remove(sessionSeq) != null) 1 else 0
 
@@ -229,8 +257,10 @@ class FakeSimulationStore :
     /** 종료 시 발행된 내부 이벤트 */
     val published = mutableListOf<Any>()
 
+    fun reportCalculator(properties: SimulationProperties) = ReportCalculator(this, this, this, properties)
+
     fun terminator(properties: SimulationProperties) =
-        SessionTerminator(this, this, this, this, properties, ApplicationEventPublisher { published += it })
+        SessionTerminator(this, this, this, reportCalculator(properties), ApplicationEventPublisher { published += it })
 
     /** 고정 시각 now 기준 진행(지연 계산·종료 판정) */
     fun progress(properties: SimulationProperties, now: OffsetDateTime) = SessionProgress(

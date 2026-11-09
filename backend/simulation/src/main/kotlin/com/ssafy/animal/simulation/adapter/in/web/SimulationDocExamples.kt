@@ -42,6 +42,17 @@ internal object SimulationDocExamples {
     const val STATS_JSON =
         """{"satiety":64,"hydration":58,"cleanliness":77,"bond":31,"calmness":46,"health":90,"energy":55,"calculatedDttm":"2026-11-01T17:00:00+09:00"}"""
 
+    /** 포기로 끝난 세션의 저장 리포트(18.5 data.report·18.18 data). 종료 직후라 summary는 null */
+    const val ABANDONED_REPORT_JSON =
+        """{"sessionSeq":3001,"status":"ABANDONED","isFinal":true,"animalName":"초코","breed":""" + BREED_JSON +
+            ""","speciesType":"DOG","personality":"FRIENDLY","startedDttm":"2026-11-01T14:00:00+09:00","endedDttm":"2026-11-03T10:20:00+09:00",""" +
+            """"expectedCost":150000,"totalSpent":52800,"difference":97200,""" +
+            """"spentByCategory":{"FOOD_BOWL":10000,"WATER_BOWL":10000,"LITTER_BOX":0,"TOY":0,"FURNITURE":0,"LEASH":0,"GROOMING_KIT":0,""" +
+            """"FOOD":21200,"SNACK":0,"LITTER":0,"SHAMPOO":0,"MEDICINE":0,"POOP_BAG":0,"CATNIP":0,"EVENT":11600},""" +
+            """"dailySpent":{"1":31200,"2":21600,"3":0,"4":0,"5":0,"6":0,"7":0},""" +
+            """"finalStats":{"satiety":55,"hydration":60,"cleanliness":70,"bond":42,"calmness":52,"health":84,"energy":58},""" +
+            """"actionCount":12,"eventCount":0,"eventResolvedCount":0,"walkCount":0,"summary":null}"""
+
     /** 세션 상세(18.1·18.2·18.4 data) */
     const val SESSION_DETAIL_JSON =
         """{"sessionSeq":3001,"userSeq":17,"animalName":"초코","breed":""" + BREED_JSON +

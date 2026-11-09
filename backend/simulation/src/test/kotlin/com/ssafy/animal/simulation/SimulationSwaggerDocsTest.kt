@@ -10,6 +10,7 @@ import com.ssafy.animal.simulation.application.port.`in`.CareActionUseCase
 import com.ssafy.animal.simulation.application.port.`in`.InventoryQueryUseCase
 import com.ssafy.animal.simulation.application.port.`in`.PurchaseUseCase
 import com.ssafy.animal.simulation.application.port.`in`.ShopQueryUseCase
+import com.ssafy.animal.simulation.application.port.`in`.SimulationReportQueryUseCase
 import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionQueryUseCase
 import com.ssafy.animal.simulation.application.port.`in`.StartSimulationUseCase
 import com.ssafy.animal.simulation.application.port.`in`.TransactionQueryUseCase
@@ -61,6 +62,7 @@ class SimulationSwaggerDocsTest {
     @MockitoBean lateinit var transactionQueryUseCase: TransactionQueryUseCase
     @MockitoBean lateinit var careActionUseCase: CareActionUseCase
     @MockitoBean lateinit var actionLogQueryUseCase: ActionLogQueryUseCase
+    @MockitoBean lateinit var reportQueryUseCase: SimulationReportQueryUseCase
 
     private val mapper = ObjectMapper()
 
@@ -77,8 +79,8 @@ class SimulationSwaggerDocsTest {
     fun `모든 API에 요약과 태그와 401 응답 문서가 있다`() {
         val operations = operations(apiDocs())
 
-        // 18.1~18.11
-        assertTrue(operations.size >= 11, "simulation API 문서 수: ${operations.size}")
+        // 18.1~18.11, 18.18~18.20
+        assertTrue(operations.size >= 14, "simulation API 문서 수: ${operations.size}")
         operations.forEach { (name, op) ->
             assertTrue(op["summary"]?.asText().orEmpty().isNotBlank(), "$name: summary 없음")
             assertTrue(op["tags"]?.size() ?: 0 > 0, "$name: 태그 없음")

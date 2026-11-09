@@ -16,4 +16,11 @@ data class SimulationProperties(
     val stats: StatRules,
     val shop: ShopRules = ShopRules(),
     val care: CareConfig = CareConfig(),
+    val report: ReportConfig = ReportConfig(),
+)
+
+/** 리포트 요약 설정(Q444·Q487 [가안]) */
+data class ReportConfig(
+    /** 종료 처리 후 이 시간이 지나도 요약이 없으면 스케줄러가 다시 만든다(고아 복구) */
+    val summaryRecoveryDelay: Duration = Duration.ofMinutes(10),
 )
