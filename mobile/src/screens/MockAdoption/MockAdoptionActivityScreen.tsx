@@ -25,6 +25,13 @@ import { useShopSession } from '../shop/useShopSession';
 import { useShopStore } from '../../stores/shopStore';
 import { consumeCareSupplies } from '../../services/shop/consumption';
 import { availableProducts } from '../../services/shop/catalog';
+import { SuddenEventDialog } from './SuddenEventDialog';
+import {
+  takeMockAdoptionEvent,
+  hasPendingTreatment,
+  completeMockAdoptionTreatment,
+  type MockAdoptionEvent,
+} from '../../services/storage/mockAdoptionEvents';
 
 // Temporary preview values until the server provides the selected pet's stats.
 const mockPetStats: PetStats = {
@@ -54,6 +61,35 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const hasTreat = petProducts.some(p => p.category === '간식' && owns(p.id));
   const hasToy = petProducts.some(p => p.category === '놀이' && p.kind === 'durable' && owns(p.id));
   const [statsVisible, setStatsVisible] = useState(false);
+  const [suddenEvent, setSuddenEvent] = useState<MockAdoptionEvent | null>(null);
+  const [needsTreatment, setNeedsTreatment] = useState(false);
+  const [previewIllness, setPreviewIllness] = useState(false);
+  const [treatmentBusy, setTreatmentBusy] = useState(false);
+  const treatmentPending = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      if (session) {
+        takeMockAdoptionEvent(session, () => active)
+          .then(async event => {
+            const pending = await hasPendingTreatment(session);
+            if (active) {
+              setSuddenEvent(event);
+              setNeedsTreatment(pending);
+            }
+          })
+          .catch(() => {
+            // Leave the pending event available for the next entry if storage fails.
+          });
+      }
+      return () => {
+        active = false;
+        setSuddenEvent(null);
+        setNeedsTreatment(false);
+        setPreviewIllness(false);
+      };
+    }, [session]),
+  );
   const walkPending = useRef(false);
   const [care, setCare] = useState<{
     kind: 'food' | 'water' | 'treat' | 'fetch';
@@ -199,6 +235,41 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     setToast(message);
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 2500);
+  };
+  const confirmTreatment = () => {
+    if (treatmentPending.current) {
+      return;
+    }
+    if (!needsTreatment && !previewIllness) {
+      Alert.alert('동물병원', '현재 치료가 필요한 돌발 이벤트가 없어요.');
+      return;
+    }
+    Alert.alert('동물병원', '병원 처리가 완료되었나요?', [
+      { text: '아직이에요', style: 'cancel' },
+      {
+        text: '치료 완료',
+        onPress: async () => {
+          if (treatmentPending.current || (needsTreatment && !session)) {
+            return;
+          }
+          treatmentPending.current = true;
+          setTreatmentBusy(true);
+          try {
+            if (needsTreatment && session) {
+              await completeMockAdoptionTreatment(session);
+            }
+            setNeedsTreatment(false);
+            setPreviewIllness(false);
+            showToast('병원 처리가 완료되었어요.');
+          } catch {
+            Alert.alert('동물병원', '치료 완료 상태를 저장하지 못했어요. 다시 시도해주세요.');
+          } finally {
+            treatmentPending.current = false;
+            setTreatmentBusy(false);
+          }
+        },
+      },
+    ]);
   };
   const startBath = () => {
     if (careBusy.current || bathingRef.current || leaving || busy || !roomVisible) {
@@ -386,6 +457,28 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           </Pressable>
           <View style={styles.actionColumns}>
             <View style={styles.action}>
+              {__DEV__ && pet ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="돌발 이벤트 팝업 미리보기"
+                  disabled={busy || leaving || !!care || treatActive}
+                  onPress={() => {
+                    setStatsVisible(false);
+                    setPreviewIllness(true);
+                    setSuddenEvent({
+                      id: 'dev-preview',
+                      kind: 'illness',
+                      petId: pet.id,
+                      sessionStartedAt: session?.startedAt ?? 0,
+                      title: '{petName}가 아픕니다!',
+                      body: '{petName}를 동물병원에 데려가주세요!',
+                    });
+                  }}
+                  style={({ pressed }) => [styles.previewButton, pressed && styles.pressed]}
+                >
+                  <Text style={styles.previewLabel}>돌발 팝업 미리보기</Text>
+                </Pressable>
+              ) : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="AR 산책하기"
@@ -449,15 +542,27 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                 />
                 <Text style={styles.actionCaption}>쇼핑하기</Text>
               </Pressable>
-              <View style={styles.actionButton}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="동물병원"
+                accessibilityValue={{
+                  text: needsTreatment || previewIllness ? '치료 필요' : '치료 대기 없음',
+                }}
+                disabled={busy || leaving || !!care || treatActive || treatmentBusy}
+                onPress={confirmTreatment}
+                style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
+              >
                 <Image
-                  accessibilityLabel="동물병원"
-                  source={require('../../assets/images/mock-adoption/img_veterinary_hospital.png')}
+                  source={
+                    needsTreatment || previewIllness
+                      ? require('../../assets/images/mock-adoption/img_veterinary_hospital_with_red_dot.png')
+                      : require('../../assets/images/mock-adoption/img_veterinary_hospital.png')
+                  }
                   resizeMode="contain"
                   style={styles.actionImage}
                 />
                 <Text style={styles.actionCaption}>동물병원</Text>
-              </View>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -607,6 +712,14 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           ]}
         />
       ) : null}
+      {pet && suddenEvent ? (
+        <SuddenEventDialog
+          event={suddenEvent}
+          image={pet.image}
+          petName={session?.petName ?? pet.name}
+          onClose={() => setSuddenEvent(null)}
+        />
+      ) : null}
       {pet ? (
         <PetStatsDialog
           visible={statsVisible}
@@ -620,6 +733,15 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
+  previewButton: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#68BF65',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 8,
+  },
+  previewLabel: { ...typography.captionSemiBold12, color: '#327A30' },
   container: { flex: 1, backgroundColor: colors.white },
   background: { position: 'absolute', width: '100%', height: '100%' },
   groundToy: { position: 'absolute', width: 40, height: 40 },
