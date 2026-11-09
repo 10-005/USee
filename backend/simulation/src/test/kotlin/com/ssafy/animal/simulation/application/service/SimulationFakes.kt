@@ -9,6 +9,7 @@ import com.ssafy.animal.simulation.application.port.out.SessionDetailReader
 import com.ssafy.animal.simulation.application.port.out.SimulationActionLogRepository
 import com.ssafy.animal.simulation.application.port.out.ShopItemRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationSessionRepository
+import com.ssafy.animal.simulation.application.port.out.TransactionEntry
 import com.ssafy.animal.simulation.application.port.out.TransactionRepository
 import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.ItemCategory
@@ -21,6 +22,7 @@ import com.ssafy.animal.simulation.domain.SimulationShopItem
 import com.ssafy.animal.simulation.domain.SimulationTransaction
 import com.ssafy.animal.simulation.domain.SpeciesScope
 import com.ssafy.animal.simulation.domain.SpeciesType
+import com.ssafy.animal.simulation.domain.TransactionType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
@@ -55,6 +57,14 @@ class FakeSimulationStore :
     override fun save(transaction: SimulationTransaction) = transaction.also {
         ReflectionTestUtils.setField(it, "transactionSeq", 7000L + transactions.size + 1)
         transactions += it
+    }
+
+    /** 정렬은 기본값(최근 먼저 = PK desc)만 흉내 낸다. 정렬 화이트리스트는 어댑터 테스트에서 본다 */
+    override fun findPage(sessionSeq: Long, type: TransactionType?, pageable: Pageable): Page<TransactionEntry> {
+        val all = transactions.filter { it.sessionSeq == sessionSeq && (type == null || it.transactionType == type) }
+            .sortedByDescending { it.transactionSeq }
+            .map { TransactionEntry(it, it.itemSeq?.let(shopItems::getValue)) }
+        return PageImpl(all.drop(pageable.offset.toInt()).take(pageable.pageSize), pageable, all.size.toLong())
     }
 
     override fun findActiveForUpdate(userSeq: Int) =
