@@ -136,6 +136,15 @@ class EventScenario(
 
     fun neglectEffect(): StatEffect = StatEffect.fromJson(neglectEffectsJsonb)
 
+    /** CONDITION 조건식. RANDOM이면 null */
+    fun condition(): TriggerCondition? = triggerConditionJsonb?.let(TriggerCondition::of)
+
+    /** CONDITION 시나리오의 조건이 지금 스탯에 맞는지. 조건식이 없으면(RANDOM) false */
+    fun conditionMatches(stats: Stats): Boolean = condition()?.matches(stats) ?: false
+
+    /** 발생 확률(0 초과 1 이하) */
+    val probability: Double get() = triggerProbability.toDouble()
+
     /** 세션의 종·성격에 나올 수 있는 시나리오인지 */
     fun appliesTo(speciesType: SpeciesType, personality: Personality): Boolean =
         speciesScope.includes(speciesType) && (personalityScope == null || personalityScope == personality)

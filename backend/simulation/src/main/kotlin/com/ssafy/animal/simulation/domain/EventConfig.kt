@@ -18,13 +18,16 @@ data class EventConfig(
     val randomMaxPerDay: Int = 2,
     /** 이 시각부터 */
     val quietStart: LocalTime = LocalTime.of(22, 0),
-    /** 이 시각 전까지는 RANDOM을 만들지 않는다(밤 푸시·자는 동안 시한 경과 방지) */
+    /** 이 시각 전까지는 RANDOM·CONDITION을 만들지 않는다(밤 푸시·자는 동안 시한 경과 방지) */
     val quietEnd: LocalTime = LocalTime.of(8, 0),
+    /** CONDITION 시나리오의 cooldown_hours가 비어 있을 때 쓰는 재발생 대기 시간(명세 18.0 가안 24시간) */
+    val conditionDefaultCooldown: Duration = Duration.ofHours(24),
 ) {
     init {
         require(!homeExpiry.isNegative && !homeExpiry.isZero) { "homeExpiry는 0보다 커야 합니다." }
         require(randomChancePerCheck in 0.0..1.0) { "randomChancePerCheck는 0~1이어야 합니다: $randomChancePerCheck" }
         require(randomMaxPerDay >= 0) { "randomMaxPerDay는 0 이상이어야 합니다." }
+        require(!conditionDefaultCooldown.isNegative && !conditionDefaultCooldown.isZero) { "conditionDefaultCooldown은 0보다 커야 합니다." }
     }
 
     /** 서울 시각 기준 조용한 시간인지. 시작이 끝보다 늦으면 자정을 넘기는 구간이다 */

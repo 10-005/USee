@@ -132,6 +132,9 @@ class FakeSimulationStore :
             o.sessionSeq == sessionSeq && !o.occurredDttm.isBefore(since) && scenario.triggerContext == context && scenario.triggerType == type
         }
 
+    override fun findLastOccurredAt(sessionSeq: Long, scenarioSeq: Long) =
+        occurrences.filter { it.sessionSeq == sessionSeq && it.scenarioSeq == scenarioSeq }.maxOfOrNull { it.occurredDttm }
+
     /** 정렬은 기본값(최근 발생 먼저 = PK desc)만 흉내 낸다 */
     override fun findPage(sessionSeq: Long, status: OccurrenceStatus?, pageable: Pageable): Page<EventOccurrence> {
         val all = occurrences.filter { it.sessionSeq == sessionSeq && (status == null || it.status == status) }.sortedByDescending { it.occurrenceSeq }
@@ -162,8 +165,14 @@ class FakeSimulationStore :
             ),
             EventScenario(
                 8, "축 처져 있어요", "평소와 달라요", TriggerContext.HOME, TriggerType.CONDITION, ActionCode.VET_VISIT,
-                triggerCondition = mapOf("stat" to "health", "op" to "<", "value" to 40), cooldownHours = 24, resolveCost = 30_000,
+                triggerCondition = mapOf("stat" to "health", "op" to "<", "value" to 40), cooldownHours = 24, resolveCost = 30_000, triggerProbability = java.math.BigDecimal("0.50"),
                 resolveEffects = mapOf("health" to 30, "calmness" to -10), resultText = "진단서: 가벼운 장염", neglectEffects = mapOf("health" to -15),
+            ),
+            EventScenario(
+                12, "불안해서 낑낑대요", "안절부절못해요", TriggerContext.HOME, TriggerType.CONDITION, ActionCode.PLAY,
+                triggerCondition = mapOf("stat" to "calmness", "op" to "<", "value" to 30), cooldownHours = 12,
+                triggerProbability = java.math.BigDecimal("0.50"),
+                resolveEffects = mapOf("calmness" to 15, "bond" to 3, "energy" to -5), neglectEffects = mapOf("calmness" to -10, "health" to -3),
             ),
             EventScenario(
                 13, "헥헥거려요", "혀를 내밀어요", TriggerContext.WALK, TriggerType.RANDOM, ActionCode.GIVE_WATER, speciesScope = SpeciesScope.DOG,

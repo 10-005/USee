@@ -8,6 +8,8 @@ import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SpeciesType
 import com.ssafy.animal.simulation.domain.StatCalculator
 import com.ssafy.animal.simulation.domain.StatCalculatorTest
+import com.ssafy.animal.simulation.domain.Stats
+import com.ssafy.animal.simulation.domain.TriggerType
 import java.time.Duration
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
@@ -174,5 +176,93 @@ class SessionMaintenanceServiceTest {
         // 2일차 첫 판정(시작 + 24시간 = 다음 날 14시)
         serviceAt(start.plusHours(24)).advance(dog.sessionSeq!!)
         assertEquals(3, store.occurrences.size)
+    }
+
+    // ===== CONDITION 돌발 이벤트(259) =====
+
+    private fun sessionWith(stats: Stats, userSeq: Int = 40) = store.save(
+        SimulationSession.start(
+            userSeq = userSeq, breedSeq = 21, animalName = "보리", speciesType = SpeciesType.DOG, personality = Personality.FRIENDLY,
+            expectedCost = 150_000, startedAt = start, endsAt = start.plusDays(7), initialStats = stats,
+        ),
+    )
+
+    private val healthy = Stats(satiety = 90, hydration = 90, cleanliness = 90, bond = 50, calmness = 90, health = 90, energy = 90)
+
+    @Test
+    fun `조건이 맞고 확률에 걸리면 CONDITION 이벤트를 만든다`() {
+        store.stockScenarios()
+        // 8번: 건강 < 40, 확률 0.5
+        val sick = sessionWith(healthy.copy(health = 35))
+        random = ScriptedRandom(doubles = listOf(0.4))
+
+        serviceAt(start.plusHours(1)).advance(sick.sessionSeq!!)
+
+        val occurrence = store.occurrences.single()
+        assertEquals(8L, occurrence.scenarioSeq)
+        assertEquals(start.plusHours(7), occurrence.expiresDttm)
+    }
+
+    @Test
+    fun `조건이 맞아도 확률에 안 걸리면 만들지 않고, 조건이 안 맞으면 확률을 굴리지 않는다`() {
+        store.stockScenarios()
+        val sick = sessionWith(healthy.copy(health = 35))
+        // CONDITION 0.6(실패) → RANDOM 0.999(실패)
+        random = ScriptedRandom(doubles = listOf(0.6))
+        serviceAt(start.plusHours(1)).advance(sick.sessionSeq!!)
+        assertTrue(store.occurrences.isEmpty())
+
+        // 건강한 세션: CONDITION 후보가 없어 첫 난수는 RANDOM 판정에 쓰인다(0.0 → RANDOM 발생)
+        val fine = sessionWith(healthy, userSeq = 41)
+        random = ScriptedRandom(doubles = listOf(0.0))
+        serviceAt(start.plusHours(1)).advance(fine.sessionSeq!!)
+        assertEquals(TriggerType.RANDOM, store.scenarios.getValue(store.occurrences.single().scenarioSeq).triggerType)
+    }
+
+    @Test
+    fun `조건 둘이 맞으면 가중치로 하나를 고른다`() {
+        store.stockScenarios()
+        // 8번(건강<40)·12번(안정감<30) 모두 맞음, 가중치 1:1. 추첨값 1 → 12번
+        val both = sessionWith(healthy.copy(health = 35, calmness = 20))
+        random = ScriptedRandom(doubles = listOf(0.1), ints = listOf(1))
+
+        serviceAt(start.plusHours(1)).advance(both.sessionSeq!!)
+
+        assertEquals(12L, store.occurrences.single().scenarioSeq)
+    }
+
+    @Test
+    fun `같은 시나리오는 쿨다운 동안 다시 만들지 않는다`() {
+        store.stockScenarios()
+        // 건강 조건(8번)이 같이 맞지 않도록 빼고 12번(안정감 < 30, 쿨다운 12시간)만 본다
+        store.scenarios.remove(8L)
+        val anxious = sessionWith(healthy.copy(calmness = 20))
+        // 시작(14시) + 7시간 = 21시에 발생해 해결된 상태 → 쿨다운은 다음 날 9시(시작 + 19시간)까지
+        store.save(EventOccurrence.occur(anxious, store.scenarios.getValue(12), start.plusHours(7), start.plusHours(13)))
+            .resolve(start.plusHours(8), 50_000L)
+        random = ScriptedRandom(doubles = listOf(0.1, 0.999, 0.999, 0.1))
+
+        // 다음 날 8시: 쿨다운 안 → CONDITION 후보 없음, RANDOM은 0.1로 안 걸림(0.1 ≥ 0.0104)
+        serviceAt(start.plusHours(18)).advance(anxious.sessionSeq!!)
+        assertEquals(1, store.occurrences.size)
+
+        // 9시: 쿨다운 끝 → CONDITION 0.999(실패)·RANDOM 0.999(실패), 9시 10분 판정에서 CONDITION 0.1(성공)
+        serviceAt(start.plusHours(19)).advance(anxious.sessionSeq!!)
+        assertEquals(1, store.occurrences.size)
+        serviceAt(start.plusHours(19).plusMinutes(10)).advance(anxious.sessionSeq!!)
+        assertEquals(2, store.occurrences.size)
+        assertEquals(12L, store.occurrences.last().scenarioSeq)
+    }
+
+    @Test
+    fun `밤 시간에는 CONDITION도 만들지 않는다`() {
+        store.stockScenarios()
+        val sick = sessionWith(healthy.copy(health = 35))
+        random = ScriptedRandom(doubles = listOf(0.0, 0.0))
+
+        // 시작 14시 + 9시간 = 23시
+        serviceAt(start.plusHours(9)).advance(sick.sessionSeq!!)
+
+        assertTrue(store.occurrences.isEmpty())
     }
 }

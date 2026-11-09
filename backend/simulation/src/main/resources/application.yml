@@ -110,8 +110,9 @@ simulation:
     home-expiry: 6h
     random-chance-per-check: 0.0104
     random-max-per-day: 2      # 세션 일차(시작 기준 24시간)당
-    quiet-start: "22:00"       # 22시~8시에는 RANDOM을 만들지 않는다
+    quiet-start: "22:00"       # 22시~8시에는 RANDOM·CONDITION 이벤트를 만들지 않는다
     quiet-end: "08:00"
+    condition-default-cooldown: 24h   # CONDITION 시나리오 cooldown_hours가 비어 있을 때
 
 management:
   endpoints:

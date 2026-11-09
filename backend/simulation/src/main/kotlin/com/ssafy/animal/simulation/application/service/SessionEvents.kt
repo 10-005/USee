@@ -73,15 +73,40 @@ class SessionEvents(
     }
 
     /**
+     * HOME·CONDITION 이벤트를 만든다(스케줄러 판정 1회분, Q481·사용자 결정 2026-11-09 Q499).
+     * 대기 이벤트가 없고 조용한 시간이 아닐 때, 조건식이 지금 스탯에 맞고 쿨다운(cooldown_hours, 없으면 설정 24시간)이 지난
+     * 시나리오 중 가중치로 하나를 골라 그 시나리오의 발생 확률로 만든다. 하루 횟수 제한은 없다. 만들었으면 그 이벤트, 아니면 null.
+     */
+    fun triggerCondition(session: SimulationSession, at: OffsetDateTime): EventOccurrence? {
+        if (!canTrigger(session, at)) return null
+        val sessionSeq = checkNotNull(session.sessionSeq)
+        val stats = session.stats()
+        val candidates = scenarioRepository.findActive(TriggerContext.HOME, TriggerType.CONDITION)
+            .filter { it.appliesTo(session.speciesType, session.personality) && it.conditionMatches(stats) }
+            .filter { scenario ->
+                val cooldown = scenario.cooldownHours?.let { Duration.ofHours(it.toLong()) } ?: properties.event.conditionDefaultCooldown
+                val last = occurrenceRepository.findLastOccurredAt(sessionSeq, scenario.scenarioSeq)
+                last == null || !at.isBefore(last.plus(cooldown))
+            }
+        val scenario = pickWeighted(candidates) ?: return null
+        if (random.nextDouble() >= scenario.probability) return null
+        return occurrenceRepository.save(EventOccurrence.occur(session, scenario, at, at.plus(properties.event.homeExpiry)))
+    }
+
+    /** 진행 중이고, 조용한 시간이 아니고, 예정 종료 전이며, 대기 이벤트가 없을 때만 새 이벤트를 만든다 */
+    private fun canTrigger(session: SimulationSession, at: OffsetDateTime): Boolean =
+        session.isInProgress && !properties.event.isQuiet(at) && at.isBefore(session.endsDttm) &&
+            occurrenceRepository.findPending(checkNotNull(session.sessionSeq)) == null
+
+    /**
      * HOME·RANDOM 이벤트를 확률로 만든다(스케줄러 판정 1회분, M11·사용자 결정 2026-11-09).
      * 대기 이벤트가 없고, 조용한 시간(22~8시 [가안])이 아니고, 세션 일차(시작 기준 24시간)당 횟수가 남았을 때만
      * 판정 확률로 발생시키며, 세션의 종·성격에 맞는 시나리오를 가중치로 고른다. 만들었으면 그 이벤트, 아니면 null.
      */
     fun triggerRandom(session: SimulationSession, at: OffsetDateTime): EventOccurrence? {
         val config = properties.event
-        if (!session.isInProgress || config.isQuiet(at) || !at.isBefore(session.endsDttm)) return null
+        if (!canTrigger(session, at)) return null
         val sessionSeq = checkNotNull(session.sessionSeq)
-        if (occurrenceRepository.findPending(sessionSeq) != null) return null
         val dayStart = session.startedDttm.plusDays(Duration.between(session.startedDttm, at).toDays())
         if (occurrenceRepository.countOccurredSince(sessionSeq, TriggerContext.HOME, TriggerType.RANDOM, dayStart) >= config.randomMaxPerDay) return null
         if (random.nextDouble() >= config.randomChancePerCheck) return null
