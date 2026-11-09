@@ -14,7 +14,7 @@ data class SimulationReportResponse(
     val sessionSeq: Long,
     @field:Schema(description = SESSION_STATUS_DESC, example = "ABANDONED")
     val status: SessionStatus,
-    @get:Schema(name = "isFinal", description = "저장된 종료 리포트면 true(진행 중 중간 리포트는 263에서 false로 제공)", example = "true")
+    @get:Schema(name = "isFinal", description = "저장된 종료 리포트면 true, 진행 중 세션의 중간 리포트(계산만 하고 저장하지 않음)면 false", example = "true")
     val isFinal: Boolean,
     @field:Schema(description = "가상 이름", example = "초코")
     val animalName: String,
@@ -26,7 +26,7 @@ data class SimulationReportResponse(
     val personality: Personality,
     @field:Schema(description = "시작 시각", example = "2026-11-01T14:00:00+09:00")
     val startedDttm: OffsetDateTime,
-    @field:Schema(description = "종료 시각", nullable = true, example = "2026-11-03T10:20:00+09:00")
+    @field:Schema(description = "종료 시각. 중간 리포트면 null", nullable = true, example = "2026-11-03T10:20:00+09:00")
     val endedDttm: OffsetDateTime?,
     @field:Schema(description = "일주일 예상 비용(원)", example = "150000")
     val expectedCost: Int,
@@ -42,7 +42,7 @@ data class SimulationReportResponse(
     @field:Schema(description = "일차별 지출(원). 키는 \"1\"~\"7\"(시작 기준 n일차)", example = """{"1":31200,"2":21600,"3":0}""")
     val dailySpent: Map<String, Int>,
     @field:Schema(
-        description = "종료 시점 스탯 7종",
+        description = "종료 시점 스탯 7종(중간 리포트면 조회 시점 스탯)",
         example = """{"satiety":55,"hydration":60,"cleanliness":70,"bond":62,"calmness":72,"health":84,"energy":58}""",
     )
     val finalStats: Map<String, Int>,
@@ -54,7 +54,11 @@ data class SimulationReportResponse(
     val eventResolvedCount: Int,
     @field:Schema(description = "산책 수. 고양이 세션은 항상 0", example = "0")
     val walkCount: Int,
-    @field:Schema(description = "요약 문구. 종료 직후에는 null(비동기로 생성, 앱은 \"요약 준비 중\" 표시)", nullable = true, example = "null")
+    @field:Schema(
+        description = "요약 문구. 종료 직후에는 null(비동기로 생성, 앱은 \"요약 준비 중\" 표시 후 다시 조회). 중간 리포트는 항상 null",
+        nullable = true,
+        example = "null",
+    )
     val summary: String?,
 ) {
     companion object {
@@ -62,7 +66,7 @@ data class SimulationReportResponse(
             SimulationReportResponse(
                 sessionSeq = sessionSeq,
                 status = view.session.status,
-                isFinal = true,
+                isFinal = view.isFinal,
                 animalName = view.session.animalName,
                 breed = BreedResponse.from(view.breed),
                 speciesType = view.session.speciesType,
@@ -108,3 +112,5 @@ data class AbandonResponse(
 
 // Swagger 문서 전용 성공 응답 미러(런타임 미사용)
 abstract class AbandonSuccessSchema : SuccessResponseSchema<AbandonResponse>()
+
+abstract class SimulationReportSuccessSchema : SuccessResponseSchema<SimulationReportResponse>()

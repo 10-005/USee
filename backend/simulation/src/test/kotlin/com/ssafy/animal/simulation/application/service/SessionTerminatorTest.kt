@@ -29,10 +29,9 @@ class SessionTerminatorTest {
     private val published = mutableListOf<Any>()
     private val terminator = SessionTerminator(
         closingRepository = store,
-        transactionRepository = store,
         actionLogRepository = store,
         reportRepository = store,
-        properties = SimulationProperties(Duration.ofHours(1), Duration.ofDays(7), StatCalculatorTest.RULES),
+        reportCalculator = store.reportCalculator(SimulationProperties(Duration.ofHours(1), Duration.ofDays(7), StatCalculatorTest.RULES)),
         eventPublisher = ApplicationEventPublisher { published += it },
     )
     private val start = OffsetDateTime.of(2026, 11, 1, 14, 0, 0, 0, ZoneOffset.ofHours(9))

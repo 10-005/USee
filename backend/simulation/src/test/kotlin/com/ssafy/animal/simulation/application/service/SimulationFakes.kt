@@ -229,8 +229,10 @@ class FakeSimulationStore :
     /** 종료 시 발행된 내부 이벤트 */
     val published = mutableListOf<Any>()
 
+    fun reportCalculator(properties: SimulationProperties) = ReportCalculator(this, this, this, properties)
+
     fun terminator(properties: SimulationProperties) =
-        SessionTerminator(this, this, this, this, properties, ApplicationEventPublisher { published += it })
+        SessionTerminator(this, this, this, reportCalculator(properties), ApplicationEventPublisher { published += it })
 
     /** 고정 시각 now 기준 진행(지연 계산·종료 판정) */
     fun progress(properties: SimulationProperties, now: OffsetDateTime) = SessionProgress(
