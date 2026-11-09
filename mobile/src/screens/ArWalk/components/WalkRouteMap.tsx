@@ -1,5 +1,4 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   NaverMapView,
   NaverMapArrowheadPathOverlay,
@@ -7,71 +6,76 @@ import {
 } from '@mj-studio/react-native-naver-map';
 import type { useWalkRoute } from '../useWalkRoute';
 
-export function WalkRouteMap({
-  visible,
-  onClose,
-  route,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  route: ReturnType<typeof useWalkRoute>;
-}) {
-  const points = route.segments.flat();
-  const first = points[0];
-  const last = points[points.length - 1];
+export function WalkRouteMap({ route }: { route: ReturnType<typeof useWalkRoute> }) {
+  const first = route.segments[0]?.[0];
+  const segment = route.segments[route.segments.length - 1];
+  const last = segment?.[segment.length - 1];
   return (
-    <Modal visible={visible} onRequestClose={onClose} animationType="slide">
-      <SafeAreaView style={styles.screen}>
-        <View style={styles.header}>
-          <Text>산책 경로 · {(route.meters / 1000).toFixed(2)} km</Text>
-          <Pressable
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel="산책 경로 닫기"
-            style={styles.close}
-          >
-            <Text>닫기</Text>
-          </Pressable>
+    <View style={styles.container} accessibilityLabel="실시간 산책 경로">
+      {last ? (
+        <NaverMapView
+          isUseTextureViewAndroid
+          style={styles.map}
+          camera={{ latitude: last.latitude, longitude: last.longitude, zoom: 17 }}
+          isShowCompass
+          isScrollGesturesEnabled={false}
+          isZoomGesturesEnabled={false}
+          isRotateGesturesEnabled={false}
+          isTiltGesturesEnabled={false}
+        >
+          {route.segments.map((points, index) =>
+            points.length >= 2 ? (
+              <NaverMapArrowheadPathOverlay key={index} coords={points} width={4} color="#2185FF" />
+            ) : null,
+          )}
+          {first && (
+            <NaverMapMarkerOverlay
+              {...first}
+              caption={{ text: '출발' }}
+              tintColor="#29A36A"
+              width={18}
+              height={24}
+            />
+          )}
+          <NaverMapMarkerOverlay {...last} tintColor="#2185FF" width={18} height={24} />
+        </NaverMapView>
+      ) : (
+        <View style={styles.map}>
+          <Text style={styles.waiting}>위치 확인 중</Text>
         </View>
-        {visible && last ? (
-          <NaverMapView style={styles.map} initialCamera={{ ...last, zoom: 16 }} isShowCompass>
-            {route.segments.map((segment, index) =>
-              segment.length >= 2 ? (
-                <NaverMapArrowheadPathOverlay
-                  key={index}
-                  coords={segment}
-                  width={5}
-                  color="#2185FF"
-                />
-              ) : null,
-            )}
-            <NaverMapMarkerOverlay {...first} caption={{ text: '출발' }} tintColor="#29A36A" />
-            <NaverMapMarkerOverlay {...last} caption={{ text: '현재' }} tintColor="#2185FF" />
-          </NaverMapView>
-        ) : (
-          <View style={styles.map} />
-        )}
-        <Text style={styles.notice}>
-          {route.message ||
-            '화살표 방향으로 이동했습니다. 지도를 확대하거나 이동해 경로를 확인하세요.'}
-        </Text>
-        <Text style={styles.notice}>
-          산책 화면이 활성화된 동안 기록하며, 화면을 나가면 기록이 종료됩니다.
-        </Text>
-      </SafeAreaView>
-    </Modal>
+      )}
+      {!!route.message && (
+        <Pressable
+          onPress={route.retry}
+          accessibilityRole="button"
+          accessibilityLabel="산책 위치 다시 확인"
+          style={styles.status}
+        >
+          <Text style={styles.notice}>{route.message} 터치하여 재시도</Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
+  container: {
+    width: 180,
+    height: 126,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#F0F3F5',
+    marginTop: 6,
   },
-  close: { padding: 16 },
-  map: { flex: 1 },
-  notice: { padding: 12, color: '#555555', fontSize: 12 },
+  map: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  waiting: { color: '#555555', fontSize: 12 },
+  status: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    padding: 6,
+  },
+  notice: { fontSize: 10, color: '#444444' },
 });

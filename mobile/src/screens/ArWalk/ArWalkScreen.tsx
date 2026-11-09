@@ -133,7 +133,6 @@ export function ArWalkScreen({
   const [loadingDots, setLoadingDots] = useState(2);
   const [walkStartedAt, setWalkStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [routeVisible, setRouteVisible] = useState(false);
   const walkRoute = useWalkRoute(isFocused && walkStartedAt !== null);
   const voice = useWalkVoice(
     isFocused && hasPermission && status === 'anchored' && !bagPurchaseVisible,
@@ -237,21 +236,13 @@ export function ArWalkScreen({
         <Text accessibilityLabel={`산책 시간 ${walkTime}`} style={styles.walkTimerText}>
           {walkTime}
         </Text>
-        <Text style={styles.walkTimerText}>{(walkRoute.meters / 1000).toFixed(2)} km</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="산책 경로 보기"
-          onPress={() => setRouteVisible(true)}
-          style={{ paddingVertical: 8 }}
-        >
-          <Text style={styles.walkTimerText}>경로 보기</Text>
-        </Pressable>
+        <Text style={styles.walkTimerText}>
+          {walkRoute.meters < 1000
+            ? `${Math.round(walkRoute.meters)} m`
+            : `${(walkRoute.meters / 1000).toFixed(2)} km`}
+        </Text>
+        <WalkRouteMap route={walkRoute} />
       </View>
-      <WalkRouteMap
-        visible={routeVisible}
-        onClose={() => setRouteVisible(false)}
-        route={walkRoute}
-      />
       {isRecognizing && (
         <View pointerEvents="none" style={styles.loadingOverlay}>
           <ActivityIndicator color="#FFFFFF" size="small" />
@@ -268,7 +259,7 @@ export function ArWalkScreen({
       {hasPermission && (
         <View
           pointerEvents="box-none"
-          style={[styles.displayControls, { top: headerHeight + 112 }]}
+          style={[styles.displayControls, { top: headerHeight + 192 }]}
         >
           <Pressable
             accessibilityRole="switch"
