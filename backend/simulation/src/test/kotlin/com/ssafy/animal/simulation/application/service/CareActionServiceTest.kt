@@ -8,6 +8,11 @@ import com.ssafy.animal.simulation.config.SimulationProperties
 import com.ssafy.animal.simulation.domain.ActionCode
 import com.ssafy.animal.simulation.domain.ActionType
 import com.ssafy.animal.simulation.domain.CareConfig
+import com.ssafy.animal.simulation.domain.EventOccurrence
+import com.ssafy.animal.simulation.domain.OccurrenceStatus
+import com.ssafy.animal.simulation.domain.SimulationActionLog
+import com.ssafy.animal.simulation.domain.StatEffect
+import com.ssafy.animal.simulation.domain.TransactionType
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.ShopRules
@@ -27,6 +32,7 @@ import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -56,6 +62,7 @@ class CareActionServiceTest {
         inventory = inventory,
         statRefresher = SessionStatRefresher(calculator, Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul"))),
         progress = store.progress(properties, now),
+        events = store.events(),
         properties = properties,
     )
 
@@ -339,6 +346,93 @@ class CareActionServiceTest {
 
         assertTrue(result.statDelta.isEmpty())
         assertEquals(emptyMap(), store.logs.single().statDeltaJsonb)
+    }
+
+    // ===== 돌발 이벤트 해결(Q486) =====
+
+    private fun pending(scenarioSeq: Long, expiresAt: OffsetDateTime = start.plusHours(6)) = store.save(
+        EventOccurrence.occur(session, store.scenarios.getValue(scenarioSeq), start, expiresAt),
+    )
+
+    @Test
+    fun `정답 행동이면 해결 효과를 더해 합산 변화로 기록하고 이벤트를 RESOLVED로 바꾼다`() {
+        store.stockScenarios()
+        buy(2)
+        // 1번(물그릇): 정답 WATER, 해결 효과 수분 +10·안정감 +5
+        val occurrence = pending(1)
+
+        val result = act(ActionCode.WATER)
+
+        // 물 +50으로 수분 70 → 100이라 해결 효과의 수분 +10은 잘리고 안정감 +5만 남는다
+        assertEquals(mapOf(Stat.HYDRATION to 30, Stat.CALMNESS to 5), result.statDelta)
+        val resolved = assertNotNull(result.resolvedEvent)
+        assertEquals(occurrence.occurrenceSeq, resolved.occurrenceSeq)
+        assertEquals("물그릇을 엎었어요", resolved.scenarioTitle)
+        assertEquals("시원하게 마셨어요.", resolved.resultText)
+        assertEquals(mapOf(Stat.CALMNESS to 5), resolved.eventStatDelta)
+        assertEquals(0, resolved.eventCost)
+        assertEquals(OccurrenceStatus.RESOLVED, occurrence.status)
+        assertEquals(start, occurrence.resolvedDttm)
+        assertEquals(result.log.actionLogSeq, occurrence.resolvedActionLogSeq)
+        assertEquals(occurrence.occurrenceSeq, result.log.occurrenceSeq)
+        assertEquals(mapOf("hydration" to 30, "calmness" to 5), result.log.statDeltaJsonb)
+    }
+
+    @Test
+    fun `해결 효과의 대가(포만감·활력 감소)도 함께 반영한다`() {
+        store.stockScenarios()
+        buy(11)
+        // 5번(쿠션): 정답 PLAY, 친밀도 +5·안정감 +10·포만감 -5·활력 -10. 장난감 11번은 친밀도 +3
+        pending(5)
+
+        val result = act(ActionCode.PLAY)
+
+        assertEquals(mapOf(Stat.SATIETY to -5, Stat.BOND to 8, Stat.CALMNESS to 10, Stat.ENERGY to -10), result.statDelta)
+        assertEquals(mapOf(Stat.SATIETY to -5, Stat.BOND to 5, Stat.CALMNESS to 10, Stat.ENERGY to -10), result.resolvedEvent?.eventStatDelta)
+    }
+
+    @Test
+    fun `오답 행동은 평소 행동으로만 처리하고 이벤트는 대기 그대로`() {
+        store.stockScenarios()
+        buy(1)
+        buy(22)
+        val occurrence = pending(1)
+
+        val result = act(ActionCode.FEED, itemSeq = 22)
+
+        assertNull(result.resolvedEvent)
+        assertNull(result.log.occurrenceSeq)
+        assertTrue(occurrence.isPending)
+    }
+
+    @Test
+    fun `행동 전에 시한이 지났으면 먼저 만료되어 해결되지 않는다`() {
+        store.stockScenarios()
+        buy(2)
+        val occurrence = pending(1, expiresAt = start.plusHours(1))
+
+        val result = act(ActionCode.WATER, at = start.plusHours(2))
+
+        assertNull(result.resolvedEvent)
+        assertEquals(OccurrenceStatus.EXPIRED, occurrence.status)
+    }
+
+    @Test
+    fun `해결 비용이 있는 이벤트는 EVENT 지출로 잔액에서 뺀다`() {
+        store.stockScenarios()
+        // 8번(축 처져 있어요): 병원 30,000원. 병원 행동은 254에서 붙이므로 해결 처리만 직접 부른다
+        val occurrence = pending(8)
+        val log = store.save(SimulationActionLog.care(session, ActionCode.FEED, null, session.applyEffect(StatEffect.NONE)))
+        val events = store.events()
+
+        val resolved = events.resolve(session, assertNotNull(events.pending(session)), log, session.applyEffect(StatEffect.NONE), start)
+
+        assertEquals(30_000, resolved.eventCost)
+        assertEquals(120_000, session.balance)
+        val spend = store.transactions.single()
+        assertEquals(TransactionType.EVENT, spend.transactionType)
+        assertEquals(occurrence.occurrenceSeq, spend.occurrenceSeq)
+        assertEquals(30_000, spend.amount)
     }
 
     private fun assertError(expected: ErrorCode, block: () -> Unit) {

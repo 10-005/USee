@@ -15,6 +15,7 @@ import com.ssafy.animal.simulation.config.SimulationProperties
 import com.ssafy.animal.simulation.domain.ActionCode
 import com.ssafy.animal.simulation.domain.CareRule
 import com.ssafy.animal.simulation.domain.CareRules
+import com.ssafy.animal.simulation.domain.EffectResult
 import com.ssafy.animal.simulation.domain.EffectSource
 import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.SimulationActionLog
@@ -34,6 +35,7 @@ class CareActionService(
     private val inventory: SimulationInventory,
     private val statRefresher: SessionStatRefresher,
     private val progress: SessionProgress,
+    private val events: SessionEvents,
     private val properties: SimulationProperties,
 ) : CareActionUseCase {
 
@@ -108,10 +110,19 @@ class CareActionService(
         usedItemSeq: Long?,
         effect: StatEffect,
     ): CareActionResult {
-        val result = session.applyEffect(effect)
-        session.recordAction(statRefresher.now())
-        val log = actionLogRepository.save(SimulationActionLog.care(session, rule.actionCode, usedItemSeq, result))
-        return CareActionResult(log, session, consumed, result.delta)
+        val now = statRefresher.now()
+        val itemResult = session.applyEffect(effect)
+        // 대기 이벤트의 정답이면 해결 효과를 이어서 더한다. 오답은 평소 행동으로만 처리(패널티 없음, Q486)
+        val answered = events.pending(session)?.takeIf { it.isAnsweredBy(rule.actionCode) }
+        val eventResult = answered?.let { session.applyEffect(it.scenario.resolveEffect()) }
+        // statDelta·로그는 물품 효과 + 해결 효과 합산
+        val result = eventResult?.let { EffectResult(itemResult.before, it.after) } ?: itemResult
+        session.recordAction(now)
+        val log = actionLogRepository.save(
+            SimulationActionLog.care(session, rule.actionCode, usedItemSeq, result, answered?.occurrence?.occurrenceSeq),
+        )
+        val resolved = answered?.let { events.resolve(session, it, log, checkNotNull(eventResult), now) }
+        return CareActionResult(log, session, consumed, result.delta, resolved)
     }
 
     private fun requireForSpecies(session: SimulationSession, item: SimulationShopItem) {

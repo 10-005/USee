@@ -342,7 +342,7 @@ class FakeSimulationStore :
     fun refresher(properties: SimulationProperties, now: OffsetDateTime) =
         SessionStatRefresher(StatCalculator(properties.stats, properties.tick), Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul")))
 
-    fun events() = SessionEvents(this, this, this)
+    fun events() = SessionEvents(this, this, this, this)
 
     companion object {
         val MALTESE = BreedInfo(21, "말티즈", CatalogSpeciesCode.DOG, Personality.FRIENDLY, "https://cdn/breeds/maltese.png")

@@ -65,7 +65,10 @@ class CareActionController(
             "- 그 밖의 코드(VET_VISIT·산책·시스템)는 아직 400.\n" +
             "- `statDelta`는 실제로 바뀐 양만 담는다(포만감 90에 +30이면 +10, 이미 100이면 빠짐).\n" +
             "- 돈은 쓰지 않는다. 마지막 행동 시각이 갱신되고 행동 이력(CARE)이 1건 남는다.\n" +
-            "- `resolvedEvent`는 돌발 이벤트 기능 전까지 항상 null.",
+            "- 대기 중인 집 돌발 이벤트가 있고 이 행동이 정답이면 해결 효과를 더하고 `resolvedEvent`에 결과를 준다. " +
+            "`statDelta`는 물품 효과 + 해결 효과 합산, `resolvedEvent.eventStatDelta`는 그중 이벤트 몫. " +
+            "해결 효과에도 대가가 있을 수 있다(예: 놀아 주면 안정감은 오르지만 포만감·활력이 준다).\n" +
+            "- 오답이거나 대기 이벤트가 없으면 `resolvedEvent`는 null이고 이벤트는 그대로다(오답 패널티 없음, 시한이 지나면 방치 효과).",
     )
     @ApiResponses(
         ApiResponse(
@@ -79,6 +82,7 @@ class CareActionController(
                         ExampleObject(name = "밥 주기(사료 사용)", value = FEED_SUCCESS),
                         ExampleObject(name = "물 주기(소모품 없음)", value = WATER_SUCCESS),
                         ExampleObject(name = "캣닢 남용(6시간 안에 또 줌)", value = CATNIP_OVERUSE_SUCCESS),
+                        ExampleObject(name = "돌발 이벤트 해결(놀아 주기, 대가 포함)", value = PLAY_RESOLVED_SUCCESS),
                     ],
                 ),
             ],
@@ -171,6 +175,13 @@ class CareActionController(
                 """"consumedItem":{"itemSeq":33,"itemName":"향긋한 캣닢","remainingQuantity":2},"statDelta":{"calmness":-20},""" +
                 """"stats":{"satiety":64,"hydration":58,"cleanliness":77,"bond":34,"calmness":21,"health":90,"energy":70,"calculatedDttm":"2026-11-01T19:00:00+09:00"},""" +
                 """"balance":118000,"resolvedEvent":null},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+        const val PLAY_RESOLVED_SUCCESS =
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"actionLogSeq":50004,"actionType":"CARE","actionCode":"PLAY",""" +
+                """"consumedItem":null,"statDelta":{"satiety":-5,"bond":9,"calmness":13,"energy":-10},""" +
+                """"stats":{"satiety":59,"hydration":58,"cleanliness":77,"bond":40,"calmness":59,"health":90,"energy":45,"calculatedDttm":"2026-11-01T17:00:00+09:00"},""" +
+                """"balance":118000,"resolvedEvent":{"occurrenceSeq":90001,"scenarioTitle":"쿠션을 물어뜯어요",""" +
+                """"resultText":"신나게 놀고 나니 쿠션에는 관심이 없어졌어요. 배가 좀 고파 보여요.",""" +
+                """"eventStatDelta":{"satiety":-5,"bond":5,"calmness":10,"energy":-10},"eventCost":0}},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val UNSUPPORTED_ACTION =
             """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"actionCode","reason":"지원하지 않는 돌봄 행동입니다: VET_VISIT"}],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val ITEM_REQUIRED =
@@ -211,9 +222,22 @@ data class CareActionResponse(
     val stats: StatsResponse,
     @field:Schema(description = "현재 잔액(원). 돌봄 행동은 돈을 쓰지 않는다", example = "118000")
     val balance: Int,
-    @field:Schema(description = "이 행동으로 해결한 돌발 이벤트. 이벤트 기능 전까지 항상 null", nullable = true, example = "null")
-    val resolvedEvent: Any?,
+    @field:Schema(description = "이 행동이 대기 중 돌발 이벤트의 정답이었으면 해결 결과, 아니면 null", nullable = true)
+    val resolvedEvent: ResolvedEventResponse?,
 ) {
+    data class ResolvedEventResponse(
+        @field:Schema(description = "해결한 이벤트 번호", example = "90001")
+        val occurrenceSeq: Long,
+        @field:Schema(description = "시나리오 제목", example = "물그릇을 엎었어요")
+        val scenarioTitle: String,
+        @field:Schema(description = "해결 결과 문구(병원이면 진단서)", nullable = true, example = "새 물을 받아 주니 꿀꺽꿀꺽 시원하게 마셨어요.")
+        val resultText: String?,
+        @field:Schema(description = "statDelta 중 이벤트 해결 효과 몫(실제 변화)", example = """{"hydration":10,"calmness":5}""")
+        val eventStatDelta: Map<String, Int>,
+        @field:Schema(description = "해결 비용(원). 병원 진료비만 0보다 크다", example = "0")
+        val eventCost: Int,
+    )
+
     data class ConsumedItemResponse(
         @field:Schema(description = "물품 번호", example = "22")
         val itemSeq: Long,
@@ -232,7 +256,9 @@ data class CareActionResponse(
             statDelta = result.statDelta.entries.associate { (stat, value) -> stat.key to value },
             stats = StatsResponse.of(result.session.stats(), result.session.statsCalculatedDttm),
             balance = result.session.balance,
-            resolvedEvent = null,
+            resolvedEvent = result.resolvedEvent?.let {
+                ResolvedEventResponse(it.occurrenceSeq, it.scenarioTitle, it.resultText, it.eventStatDelta.entries.associate { (stat, value) -> stat.key to value }, it.eventCost)
+            },
         )
     }
 }
