@@ -3,34 +3,48 @@ package com.ssafy.animal.simulation.application.service
 import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.port.out.BreedReader
 import com.ssafy.animal.simulation.application.port.out.CatalogSpeciesCode
+import com.ssafy.animal.simulation.application.port.out.InventoryEntry
+import com.ssafy.animal.simulation.application.port.out.InventoryRepository
 import com.ssafy.animal.simulation.application.port.out.SessionDetailReader
 import com.ssafy.animal.simulation.application.port.out.SimulationActionLogRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationSessionRepository
 import com.ssafy.animal.simulation.domain.Equipment
+import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationActionLog
+import com.ssafy.animal.simulation.domain.SimulationInventoryItem
 import com.ssafy.animal.simulation.domain.SimulationSession
+import com.ssafy.animal.simulation.domain.SimulationShopItem
+import com.ssafy.animal.simulation.domain.SpeciesScope
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.test.util.ReflectionTestUtils
 
 /** 서비스 테스트용 메모리 저장소. 포트 계약만 흉내 낸다 */
-class FakeSimulationStore : SimulationSessionRepository, SimulationActionLogRepository, BreedReader, SessionDetailReader {
+class FakeSimulationStore :
+    SimulationSessionRepository,
+    SimulationActionLogRepository,
+    BreedReader,
+    SessionDetailReader,
+    InventoryRepository {
 
     val sessions = mutableListOf<SimulationSession>()
     val logs = mutableListOf<SimulationActionLog>()
     val breeds = mutableMapOf<Int, BreedInfo>()
     val breedLookups = mutableListOf<Int>()
-    val equipment = mutableMapOf<Long, Equipment>()
     val activeWalks = mutableMapOf<Long, Long>()
     val reported = mutableSetOf<Long>()
+    val shopItems = mutableMapOf<Long, SimulationShopItem>()
+    val inventory = mutableListOf<SimulationInventoryItem>()
 
     override fun findActiveForUpdate(userSeq: Int) =
         sessions.firstOrNull { it.userSeq == userSeq && it.status == SessionStatus.IN_PROGRESS }
 
     override fun findByIdForUpdate(sessionSeq: Long) = sessions.firstOrNull { it.sessionSeq == sessionSeq }
+
+    override fun findById(sessionSeq: Long) = findByIdForUpdate(sessionSeq)
 
     /** 정렬은 기본값(startedDttm desc, PK desc)만 흉내 낸다. 정렬 화이트리스트는 어댑터 테스트에서 본다 */
     override fun findPageByUser(userSeq: Int, status: SessionStatus?, pageable: Pageable): Page<SimulationSession> {
@@ -56,13 +70,41 @@ class FakeSimulationStore : SimulationSessionRepository, SimulationActionLogRepo
 
     override fun findBreeds(breedSeqs: Collection<Int>) = breedSeqs.mapNotNull { breeds[it] }.associateBy { it.breedSeq }
 
-    override fun findEquipment(sessionSeq: Long) = equipment[sessionSeq] ?: Equipment.NONE
-
     override fun findActiveWalkSeq(sessionSeq: Long) = activeWalks[sessionSeq]
 
     override fun findSessionSeqsWithReport(sessionSeqs: Collection<Long>) = sessionSeqs.filterTo(mutableSetOf()) { it in reported }
 
-    fun assembler() = SimulationSessionDetailAssembler(this, this)
+    override fun find(sessionSeq: Long, itemSeq: Long) = inventory.firstOrNull { it.sessionSeq == sessionSeq && it.itemSeq == itemSeq }
+
+    override fun save(inventoryItem: SimulationInventoryItem) = inventoryItem.also {
+        if (it.inventoryItemSeq == null) {
+            ReflectionTestUtils.setField(it, "inventoryItemSeq", 5000L + inventory.size + 1)
+            inventory += it
+        }
+    }
+
+    override fun findAllWithItems(sessionSeq: Long) = inventory.filter { it.sessionSeq == sessionSeq }
+        .map { InventoryEntry(it, shopItems.getValue(it.itemSeq)) }
+        .sortedWith(compareBy<InventoryEntry> { it.shopItem.displayOrder }.thenBy { it.shopItem.itemSeq })
+
+    override fun findEquipment(sessionSeq: Long) = Equipment.of(
+        findAllWithItems(sessionSeq).filter { it.inventoryItem.quantity > 0 && !it.shopItem.isConsumable }.mapTo(mutableSetOf()) { it.shopItem.category },
+    )
+
+    /** 시드와 같은 번호·분류의 물품 몇 개 */
+    fun stockShop() {
+        listOf(
+            SimulationShopItem(1, "밥그릇", ItemCategory.FOOD_BOWL, 10_000, SpeciesScope.ALL, displayOrder = 1),
+            SimulationShopItem(11, "탐색 장난감", ItemCategory.TOY, 4_100, SpeciesScope.ALL, effects = mapOf("bond" to 3), displayOrder = 11),
+            SimulationShopItem(22, "균형 잡힌 사료", ItemCategory.FOOD, 10_600, SpeciesScope.ALL, effects = mapOf("satiety" to 30), displayOrder = 22),
+            SimulationShopItem(
+                31, "화장실 모래", ItemCategory.LITTER, 7_200, SpeciesScope.CAT,
+                effects = mapOf("cleanliness" to 30), imageKey = "simulation/items/litter.png", displayOrder = 31,
+            ),
+        ).forEach { shopItems[it.itemSeq] = it }
+    }
+
+    fun assembler() = SimulationSessionDetailAssembler(this, this, this)
 
     companion object {
         val MALTESE = BreedInfo(21, "말티즈", CatalogSpeciesCode.DOG, Personality.FRIENDLY, "https://cdn/breeds/maltese.png")

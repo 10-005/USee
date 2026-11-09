@@ -4,6 +4,7 @@ import com.ssafy.animal.simulation.application.service.FakeSimulationStore.Compa
 import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.Personality
+import com.ssafy.animal.simulation.domain.SimulationInventoryItem
 import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SpeciesType
 import com.ssafy.animal.simulation.domain.StatCalculator
@@ -31,7 +32,10 @@ class SimulationSessionDetailAssemblerTest {
     @Test
     fun `품종·보유 기구·진행 중 산책을 붙인다`() {
         store.breeds[21] = MALTESE
-        store.equipment[3001L] = Equipment.of(setOf(ItemCategory.FOOD_BOWL, ItemCategory.TOY))
+        store.stockShop()
+        listOf(1L to 1, 11L to 1, 22L to 12).forEach { (itemSeq, quantity) ->
+            store.save(SimulationInventoryItem(3001L, itemSeq).apply { add(quantity) })
+        }
         store.activeWalks[3001L] = 8001L
 
         val detail = assembler.assemble(session)
