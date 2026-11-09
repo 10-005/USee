@@ -9,6 +9,14 @@ enum class Stat(val key: String) {
     CALMNESS("calmness"),
     HEALTH("health"),
     ENERGY("energy"),
+    ;
+
+    companion object {
+        private val BY_KEY = entries.associateBy { it.key }
+
+        /** 스탯 컬럼명(JSONB 키) → Stat. 모르는 키는 IllegalArgumentException */
+        fun fromKey(key: String): Stat = requireNotNull(BY_KEY[key]) { "알 수 없는 스탯 키입니다: $key" }
+    }
 }
 
 /** 스탯 7종 값. 만들 때와 바꿀 때 모두 0~100으로 자른다 */

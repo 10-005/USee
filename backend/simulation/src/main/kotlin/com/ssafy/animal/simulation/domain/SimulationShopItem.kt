@@ -85,4 +85,7 @@ class SimulationShopItem(
     @Column(nullable = false)
     var displayOrder: Int = displayOrder
         protected set
+
+    /** 사용 시 효과(effects_jsonb). 없으면 StatEffect.NONE */
+    fun effect(): StatEffect = StatEffect.fromJson(effectsJsonb)
 }

@@ -124,6 +124,22 @@ class SimulationSession(
     fun applyStats(stats: Stats, calculatedAt: OffsetDateTime) {
         check(status == SessionStatus.IN_PROGRESS) { "진행 중인 세션만 스탯을 갱신합니다: $status" }
         require(!calculatedAt.isBefore(statsCalculatedDttm)) { "계산 시각은 뒤로 갈 수 없습니다." }
+        writeStats(stats)
+        statsCalculatedDttm = calculatedAt
+    }
+
+    /**
+     * 행동·이벤트 효과를 지금 스탯에 더한다(0~100 클램프). 지연 계산 기준 시각은 그대로 둔다.
+     * 부르는 쪽이 먼저 지연 계산을 끝낸 뒤 쓴다(명세 21.5의 3).
+     */
+    fun applyEffect(effect: StatEffect): EffectResult {
+        check(status == SessionStatus.IN_PROGRESS) { "진행 중인 세션만 스탯을 갱신합니다: $status" }
+        val result = stats().apply(effect)
+        writeStats(result.after)
+        return result
+    }
+
+    private fun writeStats(stats: Stats) {
         satiety = stats.satiety.toShort()
         hydration = stats.hydration.toShort()
         cleanliness = stats.cleanliness.toShort()
@@ -131,7 +147,6 @@ class SimulationSession(
         calmness = stats.calmness.toShort()
         health = stats.health.toShort()
         energy = stats.energy.toShort()
-        statsCalculatedDttm = calculatedAt
     }
 
     fun stats() = Stats(
