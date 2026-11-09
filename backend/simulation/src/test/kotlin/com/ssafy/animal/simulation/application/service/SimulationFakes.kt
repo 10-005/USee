@@ -66,8 +66,20 @@ class FakeSimulationStore :
 
     override fun save(report: SimulationReport) = report.also {
         ReflectionTestUtils.setField(it, "reportSeq", 9000L + reports.size + 1)
+        now?.let { at -> ReflectionTestUtils.setField(it, "regDttm", at) }
         reports += it
     }
+
+    override fun updateSummaryIfNull(sessionSeq: Long, summary: String): Boolean {
+        val report = findBySessionSeq(sessionSeq)?.takeIf { it.summary == null } ?: return false
+        ReflectionTestUtils.setField(report, "summary", summary)
+        return true
+    }
+
+    override fun findSessionSeqsWithoutSummary(createdBefore: OffsetDateTime) = reports
+        .filter { it.summary == null && it.regDttm?.isAfter(createdBefore) == false }
+        .sortedBy { it.reportSeq }
+        .map { it.sessionSeq }
 
     override fun findBySessionSeq(sessionSeq: Long) = reports.firstOrNull { it.sessionSeq == sessionSeq }
 

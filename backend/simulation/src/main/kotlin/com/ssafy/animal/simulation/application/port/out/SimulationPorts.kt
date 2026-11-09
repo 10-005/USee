@@ -5,6 +5,7 @@ import com.ssafy.animal.simulation.domain.ActionType
 import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.Personality
+import com.ssafy.animal.simulation.domain.ReportSummaryInput
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SimulationInventoryItem
@@ -66,6 +67,20 @@ interface ReportRepository {
      * 정렬은 endedDttm만 허용(기본 desc, 동률 세션 번호 desc)
      */
     fun findPage(userSeq: Int?, pageable: Pageable): Page<ReportListEntry>
+
+    /** summary가 비어 있을 때만 채운다(UPDATE ... WHERE summary IS NULL, 자체 트랜잭션). 이번에 채웠으면 true */
+    fun updateSummaryIfNull(sessionSeq: Long, summary: String): Boolean
+
+    /** 요약이 아직 없고 리포트를 만든 지 createdBefore보다 오래된 세션 번호(고아 복구, Q487). 오래된 순 */
+    fun findSessionSeqsWithoutSummary(createdBefore: OffsetDateTime): List<Long>
+}
+
+/**
+ * 리포트 요약 문구 생성기. 지금은 규칙 문구 구현만 있고 LLM 구현은 나중에 이 포트로 갈아 끼운다(Q444).
+ * 실패하면 예외를 던진다(부르는 쪽이 1회 재시도 후 규칙 문구로 대체).
+ */
+interface ReportSummaryGenerator {
+    fun generate(input: ReportSummaryInput): String
 }
 
 /** 리포트 목록 한 줄: 세션 + 저장된 리포트 */

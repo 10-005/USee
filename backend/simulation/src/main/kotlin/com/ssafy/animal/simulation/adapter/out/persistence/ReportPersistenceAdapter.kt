@@ -11,10 +11,19 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Transactional
+import java.time.OffsetDateTime
 
 interface SimulationReportJpaRepository : JpaRepository<SimulationReport, Long> {
     fun findBySessionSeq(sessionSeq: Long): SimulationReport?
+
+    @Modifying
+    @Query("update SimulationReport r set r.summary = :summary where r.sessionSeq = :sessionSeq and r.summary is null")
+    fun updateSummaryIfNull(@Param("sessionSeq") sessionSeq: Long, @Param("summary") summary: String): Int
 }
 
 @Repository
@@ -46,6 +55,19 @@ class ReportPersistenceAdapter(
             .fetchOne() ?: 0L
         return PageImpl(content, pageable, total)
     }
+
+    // 요약 생성기 호출과 분리된 짧은 쓰기 트랜잭션. 동시에 두 번 불려도 한 번만 채워진다
+    @Transactional
+    override fun updateSummaryIfNull(sessionSeq: Long, summary: String): Boolean =
+        reportJpaRepository.updateSummaryIfNull(sessionSeq, summary) == 1
+
+    override fun findSessionSeqsWithoutSummary(createdBefore: OffsetDateTime): List<Long> =
+        queryFactory.select(simulationReport.sessionSeq)
+            .from(simulationReport)
+            .where(simulationReport.summary.isNull, simulationReport.regDttm.loe(createdBefore))
+            .orderBy(simulationReport.reportSeq.asc())
+            .fetch()
+            .filterNotNull()
 
     companion object {
         /** 18.19·18.20 정렬 화이트리스트는 endedDttm뿐(기본 desc, 동률 세션 번호 desc) */

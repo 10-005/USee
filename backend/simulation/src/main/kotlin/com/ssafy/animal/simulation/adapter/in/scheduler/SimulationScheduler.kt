@@ -1,5 +1,6 @@
 package com.ssafy.animal.simulation.adapter.`in`.scheduler
 
+import com.ssafy.animal.simulation.application.port.`in`.ReportSummaryUseCase
 import com.ssafy.animal.simulation.application.port.`in`.SessionMaintenanceUseCase
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -17,12 +18,14 @@ class SimulationSchedulingConfig
 /**
  * 모의 입양 스케줄러(S8, 명세 21.5의 7). 10분 주기 [가안]로 진행 중 세션을 한 건씩 진행시켜
  * 스탯을 계산하고 건강 0·예정 종료면 끝낸다. 인스턴스 1개 전제이며 2개 이상이 되면 ShedLock을 붙인다.
- * 이벤트 발생·만료(256·259), 산책 자동 종료(252), 요약 복구(263)는 각 작업에서 이 주기에 붙인다.
+ * 이벤트 발생·만료(256·259), 산책 자동 종료(252)는 각 작업에서 이 주기에 붙인다.
+ * 같은 주기로 요약이 빠진 종료 리포트를 다시 만든다(고아 복구, Q487).
  */
 @Component
 @ConditionalOnProperty(name = ["simulation.scheduler.enabled"], havingValue = "true", matchIfMissing = true)
 class SimulationScheduler(
     private val maintenance: SessionMaintenanceUseCase,
+    private val summaryUseCase: ReportSummaryUseCase,
 ) {
 
     @Scheduled(fixedDelayString = "\${simulation.scheduler.interval:PT10M}", initialDelayString = "\${simulation.scheduler.initial-delay:PT1M}")
@@ -37,6 +40,22 @@ class SimulationScheduler(
             }
         }
         log.info("[simulation-scheduler] 진행 중 세션 {}건 처리, 실패 {}건", sessionSeqs.size, failed)
+    }
+
+    /**
+     * 종료 후 복구 대기 시간(10분 [가안])이 지나도 요약이 없는 리포트에 요약을 만든다.
+     * 종료 직후의 비동기 요약이 서버 재시작·오류로 빠진 경우를 메운다. 이미 채워졌으면 아무것도 하지 않는다.
+     */
+    @Scheduled(fixedDelayString = "\${simulation.scheduler.interval:PT10M}", initialDelayString = "\${simulation.scheduler.initial-delay:PT1M}")
+    fun recoverSummaries() {
+        val sessionSeqs = summaryUseCase.summaryMissingSessionSeqs()
+        if (sessionSeqs.isEmpty()) return
+        var recovered = 0
+        sessionSeqs.forEach { sessionSeq ->
+            runCatching { if (summaryUseCase.summarize(sessionSeq)) recovered++ }
+                .onFailure { log.error("[simulation-scheduler] 요약 복구 실패 sessionSeq={}", sessionSeq, it) }
+        }
+        log.info("[simulation-scheduler] 요약 없는 리포트 {}건 중 {}건 복구", sessionSeqs.size, recovered)
     }
 
     companion object {

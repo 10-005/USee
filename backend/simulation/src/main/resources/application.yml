@@ -102,6 +102,9 @@ simulation:
       "[33]": 4   # 향긋한 캣닢
       "[34]": 10  # 순한 샴푸(판매 중단, V20261109_1316)
       "[35]": 3   # 기본 상비약
+  report:
+    # 종료 처리 후 이 시간이 지나도 요약이 없으면 스케줄러가 다시 만든다(Q487 가안 10분)
+    summary-recovery-delay: 10m
 
 management:
   endpoints:
