@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReactTestRenderer from 'react-test-renderer';
+import { Keyboard, ScrollView, TextInput as NativeTextInput } from 'react-native';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { Button, TextInput } from '../../components/common';
 import { ApiClientError } from '../../services/api';
@@ -190,5 +191,40 @@ test('does not open the activity when the server already has a session', async (
   expect(
     renderer.root.findAllByProps({ children: '이미 진행 중인 모의입양이 있어요.' }).length,
   ).toBeGreaterThan(0);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('dismisses the keyboard and clears focus when the surrounding area is pressed', async () => {
+  const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => undefined);
+  const focusedInput = {};
+  const blurTextInput = jest
+    .spyOn(NativeTextInput.State, 'blurTextInput')
+    .mockImplementation(() => undefined);
+  jest.spyOn(NativeTextInput.State, 'currentlyFocusedInput').mockReturnValue(focusedInput as never);
+  const props = {
+    navigation: { reset: jest.fn(), goBack: jest.fn() },
+    route: {
+      key: 'budget',
+      name: 'MockAdoptionBudget',
+      params: { petId: 'dog-1', petName: '초코' },
+    },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionBudget'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionBudgetScreen {...props} />);
+  });
+  let outside = renderer.root.findByProps({ children: '예산 설정' }).parent;
+  while (outside && typeof outside.props.onPress !== 'function') {
+    outside = outside.parent;
+  }
+  await ReactTestRenderer.act(() => outside?.props.onPress());
+  expect(blurTextInput).toHaveBeenCalledWith(focusedInput);
+  expect(dismiss).toHaveBeenCalled();
+  blurTextInput.mockClear();
+  dismiss.mockClear();
+  await ReactTestRenderer.act(() => renderer.root.findByType(ScrollView).props.onScrollBeginDrag());
+  expect(blurTextInput).toHaveBeenCalledWith(focusedInput);
+  expect(dismiss).toHaveBeenCalled();
+  jest.restoreAllMocks();
   await ReactTestRenderer.act(() => renderer.unmount());
 });
