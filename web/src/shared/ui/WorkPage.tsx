@@ -11,6 +11,7 @@ export function WorkPage({
   children,
   narrow = false,
   back,
+  backLabel = '이전',
   hideTitle = false,
 }: {
   title: ReactNode;
@@ -19,6 +20,7 @@ export function WorkPage({
   children: ReactNode;
   narrow?: boolean;
   back?: string;
+  backLabel?: string;
   hideTitle?: boolean;
 }) {
   return (
@@ -37,7 +39,7 @@ export function WorkPage({
                 strokeLinejoin="round"
               />
             </svg>
-            이전
+            {backLabel}
           </Link>
         )}
         {titleAction || titleDescription ? (
