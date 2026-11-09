@@ -8,42 +8,35 @@ import type { useWalkRoute } from '../useWalkRoute';
 
 export function WalkRouteMap({ route }: { route: ReturnType<typeof useWalkRoute> }) {
   const first = route.segments[0]?.[0];
-  const segment = route.segments[route.segments.length - 1];
-  const last = segment?.[segment.length - 1];
+  const last = route.mapPosition;
   return (
     <View style={styles.container} accessibilityLabel="실시간 산책 경로">
-      {last ? (
-        <NaverMapView
-          isUseTextureViewAndroid
-          style={styles.map}
-          camera={{ latitude: last.latitude, longitude: last.longitude, zoom: 17 }}
-          isShowCompass
-          isScrollGesturesEnabled={false}
-          isZoomGesturesEnabled={false}
-          isRotateGesturesEnabled={false}
-          isTiltGesturesEnabled={false}
-        >
-          {route.segments.map((points, index) =>
-            points.length >= 2 ? (
-              <NaverMapArrowheadPathOverlay key={index} coords={points} width={4} color="#2185FF" />
-            ) : null,
-          )}
-          {first && (
-            <NaverMapMarkerOverlay
-              {...first}
-              caption={{ text: '출발' }}
-              tintColor="#29A36A"
-              width={18}
-              height={24}
-            />
-          )}
-          <NaverMapMarkerOverlay {...last} tintColor="#2185FF" width={18} height={24} />
-        </NaverMapView>
-      ) : (
-        <View style={styles.map}>
-          <Text style={styles.waiting}>위치 확인 중</Text>
-        </View>
-      )}
+      <NaverMapView
+        isUseTextureViewAndroid
+        style={styles.map}
+        camera={last ? { latitude: last.latitude, longitude: last.longitude, zoom: 17 } : undefined}
+        isShowCompass
+        isScrollGesturesEnabled={false}
+        isZoomGesturesEnabled={false}
+        isRotateGesturesEnabled={false}
+        isTiltGesturesEnabled={false}
+      >
+        {route.segments.map((points, index) =>
+          points.length >= 2 ? (
+            <NaverMapArrowheadPathOverlay key={index} coords={points} width={4} color="#2185FF" />
+          ) : null,
+        )}
+        {first && (
+          <NaverMapMarkerOverlay
+            {...first}
+            caption={{ text: '출발' }}
+            tintColor="#29A36A"
+            width={18}
+            height={24}
+          />
+        )}
+        {last && <NaverMapMarkerOverlay {...last} tintColor="#2185FF" width={18} height={24} />}
+      </NaverMapView>
       {!!route.message && (
         <Pressable
           onPress={route.retry}
@@ -68,7 +61,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   map: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  waiting: { color: '#555555', fontSize: 12 },
   status: {
     position: 'absolute',
     bottom: 0,

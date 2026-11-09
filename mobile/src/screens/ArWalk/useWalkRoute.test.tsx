@@ -7,10 +7,18 @@ jest.mock('@react-native-community/geolocation', () => ({
   watchPosition: jest.fn(() => 1),
   clearWatch: jest.fn(),
   getCurrentPosition: jest.fn(),
+  setRNConfiguration: jest.fn(),
 }));
 
 test('continuous fixes preserve distance across a long stop and stop watching on exit', async () => {
-  jest.spyOn(PermissionsAndroid, 'request').mockResolvedValue(PermissionsAndroid.RESULTS.GRANTED);
+  jest
+    .spyOn(PermissionsAndroid, 'requestMultiple')
+    .mockImplementation(
+      async permissions =>
+        Object.fromEntries(permissions.map(permission => [permission, 'granted'])) as Awaited<
+          ReturnType<typeof PermissionsAndroid.requestMultiple>
+        >,
+    );
   let route!: ReturnType<typeof useWalkRoute>;
   function Harness() {
     route = useWalkRoute(true);
@@ -33,6 +41,16 @@ test('continuous fixes preserve distance across a long stop and stop watching on
     });
   };
   try {
+    const seed = jest.mocked(Geolocation.getCurrentPosition).mock.calls[0][0];
+    await ReactTestRenderer.act(() => {
+      seed({
+        timestamp: start - 1000,
+        coords: { latitude: 36, longitude: 127, accuracy: 120 },
+      } as GeolocationResponse);
+    });
+    expect(route.mapPosition?.latitude).toBe(36);
+    expect(route.segments).toHaveLength(0);
+    expect(route.meters).toBe(0);
     await emit(0);
     for (let seconds = 5; seconds <= 45; seconds += 5) await emit(seconds);
     await emit(50, 37.00003);

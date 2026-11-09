@@ -7,6 +7,7 @@ type Point = { latitude: number; longitude: number; timestamp: number };
 export function useWalkRoute(enabled: boolean) {
   const [segments, setSegments] = useState<Point[][]>([]);
   const [meters, setMeters] = useState(0);
+  const [mapPosition, setMapPosition] = useState<Point | null>(null);
   const [message, setMessage] = useState('강아지를 인식하면 이동 경로를 기록합니다.');
   const previous = useRef<Point | null>(null);
   const [retry, setRetry] = useState(0);
@@ -28,15 +29,26 @@ export function useWalkRoute(enabled: boolean) {
       const current = generation;
       setMessage('GPS 위치를 확인하고 있습니다.');
       try {
+        let precise = true;
         if (Platform.OS === 'android') {
-          const permission = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          );
+          const { ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION } = PermissionsAndroid.PERMISSIONS;
+          const permissions = await PermissionsAndroid.requestMultiple([
+            ACCESS_COARSE_LOCATION,
+            ACCESS_FINE_LOCATION,
+          ]);
           if (disposed || current !== generation) return;
-          if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
+          precise = permissions[ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
+          if (
+            !precise &&
+            permissions[ACCESS_COARSE_LOCATION] !== PermissionsAndroid.RESULTS.GRANTED
+          ) {
             setMessage('이동 거리와 경로를 기록하려면 위치 권한이 필요합니다.');
             return;
           }
+          Geolocation.setRNConfiguration({
+            locationProvider: 'playServices',
+            skipPermissionRequests: false,
+          });
         }
         if (disposed || current !== generation) return;
         const onPosition = ({ coords, timestamp }: GeolocationResponse) => {
@@ -49,19 +61,30 @@ export function useWalkRoute(enabled: boolean) {
             Math.abs(coords.latitude) > 90 ||
             Math.abs(coords.longitude) > 180 ||
             coords.accuracy < 0 ||
-            coords.accuracy > 60 ||
-            Date.now() - timestamp > 15000
+            Date.now() - timestamp > 120000
           ) {
             setMessage('GPS 정확도가 낮아 위치를 기다리고 있습니다.');
             return;
           }
           const point = { latitude: coords.latitude, longitude: coords.longitude, timestamp };
+          if (!precise || coords.accuracy > 25 || Date.now() - timestamp > 15000) {
+            if (lastFixAt === 0 || Date.now() - lastFixAt > 30000) {
+              setMapPosition(old => (old && old.timestamp > timestamp ? old : point));
+              setMessage(
+                precise
+                  ? '대략적인 위치입니다. 정확한 위치를 기다리고 있어요.'
+                  : '거리 기록에는 정확한 위치 권한이 필요합니다.',
+              );
+            }
+            return;
+          }
           const last = previous.current;
           if (timestamp <= lastFixAt) return;
           const disconnected = lastFixAt > 0 && timestamp - lastFixAt > 30000;
           lastFixAt = timestamp;
-          setMessage(coords.accuracy > 25 ? 'GPS 오차가 커 경로가 부정확할 수 있어요.' : '');
+          setMessage('');
           if (!last || disconnected) {
+            setMapPosition(point);
             previous.current = point;
             setSegments(value => [...value, [point]]);
             return;
@@ -78,6 +101,7 @@ export function useWalkRoute(enabled: boolean) {
           if (distance < Math.max(2, Math.min(5, coords.accuracy * 0.15)) || distance / seconds > 8)
             return;
           previous.current = point;
+          setMapPosition(point);
           setMeters(value => value + distance);
           setSegments(value => [...value.slice(0, -1), [...value[value.length - 1], point]]);
         };
@@ -85,13 +109,20 @@ export function useWalkRoute(enabled: boolean) {
           if (disposed || current !== generation) return;
           setMessage('위치 신호를 확인해 주세요. 신호가 돌아오면 기록을 이어갑니다.');
         };
-        Geolocation.getCurrentPosition(onPosition, onError, {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 5000,
-        });
+        // Seed the map from a cached or low-power fix while the precise watch acquires GPS.
+        Geolocation.getCurrentPosition(
+          onPosition,
+          () => {
+            if (!lastFixAt) onError();
+          },
+          {
+            enableHighAccuracy: false,
+            timeout: 15000,
+            maximumAge: 120000,
+          },
+        );
         watch = Geolocation.watchPosition(onPosition, onError, {
-          enableHighAccuracy: true,
+          enableHighAccuracy: precise,
           distanceFilter: 0,
           interval: 2000,
           fastestInterval: 1000,
@@ -112,5 +143,5 @@ export function useWalkRoute(enabled: boolean) {
       subscription.remove();
     };
   }, [enabled, retry]);
-  return { segments, meters, message, retry: () => setRetry(value => value + 1) };
+  return { segments, meters, mapPosition, message, retry: () => setRetry(value => value + 1) };
 }
