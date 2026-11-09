@@ -122,4 +122,58 @@ core-api:deploy:
   variables:
     SERVICE: core-api
 
-# chat / notification / simulation 은 매니페스트가 준비되면 위 두 작업을 복사해 SERVICE 와 경로만 바꾼다
+# ---------- chat ----------
+
+.chat-rules:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop-backend"
+      changes:
+        - backend/chat/**/*
+        - backend/common/**/*
+        - backend/gradle/**/*
+        - backend/*.gradle.kts
+        - backend/gradle.properties
+        - backend/gradlew
+        - backend/.gitlab-ci.yml
+        - .gitlab-ci.yml
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "develop-backend"
+
+chat:build:
+  extends: [.build-image, .chat-rules]
+  variables:
+    SERVICE: chat
+
+chat:deploy:
+  extends: [.deploy-tag, .chat-rules]
+  needs: ["chat:build"]
+  variables:
+    SERVICE: chat
+
+# ---------- notification ----------
+
+.notification-rules:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop-backend"
+      changes:
+        - backend/notification/**/*
+        - backend/common/**/*
+        - backend/gradle/**/*
+        - backend/*.gradle.kts
+        - backend/gradle.properties
+        - backend/gradlew
+        - backend/.gitlab-ci.yml
+        - .gitlab-ci.yml
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "develop-backend"
+
+notification:build:
+  extends: [.build-image, .notification-rules]
+  variables:
+    SERVICE: notification
+
+notification:deploy:
+  extends: [.deploy-tag, .notification-rules]
+  needs: ["notification:build"]
+  variables:
+    SERVICE: notification
+
+# simulation 은 매니페스트가 준비되면 위 작업을 복사해 SERVICE 와 경로만 바꾼다
