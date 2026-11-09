@@ -51,7 +51,7 @@ import org.springframework.web.bind.annotation.RestController
 import java.time.LocalDate
 import java.util.Optional
 
-/** 명세 12장 입양 문항·신청·심사·완료. 12.15는 [보류]라 없다 */
+/** 명세 12장 입양 문항·신청·심사·완료. 12.15(신청자 모의 입양 리포트)는 ApplicantSimulationReportController */
 @Tag(
     name = "입양",
     description = "입양 신청서 문항, 신청(DRAFT 생성·저장·제출·삭제·취소), 보호소 심사·입양 완료·승인 후 실패. " +

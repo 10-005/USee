@@ -58,3 +58,24 @@ interface AdoptionReferenceReader {
     /** 보호소 담당 SHELTER 계정(ADOPTION_SUBMITTED 수신자). 보호소당 1개 */
     fun findShelterUserSeqs(shelterSeq: Int): List<Int>
 }
+
+/**
+ * simulation 스키마의 종료 리포트 읽기 전용 조회(12.15, Q420 D·Q483). core-api는 쓰지 않으며 FK도 없다.
+ * 품종은 core 기준정보에서 함께 읽는다.
+ */
+interface SimulationReportReader {
+    /** 그 회원의 끝난 세션 리포트(최근 종료 순). 없으면 빈 목록 */
+    fun findEndedReports(userSeq: Int): List<SimulationReportRow>
+}
+
+data class SimulationReportRow(
+    val sessionSeq: Long,
+    val animalName: String,
+    val breedSeq: Int,
+    val breedName: String,
+    val speciesCode: String,
+    val representativeImageSeq: Long?,
+    val startedDttm: OffsetDateTime,
+    val endedDttm: OffsetDateTime,
+    val totalSpent: Int,
+)

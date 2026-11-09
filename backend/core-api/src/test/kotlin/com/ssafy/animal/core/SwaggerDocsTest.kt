@@ -2,6 +2,7 @@ package com.ssafy.animal.core
 
 import com.ssafy.animal.common.auth.AuthUser
 import com.ssafy.animal.common.config.CommonWebAutoConfiguration
+import com.ssafy.animal.core.adoption.application.port.`in`.ApplicantSimulationReportUseCase
 import com.ssafy.animal.core.animal.application.port.`in`.ShelterAnimalUseCase
 import com.ssafy.animal.core.adoption.application.port.`in`.AdoptionUseCase
 import com.ssafy.animal.core.auth.application.port.`in`.AuthUseCase
@@ -120,6 +121,9 @@ abstract class SwaggerDocsTestBase {
 
     @MockitoBean
     lateinit var bookmarkUseCase: BookmarkUseCase
+
+    @MockitoBean
+    lateinit var applicantSimulationReportUseCase: ApplicantSimulationReportUseCase
 
     companion object {
         @JvmStatic
