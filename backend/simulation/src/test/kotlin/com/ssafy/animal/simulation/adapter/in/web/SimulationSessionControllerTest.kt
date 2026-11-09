@@ -2,6 +2,8 @@ package com.ssafy.animal.simulation.adapter.`in`.web
 
 import com.ssafy.animal.common.config.CommonWebAutoConfiguration
 import com.ssafy.animal.common.exception.BusinessException
+import com.ssafy.animal.simulation.application.port.`in`.AbandonSimulationUseCase
+import com.ssafy.animal.simulation.application.port.`in`.SessionReportView
 import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionDetail
 import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionQueryUseCase
 import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionSummary
@@ -11,7 +13,10 @@ import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.port.out.CatalogSpeciesCode
 import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.Personality
+import com.ssafy.animal.simulation.domain.ReportAggregator
+import com.ssafy.animal.simulation.domain.ReportSource
 import com.ssafy.animal.simulation.domain.SessionStatus
+import com.ssafy.animal.simulation.domain.SpendRecord
 import com.ssafy.animal.simulation.domain.SimulationErrorCode
 import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SpeciesType
@@ -49,6 +54,9 @@ class SimulationSessionControllerTest {
 
     @MockitoBean
     lateinit var sessionQueryUseCase: SimulationSessionQueryUseCase
+
+    @MockitoBean
+    lateinit var abandonUseCase: AbandonSimulationUseCase
 
     private val startedAt = OffsetDateTime.of(2026, 11, 1, 14, 0, 0, 0, ZoneOffset.ofHours(9))
     private val maltese = BreedInfo(21, "말티즈", CatalogSpeciesCode.DOG, Personality.FRIENDLY, "https://cdn/breeds/maltese.png")
@@ -255,6 +263,52 @@ class SimulationSessionControllerTest {
         mockMvc.get("/api/simulation/v1/simulations/abc") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
             status { isBadRequest() }
             jsonPath("$.code") { value("COMMON_INVALID_INPUT") }
+        }
+    }
+
+    @Test
+    fun `18_5는 포기한 세션과 리포트를 명세 필드대로 돌려준다`() {
+        val session = session()
+        val endedAt = startedAt.plusDays(1)
+        val report = ReportAggregator.aggregate(
+            ReportSource(session, listOf(SpendRecord("FOOD", 21_200, startedAt.plusHours(1))), 12, 0, 0, 0),
+            sessionDays = 7,
+        )
+        session.end(SessionStatus.ABANDONED, endedAt)
+        given(abandonUseCase.abandon(17, 3001L)).willReturn(SessionReportView(session, maltese, report))
+
+        mockMvc.post("/api/simulation/v1/simulations/3001/abandon") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
+            status { isOk() }
+            jsonPath("$.data.sessionSeq") { value(3001) }
+            jsonPath("$.data.status") { value("ABANDONED") }
+            jsonPath("$.data.endedDttm") { value("2026-11-02T14:00:00+09:00") }
+            jsonPath("$.data.report.isFinal") { value(true) }
+            jsonPath("$.data.report.status") { value("ABANDONED") }
+            jsonPath("$.data.report.breed.breedName") { value("말티즈") }
+            jsonPath("$.data.report.totalSpent") { value(21200) }
+            jsonPath("$.data.report.difference") { value(150000 - 21200) }
+            jsonPath("$.data.report.spentByCategory.FOOD") { value(21200) }
+            jsonPath("$.data.report.spentByCategory.EVENT") { value(0) }
+            jsonPath("$.data.report.dailySpent.1") { value(21200) }
+            jsonPath("$.data.report.finalStats.satiety") { value(70) }
+            jsonPath("$.data.report.actionCount") { value(12) }
+            jsonPath("$.data.report.walkCount") { value(0) }
+            jsonPath("$.data.report.summary") { value(null) }
+        }
+    }
+
+    @Test
+    fun `18_5는 서비스의 404·409를 그대로 응답한다(보호소는 404로 감춰짐)`() {
+        given(abandonUseCase.abandon(77, 3001L)).willThrow(BusinessException(SimulationErrorCode.SIMULATION_NOT_FOUND))
+        given(abandonUseCase.abandon(17, 3001L)).willThrow(BusinessException(SimulationErrorCode.SIMULATION_NOT_IN_PROGRESS))
+
+        mockMvc.post("/api/simulation/v1/simulations/3001/abandon") { header(HttpHeaders.AUTHORIZATION, SHELTER_TOKEN) }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("SIMULATION_NOT_FOUND") }
+        }
+        mockMvc.post("/api/simulation/v1/simulations/3001/abandon") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("SIMULATION_NOT_IN_PROGRESS") }
         }
     }
 

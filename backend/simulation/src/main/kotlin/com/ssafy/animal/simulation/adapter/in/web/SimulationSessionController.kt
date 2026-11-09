@@ -9,7 +9,9 @@ import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SESSIO
 import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_ACTIVE_ALREADY_EXISTS
 import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_BREED_NOT_FOUND
 import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_NOT_FOUND
+import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_NOT_IN_PROGRESS
 import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_SPECIES_NOT_SUPPORTED
+import com.ssafy.animal.simulation.application.port.`in`.AbandonSimulationUseCase
 import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionQueryUseCase
 import com.ssafy.animal.simulation.application.port.`in`.StartSimulationUseCase
 import com.ssafy.animal.simulation.domain.SessionStatus
@@ -36,10 +38,10 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
-/** 18.1~18.4 모의 입양 세션. 시작·목록·진행 중은 USER, 상세는 본인만(그 외 404, Q483) */
+/** 18.1~18.5 모의 입양 세션. 시작·목록·진행 중은 USER, 상세·포기는 본인만(그 외 404, Q483) */
 @Tag(
     name = "모의 입양 세션",
-    description = "품종을 골라 7일 동안 돌보는 모의 입양 세션의 시작·진행 중 조회·내 목록·상세. 회원당 진행 중 세션은 1개. " +
+    description = "품종을 골라 7일 동안 돌보는 모의 입양 세션의 시작·진행 중 조회·내 목록·상세·포기. 회원당 진행 중 세션은 1개. " +
         "스탯 7종(satiety·hydration·cleanliness·bond·calmness·health·energy)은 모두 0~100, 높을수록 좋고 시간이 지나면 떨어진다",
 )
 @RestController
@@ -47,6 +49,7 @@ import org.springframework.web.bind.annotation.RestController
 class SimulationSessionController(
     private val startSimulationUseCase: StartSimulationUseCase,
     private val sessionQueryUseCase: SimulationSessionQueryUseCase,
+    private val abandonUseCase: AbandonSimulationUseCase,
 ) {
 
     /** 18.1 세션 시작. 품종·가상 이름·예상 비용으로 시작하고 실제 보호동물과는 연결하지 않는다(Q482) */
@@ -344,8 +347,94 @@ class SimulationSessionController(
         @Parameter(description = "세션 번호", example = "3001") @PathVariable sessionSeq: Long,
     ) = SimulationSessionResponse.from(sessionQueryUseCase.getDetail(user.userSeq, sessionSeq))
 
+    /** 18.5 중도 포기. 본인만 하며 그 외(보호소 포함)는 404로 존재를 감추므로 역할 제한을 두지 않는다(Q483) */
+    @Operation(
+        summary = "모의 입양 포기",
+        description = "- 본인 진행 중 세션만. 남의 세션·없는 세션은 보호소를 포함해 404 `SIMULATION_NOT_FOUND`, 진행 중이 아니면 409\n" +
+            "- 지금까지 지난 시간만큼 스탯을 반영한 뒤 ABANDONED로 끝내고 종료 리포트를 만든다. 본문은 없다.\n" +
+            "- 그 사이 건강 0·예정 종료 경과로 이미 끝날 상태였다면 그 상태(FAILED·COMPLETED)로 끝내고 409를 준다(앱은 진행 중 조회로 리포트 이동).\n" +
+            "- 진행 중 산책은 끝나고, 미해결 돌발 이벤트는 방치 효과 없이 만료된다.\n" +
+            "- 응답 리포트의 `summary`는 null(비동기로 생성). 포기 뒤 새 세션을 시작할 수 있다.",
+    )
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "200",
+            description = "포기 성공",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = AbandonSuccessSchema::class),
+                    examples = [ExampleObject(name = "포기 성공", value = ABANDON_SUCCESS)],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "400",
+            description = "세션 번호가 숫자가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [ExampleObject(name = "세션 번호 타입 오류", value = SESSION_SEQ_TYPE_MISMATCH)],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "401",
+            description = "access 토큰 없음·만료·무효. 만료면 토큰 갱신 후 재시도",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [
+                        ExampleObject(name = "AUTH_UNAUTHORIZED", value = FailExamples.AUTH_UNAUTHORIZED),
+                        ExampleObject(name = "AUTH_TOKEN_EXPIRED", value = FailExamples.AUTH_TOKEN_EXPIRED),
+                        ExampleObject(name = "AUTH_TOKEN_INVALID", value = FailExamples.AUTH_TOKEN_INVALID),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "없는 세션·남의 세션(보호소 포함)",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [ExampleObject(name = "SIMULATION_NOT_FOUND", value = SIMULATION_NOT_FOUND)],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "이미 끝난 세션(이번에 예정 종료·건강 0으로 끝난 경우 포함)",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [ExampleObject(name = "SIMULATION_NOT_IN_PROGRESS", value = SIMULATION_NOT_IN_PROGRESS)],
+                ),
+            ],
+        ),
+    )
+    @PostMapping("/{sessionSeq}/abandon")
+    fun abandon(
+        @Parameter(hidden = true) @AuthenticationPrincipal user: AuthUser,
+        @Parameter(description = "세션 번호", example = "3001") @PathVariable sessionSeq: Long,
+    ) = AbandonResponse.from(abandonUseCase.abandon(user.userSeq, sessionSeq))
+
     private companion object {
         // 문서 예시 전용
+        const val ABANDON_SUCCESS =
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"sessionSeq":3001,"status":"ABANDONED","endedDttm":"2026-11-03T10:20:00+09:00",""" +
+                """"report":{"sessionSeq":3001,"status":"ABANDONED","isFinal":true,"animalName":"초코","breed":""" + SimulationDocExamples.BREED_JSON +
+                ""","speciesType":"DOG","personality":"FRIENDLY","startedDttm":"2026-11-01T14:00:00+09:00","endedDttm":"2026-11-03T10:20:00+09:00",""" +
+                """"expectedCost":150000,"totalSpent":52800,"difference":97200,""" +
+                """"spentByCategory":{"FOOD_BOWL":10000,"WATER_BOWL":10000,"LITTER_BOX":0,"TOY":0,"FURNITURE":0,"LEASH":0,"GROOMING_KIT":0,""" +
+                """"FOOD":21200,"SNACK":0,"LITTER":0,"SHAMPOO":0,"MEDICINE":0,"POOP_BAG":0,"CATNIP":0,"EVENT":11600},""" +
+                """"dailySpent":{"1":31200,"2":21600,"3":0,"4":0,"5":0,"6":0,"7":0},""" +
+                """"finalStats":{"satiety":55,"hydration":60,"cleanliness":70,"bond":42,"calmness":52,"health":84,"energy":58},""" +
+                """"actionCount":12,"eventCount":0,"eventResolvedCount":0,"walkCount":0,"summary":null}},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val START_SUCCESS =
             """{"status":201,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"sessionSeq":3001,"userSeq":17,"animalName":"초코","breed":""" +
                 SimulationDocExamples.BREED_JSON +
