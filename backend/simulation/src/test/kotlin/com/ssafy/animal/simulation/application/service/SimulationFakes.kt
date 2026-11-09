@@ -1,5 +1,6 @@
 package com.ssafy.animal.simulation.application.service
 
+import com.ssafy.animal.simulation.application.port.out.ActionLogEntry
 import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.port.out.BreedReader
 import com.ssafy.animal.simulation.application.port.out.CatalogSpeciesCode
@@ -11,6 +12,7 @@ import com.ssafy.animal.simulation.application.port.out.ShopItemRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationSessionRepository
 import com.ssafy.animal.simulation.application.port.out.TransactionEntry
 import com.ssafy.animal.simulation.application.port.out.TransactionRepository
+import com.ssafy.animal.simulation.domain.ActionType
 import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.Personality
@@ -89,7 +91,18 @@ class FakeSimulationStore :
         }
     }
 
-    override fun save(log: SimulationActionLog) = log.also { logs += it }
+    override fun save(log: SimulationActionLog) = log.also {
+        ReflectionTestUtils.setField(it, "actionLogSeq", 50000L + logs.size + 1)
+        logs += it
+    }
+
+    /** 정렬은 기본값(최근 먼저 = PK desc)만 흉내 낸다 */
+    override fun findPage(sessionSeq: Long, type: ActionType?, pageable: Pageable): Page<ActionLogEntry> {
+        val all = logs.filter { it.sessionSeq == sessionSeq && (type == null || it.actionType == type) }
+            .sortedByDescending { it.actionLogSeq }
+            .map { ActionLogEntry(it, it.itemSeq?.let(shopItems::getValue)) }
+        return PageImpl(all.drop(pageable.offset.toInt()).take(pageable.pageSize), pageable, all.size.toLong())
+    }
 
     override fun findBreed(breedSeq: Int): BreedInfo? {
         breedLookups += breedSeq
@@ -115,6 +128,9 @@ class FakeSimulationStore :
         .map { InventoryEntry(it, shopItems.getValue(it.itemSeq)) }
         .sortedWith(compareBy<InventoryEntry> { it.shopItem.displayOrder }.thenBy { it.shopItem.itemSeq })
 
+    override fun findOwnedByCategory(sessionSeq: Long, category: ItemCategory) =
+        findAllWithItems(sessionSeq).filter { it.inventoryItem.quantity > 0 && it.shopItem.category == category }
+
     override fun findEquipment(sessionSeq: Long) = Equipment.of(
         findAllWithItems(sessionSeq).filter { it.inventoryItem.quantity > 0 && !it.shopItem.isConsumable }.mapTo(mutableSetOf()) { it.shopItem.category },
     )
@@ -123,6 +139,12 @@ class FakeSimulationStore :
     fun stockShop() {
         listOf(
             SimulationShopItem(1, "밥그릇", ItemCategory.FOOD_BOWL, 10_000, SpeciesScope.ALL, displayOrder = 1),
+            SimulationShopItem(2, "물그릇", ItemCategory.WATER_BOWL, 10_000, SpeciesScope.ALL, displayOrder = 2),
+            SimulationShopItem(4, "강아지 배변판", ItemCategory.LITTER_BOX, 15_000, SpeciesScope.DOG, displayOrder = 4),
+            SimulationShopItem(
+                10, "위생 관리 키트", ItemCategory.GROOMING_KIT, 13_800, SpeciesScope.ALL,
+                effects = mapOf("cleanliness" to 40, "calmness" to -5), displayOrder = 10,
+            ),
             SimulationShopItem(11, "탐색 장난감", ItemCategory.TOY, 4_100, SpeciesScope.ALL, effects = mapOf("bond" to 3), displayOrder = 11),
             SimulationShopItem(22, "균형 잡힌 사료", ItemCategory.FOOD, 10_600, SpeciesScope.ALL, effects = mapOf("satiety" to 30), displayOrder = 22),
             SimulationShopItem(30, "배변패드", ItemCategory.LITTER, 2_600, SpeciesScope.DOG, effects = mapOf("cleanliness" to 30), displayOrder = 30),

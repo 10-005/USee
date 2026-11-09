@@ -1,0 +1,54 @@
+package com.ssafy.animal.simulation.domain
+
+import com.ssafy.animal.simulation.config.SimulationProperties
+import org.springframework.boot.context.properties.bind.Binder
+import org.springframework.boot.context.properties.source.ConfigurationPropertySources
+import org.springframework.boot.env.YamlPropertySourceLoader
+import org.springframework.core.io.ClassPathResource
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+class CareRulesTest {
+
+    @Test
+    fun `238 돌봄 4종의 필요 기구·소모품·효과 출처`() {
+        assertEquals(CareRule(ActionCode.FEED, ItemCategory.FOOD_BOWL, ItemCategory.FOOD, EffectSource.CONSUMED_ITEM), CareRules.of(ActionCode.FEED))
+        assertEquals(CareRule(ActionCode.WATER, ItemCategory.WATER_BOWL, null, EffectSource.CONFIG), CareRules.of(ActionCode.WATER))
+        assertEquals(
+            CareRule(ActionCode.CLEAN_LITTER, ItemCategory.LITTER_BOX, ItemCategory.LITTER, EffectSource.CONSUMED_ITEM),
+            CareRules.of(ActionCode.CLEAN_LITTER),
+        )
+        assertEquals(CareRule(ActionCode.BATHE, ItemCategory.GROOMING_KIT, null, EffectSource.REQUIRED_EQUIPMENT), CareRules.of(ActionCode.BATHE))
+        assertTrue(CareRules.of(ActionCode.FEED)!!.needsItem)
+        assertFalse(CareRules.of(ActionCode.BATHE)!!.needsItem)
+    }
+
+    @Test
+    fun `아직 만들지 않은 돌봄과 산책·시스템 코드는 규칙이 없다`() {
+        listOf(ActionCode.SNACK, ActionCode.PLAY, ActionCode.MEDICINE, ActionCode.VET_VISIT, ActionCode.GIVE_WATER, ActionCode.SESSION_START)
+            .forEach { assertNull(CareRules.of(it), it.name) }
+    }
+
+    @Test
+    fun `규칙은 분류가 맞지 않으면 만들 수 없다`() {
+        assertFailsWith<IllegalArgumentException> { CareRule(ActionCode.WALK_START, null, null, EffectSource.CONFIG) }
+        assertFailsWith<IllegalArgumentException> { CareRule(ActionCode.FEED, ItemCategory.FOOD, null, EffectSource.CONFIG) }
+        assertFailsWith<IllegalArgumentException> { CareRule(ActionCode.FEED, null, ItemCategory.FOOD_BOWL, EffectSource.CONSUMED_ITEM) }
+        assertFailsWith<IllegalArgumentException> { CareRule(ActionCode.BATHE, null, null, EffectSource.REQUIRED_EQUIPMENT) }
+    }
+
+    @Test
+    fun `물 주기 효과는 설정에서 읽고 모르는 키는 거부한다`() {
+        val care = Binder(ConfigurationPropertySources.from(YamlPropertySourceLoader().load("application", ClassPathResource("application.yml"))))
+            .bind("simulation", SimulationProperties::class.java)
+            .get()
+            .care
+
+        assertEquals(StatEffect(mapOf(Stat.HYDRATION to 50)), care.waterEffect)
+        assertFailsWith<IllegalArgumentException> { CareConfig(mapOf("thirst" to 50)) }
+    }
+}

@@ -3,9 +3,13 @@ package com.ssafy.animal.simulation.adapter.out.persistence
 import com.querydsl.jpa.impl.JPAQueryFactory
 import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.common.persistence.SortPolicy
+import com.ssafy.animal.simulation.application.port.out.ActionLogEntry
 import com.ssafy.animal.simulation.application.port.out.SimulationActionLogRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationSessionRepository
+import com.ssafy.animal.simulation.domain.ActionType
+import com.ssafy.animal.simulation.domain.QSimulationActionLog.Companion.simulationActionLog
 import com.ssafy.animal.simulation.domain.QSimulationSession.Companion.simulationSession
+import com.ssafy.animal.simulation.domain.QSimulationShopItem.Companion.simulationShopItem
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SimulationErrorCode
@@ -69,6 +73,23 @@ class SimulationPersistenceAdapter(
 
     override fun save(log: SimulationActionLog): SimulationActionLog = actionLogJpaRepository.save(log)
 
+    override fun findPage(sessionSeq: Long, type: ActionType?, pageable: Pageable): Page<ActionLogEntry> {
+        val condition = simulationActionLog.sessionSeq.eq(sessionSeq)
+            .let { base -> type?.let { base.and(simulationActionLog.actionType.eq(it)) } ?: base }
+        // 물품을 쓰지 않은 행동(물 주기·목욕·SYSTEM 등)이 있으므로 LEFT JOIN
+        val content = queryFactory.select(simulationActionLog, simulationShopItem)
+            .from(simulationActionLog)
+            .leftJoin(simulationShopItem).on(simulationShopItem.itemSeq.eq(simulationActionLog.itemSeq))
+            .where(condition)
+            .orderBy(*ACTION_LOG_SORT_POLICY.toOrderSpecifiers(pageable.sort))
+            .offset(pageable.offset)
+            .limit(pageable.pageSize.toLong())
+            .fetch()
+            .map { ActionLogEntry(it.get(simulationActionLog)!!, it.get(simulationShopItem)) }
+        val total = queryFactory.select(simulationActionLog.count()).from(simulationActionLog).where(condition).fetchOne() ?: 0L
+        return PageImpl(content, pageable, total)
+    }
+
     companion object {
         /** 18.3 정렬 화이트리스트: startedDttm(기본 desc)·endedDttm, 동률은 PK desc */
         val SORT_POLICY = SortPolicy(
@@ -76,6 +97,9 @@ class SimulationPersistenceAdapter(
             default = listOf(simulationSession.startedDttm.desc()),
             tieBreaker = simulationSession.sessionSeq.desc(),
         )
+
+        /** 18.7 정렬 화이트리스트는 regDttm뿐(기본 desc, 동률 PK desc) */
+        val ACTION_LOG_SORT_POLICY = SortPolicy.regDttmOnly(simulationActionLog.regDttm, simulationActionLog.actionLogSeq)
 
         /** 부분 UNIQUE 인덱스 이름(V1) → 사전 조회와 같은 오류. PostgreSQL 오류 메시지에 인덱스 이름이 들어 있다 */
         fun translate(e: DataIntegrityViolationException): BusinessException? {

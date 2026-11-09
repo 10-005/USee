@@ -19,6 +19,8 @@ enum class SimulationErrorCode(
     SIMULATION_SHOP_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "물품을 찾을 수 없습니다."),
     /** 물품 적용 종과 세션 종 불일치(Q442) */
     SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES(HttpStatus.CONFLICT, "이 반려동물에게 쓸 수 없는 물품입니다."),
+    /** 행동에 필요한 기구(밥그릇·물그릇·화장실·위생 관리 키트 등)를 보유하지 않음(18.6) */
+    SIMULATION_EQUIPMENT_MISSING(HttpStatus.CONFLICT, "이 행동에 필요한 기구가 없습니다."),
     /** 소모품이 0개이거나 보유하지 않은 물품을 쓰려 할 때(18.6·18.16) */
     SIMULATION_ITEM_NOT_IN_INVENTORY(HttpStatus.CONFLICT, "보유하지 않았거나 다 쓴 물품입니다."),
     /** 기구는 세션당 1개(18.9) */

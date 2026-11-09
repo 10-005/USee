@@ -69,6 +69,18 @@ class SimulationActionLog(
         protected set
 
     companion object {
+        /** 18.6 돌봄 행동 로그. 실제로 바뀐 스탯과 행동 직후 스탯을 남긴다(변화가 없으면 statDelta는 빈 객체) */
+        fun care(session: SimulationSession, actionCode: ActionCode, itemSeq: Long?, result: EffectResult): SimulationActionLog {
+            require(actionCode.type == ActionType.CARE) { "CARE 코드가 아닙니다: $actionCode" }
+            return SimulationActionLog(
+                sessionSeq = checkNotNull(session.sessionSeq) { "저장 전 세션입니다." },
+                actionCode = actionCode,
+                statsAfter = result.after,
+                statDelta = result.deltaJson(),
+                itemSeq = itemSeq,
+            )
+        }
+
         /** SYSTEM 로그(SESSION_START·SESSION_END). 스탯 변화 없이 그 시점 스탯만 남긴다 */
         fun system(session: SimulationSession, actionCode: ActionCode): SimulationActionLog {
             require(actionCode.type == ActionType.SYSTEM) { "SYSTEM 코드가 아닙니다: $actionCode" }

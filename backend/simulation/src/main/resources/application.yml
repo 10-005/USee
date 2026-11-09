@@ -72,6 +72,10 @@ simulation:
       basic-need-amount: 3      # 건강 -3
       calmness-at-or-below: 20  # 안정감 20 이하면
       calmness-amount: 2        # 건강 추가 -2
+  care:
+    # 물 주기 효과(가안). 물은 무료라 물품 효과 대신 설정에 둔다. 수분은 시간당 5씩 줄어 한 번에 약 10시간분
+    water-effects:
+      hydration: 50
   shop:
     # 묶음 물품: item_seq → 1개 구매 시 인벤토리 증가량(없으면 1). 번호는 시드(V20261109_1110)와 짝을 맞춘다
     uses-per-purchase:
@@ -87,7 +91,7 @@ simulation:
       "[31]": 10  # 화장실 모래
       "[32]": 10  # 배변봉투
       "[33]": 4   # 향긋한 캣닢
-      "[34]": 10  # 순한 샴푸
+      "[34]": 10  # 순한 샴푸(판매 중단, V20261109_1316)
       "[35]": 3   # 기본 상비약
 
 management:

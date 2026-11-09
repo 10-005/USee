@@ -1,5 +1,6 @@
 package com.ssafy.animal.simulation.config
 
+import com.ssafy.animal.simulation.domain.CareConfig
 import com.ssafy.animal.simulation.domain.ShopRules
 import com.ssafy.animal.simulation.domain.StatRules
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -14,4 +15,5 @@ data class SimulationProperties(
     val sessionDuration: Duration,
     val stats: StatRules,
     val shop: ShopRules = ShopRules(),
+    val care: CareConfig = CareConfig(),
 )

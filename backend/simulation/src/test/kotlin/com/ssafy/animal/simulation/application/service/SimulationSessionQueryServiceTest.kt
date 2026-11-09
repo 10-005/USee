@@ -36,8 +36,7 @@ class SimulationSessionQueryServiceTest {
         breedReader = store,
         detailReader = store,
         detailAssembler = store.assembler(),
-        statCalculator = calculator,
-        clock = Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul")),
+        statRefresher = SessionStatRefresher(calculator, Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul"))),
     )
 
     private var startedCount = 0L
