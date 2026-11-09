@@ -40,6 +40,9 @@ class ArFloorViewManager : SimpleViewManager<ArFloorView>() {
     view.requestCare(request.orEmpty())
   }
 
+  @ReactProp(name = "compassRegion")
+  fun setCompassRegion(view: ArFloorView, region: String?) = view.setCompassRegion(region)
+
   @ReactProp(name = "bagAvailable", defaultBoolean = false)
   fun setBagAvailable(view: ArFloorView, available: Boolean) { view.setBagAvailable(available) }
 
@@ -49,6 +52,7 @@ class ArFloorViewManager : SimpleViewManager<ArFloorView>() {
   override fun getExportedCustomDirectEventTypeConstants(): MutableMap<String, Any> =
     mutableMapOf(
       "topTracking" to mutableMapOf("registrationName" to "onTracking"),
+      "topWalkPose" to mutableMapOf("registrationName" to "onWalkPose"),
       "topBagPurchase" to mutableMapOf("registrationName" to "onBagPurchase"),
     )
 

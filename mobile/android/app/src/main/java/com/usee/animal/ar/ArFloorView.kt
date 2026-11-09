@@ -46,6 +46,15 @@ class ArFloorView(
   private var showTraversalDebug = false
   private var dogNode: DogModelNode? = null
   private val dogHeading = DogHeadingSmoother()
+  private val compass = WalkCompass(reactContext)
+  fun setCompassRegion(region: String?) {
+    val parts = region?.split(',') ?: return
+    val latitude = parts.firstOrNull()?.toFloatOrNull() ?: return
+    val longitude = parts.getOrNull(1)?.toFloatOrNull() ?: return
+    compass.setLocation(latitude, longitude)
+  }
+  private var poseSegment = 0
+  private var lastWalkPose = 0L
   private var lastDogRotationNanos = 0L
   private var shadowNode: CylinderNode? = null
   private var leash: DogLeash? = null
@@ -191,6 +200,9 @@ class ArFloorView(
       return
     }
     val activity = reactContext.currentActivity as? ComponentActivity ?: return
+    compass.start()
+    poseSegment++
+    lastWalkPose = 0L
     // A newly created AR session has a new world coordinate system.
     leader = DogLeader(requiresPlacement = false)
     dogHeading.reset()
@@ -291,6 +303,7 @@ class ArFloorView(
   }
 
   private fun releaseSceneResources(scene: ARSceneView) {
+    compass.stop()
     careNodes.values.forEach { node ->
       scene.removeChildNode(node)
       node.destroy()
@@ -353,6 +366,23 @@ class ArFloorView(
     camera.getViewMatrix(viewMatrix, 0)
     camera.getProjectionMatrix(projectionMatrix, 0, 0.1f, 100f)
     val cameraPose = camera.displayOrientedPose
+    if (camera.trackingState != TrackingState.TRACKING) {
+      if (lastWalkPose != 0L) poseSegment++
+      lastWalkPose = 0L
+    } else if (frame.timestamp - lastWalkPose >= 250_000_000L && id != NO_ID) {
+      lastWalkPose = frame.timestamp
+      val pose = camera.pose
+      val data = Arguments.createMap().apply {
+        putInt("segment", poseSegment)
+        putDouble("time", frame.timestamp / 1_000_000.0)
+        putDouble("x", pose.tx().toDouble())
+        putDouble("z", pose.tz().toDouble())
+        compass.alignment(pose)?.let { putDouble("alignment", it) }
+      }
+      UIManagerHelper.getEventDispatcherForReactTag(reactContext, id)?.dispatchEvent(
+        WalkPoseEvent(UIManagerHelper.getSurfaceId(this), id, data),
+      )
+    }
     if (camera.trackingState == TrackingState.TRACKING) sceneView?.updateFillLight(cameraPose)
     leashCamera = LeashPoint(cameraPose.tx(), cameraPose.ty(), cameraPose.tz())
     val screenRight = cameraPose.rotateVector(floatArrayOf(1f, 0f, 0f))
@@ -587,6 +617,12 @@ class ArFloorView(
     override fun getEventName() = "topBagPurchase"
     override fun canCoalesce() = false
     override fun getEventData() = Arguments.createMap()
+  }
+
+  private class WalkPoseEvent(surfaceId: Int, viewId: Int, private val data: com.facebook.react.bridge.WritableMap) :
+    Event<WalkPoseEvent>(surfaceId, viewId) {
+    override fun getEventName() = "topWalkPose"
+    override fun getEventData() = data
   }
 
   private class TrackingEvent(

@@ -26,12 +26,16 @@ export type FloorTracking = {
   canGiveCare?: boolean;
 };
 
+export type WalkPose = { segment: number; time: number; x: number; z: number; alignment?: number };
+
 type ArFloorNativeProps = ViewProps & {
+  onWalkPose?: (event: NativeSyntheticEvent<WalkPose>) => void;
   active?: boolean;
   showTraversalDebug?: boolean;
   placementRequest?: number;
   actionRequest?: string;
   careRequest?: string;
+  compassRegion?: string;
   bagAvailable?: boolean;
   cleanupResponse?: string;
   onTracking?: (event: NativeSyntheticEvent<FloorTracking>) => void;
