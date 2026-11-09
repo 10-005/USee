@@ -10,6 +10,7 @@ import { getShopDatabase, replaceSessionShopCatalog } from '../../../services/sh
 import { findProduct } from '../../../services/shop/catalog';
 import { ApiClientError } from '../../../services/api';
 import { purchaseSimulationItem } from '../../../services/simulation/purchase';
+import { getSimulationInventory } from '../../../services/simulation/inventory';
 import { StackRouter, StackActions } from '@react-navigation/routers';
 
 const mockShopSession: {
@@ -26,6 +27,14 @@ const mockShopSession: {
 jest.mock('../useShopSession', () => ({
   useShopSession: () => mockShopSession,
 }));
+
+jest.mock('../../../services/simulation/inventory', () => {
+  const actual = jest.requireActual('../../../services/simulation/inventory');
+  return {
+    ...actual,
+    getSimulationInventory: jest.fn(),
+  };
+});
 
 jest.mock('../../../services/simulation/purchase', () => {
   const actual = jest.requireActual('../../../services/simulation/purchase');
@@ -175,6 +184,51 @@ it('supports multiple category buttons', () => {
   expect(
     screen.root.findByProps({ accessibilityLabel: '간식 분류' }).props.accessibilityState.checked,
   ).toBe(false);
+  act(() => screen.unmount());
+});
+
+it('shows the server inventory, balance and a used-up consumable', async () => {
+  mockShopSession.session = { sessionSeq: 3001 };
+  jest.mocked(getSimulationInventory).mockResolvedValue({
+    balance: 110000,
+    expectedCost: 150000,
+    equipment: [{ key: 'FOOD_BOWL', label: '밥그릇' }],
+    items: [
+      {
+        itemSeq: 11,
+        itemName: '건식 사료 1kg',
+        category: 'FOOD',
+        isConsumable: true,
+        quantity: 5,
+        imageUrl: null,
+      },
+      {
+        itemSeq: 12,
+        itemName: '간식',
+        category: 'SNACK',
+        isConsumable: true,
+        quantity: 0,
+        imageUrl: null,
+      },
+    ],
+  });
+  let screen!: renderer.ReactTestRenderer;
+  await act(async () => {
+    screen = renderer.create(
+      wrap(
+        <InventoryScreen
+          navigation={{ navigate: jest.fn(), goBack: jest.fn() } as never}
+          route={{ key: 'inventory', name: 'ShopInventory', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  expect(getSimulationInventory).toHaveBeenCalledWith(3001);
+  expect(screen.root.findByProps({ children: '110,000원' })).toBeDefined();
+  expect(screen.root.findByProps({ children: '예상 예산 150,000원' })).toBeDefined();
+  expect(screen.root.findByProps({ children: '밥그릇' })).toBeDefined();
+  expect(screen.root.findByProps({ children: '보유 5개' })).toBeDefined();
+  expect(screen.root.findByProps({ children: '다 썼음' })).toBeDefined();
   act(() => screen.unmount());
 });
 
