@@ -3,7 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppHeader, Button } from '../../components/common';
+import { AppHeader, Button, ListScreenSkeleton } from '../../components/common';
 import {
   getActiveMockAdoption,
   type MockAdoptionSession,
@@ -22,6 +22,7 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
   const insets = useSafeAreaInsets();
   const [session, setSession] = useState<MockAdoptionSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
   useFocusEffect(
@@ -41,6 +42,7 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
         .finally(() => {
           if (mounted) {
             setLoading(false);
+            setInitialLoading(false);
           }
         });
       return () => {
@@ -72,81 +74,85 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
   return (
     <View style={styles.container}>
       <AppHeader title="모의입양" onBackPress={onBack} />
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.intro}>
-          <View style={styles.introText}>
-            <Text style={styles.title}>모의입양</Text>
-            <Text style={styles.description}>
-              {
-                '실제 입양 전,\n보호동물과 함께하는 가상 체험을 통해\n최적의 반려동물을 찾는 데 도움을 주는 서비스입니다.'
-              }
-            </Text>
-          </View>
-          <Image
-            accessible={false}
-            resizeMode="contain"
-            source={require('../../assets/images/mock-adoption/intro-dog.png')}
-            style={styles.introImage}
-          />
-        </View>
-        <Button loading={loading} onPress={openAdoption}>
-          {failed ? '다시 시도하기' : session ? `${petName} 보러가기` : '모의입양 시작하기'}
-        </Button>
-        <View style={styles.sectionHeading}>
-          <Text accessibilityRole="header" style={styles.sectionTitle}>
-            받은 레포트
-          </Text>
-          <Text style={styles.count}>{mockAdoptionReports.length}</Text>
-        </View>
-        {mockAdoptionReports.map(report => {
-          const pet = mockAdoptionPets.find(item => item.id === report.petId);
-          return (
-            <View key={report.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                {pet ? (
-                  <Image
-                    accessibilityLabel={`${report.petName} (${
-                      pet.category === 'cat' ? '고양이' : '개'
-                    }) 이미지`}
-                    source={pet.image}
-                    resizeMode="contain"
-                    style={styles.petImage}
-                  />
-                ) : null}
-                <View style={styles.petInfo}>
-                  <View style={styles.titleRow}>
-                    <Text style={styles.petName}>{report.petName} 모의 입양 결과분석</Text>
-                    {report.isNew ? (
-                      <View style={styles.badge}>
-                        <Text style={styles.badgeText}>new</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <Text style={styles.date}>{report.createdAt}</Text>
-                </View>
-              </View>
-              <Text numberOfLines={1} style={styles.summary}>
-                {report.summary}
+      {initialLoading ? (
+        <ListScreenSkeleton accessibilityLabel="모의입양 정보 불러오는 중" />
+      ) : (
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.intro}>
+            <View style={styles.introText}>
+              <Text style={styles.title}>모의입양</Text>
+              <Text style={styles.description}>
+                {
+                  '실제 입양 전,\n보호동물과 함께하는 가상 체험을 통해\n최적의 반려동물을 찾는 데 도움을 주는 서비스입니다.'
+                }
               </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${report.petName} 리포트 상세보기`}
-                accessibilityState={{ disabled: true }}
-                disabled
-                style={styles.detailButton}
-              >
-                <Text style={styles.detailLabel}>상세보기</Text>
-                <Text accessible={false} style={styles.detailArrow}>
-                  →
-                </Text>
-              </Pressable>
             </View>
-          );
-        })}
-      </ScrollView>
+            <Image
+              accessible={false}
+              resizeMode="contain"
+              source={require('../../assets/images/mock-adoption/intro-dog.png')}
+              style={styles.introImage}
+            />
+          </View>
+          <Button loading={loading} onPress={openAdoption}>
+            {failed ? '다시 시도하기' : session ? `${petName} 보러가기` : '모의입양 시작하기'}
+          </Button>
+          <View style={styles.sectionHeading}>
+            <Text accessibilityRole="header" style={styles.sectionTitle}>
+              받은 레포트
+            </Text>
+            <Text style={styles.count}>{mockAdoptionReports.length}</Text>
+          </View>
+          {mockAdoptionReports.map(report => {
+            const pet = mockAdoptionPets.find(item => item.id === report.petId);
+            return (
+              <View key={report.id} style={styles.card}>
+                <View style={styles.cardHeader}>
+                  {pet ? (
+                    <Image
+                      accessibilityLabel={`${report.petName} (${
+                        pet.category === 'cat' ? '고양이' : '개'
+                      }) 이미지`}
+                      source={pet.image}
+                      resizeMode="contain"
+                      style={styles.petImage}
+                    />
+                  ) : null}
+                  <View style={styles.petInfo}>
+                    <View style={styles.titleRow}>
+                      <Text style={styles.petName}>{report.petName} 모의 입양 결과분석</Text>
+                      {report.isNew ? (
+                        <View style={styles.badge}>
+                          <Text style={styles.badgeText}>new</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.date}>{report.createdAt}</Text>
+                  </View>
+                </View>
+                <Text numberOfLines={1} style={styles.summary}>
+                  {report.summary}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${report.petName} 리포트 상세보기`}
+                  accessibilityState={{ disabled: true }}
+                  disabled
+                  style={styles.detailButton}
+                >
+                  <Text style={styles.detailLabel}>상세보기</Text>
+                  <Text accessible={false} style={styles.detailArrow}>
+                    →
+                  </Text>
+                </Pressable>
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
     </View>
   );
 }
