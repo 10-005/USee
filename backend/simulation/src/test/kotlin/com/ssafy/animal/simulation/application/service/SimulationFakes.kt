@@ -1,5 +1,6 @@
 package com.ssafy.animal.simulation.application.service
 
+import com.ssafy.animal.simulation.application.port.out.ActionLogEntry
 import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.port.out.BreedReader
 import com.ssafy.animal.simulation.application.port.out.CatalogSpeciesCode
@@ -11,6 +12,7 @@ import com.ssafy.animal.simulation.application.port.out.ShopItemRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationSessionRepository
 import com.ssafy.animal.simulation.application.port.out.TransactionEntry
 import com.ssafy.animal.simulation.application.port.out.TransactionRepository
+import com.ssafy.animal.simulation.domain.ActionType
 import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.Personality
@@ -89,7 +91,18 @@ class FakeSimulationStore :
         }
     }
 
-    override fun save(log: SimulationActionLog) = log.also { logs += it }
+    override fun save(log: SimulationActionLog) = log.also {
+        ReflectionTestUtils.setField(it, "actionLogSeq", 50000L + logs.size + 1)
+        logs += it
+    }
+
+    /** 정렬은 기본값(최근 먼저 = PK desc)만 흉내 낸다 */
+    override fun findPage(sessionSeq: Long, type: ActionType?, pageable: Pageable): Page<ActionLogEntry> {
+        val all = logs.filter { it.sessionSeq == sessionSeq && (type == null || it.actionType == type) }
+            .sortedByDescending { it.actionLogSeq }
+            .map { ActionLogEntry(it, it.itemSeq?.let(shopItems::getValue)) }
+        return PageImpl(all.drop(pageable.offset.toInt()).take(pageable.pageSize), pageable, all.size.toLong())
+    }
 
     override fun findBreed(breedSeq: Int): BreedInfo? {
         breedLookups += breedSeq

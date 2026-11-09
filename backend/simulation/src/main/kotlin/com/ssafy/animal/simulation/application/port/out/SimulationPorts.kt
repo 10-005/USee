@@ -1,5 +1,6 @@
 package com.ssafy.animal.simulation.application.port.out
 
+import com.ssafy.animal.simulation.domain.ActionType
 import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.Personality
@@ -36,7 +37,16 @@ interface SimulationSessionRepository {
 
 interface SimulationActionLogRepository {
     fun save(log: SimulationActionLog): SimulationActionLog
+
+    /** 18.7 세션 행동 이력. type이 null이면 전체. 정렬은 regDttm만 허용(기본 desc, 동률 PK desc) */
+    fun findPage(sessionSeq: Long, type: ActionType?, pageable: Pageable): Page<ActionLogEntry>
 }
+
+/** 행동 로그 + 쓴 물품(물품을 쓰지 않은 행동이면 null) */
+data class ActionLogEntry(
+    val log: SimulationActionLog,
+    val item: SimulationShopItem?,
+)
 
 /** 저장소 키 → 공개 URL(품종 대표 이미지·물품 사진) */
 interface ImageUrlResolver {
