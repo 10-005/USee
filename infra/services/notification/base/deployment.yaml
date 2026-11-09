@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification
+  namespace: app
+  labels:
+    app: notification
+spec:
+  # 이벤트 소비자라 1개로 시작한다. 늘리면 같은 큐를 나눠 받는다
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0   # 새 Pod가 준비된 뒤에 옛 Pod를 내린다
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: notification
+    spec:
+      imagePullSecrets:
+        - name: registry-pull
+      containers:
+        - name: notification
+          image: k15d106.p.ssafy.io/animal/notification   # 태그는 overlay(kustomization images)에서 지정
+          ports:
+            - name: http
+              containerPort: 8082
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: dev
+            # 테이블은 core 스키마에 있다(계정 기본 search_path는 notification 스키마라 URL로 지정)
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres.data.svc.cluster.local:5432/animal?currentSchema=core
+            - name: SPRING_DATASOURCE_USERNAME
+              value: notification_app
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: notification-secrets, key: DB_PASSWORD }
+            - name: SPRING_DATA_REDIS_HOST
+              value: redis.data.svc.cluster.local
+            - name: SPRING_DATA_REDIS_PORT
+              value: "6379"
+            - name: SPRING_DATA_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: notification-secrets, key: REDIS_PASSWORD }
+            - name: JWT_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef: { name: notification-secrets, key: JWT_PUBLIC_KEY }
+            - name: CORS_ALLOWED_ORIGINS
+              value: http://localhost:5173,http://127.0.0.1:5173,https://s15p31d106-develop-web.vercel.app
+            - name: EVENTS_TRANSPORT
+              value: rabbit
+            - name: RABBITMQ_HOST
+              value: rabbitmq.data.svc.cluster.local
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-app, key: RABBITMQ_USERNAME }
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-app, key: RABBITMQ_PASSWORD }
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 100m, memory: 512Mi }
+            limits: { memory: 768Mi }   # Dockerfile의 MaxRAMPercentage=75 → 힙 약 576MB

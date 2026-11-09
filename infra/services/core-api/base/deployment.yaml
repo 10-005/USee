@@ -86,6 +86,19 @@ spec:
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef: { name: core-api-s3, key: AWS_SECRET_ACCESS_KEY }
+            # 서비스 간 이벤트를 RabbitMQ로 보낸다(기본 log는 로그만 남김). notification이 받아 알림 저장·푸시(S15P31D106-278)
+            - name: EVENTS_TRANSPORT
+              value: rabbit
+            - name: RABBITMQ_HOST
+              value: rabbitmq.data.svc.cluster.local
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-app, key: RABBITMQ_USERNAME }
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-app, key: RABBITMQ_PASSWORD }
           # JVM 기동이 느리므로 startupProbe로 최대 150초까지 기다린 뒤 liveness/readiness 시작
           startupProbe:
             httpGet: { path: /actuator/health/liveness, port: http }
