@@ -120,6 +120,8 @@ class FakeSimulationStore :
 
     override fun findById(sessionSeq: Long) = findByIdForUpdate(sessionSeq)
 
+    override fun findInProgressSessionSeqs() = sessions.filter { it.status == SessionStatus.IN_PROGRESS }.mapNotNull { it.sessionSeq }
+
     /** 정렬은 기본값(startedDttm desc, PK desc)만 흉내 낸다. 정렬 화이트리스트는 어댑터 테스트에서 본다 */
     override fun findPageByUser(userSeq: Int, status: SessionStatus?, pageable: Pageable): Page<SimulationSession> {
         val all = sessions.filter { it.userSeq == userSeq && (status == null || it.status == status) }

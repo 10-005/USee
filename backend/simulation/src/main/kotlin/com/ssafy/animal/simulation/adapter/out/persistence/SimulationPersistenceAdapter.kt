@@ -53,6 +53,14 @@ class SimulationPersistenceAdapter(
 
     override fun findById(sessionSeq: Long): SimulationSession? = sessionJpaRepository.findByIdOrNull(sessionSeq)
 
+    override fun findInProgressSessionSeqs(): List<Long> =
+        queryFactory.select(simulationSession.sessionSeq)
+            .from(simulationSession)
+            .where(simulationSession.status.eq(SessionStatus.IN_PROGRESS))
+            .orderBy(simulationSession.sessionSeq.asc())
+            .fetch()
+            .filterNotNull()
+
     override fun findPageByUser(userSeq: Int, status: SessionStatus?, pageable: Pageable): Page<SimulationSession> {
         val condition = simulationSession.userSeq.eq(userSeq)
             .let { base -> status?.let { base.and(simulationSession.status.eq(it)) } ?: base }

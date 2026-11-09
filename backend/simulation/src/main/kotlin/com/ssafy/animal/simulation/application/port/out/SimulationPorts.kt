@@ -29,6 +29,9 @@ interface SimulationSessionRepository {
     /** 잠그지 않는 조회(스탯을 쓰지 않는 읽기 전용 API용). 없으면 null */
     fun findById(sessionSeq: Long): SimulationSession?
 
+    /** 스케줄러가 돌 진행 중 세션 번호 전체 */
+    fun findInProgressSessionSeqs(): List<Long>
+
     /** 18.3 사용자 세션 목록(종료 포함). status가 null이면 전체. 정렬은 startedDttm(기본)·endedDttm만 허용 */
     fun findPageByUser(userSeq: Int, status: SessionStatus?, pageable: Pageable): Page<SimulationSession>
 
