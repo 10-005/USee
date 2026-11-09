@@ -1,7 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { invalidateSimulationReports } from '../../simulation/reports';
-import { getActiveMockAdoption, startMockAdoption } from '../mockAdoptionStorage';
+import {
+  getActiveMockAdoption,
+  saveMockAdoptionWalk,
+  startMockAdoption,
+} from '../mockAdoptionStorage';
 
 jest.mock('../../simulation/reports', () => ({
   invalidateSimulationReports: jest.fn(),
@@ -40,6 +44,13 @@ describe('mock adoption weekly session', () => {
   it.each([9999, 100000001, NaN, 10000.5])('rejects invalid stored budget %s', async amount => {
     await expect(startMockAdoption('dog-1', amount)).rejects.toThrow();
     expect(await AsyncStorage.getItem(STORAGE_KEYS.MOCK_ADOPTION_SESSION)).toBeNull();
+  });
+
+  it('stores the walk that starts during the active session', async () => {
+    const session = await startMockAdoption('dog-1', 35000, '초코', 3001);
+    await saveMockAdoptionWalk(8001);
+
+    await expect(getActiveMockAdoption()).resolves.toEqual({ ...session, walkSeq: 8001 });
   });
 
   it('persists the server walk with the session', async () => {

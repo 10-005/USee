@@ -1,5 +1,10 @@
 import { ApiClientError } from '../api/errors';
-import { endSimulationWalk, getSimulationWalkEndErrorMessage } from './walk';
+import {
+  endSimulationWalk,
+  getSimulationWalkEndErrorMessage,
+  getSimulationWalkStartErrorMessage,
+  startSimulationWalk,
+} from './walk';
 
 const endedWalk = {
   walkSeq: 8001,
@@ -21,6 +26,39 @@ const envelope = (data: unknown) => ({
     errors: [],
     traceId: '4f2c9e1a7b3d4c5e',
   },
+});
+
+const startedWalk = {
+  walkSeq: 8001,
+  status: 'IN_PROGRESS',
+  startedDttm: '2026-11-09T10:00:00',
+  heartbeatIntervalSeconds: 60,
+  stats: { energy: 80 },
+};
+
+test('starts a walk for the active simulation', async () => {
+  const post = jest.fn().mockResolvedValue(envelope(startedWalk));
+
+  await expect(startSimulationWalk(3001, { post })).resolves.toEqual(startedWalk);
+  expect(post).toHaveBeenCalledWith('/simulations/3001/walks');
+});
+
+test('rejects a walk start without the walk number', async () => {
+  const post = jest.fn().mockResolvedValue(envelope({ ...startedWalk, walkSeq: 0 }));
+
+  await expect(startSimulationWalk(3001, { post })).rejects.toMatchObject({
+    code: 'UNKNOWN_ERROR',
+    message: '산책을 시작하지 못했어요. 다시 시도해주세요.',
+  });
+});
+
+test.each([
+  ['SIMULATION_WALK_ALREADY_IN_PROGRESS', '이미 진행 중인 산책이 있어요.'],
+  ['SIMULATION_WALK_NOT_FOR_SPECIES', '이 동물은 산책할 수 없어요.'],
+])('describes %s for walk start', (code, message) => {
+  expect(getSimulationWalkStartErrorMessage(new ApiClientError({ code, message: 'server' }))).toBe(
+    message,
+  );
 });
 
 test('ends the walk and reads the summary', async () => {

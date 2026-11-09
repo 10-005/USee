@@ -1,10 +1,17 @@
 import ReactTestRenderer from 'react-test-renderer';
 import {
+  Alert,
   PanResponder,
   type GestureResponderEvent,
   type PanResponderGestureState,
 } from 'react-native';
 
+import { ApiClientError } from '../../services/api';
+import { startSimulationWalk } from '../../services/simulation/walk';
+import {
+  getActiveMockAdoption,
+  saveMockAdoptionWalk,
+} from '../../services/storage/mockAdoptionStorage';
 import { ArWalkScreen } from './ArWalkScreen';
 import { styles } from './ArWalkScreen.styles';
 import { AppDialog } from '../../components/common/AppDialog';
@@ -28,6 +35,30 @@ jest.mock('./useWalkRoute', () => ({
   useWalkRoute: () => ({ segments: [], meters: 0, message: '' }),
 }));
 jest.mock('./components/WalkRouteMap', () => ({ WalkRouteMap: 'WalkRouteMap' }));
+jest.mock('../../services/simulation/walk', () => ({
+  ...jest.requireActual('../../services/simulation/walk'),
+  startSimulationWalk: jest.fn(),
+}));
+jest.mock('../../services/storage/mockAdoptionStorage', () => ({
+  getActiveMockAdoption: jest.fn().mockResolvedValue(null),
+  saveMockAdoptionWalk: jest.fn(),
+}));
+
+const activeSession = {
+  version: 1 as const,
+  petId: 'dog-1',
+  weeklyBudget: 35000,
+  startedAt: 1,
+  expiresAt: Date.now() + 86400000,
+  sessionSeq: 3001,
+};
+
+beforeEach(() => {
+  jest.mocked(getActiveMockAdoption).mockReset();
+  jest.mocked(getActiveMockAdoption).mockResolvedValue(null);
+  jest.mocked(startSimulationWalk).mockReset();
+  jest.mocked(saveMockAdoptionWalk).mockReset();
+});
 
 test('water uses a tap and treats require an upward drag', async () => {
   const panResponder = jest.spyOn(PanResponder, 'create');
@@ -222,6 +253,80 @@ test('walk timer starts when the dog is first recognized and keeps elapsed time 
     await ReactTestRenderer.act(() => renderer?.unmount());
     jest.useRealTimers();
   }
+});
+
+test('starts one server walk when the recognized dog starts the timer', async () => {
+  jest.mocked(getActiveMockAdoption).mockResolvedValue(activeSession);
+  jest.mocked(startSimulationWalk).mockResolvedValue({
+    walkSeq: 8001,
+    status: 'IN_PROGRESS',
+    startedDttm: '2026-11-09T10:00:00',
+    heartbeatIntervalSeconds: 60,
+    stats: { energy: 80 },
+  });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<ArWalkScreen />);
+  });
+  const recognize = () =>
+    renderer.root.findByType(ArFloorView).props.onTracking({
+      nativeEvent: { status: 'anchored', visible: true, onScreen: true },
+    });
+  await ReactTestRenderer.act(async () => {
+    recognize();
+    await Promise.resolve();
+  });
+  expect(startSimulationWalk).toHaveBeenCalledTimes(1);
+  expect(startSimulationWalk).toHaveBeenCalledWith(3001);
+  expect(saveMockAdoptionWalk).toHaveBeenCalledWith(8001);
+  await ReactTestRenderer.act(() => recognize());
+  expect(startSimulationWalk).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('keeps the timer when the walk is already recorded for this adoption', async () => {
+  jest.mocked(getActiveMockAdoption).mockResolvedValue({ ...activeSession, walkSeq: 8001 });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<ArWalkScreen />);
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(ArFloorView).props.onTracking({
+      nativeEvent: { status: 'anchored', visible: true, onScreen: true },
+    });
+    await Promise.resolve();
+  });
+  expect(startSimulationWalk).not.toHaveBeenCalled();
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: '산책 시간 00:00' }).length,
+  ).toBeGreaterThan(0);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('shows the walk start error without stopping the timer', async () => {
+  jest.mocked(getActiveMockAdoption).mockResolvedValue(activeSession);
+  jest
+    .mocked(startSimulationWalk)
+    .mockRejectedValue(
+      new ApiClientError({ code: 'SIMULATION_WALK_NOT_FOR_SPECIES', message: 'server' }),
+    );
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<ArWalkScreen />);
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(ArFloorView).props.onTracking({
+      nativeEvent: { status: 'anchored', visible: true, onScreen: true },
+    });
+    await Promise.resolve();
+  });
+  expect(alert).toHaveBeenCalledWith('산책', '이 동물은 산책할 수 없어요.');
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: '산책 시간 00:00' }).length,
+  ).toBeGreaterThan(0);
+  alert.mockRestore();
+  await ReactTestRenderer.act(() => renderer.unmount());
 });
 
 test('placement remains visible during analysis and hides only for visible dogs or moving users', async () => {

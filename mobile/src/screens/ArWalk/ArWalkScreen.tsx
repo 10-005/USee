@@ -17,6 +17,14 @@ import { useCameraPermission } from 'react-native-vision-camera';
 import { useShopStore } from '../../stores/shopStore';
 import { AppDialog } from '../../components/common/AppDialog';
 import { findProduct, money } from '../../services/shop/catalog';
+import {
+  getSimulationWalkStartErrorMessage,
+  startSimulationWalk,
+} from '../../services/simulation/walk';
+import {
+  getActiveMockAdoption,
+  saveMockAdoptionWalk,
+} from '../../services/storage/mockAdoptionStorage';
 import type { RootStackParamList } from '../../app/navigation/types';
 
 import { styles } from './ArWalkScreen.styles';
@@ -133,6 +141,7 @@ export function ArWalkScreen({
   const [loadingDots, setLoadingDots] = useState(2);
   const [walkStartedAt, setWalkStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const serverWalkRequested = useRef(false);
   const walkRoute = useWalkRoute(isFocused && walkStartedAt !== null);
   const voice = useWalkVoice(
     isFocused && hasPermission && status === 'anchored' && !bagPurchaseVisible,
@@ -151,6 +160,30 @@ export function ArWalkScreen({
       setCareRequest('');
     }
   }, [isFocused, hasPermission]);
+
+  useEffect(() => {
+    if (walkStartedAt === null || serverWalkRequested.current) {
+      return;
+    }
+    serverWalkRequested.current = true;
+    let mounted = true;
+    getActiveMockAdoption()
+      .then(async active => {
+        if (!active?.sessionSeq || active.walkSeq) {
+          return;
+        }
+        const started = await startSimulationWalk(active.sessionSeq);
+        await saveMockAdoptionWalk(started.walkSeq);
+      })
+      .catch(error => {
+        if (mounted) {
+          Alert.alert('산책', getSimulationWalkStartErrorMessage(error));
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [walkStartedAt]);
 
   useEffect(() => {
     if (walkStartedAt === null) {
@@ -222,7 +255,13 @@ export function ArWalkScreen({
           style={styles.camera}
           onTracking={onTracking}
           onWalkPose={event => walkRoute.onPose(event.nativeEvent)}
-          compassRegion={walkRoute.mapPosition ? `${walkRoute.mapPosition.latitude.toFixed(1)},${walkRoute.mapPosition.longitude.toFixed(1)}` : undefined}
+          compassRegion={
+            walkRoute.mapPosition
+              ? `${walkRoute.mapPosition.latitude.toFixed(
+                  1,
+                )},${walkRoute.mapPosition.longitude.toFixed(1)}`
+              : undefined
+          }
           bagAvailable={shop.ready && Date.now() < shop.expiresAt && (shop.inventory.bags ?? 0) > 0}
           cleanupResponse={cleanupResponse}
           onBagPurchase={openBagPurchase}

@@ -101,6 +101,20 @@ export async function startMockAdoption(
   return session;
 }
 
+export async function saveMockAdoptionWalk(walkSeq: number) {
+  if (!isPositiveId(walkSeq)) {
+    throw new Error('Invalid simulation walk');
+  }
+  const session = await getStoredValue<MockAdoptionSession>(STORAGE_KEYS.MOCK_ADOPTION_SESSION);
+  if (!session || !isStoredSession(session) || Date.now() >= session.expiresAt) {
+    return;
+  }
+  if (session.walkSeq === walkSeq) {
+    return;
+  }
+  await setStoredValue(STORAGE_KEYS.MOCK_ADOPTION_SESSION, { ...session, walkSeq });
+}
+
 export async function endMockAdoption() {
   await removeStoredValue(STORAGE_KEYS.MOCK_ADOPTION_SESSION);
 }
