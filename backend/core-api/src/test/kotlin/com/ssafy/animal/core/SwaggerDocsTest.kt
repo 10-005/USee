@@ -7,6 +7,8 @@ import com.ssafy.animal.core.auth.application.port.`in`.KakaoRegisterUseCase
 import com.ssafy.animal.core.auth.application.port.`in`.LocalLoginUseCase
 import com.ssafy.animal.core.auth.application.port.`in`.WithdrawUseCase
 import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
+import com.ssafy.animal.core.missing.application.port.`in`.MissingReportUseCase
+import com.ssafy.animal.core.pet.application.port.`in`.PetUseCase
 import com.ssafy.animal.core.sample.application.port.`in`.SampleUseCase
 import com.ssafy.animal.core.user.application.port.`in`.UserProfileUseCase
 import org.hamcrest.Matchers.containsInAnyOrder
@@ -52,6 +54,12 @@ abstract class SwaggerDocsTestBase {
     lateinit var mockMvc: MockMvc
 
     // 문서에 실제 컨트롤러가 잡히도록 컨트롤러는 띄우고 유스케이스만 목으로 둔다
+    @MockitoBean
+    lateinit var petUseCase: PetUseCase
+
+    @MockitoBean
+    lateinit var missingReportUseCase: MissingReportUseCase
+
     @MockitoBean
     lateinit var sampleUseCase: SampleUseCase
 
