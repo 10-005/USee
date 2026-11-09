@@ -141,6 +141,9 @@ interface EventOccurrenceRepository {
     /** since 이후 발생한 그 장소·유형 이벤트 수(RANDOM 일차당 횟수 제한) */
     fun countOccurredSince(sessionSeq: Long, context: TriggerContext, type: TriggerType, since: OffsetDateTime): Int
 
+    /** 그 세션에서 그 시나리오가 마지막으로 발생한 시각(CONDITION 쿨다운). 없으면 null */
+    fun findLastOccurredAt(sessionSeq: Long, scenarioSeq: Long): OffsetDateTime?
+
     /** 18.12 세션 이벤트 목록. status가 null이면 전체. 정렬은 occurredDttm만 허용(기본 desc, 동률 PK desc) */
     fun findPage(sessionSeq: Long, status: OccurrenceStatus?, pageable: Pageable): Page<EventOccurrence>
 

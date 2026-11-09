@@ -18,13 +18,16 @@ class SessionMaintenanceService(
 
     /**
      * 목록을 읽은 뒤 사이에 끝났을 수 있어 잠근 뒤 다시 본다(catchUp이 끝난 세션은 건드리지 않음).
-     * 진행시킨 뒤에도 진행 중이면 RANDOM 돌발 이벤트를 확률로 만든다(256). EVENT 푸시는 260에서 붙인다.
+     * 진행시킨 뒤에도 진행 중이면 돌발 이벤트를 판정한다: 스탯 조건에 맞는 CONDITION(259)을 먼저 보고,
+     * 안 생겼을 때만 RANDOM(256)을 확률로 만든다(Q499). EVENT 푸시는 260에서 붙인다.
      */
     @Transactional
     override fun advance(sessionSeq: Long) {
         val session = sessionRepository.findByIdForUpdate(sessionSeq) ?: return
         progress.catchUp(session)
-        if (session.isInProgress) events.triggerRandom(session, statRefresher.now())
+        if (!session.isInProgress) return
+        val now = statRefresher.now()
+        events.triggerCondition(session, now) ?: events.triggerRandom(session, now)
     }
 
     /** 명세 21.6 UserDeleted: 진행 중 세션 ABANDONED + 리포트. 그 사이 예정 종료·건강 0이었으면 그 상태로 끝낸다 */

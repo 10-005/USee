@@ -66,6 +66,13 @@ class EventPersistenceAdapter(
                 .fetchOne() ?: 0L
             ).toInt()
 
+    // ix_sim_occurrence_scenario (session_seq, scenario_seq, occurred_dttm DESC)
+    override fun findLastOccurredAt(sessionSeq: Long, scenarioSeq: Long): OffsetDateTime? =
+        queryFactory.select(eventOccurrence.occurredDttm.max())
+            .from(eventOccurrence)
+            .where(eventOccurrence.sessionSeq.eq(sessionSeq), eventOccurrence.scenarioSeq.eq(scenarioSeq))
+            .fetchOne()
+
     override fun findPage(sessionSeq: Long, status: OccurrenceStatus?, pageable: Pageable): Page<EventOccurrence> {
         val condition = eventOccurrence.sessionSeq.eq(sessionSeq)
             .let { base -> status?.let { base.and(eventOccurrence.status.eq(it)) } ?: base }
