@@ -1,5 +1,8 @@
 package com.ssafy.animal.simulation.application.service
 
+import com.ssafy.animal.common.event.EventPublisher
+import com.ssafy.animal.common.event.SimulationPushRequested
+import com.ssafy.animal.common.event.SimulationPushType
 import com.ssafy.animal.simulation.config.SimulationProperties
 import com.ssafy.animal.simulation.domain.EventOccurrence
 import com.ssafy.animal.simulation.domain.Personality
@@ -25,7 +28,12 @@ class SessionMaintenanceServiceTest {
     private val start = OffsetDateTime.of(2026, 11, 1, 14, 0, 0, 0, ZoneOffset.ofHours(9))
     private var random: RandomGenerator = ScriptedRandom()
 
-    private fun serviceAt(now: OffsetDateTime) = SessionMaintenanceService(store, store.progress(properties, now), store.events(properties, random), store.refresher(properties, now))
+    private val pushes = mutableListOf<Any>()
+
+    private fun serviceAt(now: OffsetDateTime) = SessionMaintenanceService(
+        store, store.progress(properties, now), store.events(properties, random), store.refresher(properties, now),
+        SimulationPushNotifier(object : EventPublisher { override fun publish(event: Any) { pushes += event } }),
+    )
 
     private fun session(userSeq: Int, endsAt: OffsetDateTime = start.plusDays(7)) = store.save(
         SimulationSession.start(
@@ -115,6 +123,11 @@ class SessionMaintenanceServiceTest {
         assertTrue(occurrence.isPending)
         assertEquals(start.plusHours(1), occurrence.occurredDttm)
         assertEquals(start.plusHours(7), occurrence.expiresDttm)
+        // 새 집 이벤트는 EVENT 푸시(이름 + 시나리오 제목)
+        assertEquals(
+            listOf<Any>(SimulationPushRequested(17, SimulationPushType.EVENT, "초코에게 무슨 일이 생겼어요", "쿠션을 물어뜯어요. 들어와서 살펴봐 주세요.")),
+            pushes,
+        )
     }
 
     @Test
@@ -137,6 +150,7 @@ class SessionMaintenanceServiceTest {
         random = ScriptedRandom(doubles = listOf(0.5))
         serviceAt(start.plusHours(1)).advance(dog.sessionSeq!!)
         assertTrue(store.occurrences.isEmpty())
+        assertTrue(pushes.isEmpty())
 
         random = ScriptedRandom(doubles = listOf(0.0, 0.0))
         serviceAt(start.plusHours(1)).advance(dog.sessionSeq!!)

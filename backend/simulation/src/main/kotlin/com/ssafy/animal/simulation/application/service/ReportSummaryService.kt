@@ -36,7 +36,7 @@ class ReportSummaryService(
 
         val input = ReportSummaryInput.of(session, report, properties.sessionDuration.toDays().toInt())
         if (!reportRepository.updateSummaryIfNull(sessionSeq, generate(input))) return false
-        eventPublisher.publishEvent(SimulationReportSummarized(sessionSeq, session.userSeq, session.status))
+        eventPublisher.publishEvent(SimulationReportSummarized(sessionSeq, session.userSeq, session.status, session.animalName))
         return true
     }
 
