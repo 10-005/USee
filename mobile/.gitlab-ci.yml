@@ -27,6 +27,7 @@ notify-mobile-merge:
         :d106_hl_victory: :d109_tw_yaho: :d110_hooooni_molba: :d110_sexy_hooooni: \
         :park_bum_wow: :park_bum_bald: :park_bum_cute: :park_bum_alpha_male: \
         :jihyun_singing: :jh_yaong: :mk_singing: :mk_smile: :sanghyun_fruity: \
+        :d106_hj_phone: :d106_dancehyun: :d106_smile_cr: :d109_sj_ddabong: \
         | awk -v n=3 'BEGIN { srand() } { e[NR] = $0 }
                END {
                  out = ""
