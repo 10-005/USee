@@ -2,6 +2,7 @@ package com.ssafy.animal.simulation.adapter.out.persistence
 
 import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.common.exception.CommonErrorCode
+import com.ssafy.animal.simulation.domain.QEventOccurrence.Companion.eventOccurrence
 import com.ssafy.animal.simulation.domain.QSimulationSession.Companion.simulationSession
 import com.ssafy.animal.simulation.domain.SimulationErrorCode
 import org.springframework.dao.DataIntegrityViolationException
@@ -58,6 +59,18 @@ class SimulationPersistenceAdapterTest {
             policy.toOrderSpecifiers(Sort.by(Sort.Order.asc("endedDttm"))).toList(),
         )
         val error = assertFailsWith<BusinessException> { policy.toOrderSpecifiers(Sort.by("startedDttm")) }
+        assertEquals(CommonErrorCode.COMMON_INVALID_INPUT, error.errorCode)
+    }
+
+    @Test
+    fun `18_12 정렬은 occurredDttm만 허용하고 기본은 occurredDttm desc, 동률은 PK desc`() {
+        val policy = EventPersistenceAdapter.SORT_POLICY
+
+        assertEquals(
+            listOf(eventOccurrence.occurredDttm.desc(), eventOccurrence.occurrenceSeq.desc()),
+            policy.toOrderSpecifiers(Sort.unsorted()).toList(),
+        )
+        val error = assertFailsWith<BusinessException> { policy.toOrderSpecifiers(Sort.by("expiresDttm")) }
         assertEquals(CommonErrorCode.COMMON_INVALID_INPUT, error.errorCode)
     }
 }

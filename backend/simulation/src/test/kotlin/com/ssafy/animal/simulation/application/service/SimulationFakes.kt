@@ -323,7 +323,7 @@ class FakeSimulationStore :
         ).forEach { shopItems[it.itemSeq] = it }
     }
 
-    fun assembler() = SimulationSessionDetailAssembler(this, this, this)
+    fun assembler() = SimulationSessionDetailAssembler(this, this, this, this, this)
 
     /** 종료 시 발행된 내부 이벤트 */
     val published = mutableListOf<Any>()

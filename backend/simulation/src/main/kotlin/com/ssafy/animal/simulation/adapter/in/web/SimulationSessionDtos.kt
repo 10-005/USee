@@ -73,8 +73,8 @@ data class SimulationSessionResponse(
     val lastActionDttm: OffsetDateTime?,
     @field:Schema(description = "보유 기구(메인 화면 오브젝트 활성 여부)")
     val equipment: Equipment,
-    @field:Schema(description = "미해결 돌발 이벤트. 이벤트 기능 전까지 항상 null", nullable = true, example = "null")
-    val pendingEvent: Any?,
+    @field:Schema(description = "해결 대기 중인 돌발 이벤트(세션당 최대 1개). 없으면 null", nullable = true)
+    val pendingEvent: SimulationEventResponse?,
     @field:Schema(description = "진행 중 산책 번호. 없으면 null", nullable = true, example = "null")
     val activeWalkSeq: Long?,
 ) {
@@ -96,7 +96,7 @@ data class SimulationSessionResponse(
                 stats = StatsResponse.of(stats(), statsCalculatedDttm),
                 lastActionDttm = lastActionDttm,
                 equipment = detail.equipment,
-                pendingEvent = null,
+                pendingEvent = detail.pendingEvent?.let(SimulationEventResponse::from),
                 activeWalkSeq = detail.activeWalkSeq,
             )
         }

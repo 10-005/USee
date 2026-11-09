@@ -2,6 +2,7 @@ package com.ssafy.animal.simulation.application.service
 
 import com.ssafy.animal.simulation.application.service.FakeSimulationStore.Companion.MALTESE
 import com.ssafy.animal.simulation.domain.Equipment
+import com.ssafy.animal.simulation.domain.EventOccurrence
 import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SimulationInventoryItem
@@ -43,6 +44,19 @@ class SimulationSessionDetailAssemblerTest {
         assertEquals(MALTESE, detail.breed)
         assertEquals(Equipment(foodBowl = true, waterBowl = false, litterBox = false, toy = true), detail.equipment)
         assertEquals(8001L, detail.activeWalkSeq)
+        assertEquals(null, detail.pendingEvent)
+    }
+
+    @Test
+    fun `대기 중 돌발 이벤트가 있으면 시나리오와 함께 붙인다`() {
+        store.breeds[21] = MALTESE
+        store.stockScenarios()
+        val occurrence = store.save(EventOccurrence.occur(session, store.scenarios.getValue(1), start, start.plusHours(6)))
+
+        val pending = assembler.assemble(session).pendingEvent
+
+        assertEquals(occurrence, pending?.occurrence)
+        assertEquals("물그릇을 엎었어요", pending?.scenario?.title)
     }
 
     @Test
