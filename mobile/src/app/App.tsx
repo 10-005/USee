@@ -11,6 +11,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { RootNavigator } from './navigation/RootNavigator';
 import { startForegroundMessaging } from '../services/notifications/firebaseMessaging';
+import { installMockAdoptionWalkExpiry } from '../services/simulation/walkLifecycle';
+
+installMockAdoptionWalkExpiry();
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';

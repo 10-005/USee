@@ -14,28 +14,47 @@ export type MockAdoptionSession = {
   startedAt: number;
   expiresAt: number;
   sessionSeq?: number;
+  walkSeq?: number;
 };
+
+type MockAdoptionExpireHandler = (session: MockAdoptionSession) => Promise<void>;
+
+let expireHandler: MockAdoptionExpireHandler | null = null;
+
+export function setMockAdoptionExpireHandler(handler: MockAdoptionExpireHandler | null) {
+  expireHandler = handler;
+}
+
+function isPositiveId(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0;
+}
+
+function isStoredSession(session: MockAdoptionSession): boolean {
+  return (
+    session.version === 1 &&
+    (session.petName === undefined ||
+      (typeof session.petName === 'string' && !getPetNameError(session.petName))) &&
+    mockAdoptionPets.some(pet => pet.id === session.petId) &&
+    (session.sessionSeq === undefined || isPositiveId(session.sessionSeq)) &&
+    (session.walkSeq === undefined || isPositiveId(session.walkSeq)) &&
+    typeof session.weeklyBudget === 'number' &&
+    !getBudgetError(String(session.weeklyBudget)) &&
+    Number.isFinite(session.startedAt) &&
+    session.expiresAt === session.startedAt + WEEK_MS
+  );
+}
 
 export async function getActiveMockAdoption(): Promise<MockAdoptionSession | null> {
   const session = await getStoredValue<MockAdoptionSession>(STORAGE_KEYS.MOCK_ADOPTION_SESSION);
   if (!session) {
     return null;
   }
-  if (
-    session.version !== 1 ||
-    (session.petName !== undefined &&
-      (typeof session.petName !== 'string' || Boolean(getPetNameError(session.petName)))) ||
-    !mockAdoptionPets.some(pet => pet.id === session.petId) ||
-    (session.sessionSeq !== undefined &&
-      (typeof session.sessionSeq !== 'number' ||
-        !Number.isInteger(session.sessionSeq) ||
-        session.sessionSeq <= 0)) ||
-    typeof session.weeklyBudget !== 'number' ||
-    getBudgetError(String(session.weeklyBudget)) ||
-    !Number.isFinite(session.startedAt) ||
-    session.expiresAt !== session.startedAt + WEEK_MS ||
-    Date.now() >= session.expiresAt
-  ) {
+  if (!isStoredSession(session)) {
+    await removeStoredValue(STORAGE_KEYS.MOCK_ADOPTION_SESSION);
+    return null;
+  }
+  if (Date.now() >= session.expiresAt) {
+    await expireHandler?.(session);
     await removeStoredValue(STORAGE_KEYS.MOCK_ADOPTION_SESSION);
     return null;
   }
@@ -47,6 +66,7 @@ export async function startMockAdoption(
   weeklyBudget: number,
   petName?: string,
   sessionSeq?: number,
+  walkSeq?: number,
 ) {
   if (!mockAdoptionPets.some(pet => pet.id === petId) || getBudgetError(String(weeklyBudget))) {
     throw new Error('Invalid mock adoption settings');
@@ -54,8 +74,11 @@ export async function startMockAdoption(
   if (petName !== undefined && getPetNameError(petName)) {
     throw new Error('Invalid pet name');
   }
-  if (sessionSeq !== undefined && (!Number.isInteger(sessionSeq) || sessionSeq <= 0)) {
+  if (sessionSeq !== undefined && !isPositiveId(sessionSeq)) {
     throw new Error('Invalid simulation session');
+  }
+  if (walkSeq !== undefined && !isPositiveId(walkSeq)) {
+    throw new Error('Invalid simulation walk');
   }
   const active = await getActiveMockAdoption();
   if (active && (sessionSeq === undefined || active.sessionSeq === sessionSeq)) {
@@ -67,6 +90,7 @@ export async function startMockAdoption(
     petId,
     ...(petName === undefined ? {} : { petName }),
     ...(sessionSeq === undefined ? {} : { sessionSeq }),
+    ...(walkSeq === undefined ? {} : { walkSeq }),
     weeklyBudget,
     startedAt,
     expiresAt: startedAt + WEEK_MS,

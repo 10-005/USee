@@ -33,7 +33,10 @@ export function MockAdoptionShortcut({ bottom, onOpen }: Props) {
           const remaining = active ? active.expiresAt - Date.now() : 0;
           setSession(remaining > 0 ? active : null);
           if (remaining > 0) {
-            expiryTimer = setTimeout(() => setSession(null), remaining);
+            expiryTimer = setTimeout(() => {
+              setSession(null);
+              getActiveMockAdoption().catch(() => undefined);
+            }, remaining);
           }
         } catch {
           if (mounted && current === revision) {

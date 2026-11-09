@@ -34,6 +34,15 @@ describe('mock adoption weekly session', () => {
     expect(await AsyncStorage.getItem(STORAGE_KEYS.MOCK_ADOPTION_SESSION)).toBeNull();
   });
 
+  it('persists the server walk with the session', async () => {
+    const session = await startMockAdoption('dog-1', 35000, '초코', 3001, 8001);
+    expect(session.walkSeq).toBe(8001);
+    await expect(getActiveMockAdoption()).resolves.toMatchObject({
+      sessionSeq: 3001,
+      walkSeq: 8001,
+    });
+  });
+
   it('replaces the saved week when the server creates a new session', async () => {
     await startMockAdoption('dog-1', 35000, '초코', 3001);
     const next = await startMockAdoption('cat-2', 40000, '나비', 3002);
