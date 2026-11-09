@@ -49,6 +49,10 @@ spec:
             - name: JWT_PUBLIC_KEY
               valueFrom:
                 secretKeyRef: { name: notification-secrets, key: JWT_PUBLIC_KEY }
+            # FCM 서비스 계정 키 JSON(S15P31D106-211). 없으면 앱이 발송 대신 로그만 남긴다
+            - name: FIREBASE_CREDENTIALS
+              valueFrom:
+                secretKeyRef: { name: notification-secrets, key: FIREBASE_CREDENTIALS }
             - name: CORS_ALLOWED_ORIGINS
               value: http://localhost:5173,http://127.0.0.1:5173,https://s15p31d106-develop-web.vercel.app
             - name: EVENTS_TRANSPORT
