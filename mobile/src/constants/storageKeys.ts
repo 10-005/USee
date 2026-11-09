@@ -1,4 +1,5 @@
 export const STORAGE_KEYS = {
+  FCM_TOKEN: '@usee/fcm-token',
   CHAT_ROOMS: '@usee/chat-rooms-v1',
   ADOPTION_APPLICATION_DRAFT: '@usee/adoption-application-draft',
   ADOPTION_APPLICATION_RECORD: '@usee/adoption-application-record',
