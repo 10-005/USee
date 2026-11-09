@@ -4,6 +4,7 @@ import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationActionLog
+import com.ssafy.animal.simulation.domain.SimulationInventoryItem
 import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SimulationShopItem
 import com.ssafy.animal.simulation.domain.SpeciesType
@@ -42,6 +43,24 @@ interface ShopItemRepository {
     fun findActive(speciesType: SpeciesType?): List<SimulationShopItem>
 }
 
+/** 세션별 보유 물품. 호출하는 쪽이 세션 행을 잠근 상태(FOR UPDATE)에서 쓴다 */
+interface InventoryRepository {
+    fun find(sessionSeq: Long, itemSeq: Long): SimulationInventoryItem?
+
+    fun save(inventoryItem: SimulationInventoryItem): SimulationInventoryItem
+
+    /** 18.10 보유 물품 전체(수량 0 포함)와 물품 정보. 물품 display_order, item_seq 순 */
+    fun findAllWithItems(sessionSeq: Long): List<InventoryEntry>
+
+    /** 세션 상세의 보유 기구(수량 1 이상인 기구 분류) */
+    fun findEquipment(sessionSeq: Long): Equipment
+}
+
+data class InventoryEntry(
+    val inventoryItem: SimulationInventoryItem,
+    val shopItem: SimulationShopItem,
+)
+
 /** core 스키마 품종 기준정보 읽기 전용 조회(Q420·Q482). 잠그지 않는다 */
 interface BreedReader {
     fun findBreed(breedSeq: Int): BreedInfo?
@@ -50,11 +69,8 @@ interface BreedReader {
     fun findBreeds(breedSeqs: Collection<Int>): Map<Int, BreedInfo>
 }
 
-/** 세션 상세·목록에 붙는 파생 정보. 인벤토리·산책·리포트 엔티티가 생기기 전까지 읽기 전용 조회로 둔다 */
+/** 세션 상세·목록에 붙는 파생 정보. 산책·리포트 엔티티가 생기기 전까지 읽기 전용 조회로 둔다 */
 interface SessionDetailReader {
-    /** 수량 1 이상인 기구 4종 보유 여부 */
-    fun findEquipment(sessionSeq: Long): Equipment
-
     /** 진행 중 산책(세션당 최대 1건, 부분 UNIQUE). 없으면 null */
     fun findActiveWalkSeq(sessionSeq: Long): Long?
 

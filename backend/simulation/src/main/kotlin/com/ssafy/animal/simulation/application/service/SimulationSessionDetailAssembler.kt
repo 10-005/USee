@@ -3,6 +3,7 @@ package com.ssafy.animal.simulation.application.service
 import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionDetail
 import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.port.out.BreedReader
+import com.ssafy.animal.simulation.application.port.out.InventoryRepository
 import com.ssafy.animal.simulation.application.port.out.SessionDetailReader
 import com.ssafy.animal.simulation.domain.SimulationSession
 import org.springframework.stereotype.Component
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component
 @Component
 class SimulationSessionDetailAssembler(
     private val breedReader: BreedReader,
+    private val inventoryRepository: InventoryRepository,
     private val detailReader: SessionDetailReader,
 ) {
 
@@ -24,7 +26,7 @@ class SimulationSessionDetailAssembler(
         return SimulationSessionDetail(
             session = session,
             breed = resolved,
-            equipment = detailReader.findEquipment(sessionSeq),
+            equipment = inventoryRepository.findEquipment(sessionSeq),
             activeWalkSeq = detailReader.findActiveWalkSeq(sessionSeq),
         )
     }
