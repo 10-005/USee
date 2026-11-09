@@ -2,6 +2,8 @@ package com.ssafy.animal.core
 
 import com.ssafy.animal.common.auth.AuthUser
 import com.ssafy.animal.common.config.CommonWebAutoConfiguration
+import com.ssafy.animal.core.animal.application.port.`in`.ShelterAnimalUseCase
+import com.ssafy.animal.core.adoption.application.port.`in`.AdoptionUseCase
 import com.ssafy.animal.core.auth.application.port.`in`.AuthUseCase
 import com.ssafy.animal.core.auth.application.port.`in`.KakaoRegisterUseCase
 import com.ssafy.animal.core.auth.application.port.`in`.LocalLoginUseCase
@@ -76,6 +78,12 @@ abstract class SwaggerDocsTestBase {
 
     @MockitoBean
     lateinit var localLoginUseCase: LocalLoginUseCase
+
+    @MockitoBean
+    lateinit var shelterAnimalUseCase: ShelterAnimalUseCase
+
+    @MockitoBean
+    lateinit var adoptionUseCase: AdoptionUseCase
 
     @MockitoBean
     lateinit var userProfileUseCase: UserProfileUseCase
