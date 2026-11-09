@@ -3,13 +3,8 @@ package com.ssafy.animal.notification.adapter.out.fcm
 import com.ssafy.animal.notification.application.port.out.FcmMessage
 import com.ssafy.animal.notification.application.port.out.FcmSender
 import org.slf4j.LoggerFactory
-import org.springframework.stereotype.Component
 
-/**
- * ponytail: Firebase Admin SDK 의존성이 아직 없어 로그만 남긴다(코디네이터 요청). SDK가 들어오면
- * FirebaseMessaging으로 보내는 어댑터로 이 클래스를 바꾼다. 토큰은 앞 8자만 찍는다
- */
-@Component
+/** FCM 키(fcm.credentials)가 없는 로컬·테스트용. 실제로 보내지 않고 로그만 남긴다. 토큰은 앞 8자만 찍는다 */
 class LoggingFcmSender : FcmSender {
 
     private val log = LoggerFactory.getLogger(javaClass)

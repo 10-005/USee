@@ -23,6 +23,10 @@ api:
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
 
+# FCM 서비스 계정 키 JSON 원문(SealedSecret notification-secrets). 비어 있으면 발송 대신 로그만 남긴다
+fcm:
+  credentials: ${FIREBASE_CREDENTIALS:}
+
 management:
   endpoints:
     web:

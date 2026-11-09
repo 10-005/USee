@@ -53,7 +53,7 @@ interface UserStatus {
     val accountStatus: String
 }
 
-/** FCM 발송 포트. Firebase Admin SDK 어댑터가 생기기 전까지는 로깅 어댑터가 받는다 */
+/** FCM 발송 포트. 키가 있으면 Firebase Admin SDK, 없으면 로깅 어댑터(FcmConfig) */
 interface FcmSender {
     fun send(message: FcmMessage)
 }
@@ -65,3 +65,6 @@ data class FcmMessage(
     val body: String?,
     val data: Map<String, String>,
 )
+
+/** 더는 쓸 수 없는 토큰(FCM UNREGISTERED). 받은 쪽이 그 토큰을 비활성화한다 */
+class InvalidFcmTokenException(val token: String, cause: Throwable? = null) : RuntimeException("만료된 FCM 토큰", cause)

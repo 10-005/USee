@@ -6,6 +6,7 @@ querydsl = "7.7"
 springdoc = "3.2.0"
 jjwt = "0.13.0"
 awssdk = "2.57.0"
+firebase-admin = "9.11.0"
 
 [libraries]
 spring-boot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
@@ -35,6 +36,7 @@ jjwt-impl = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
 jjwt-orgjson = { module = "io.jsonwebtoken:jjwt-orgjson", version.ref = "jjwt" }
 awssdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awssdk" }
 awssdk-s3 = { module = "software.amazon.awssdk:s3" }
+firebase-admin = { module = "com.google.firebase:firebase-admin", version.ref = "firebase-admin" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
