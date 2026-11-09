@@ -6,7 +6,9 @@ import com.ssafy.animal.simulation.application.port.out.TransactionEntry
 import com.ssafy.animal.simulation.application.port.out.TransactionRepository
 import com.ssafy.animal.simulation.domain.QSimulationShopItem.Companion.simulationShopItem
 import com.ssafy.animal.simulation.domain.QSimulationTransaction.Companion.simulationTransaction
+import com.ssafy.animal.simulation.domain.ReportAggregator
 import com.ssafy.animal.simulation.domain.SimulationTransaction
+import com.ssafy.animal.simulation.domain.SpendRecord
 import com.ssafy.animal.simulation.domain.TransactionType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
@@ -40,6 +42,20 @@ class TransactionPersistenceAdapter(
         val total = queryFactory.select(simulationTransaction.count()).from(simulationTransaction).where(condition).fetchOne() ?: 0L
         return PageImpl(content, pageable, total)
     }
+
+    override fun findSpends(sessionSeq: Long): List<SpendRecord> =
+        queryFactory.select(simulationTransaction.transactionType, simulationShopItem.category, simulationTransaction.amount, simulationTransaction.regDttm)
+            .from(simulationTransaction)
+            .leftJoin(simulationShopItem).on(simulationShopItem.itemSeq.eq(simulationTransaction.itemSeq))
+            .where(simulationTransaction.sessionSeq.eq(sessionSeq))
+            .fetch()
+            .map {
+                val key = when (it.get(simulationTransaction.transactionType)!!) {
+                    TransactionType.PURCHASE -> it.get(simulationShopItem.category)!!.name
+                    TransactionType.EVENT -> ReportAggregator.EVENT_KEY
+                }
+                SpendRecord(key, it.get(simulationTransaction.amount)!!, it.get(simulationTransaction.regDttm)!!)
+            }
 
     companion object {
         /** 18.11 정렬 화이트리스트는 regDttm뿐(기본 desc, 동률 PK desc) */

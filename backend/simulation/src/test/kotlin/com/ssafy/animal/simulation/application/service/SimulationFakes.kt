@@ -4,6 +4,9 @@ import com.ssafy.animal.simulation.application.port.out.ActionLogEntry
 import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.port.out.BreedReader
 import com.ssafy.animal.simulation.application.port.out.CatalogSpeciesCode
+import com.ssafy.animal.simulation.application.port.out.EventCounts
+import com.ssafy.animal.simulation.application.port.out.ReportRepository
+import com.ssafy.animal.simulation.application.port.out.SessionClosingRepository
 import com.ssafy.animal.simulation.application.port.out.InventoryEntry
 import com.ssafy.animal.simulation.application.port.out.InventoryRepository
 import com.ssafy.animal.simulation.application.port.out.SessionDetailReader
@@ -17,6 +20,9 @@ import com.ssafy.animal.simulation.domain.ActionType
 import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.ItemCategory
 import com.ssafy.animal.simulation.domain.Personality
+import com.ssafy.animal.simulation.domain.ReportAggregator
+import com.ssafy.animal.simulation.domain.SimulationReport
+import com.ssafy.animal.simulation.domain.SpendRecord
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SimulationInventoryItem
@@ -40,7 +46,37 @@ class FakeSimulationStore :
     SessionDetailReader,
     InventoryRepository,
     ShopItemRepository,
-    TransactionRepository {
+    TransactionRepository,
+    ReportRepository,
+    SessionClosingRepository {
+
+    val reports = mutableListOf<SimulationReport>()
+    val pendingEvents = mutableSetOf<Long>()
+    val eventCounts = mutableMapOf<Long, EventCounts>()
+    val walkCounts = mutableMapOf<Long, Int>()
+
+    override fun save(report: SimulationReport) = report.also {
+        ReflectionTestUtils.setField(it, "reportSeq", 9000L + reports.size + 1)
+        reports += it
+    }
+
+    override fun findBySessionSeq(sessionSeq: Long) = reports.firstOrNull { it.sessionSeq == sessionSeq }
+
+    override fun endActiveWalks(sessionSeq: Long, endedAt: OffsetDateTime) = if (activeWalks.remove(sessionSeq) != null) 1 else 0
+
+    override fun expirePendingEvents(sessionSeq: Long) = if (pendingEvents.remove(sessionSeq)) 1 else 0
+
+    override fun countEvents(sessionSeq: Long) = eventCounts[sessionSeq] ?: EventCounts(0, 0)
+
+    override fun countWalks(sessionSeq: Long) = walkCounts[sessionSeq] ?: 0
+
+    override fun countByTypes(sessionSeq: Long, types: Collection<ActionType>) =
+        logs.count { it.sessionSeq == sessionSeq && it.actionType in types }
+
+    override fun findSpends(sessionSeq: Long) = transactions.filter { it.sessionSeq == sessionSeq }.map {
+        val key = if (it.transactionType == TransactionType.EVENT) ReportAggregator.EVENT_KEY else shopItems.getValue(it.itemSeq!!).category.name
+        SpendRecord(key, it.amount, checkNotNull(it.regDttm) { "테스트 지출에 regDttm이 없습니다" })
+    }
 
     val sessions = mutableListOf<SimulationSession>()
     val logs = mutableListOf<SimulationActionLog>()
@@ -60,6 +96,7 @@ class FakeSimulationStore :
 
     override fun save(transaction: SimulationTransaction) = transaction.also {
         ReflectionTestUtils.setField(it, "transactionSeq", 7000L + transactions.size + 1)
+        now?.let { at -> ReflectionTestUtils.setField(it, "regDttm", at) }
         transactions += it
     }
 

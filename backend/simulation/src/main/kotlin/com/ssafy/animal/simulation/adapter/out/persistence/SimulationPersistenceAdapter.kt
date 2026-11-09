@@ -66,6 +66,14 @@ class SimulationPersistenceAdapter(
         return PageImpl(content, pageable, total)
     }
 
+    override fun countByTypes(sessionSeq: Long, types: Collection<ActionType>): Int =
+        (
+            queryFactory.select(simulationActionLog.count())
+                .from(simulationActionLog)
+                .where(simulationActionLog.sessionSeq.eq(sessionSeq), simulationActionLog.actionType.`in`(types))
+                .fetchOne() ?: 0L
+            ).toInt()
+
     // (session_seq, reg_dttm DESC) 인덱스로 그 세션의 최근 로그 중에서 찾는다
     override fun findLastActionDttm(sessionSeq: Long, actionCode: ActionCode): OffsetDateTime? =
         queryFactory.select(simulationActionLog.regDttm.max())
