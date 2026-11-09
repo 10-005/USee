@@ -1,9 +1,14 @@
 package com.ssafy.animal.simulation.adapter.out.persistence
 
+import com.ssafy.animal.common.exception.BusinessException
+import com.ssafy.animal.common.exception.CommonErrorCode
+import com.ssafy.animal.simulation.domain.QSimulationSession.Companion.simulationSession
 import com.ssafy.animal.simulation.domain.SimulationErrorCode
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.data.domain.Sort
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 /** 사전 조회를 지난 경쟁 상태에서 DB 부분 UNIQUE 위반이 같은 409로 바뀌는지 */
@@ -21,5 +26,22 @@ class SimulationPersistenceAdapterTest {
             SimulationPersistenceAdapter.translate(violation("uq_sim_session_user_active"))?.errorCode,
         )
         assertNull(SimulationPersistenceAdapter.translate(violation("ck_sim_session_stats")))
+    }
+
+    @Test
+    fun `18_3 정렬은 startedDttm·endedDttm만 허용하고 기본은 startedDttm desc, 동률은 PK desc`() {
+        val policy = SimulationPersistenceAdapter.SORT_POLICY
+
+        assertEquals(
+            listOf(simulationSession.startedDttm.desc(), simulationSession.sessionSeq.desc()),
+            policy.toOrderSpecifiers(Sort.unsorted()).toList(),
+        )
+        assertEquals(
+            listOf(simulationSession.endedDttm.asc(), simulationSession.sessionSeq.desc()),
+            policy.toOrderSpecifiers(Sort.by(Sort.Order.asc("endedDttm"))).toList(),
+        )
+        val error = assertFailsWith<BusinessException> { policy.toOrderSpecifiers(Sort.by("regDttm")) }
+        assertEquals(CommonErrorCode.COMMON_INVALID_INPUT, error.errorCode)
+        assertEquals("sort", error.errors.single().field)
     }
 }

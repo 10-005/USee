@@ -1,6 +1,7 @@
 package com.ssafy.animal.simulation.application.service
 
 import com.ssafy.animal.common.exception.BusinessException
+import com.ssafy.animal.simulation.application.service.FakeSimulationStore.Companion.KOREAN_SHORTHAIR
 import com.ssafy.animal.simulation.application.service.FakeSimulationStore.Companion.MALTESE
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
@@ -10,6 +11,7 @@ import com.ssafy.animal.simulation.domain.SpeciesType
 import com.ssafy.animal.simulation.domain.StatCalculator
 import com.ssafy.animal.simulation.domain.StatCalculatorTest
 import com.ssafy.animal.simulation.domain.Stats
+import org.springframework.data.domain.PageRequest
 import org.springframework.test.util.ReflectionTestUtils
 import java.time.Clock
 import java.time.Duration
@@ -31,17 +33,25 @@ class SimulationSessionQueryServiceTest {
 
     private fun serviceAt(now: OffsetDateTime) = SimulationSessionQueryService(
         sessionRepository = store,
+        breedReader = store,
+        detailReader = store,
         detailAssembler = store.assembler(),
         statCalculator = calculator,
         clock = Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul")),
     )
 
-    private fun startSession(userSeq: Int = 17, endsAt: OffsetDateTime = start.plusDays(7)) = store.save(
-        SimulationSession.start(
-            userSeq = userSeq, breedSeq = 21, animalName = "초코", speciesType = SpeciesType.DOG, personality = Personality.FRIENDLY,
-            expectedCost = 150_000, startedAt = start, endsAt = endsAt, initialStats = calculator.initialStats(),
-        ),
-    )
+    private var startedCount = 0L
+
+    /** 세션마다 시작 시각을 1시간씩 늦춰 정렬 순서를 드러낸다 */
+    private fun startSession(userSeq: Int = 17, breedSeq: Int = 21, endsAt: OffsetDateTime? = null): SimulationSession {
+        val startedAt = start.plusHours(startedCount++)
+        return store.save(
+            SimulationSession.start(
+                userSeq = userSeq, breedSeq = breedSeq, animalName = "초코", speciesType = SpeciesType.DOG, personality = Personality.FRIENDLY,
+                expectedCost = 150_000, startedAt = startedAt, endsAt = endsAt ?: startedAt.plusDays(7), initialStats = calculator.initialStats(),
+            ),
+        )
+    }
 
     @Test
     fun `진행 중 세션이 없으면 null`() {
@@ -110,6 +120,38 @@ class SimulationSessionQueryServiceTest {
         assertEquals(SessionStatus.ABANDONED, detail.session.status)
         assertEquals(calculator.initialStats(), session.stats())
         assertEquals(start, session.statsCalculatedDttm)
+    }
+
+    @Test
+    fun `18_3은 내 세션만 최근 시작 순으로 품종·리포트 유무와 함께 돌려준다`() {
+        store.breeds[31] = KOREAN_SHORTHAIR
+        val first = startSession().also { end(it) }
+        val second = startSession(breedSeq = 31)
+        startSession(userSeq = 18)
+        store.reported += first.sessionSeq!!
+
+        val page = serviceAt(start).getMySessions(17, null, PageRequest.of(0, 20))
+
+        assertEquals(2, page.totalElements)
+        assertEquals(listOf(second, first), page.content.map { it.session })
+        assertEquals(listOf(KOREAN_SHORTHAIR, MALTESE), page.content.map { it.breed })
+        assertEquals(listOf(false, true), page.content.map { it.hasReport })
+    }
+
+    @Test
+    fun `18_3은 상태로 거른다`() {
+        val ended = startSession().also { end(it) }
+        startSession()
+
+        val page = serviceAt(start).getMySessions(17, SessionStatus.COMPLETED, PageRequest.of(0, 20))
+
+        assertEquals(listOf(ended), page.content.map { it.session })
+    }
+
+    /** 종료 처리는 232 작업이라 상태만 바꿔 흉내 낸다 */
+    private fun end(session: SimulationSession) {
+        ReflectionTestUtils.setField(session, "status", SessionStatus.COMPLETED)
+        ReflectionTestUtils.setField(session, "endedDttm", session.endsDttm)
     }
 
     private fun assertNotFound(block: () -> Unit) {

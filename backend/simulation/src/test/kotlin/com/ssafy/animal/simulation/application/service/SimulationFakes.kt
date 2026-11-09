@@ -11,6 +11,9 @@ import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SimulationSession
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.Pageable
 import org.springframework.test.util.ReflectionTestUtils
 
 /** 서비스 테스트용 메모리 저장소. 포트 계약만 흉내 낸다 */
@@ -28,6 +31,14 @@ class FakeSimulationStore : SimulationSessionRepository, SimulationActionLogRepo
         sessions.firstOrNull { it.userSeq == userSeq && it.status == SessionStatus.IN_PROGRESS }
 
     override fun findByIdForUpdate(sessionSeq: Long) = sessions.firstOrNull { it.sessionSeq == sessionSeq }
+
+    /** 정렬은 기본값(startedDttm desc, PK desc)만 흉내 낸다. 정렬 화이트리스트는 어댑터 테스트에서 본다 */
+    override fun findPageByUser(userSeq: Int, status: SessionStatus?, pageable: Pageable): Page<SimulationSession> {
+        val all = sessions.filter { it.userSeq == userSeq && (status == null || it.status == status) }
+            .sortedWith(compareByDescending<SimulationSession> { it.startedDttm }.thenByDescending { it.sessionSeq })
+        val content = all.drop(pageable.offset.toInt()).take(pageable.pageSize)
+        return PageImpl(content, pageable, all.size.toLong())
+    }
 
     override fun save(session: SimulationSession) = session.also {
         if (it.sessionSeq == null) {
