@@ -2192,7 +2192,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `SNACK` | 없음 | `SNACK` | 필수 |
 | `MEDICINE` | 없음 | `MEDICINE` | 필수 |
 | `GIVE_CATNIP` | 없음 | `CATNIP`(고양이 전용) | 필수. **Q494 신설.** 평소 효과는 캣닢의 `effects_jsonb`(활력 +15·친밀도 +3·안정감 -5 [가안]). 직전 `GIVE_CATNIP` 뒤 6시간 [가안] 안이면 남용으로 캣닢 효과 대신 안정감 -20 [가안]만 반영(캣닢은 1개 씀, 직전 시각은 행동 이력에서 판정) |
-| `VET_VISIT` | 없음 | 없음 | 생략. **정답이 `VET_VISIT`인 PENDING 이벤트가 있을 때만** 허용(아니면 409 `SIMULATION_VET_NOT_NEEDED`. 성공·무변화 응답으로 바꾸지 않음, Q489). 비용은 시나리오 `resolve_cost`를 `simulation_transactions(EVENT)`로 차감(Q486) |
+| `VET_VISIT` | 없음 | 없음 | 생략. **정답이 `VET_VISIT`인 PENDING 이벤트가 있을 때만** 허용(아니면 409 `SIMULATION_VET_NOT_NEEDED`. 성공·무변화 응답으로 바꾸지 않음, Q489). 병원 자체 효과는 없고 시나리오 해결 효과만 들어가며, 진료비 차감으로 잔액이 음수가 되어도 허용(M5). 409일 때 행동 이력·`last_action_dttm`은 바뀌지 않고, 앞선 지연 계산에서 이벤트가 만료됐으면 만료는 저장된 채 409(254 구현). 비용은 시나리오 `resolve_cost`를 `simulation_transactions(EVENT)`로 차감(Q486) |
 
 - 서버 처리: 세션 잠금(`FOR UPDATE`) → 스탯 지연 계산(그 사이 건강 0·예정 종료면 종료를 저장하고 409 `SIMULATION_NOT_IN_PROGRESS`, Q496) → 기구·소모품 검사 → 수량 차감 → 효과(물품·기구 `effects_jsonb` 또는 물 주기 설정값, **성격 배율 없음** Q490)를 스탯에 반영(0~100 클램프) → **PENDING 이벤트 해결 판정(Q486, 18.12, 256에서 구현):** 정답 행동이면 `resolve_effects_jsonb` 추가 반영·`resolve_cost` 차감·occurrence RESOLVED → `action_logs(CARE)` INSERT(`stat_delta_jsonb`, `stats_after_jsonb`, 해결했으면 `occurrence_seq`) → `last_action_dttm` 갱신. `VET_VISIT` 외의 행동은 돈을 쓰지 않습니다(돈은 18.9와 `VET_VISIT` 진료비뿐).
 - 효과값(`effects_jsonb`)은 물품 마스터에 있으며 예: FOOD `{"satiety":30,"bond":1}`, SNACK `{"satiety":10,"bond":4,"calmness":5}`, GROOMING_KIT `{"cleanliness":40,"calmness":-5}`, MEDICINE `{"health":20}`, CATNIP `{"energy":15,"bond":3,"calmness":-5}`, TOY `{"bond":3,"calmness":3}` 등 **[가안, 초기 데이터 Q491]**. 물 주기는 설정값 `{"hydration":50}`(Q493). 키는 18.0의 스탯 키 7종이며 양수가 좋은 방향입니다(Q485). 응답 `statDelta`는 클램프 뒤 실제 변화량이라 효과값과 다를 수 있고, 변화가 없으면 빈 객체입니다.
@@ -2407,7 +2407,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `SIMULATION_` | `SIMULATION_SPECIES_NOT_SUPPORTED` | 409 | 품종의 종이 ETC(자원 상태 충돌, 400→409 Q442). v11의 `SIMULATION_ANIMAL_NOT_AVAILABLE`은 Q482로 삭제 |
 | `SIMULATION_` | `SIMULATION_SHOP_ITEM_NOT_FOUND`, `SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES`, `SIMULATION_EQUIPMENT_ALREADY_OWNED` | 404/409/409 | 펫샵 물품 없음·비활성 / 물품 종 범위와 세션 종 불일치(400→409 Q442) / 기구 중복 구매 |
 | `SIMULATION_` | `SIMULATION_EQUIPMENT_MISSING`, `SIMULATION_ITEM_NOT_IN_INVENTORY` | 409 | 기구 미보유 / 소모품 없음 |
-| `SIMULATION_` | `SIMULATION_VET_NOT_NEEDED` | 409 | 18.6 `VET_VISIT`인데 정답이 병원인 PENDING 이벤트가 없음(Q486. 성공·무변화 응답으로 바꾸지 않고 유지, Q489). v12의 `SIMULATION_EVENT_NOT_FOUND`·`SIMULATION_EVENT_NOT_PENDING`·`SIMULATION_INVALID_CHOICE`는 18.13 삭제로 제거 |
+| `SIMULATION_` | `SIMULATION_VET_NOT_NEEDED` | 409 | 18.6 `VET_VISIT`인데 정답이 병원인 PENDING 이벤트가 없음(메시지 "지금은 병원에 갈 필요가 없습니다.")(Q486. 성공·무변화 응답으로 바꾸지 않고 유지, Q489). v12의 `SIMULATION_EVENT_NOT_FOUND`·`SIMULATION_EVENT_NOT_PENDING`·`SIMULATION_INVALID_CHOICE`는 18.13 삭제로 제거 |
 | `SIMULATION_` | `SIMULATION_WALK_NOT_FOR_SPECIES` | 409 | 18.14 산책 시작인데 세션 종이 CAT(산책은 DOG 전용, 종 불일치 = 상태 충돌 Q442, Q488) |
 | `SIMULATION_` | `SIMULATION_WALK_NOT_FOUND`, `SIMULATION_WALK_ALREADY_IN_PROGRESS`, `SIMULATION_WALK_NOT_IN_PROGRESS` | 404/409/409 | 산책 상태 오류. v11의 `SIMULATION_NOTIFICATION_NOT_FOUND`는 알림 API 삭제로 제거(Q481) |
 
