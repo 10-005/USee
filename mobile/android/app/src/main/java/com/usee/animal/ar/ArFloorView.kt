@@ -394,10 +394,15 @@ class ArFloorView(
       shadow?.isVisible = shown.dog.visible
       if (shown.dog.visible) {
         node.position = Position(shown.dog.x, shown.dog.y + pawLift(node), shown.dog.z)
-        node.rotation = Rotation(y = if (shown.dog.spinning || shown.dog.scriptedFacing) dogHeading.snap(shown.dog.yawDegrees)
-          else dogHeading.update(shown.dog.yawDegrees, rotationDt))
+        val previousHeading = node.rotation.y
+        val heading = if (shown.dog.spinning || shown.dog.scriptedFacing) dogHeading.snap(shown.dog.yawDegrees)
+          else dogHeading.update(shown.dog.yawDegrees, rotationDt)
+        node.rotation = Rotation(y = heading)
         shadow?.position = Position(shown.dog.x, shown.dog.y + 0.006f, shown.dog.z)
-        node.play(DogAnimation(shown.dog.clip, shown.dog.clipLoop, shown.dog.animationRevision, shown.dog.animationPlaybackRate))
+        node.play(walkingTurnAnimation(
+          DogAnimation(shown.dog.clip, shown.dog.clipLoop, shown.dog.animationRevision, shown.dog.animationPlaybackRate),
+          previousHeading, heading, rotationDt,
+        ))
       } else {
         dogHeading.pause()
       }

@@ -5,6 +5,33 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DogHeadingSmootherTest {
+  @Test fun feetKeepSteppingWhileVisualHeadingSettlesAfterNavigationStops() {
+    val smoother = DogHeadingSmoother()
+    var heading = smoother.update(0f, 0f)
+    var stepped = false
+    repeat(200) {
+      val next = smoother.update(90f, 0.02f)
+      val pose = walkingTurnAnimation(DogAnimation(), heading, next, 0.02f)
+      if (abs(next - heading) / 0.02f >= 5f) {
+        assertEquals("WalkLeft", pose.clip)
+        assertTrue(pose.loop)
+        stepped = true
+      }
+      heading = next
+    }
+    assertTrue(stepped)
+    assertEquals("Idle", walkingTurnAnimation(DogAnimation(), heading, heading, 0.02f).clip)
+  }
+
+  @Test fun walkingTurnsRespectWraparoundAndPreserveCarePoses() {
+    assertEquals("WalkLeft", walkingTurnAnimation(DogAnimation("TurnLeft180"), 179f, -179f, 0.02f).clip)
+    assertEquals("WalkRight", walkingTurnAnimation(DogAnimation("TurnRight"), -179f, 179f, 0.02f).clip)
+    for (clip in listOf("SitIdle", "SitEnd", "EatDrinkStart", "Drink", "Eat", "Walk")) {
+      val pose = DogAnimation(clip)
+      assertEquals(pose, walkingTurnAnimation(pose, 0f, 2f, 0.02f))
+    }
+  }
+
   @Test fun scriptedSpinBypassesDebounceAndSeedsTheNextWalkingHeading() {
     val smoother = DogHeadingSmoother()
     smoother.update(0f, 0f)

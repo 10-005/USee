@@ -3,6 +3,21 @@ package com.usee.animal.ar
 import kotlin.math.abs
 import kotlin.math.sign
 
+/** Keep feet stepping for the rendered turn, including the smoother's settling tail. */
+internal fun walkingTurnAnimation(
+  animation: DogAnimation,
+  previousHeading: Float,
+  heading: Float,
+  dt: Float,
+): DogAnimation {
+  if (dt <= 0f || dt > 0.25f ||
+    (animation.clip != "Idle" && !animation.clip.startsWith("Turn"))) return animation
+  val delta = ((heading - previousHeading + 180f) % 360f + 360f) % 360f - 180f
+  if (abs(delta / dt) < 5f) return animation
+  // A stable revision keeps the stepping loop running across navigation clip changes.
+  return DogAnimation(if (delta > 0f) "WalkLeft" else "WalkRight", true, -2, 0.8f)
+}
+
 /** Remembers visual facing independently of navigation and collision decisions. Angles are degrees. */
 internal class DogHeadingSmoother {
   private var heading: Float? = null

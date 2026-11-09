@@ -165,8 +165,9 @@ internal class DogModelNode(
   private var transitionStartedAt = 0L
 
   fun play(state: DogAnimation) {
-    if (state.revision == revision) return
     val next = indices[state.clip] ?: indices.getValue("Idle")
+    if (state.revision == revision && next == current &&
+      state.loop == looping && state.playbackRate == playbackRate) return
     val now = System.nanoTime()
     previous = current
     previousStartedAt = startedAt
