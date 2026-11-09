@@ -70,7 +70,7 @@ class ReportSummaryServiceTest {
         assertTrue(service(generator).summarize(session.sessionSeq!!))
 
         assertEquals("짧은 요약입니다.", store.reports.single().summary)
-        assertEquals(listOf<Any>(SimulationReportSummarized(session.sessionSeq!!, 17, SessionStatus.ABANDONED)), summarized)
+        assertEquals(listOf<Any>(SimulationReportSummarized(session.sessionSeq!!, 17, SessionStatus.ABANDONED, "초코")), summarized)
     }
 
     @Test
