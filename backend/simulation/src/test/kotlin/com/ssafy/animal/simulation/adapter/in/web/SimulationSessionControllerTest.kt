@@ -3,6 +3,7 @@ package com.ssafy.animal.simulation.adapter.`in`.web
 import com.ssafy.animal.common.config.CommonWebAutoConfiguration
 import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionDetail
+import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionQueryUseCase
 import com.ssafy.animal.simulation.application.port.`in`.StartSimulationCommand
 import com.ssafy.animal.simulation.application.port.`in`.StartSimulationUseCase
 import com.ssafy.animal.simulation.application.port.out.BreedInfo
@@ -27,6 +28,7 @@ import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.util.ReflectionTestUtils
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import java.security.KeyPairGenerator
 import java.time.OffsetDateTime
@@ -43,6 +45,9 @@ class SimulationSessionControllerTest {
 
     @MockitoBean
     lateinit var startSimulationUseCase: StartSimulationUseCase
+
+    @MockitoBean
+    lateinit var sessionQueryUseCase: SimulationSessionQueryUseCase
 
     private val startedAt = OffsetDateTime.of(2026, 11, 1, 14, 0, 0, 0, ZoneOffset.ofHours(9))
     private val maltese = BreedInfo(21, "말티즈", CatalogSpeciesCode.DOG, Personality.FRIENDLY, "https://cdn/breeds/maltese.png")
@@ -145,6 +150,44 @@ class SimulationSessionControllerTest {
             jsonPath("$.code") { value("SIMULATION_ACTIVE_ALREADY_EXISTS") }
             jsonPath("$.data") { value(null) }
         }
+    }
+
+    @Test
+    fun `18_2는 진행 중 세션 상세를 돌려준다`() {
+        val equipment = Equipment(foodBowl = true, waterBowl = true, litterBox = false, toy = false)
+        given(sessionQueryUseCase.getActive(17)).willReturn(SimulationSessionDetail(session(), maltese, equipment, activeWalkSeq = 8001L))
+
+        mockMvc.get("/api/simulation/v1/simulations/me/active") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
+            status { isOk() }
+            jsonPath("$.data.sessionSeq") { value(3001) }
+            jsonPath("$.data.status") { value("IN_PROGRESS") }
+            jsonPath("$.data.stats.satiety") { value(70) }
+            jsonPath("$.data.equipment.foodBowl") { value(true) }
+            jsonPath("$.data.equipment.waterBowl") { value(true) }
+            jsonPath("$.data.equipment.litterBox") { value(false) }
+            jsonPath("$.data.activeWalkSeq") { value(8001) }
+            jsonPath("$.data.pendingEvent") { value(null) }
+        }
+    }
+
+    @Test
+    fun `18_2는 진행 중 세션이 없으면 200 data null`() {
+        given(sessionQueryUseCase.getActive(17)).willReturn(null)
+
+        mockMvc.get("/api/simulation/v1/simulations/me/active") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
+            status { isOk() }
+            jsonPath("$.code") { value("SUCCESS") }
+            jsonPath("$.data") { value(null) }
+        }
+    }
+
+    @Test
+    fun `18_2를 SHELTER가 부르면 403 AUTH_FORBIDDEN`() {
+        mockMvc.get("/api/simulation/v1/simulations/me/active") { header(HttpHeaders.AUTHORIZATION, SHELTER_TOKEN) }.andExpect {
+            status { isForbidden() }
+            jsonPath("$.code") { value("AUTH_FORBIDDEN") }
+        }
+        then(sessionQueryUseCase).shouldHaveNoInteractions()
     }
 
     companion object {

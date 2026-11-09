@@ -1,11 +1,13 @@
 package com.ssafy.animal.simulation.adapter.`in`.web
 
 import com.ssafy.animal.common.auth.AuthUser
+import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionQueryUseCase
 import com.ssafy.animal.simulation.application.port.`in`.StartSimulationUseCase
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/simulation/v1/simulations")
 class SimulationSessionController(
     private val startSimulationUseCase: StartSimulationUseCase,
+    private val sessionQueryUseCase: SimulationSessionQueryUseCase,
 ) {
 
     /** 18.1 세션 시작. 품종·가상 이름·예상 비용으로 시작하고 실제 보호동물과는 연결하지 않는다(Q482) */
@@ -24,4 +27,10 @@ class SimulationSessionController(
     @PreAuthorize("hasRole('USER')")
     fun start(@AuthenticationPrincipal user: AuthUser, @Valid @RequestBody request: StartSimulationRequest) =
         SimulationSessionResponse.from(startSimulationUseCase.start(user.userSeq, request.toCommand()))
+
+    /** 18.2 진행 중 세션(스탯 지연 계산 반영). 없으면 data:null */
+    @GetMapping("/me/active")
+    @PreAuthorize("hasRole('USER')")
+    fun getActive(@AuthenticationPrincipal user: AuthUser): SimulationSessionResponse? =
+        sessionQueryUseCase.getActive(user.userSeq)?.let(SimulationSessionResponse::from)
 }
