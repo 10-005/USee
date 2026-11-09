@@ -3,11 +3,9 @@ import type { SvgProps } from 'react-native-svg';
 
 import ApplicationListIcon from '../../assets/icons/mypage/application-list.svg';
 import ChevronRightIcon from '../../assets/icons/mypage/chevron-right.svg';
-import MockResultIcon from '../../assets/icons/mypage/mock-result.svg';
 import MyPostsIcon from '../../assets/icons/mypage/my-posts.svg';
 import NoticeIcon from '../../assets/icons/mypage/notice.svg';
 import PencilIcon from '../../assets/icons/mypage/pencil.svg';
-import PetRegisterIcon from '../../assets/icons/mypage/pet-register.svg';
 import SavedPostsIcon from '../../assets/icons/mypage/saved-posts.svg';
 import SettingsIcon from '../../assets/icons/mypage/settings.svg';
 import { useProfileStore } from '../../stores/profileStore';
@@ -73,19 +71,47 @@ export function MyPageScreen({
             accessibilityLabel="반려동물 등록"
             accessibilityRole="button"
             onPress={onOpenPets}
-            style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.shortcut,
+              styles.petShortcut,
+              pressed && styles.shortcutPressed,
+            ]}
           >
-            <PetRegisterIcon />
+            <View style={styles.shortcutArtwork}>
+              <View style={styles.artworkHalo} />
+              <Image
+                source={require('../../assets/images/mypage/img_pet_card.png')}
+                style={styles.shortcutImage}
+              />
+            </View>
             <Text style={styles.shortcutText}>반려동물 등록</Text>
+            <Text style={styles.shortcutDescription}>우리 아이 정보 관리</Text>
+            <View style={styles.shortcutArrow}>
+              <ChevronRightIcon width={16} height={16} />
+            </View>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="모의입양"
             onPress={onOpenMockAdoption}
-            style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.shortcut,
+              styles.adoptionShortcut,
+              pressed && styles.shortcutPressed,
+            ]}
           >
-            <MockResultIcon />
+            <View style={styles.shortcutArtwork}>
+              <View style={[styles.artworkHalo, styles.adoptionHalo]} />
+              <Image
+                source={require('../../assets/images/mypage/img_mock_adoption.png')}
+                style={styles.shortcutImage}
+              />
+            </View>
             <Text style={styles.shortcutText}>모의입양</Text>
+            <Text style={styles.shortcutDescription}>함께하는 일상 체험</Text>
+            <View style={styles.shortcutArrow}>
+              <ChevronRightIcon width={16} height={16} />
+            </View>
           </Pressable>
         </View>
 
@@ -95,11 +121,7 @@ export function MyPageScreen({
             label="입양 신청"
             onPress={onOpenAdoptionApplications}
           />
-          <MenuRow
-            icon={MyPostsIcon}
-            label="내가 작성한 게시글"
-            onPress={onOpenMyPosts}
-          />
+          <MenuRow icon={MyPostsIcon} label="내가 작성한 게시글" onPress={onOpenMyPosts} />
           <MenuRow icon={SavedPostsIcon} label="저장한 게시글" onPress={onOpenSavedPosts} />
           <MenuRow icon={NoticeIcon} label="공지사항" onPress={onOpenNotices} />
         </View>
@@ -159,16 +181,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 27,
     paddingTop: 25,
   },
-  shortcuts: { flexDirection: 'row', gap: 20 },
+  shortcuts: { flexDirection: 'row', gap: 12 },
   shortcut: {
-    alignItems: 'center',
-    backgroundColor: '#EAF4E9',
-    borderRadius: 15,
+    alignItems: 'flex-start',
+    borderRadius: 24,
+    borderWidth: 1,
     flex: 1,
-    height: 85,
+    minWidth: 0,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 18,
+    boxShadow: '0 4px 14px rgba(31, 65, 54, 0.05)',
+  },
+  petShortcut: { backgroundColor: '#F0F8F6', borderColor: '#DFEEE9' },
+  adoptionShortcut: { backgroundColor: '#F5F8EE', borderColor: '#E6EDD9' },
+  shortcutArtwork: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
+  artworkHalo: {
+    position: 'absolute',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#DDEFEA',
+  },
+  adoptionHalo: { backgroundColor: '#E5EDD3' },
+  shortcutText: { ...typography.bodySemiBold16, color: colors.gray800, marginTop: 14 },
+  shortcutDescription: {
+    ...typography.captionRegular10,
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.gray600,
+    marginTop: 5,
+  },
+  shortcutImage: { width: 64, height: 64, resizeMode: 'contain' },
+  shortcutArrow: {
+    position: 'absolute',
+    top: 16,
+    right: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  shortcutText: { ...typography.bodyRegular14, color: colors.gray800, marginTop: 10 },
+  shortcutPressed: { transform: [{ scale: 0.97 }], opacity: 0.85 },
   menuList: { marginTop: 25 },
   menuRow: { alignItems: 'center', flexDirection: 'row', height: 35 },
   menuIconWrap: { alignItems: 'center', height: 24, justifyContent: 'center', width: 24 },
