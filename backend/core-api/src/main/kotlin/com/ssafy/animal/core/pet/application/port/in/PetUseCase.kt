@@ -3,6 +3,7 @@ package com.ssafy.animal.core.pet.application.port.`in`
 import com.ssafy.animal.core.catalog.application.port.`in`.AnimalClassification
 import com.ssafy.animal.core.pet.domain.Pet
 import com.ssafy.animal.core.pet.domain.PetGender
+import io.swagger.v3.oas.annotations.media.Schema
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import java.util.Optional
@@ -48,4 +49,11 @@ data class PetSummary(val pet: Pet, val classification: AnimalClassification?, v
 data class PetDetail(val pet: Pet, val classification: AnimalClassification?, val images: List<PetImageRef>)
 
 /** 명세 1.4 ImageRef */
-data class PetImageRef(val imageSeq: Long, val imageUrl: String?, val displayOrder: Int)
+data class PetImageRef(
+    @field:Schema(description = "이미지 번호", example = "1001")
+    val imageSeq: Long,
+    @field:Schema(description = "공개 이미지 URL. 이미지 행이 없으면 null", nullable = true, example = "https://cdn.example.com/images/2026/11/3f1c2a9e.jpg")
+    val imageUrl: String?,
+    @field:Schema(description = "표시 순서(1부터). 1이 대표 사진", example = "1")
+    val displayOrder: Int,
+)

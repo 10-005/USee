@@ -11,6 +11,7 @@ import com.ssafy.animal.common.response.ApiResponseBodyAdvice
 import com.ssafy.animal.common.web.TraceIdFilter
 import io.swagger.v3.oas.models.Components
 import io.swagger.v3.oas.models.OpenAPI
+import io.swagger.v3.oas.models.info.Info
 import io.swagger.v3.oas.models.security.SecurityRequirement
 import io.swagger.v3.oas.models.security.SecurityScheme
 import org.springdoc.core.utils.SpringDocUtils
@@ -124,6 +125,7 @@ class CommonWebAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun openApi(): OpenAPI = OpenAPI()
+        .info(Info().title("반려동물 서비스 API").version("v1").description(API_DESCRIPTION))
         .components(
             Components().addSecuritySchemes(
                 BEARER_AUTH,
@@ -146,6 +148,51 @@ class CommonWebAutoConfiguration {
         }
 
         private const val BEARER_AUTH = "bearerAuth"
+
+        // 모든 API에 공통인 내용은 여기에만 적고 API마다 반복하지 않는다
+        private val API_DESCRIPTION = """
+            ## 응답 형태
+            모든 응답은 같은 봉투로 감싼다. 각 API의 Schema·예시가 이 형태다.
+            ```json
+            { "status": 200, "code": "SUCCESS", "message": "요청이 성공했습니다.", "data": { }, "errors": [], "traceId": "4f2c9e1a7b3d4c5e" }
+            ```
+            - `status`: 실제 HTTP 상태 코드와 같다.
+            - `code`: 성공은 `SUCCESS`, 실패는 에러 코드(enum 상수명).
+            - `data`: 실패면 항상 `null`. 목록은 `{ content, page, size, totalElements, totalPages, hasNext }`.
+            - `errors`: 필드 검증 실패(400 `COMMON_INVALID_INPUT`)에서만 `[{ field, reason }]`로 채우고, 그 외에는 빈 배열.
+            - `traceId`: 응답 헤더 `X-Trace-Id`와 같다. 요청에 `X-Trace-Id`를 보내면 그 값을 이어 쓴다. 문의할 때 이 값을 전달한다.
+            - **204 No Content는 본문(봉투)이 없다.** traceId는 응답 헤더로만 온다.
+            - null 필드도 생략하지 않고 `null`로 내려온다. 시각은 ISO-8601 `+09:00`, 날짜는 `YYYY-MM-DD`.
+
+            ## 목록 공통 파라미터
+            - `page`: 0부터. 기본 0.
+            - `size`: 기본 20, 최대 100(넘으면 100으로 잘린다). 기본값이 다른 API는 API 설명에 적는다.
+            - `sort`: `필드,asc|desc`. API마다 허용 필드가 정해져 있고, 밖의 필드는 400 `COMMON_INVALID_INPUT`. 동률은 PK 내림차순.
+
+            ## 공통 에러 코드
+            | HTTP | code | 원인 | 클라이언트 처리 |
+            |---|---|---|---|
+            | 400 | `COMMON_INVALID_INPUT` | 필수값·형식·범위·정렬 필드 오류. `errors[]`에 필드별 사유 | 입력 수정 후 재요청 |
+            | 400 | `COMMON_INVALID_JSON` | 본문을 읽을 수 없음(JSON 문법, 타입·날짜 형식 불일치) | 요청 형식 수정 |
+            | 401 | `AUTH_UNAUTHORIZED` | `Authorization` 헤더 없음 | 로그인 |
+            | 401 | `AUTH_TOKEN_EXPIRED` | access 토큰 만료 | `POST /api/core/v1/auth/refresh` 후 원래 요청 재시도 |
+            | 401 | `AUTH_TOKEN_INVALID` | 서명·형식 오류, refresh 토큰을 access로 사용, 탈퇴한 계정의 쓰기 요청 | 재로그인 |
+            | 403 | `AUTH_FORBIDDEN` | 역할이 맞지 않음(예: USER가 SHELTER 전용 API 호출) | 재시도하지 않음 |
+            | 403 | `AUTH_ACCOUNT_UNAVAILABLE` | 정지된 계정의 쓰기 요청(POST·PATCH·DELETE). 조회는 토큰 만료까지 허용 | 재시도하지 않음 |
+            | 404 | `COMMON_NOT_FOUND` | 경로 없음 | 경로 확인 |
+            | 405 | `COMMON_METHOD_NOT_ALLOWED` | 지원하지 않는 HTTP 메서드 | 메서드 확인 |
+            | 500 | `COMMON_INTERNAL_ERROR` | 서버 내부 오류(상세 메시지 비노출) | traceId와 함께 문의 |
+            | 503 | `COMMON_SERVICE_UNAVAILABLE` | 외부 연동 일시 장애 | 잠시 후 재시도 |
+
+            - 타인·비노출 자원은 403이 아니라 도메인별 `*_NOT_FOUND`(404)로 응답해 존재를 감춘다.
+            - 도메인 에러 코드는 각 API의 응답 예시에 적는다.
+
+            ## 인증(Authorize)
+            1. 로그인 API(`POST /api/core/v1/auth/kakao/verify` 또는 `POST /api/core/v1/auth/local/login`)로 `accessToken`을 받는다.
+            2. 오른쪽 위 **Authorize** 버튼을 누르고 `accessToken` 값만 넣는다(`Bearer ` 접두어는 자동으로 붙는다).
+            3. 자물쇠가 잠긴 API는 이 토큰으로 호출된다. 🔓 표시가 있는 API는 토큰 없이 호출한다.
+            - access 토큰 수명은 1시간(dev는 환경 변수로 더 길 수 있음), refresh 토큰은 14일.
+        """.trimIndent()
         private val PUBLIC_PATHS = arrayOf(
             // 문서 경로: /api/{서비스}/v3/api-docs(swagger-config 포함), /swagger-ui(화면·정적 리소스)
             "/actuator/health/**", "/api/*/v3/api-docs/**", "/swagger-ui/**", "/error",

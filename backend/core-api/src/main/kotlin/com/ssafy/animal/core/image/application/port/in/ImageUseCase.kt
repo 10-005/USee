@@ -1,6 +1,7 @@
 package com.ssafy.animal.core.image.application.port.`in`
 
 import com.ssafy.animal.core.image.domain.Image
+import io.swagger.v3.oas.annotations.media.Schema
 
 interface ImageUseCase {
     /** 4.1 presigned PUT 주소 발급 */
@@ -25,7 +26,9 @@ interface ImageUseCase {
 }
 
 data class ImageSummary(
+    @field:Schema(description = "이미지 번호", example = "1301")
     val imageSeq: Long,
+    @field:Schema(description = "공개 이미지 URL(서명·만료 없는 고정 주소)", example = "https://cdn.example.com/images/2026/11/3f1c2a9e.jpg")
     val imageUrl: String,
 )
 
