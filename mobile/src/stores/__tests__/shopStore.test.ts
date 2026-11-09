@@ -1,4 +1,8 @@
-import { getShopDatabase, readShopSnapshot } from '../../services/shop/shopDatabase';
+import {
+  getShopDatabase,
+  readShopSnapshot,
+  replaceSessionShopCatalog,
+} from '../../services/shop/shopDatabase';
 import * as shopDatabase from '../../services/shop/shopDatabase';
 import { useShopStore, cartTotal } from '../shopStore';
 import { filterProducts, products } from '../../services/shop/catalog';
@@ -37,7 +41,10 @@ const session = {
 };
 const shop = () => useShopStore.getState();
 beforeEach(() => {
-  getShopDatabase().executeSync('DELETE FROM shop_sessions');
+  const db = getShopDatabase();
+  db.executeSync('DELETE FROM shop_sessions');
+  db.executeSync('DELETE FROM simulation_shop_catalogs');
+  db.executeSync("DELETE FROM products WHERE origin = 'server'");
   useShopStore.setState({ sessionKey: '', ready: false });
   shop().open(session);
 });
@@ -78,6 +85,39 @@ it('contains all 32 products with valid prices and species filters', () => {
   expect(filterProducts('dog', '전체', '', '기본순').some(p => p.species === 'cat')).toBe(false);
   expect(filterProducts('cat', '필수 준비', '', '낮은 가격순').every(p => p.essential)).toBe(true);
   expect(filterProducts('cat', '전체', '물그릇', '기본순').map(p => p.id)).toEqual(['waterBowl']);
+});
+
+it('shows the shop list saved for this adoption', () => {
+  replaceSessionShopCatalog(shop().sessionKey, 'DOG', [
+    {
+      displayOrder: 0,
+      product: {
+        id: '11',
+        name: '건식 사료 1kg',
+        qty: 1,
+        unit: '개',
+        species: 'dog',
+        kind: 'consumable',
+        category: '식사',
+        description: '한 끼 분량씩 소모됩니다.',
+        sprite: 0,
+        price: 8000,
+        placement: 'inventory',
+        itemSeq: 11,
+        serverCategory: 'FOOD',
+        imageUrl: null,
+        market: { gamePrice: 8000, basis: '', sources: [] },
+      },
+    },
+  ]);
+  shop().open(session);
+  expect(products.map(item => item.id)).toEqual(['11']);
+  expect(filterProducts('dog', '식사', '사료', '기본순').map(item => item.name)).toEqual([
+    '건식 사료 1kg',
+  ]);
+  getShopDatabase().executeSync('DELETE FROM simulation_shop_catalogs');
+  getShopDatabase().executeSync("DELETE FROM products WHERE origin = 'server'");
+  shop().open(session);
 });
 
 it('buys only walk bags, saves purchase history and budget, and preserves the cart', () => {

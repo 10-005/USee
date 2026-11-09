@@ -22,6 +22,10 @@ import {
   startSimulationSession,
   type SimulationSession,
 } from '../../services/simulation/session';
+import {
+  ensureSessionShopCatalog,
+  getShopItemsErrorMessage,
+} from '../../services/simulation/shopItems';
 import { startMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { colors, radius, typography } from '../../theme';
 import { getBudgetError } from './budget';
@@ -75,17 +79,46 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
     };
     const requestKey = `${request.breedSeq}|${request.animalName}|${request.expectedCost}`;
     try {
-      const remote =
-        pendingSession.current?.key === requestKey
-          ? pendingSession.current.session
-          : await startSimulationSession(request);
-      pendingSession.current = { key: requestKey, session: remote };
-      const session = await startMockAdoption(
-        pet.id,
-        request.expectedCost,
-        request.animalName,
-        remote.sessionSeq,
-      );
+      let remote: SimulationSession;
+      try {
+        remote =
+          pendingSession.current?.key === requestKey
+            ? pendingSession.current.session
+            : await startSimulationSession(request);
+        pendingSession.current = { key: requestKey, session: remote };
+      } catch (caught) {
+        setSaveError(
+          caught instanceof ApiClientError
+            ? getSimulationStartErrorMessage(caught)
+            : '모의입양을 시작하지 못했어요. 다시 시도해주세요.',
+        );
+        return;
+      }
+      let session: Awaited<ReturnType<typeof startMockAdoption>>;
+      try {
+        session = await startMockAdoption(
+          pet.id,
+          request.expectedCost,
+          request.animalName,
+          remote.sessionSeq,
+        );
+      } catch {
+        setSaveError('예산을 저장하지 못했어요. 다시 시도해주세요.');
+        return;
+      }
+      try {
+        await ensureSessionShopCatalog(
+          `${session.petId}:${session.startedAt}`,
+          pet.category === 'cat' ? 'CAT' : 'DOG',
+        );
+      } catch (caught) {
+        setSaveError(
+          caught instanceof ApiClientError
+            ? getShopItemsErrorMessage(caught)
+            : '상점 물품을 저장하지 못했어요. 다시 시도해주세요.',
+        );
+        return;
+      }
       navigation.reset({
         index: 1,
         routes: [

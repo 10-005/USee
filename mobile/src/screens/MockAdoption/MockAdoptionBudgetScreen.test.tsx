@@ -6,6 +6,7 @@ import type { RootStackParamList } from '../../app/navigation/types';
 import { Button, TextInput } from '../../components/common';
 import { ApiClientError } from '../../services/api';
 import { startSimulationSession } from '../../services/simulation/session';
+import { ensureSessionShopCatalog } from '../../services/simulation/shopItems';
 import { getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { getBudgetError } from './budget';
 import { MockAdoptionBudgetScreen } from './MockAdoptionBudgetScreen';
@@ -19,6 +20,17 @@ jest.mock('../../services/simulation/session', () => {
 });
 
 const startSession = startSimulationSession as jest.MockedFunction<typeof startSimulationSession>;
+const ensureCatalog = ensureSessionShopCatalog as jest.MockedFunction<
+  typeof ensureSessionShopCatalog
+>;
+
+jest.mock('../../services/simulation/shopItems', () => {
+  const actual = jest.requireActual('../../services/simulation/shopItems');
+  return {
+    ...actual,
+    ensureSessionShopCatalog: jest.fn().mockResolvedValue(undefined),
+  };
+});
 
 jest.mock(
   'react-native-safe-area-context',
@@ -38,6 +50,7 @@ test.each(['10000', '100000000', '035000'])('accepts valid budget %s', value => 
 test('accepts digits only and persists only when starting, with retry on save failure', async () => {
   await AsyncStorage.clear();
   startSession.mockReset();
+  ensureCatalog.mockClear();
   startSession.mockResolvedValue({ sessionSeq: 3001 });
   const reset = jest.fn();
   const props = {
@@ -111,6 +124,8 @@ test('accepts digits only and persists only when starting, with retry on save fa
     petName: '초코',
     sessionSeq: 3001,
   });
+  expect(ensureCatalog).toHaveBeenCalledTimes(1);
+  expect(ensureCatalog).toHaveBeenCalledWith(expect.stringMatching(/^dog-1:/), 'DOG');
   save.mockRestore();
   await ReactTestRenderer.act(() => renderer.unmount());
 });
@@ -150,6 +165,48 @@ test('does not reuse a server response after leaving the budget screen', async (
     await renderer.root.findByType(Button).props.onPress();
   });
   expect(startSession).toHaveBeenCalledTimes(2);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('stays on the budget screen when the shop list fails and retries it', async () => {
+  await AsyncStorage.clear();
+  startSession.mockReset();
+  ensureCatalog.mockClear();
+  startSession.mockResolvedValue({ sessionSeq: 3001 });
+  ensureCatalog.mockRejectedValueOnce(
+    new ApiClientError({ code: 'UNKNOWN_ERROR', message: 'down' }),
+  );
+  const reset = jest.fn();
+  const props = {
+    navigation: { reset, goBack: jest.fn() },
+    route: {
+      key: 'budget',
+      name: 'MockAdoptionBudget',
+      params: { petId: 'cat-2', petName: '나비' },
+    },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionBudget'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionBudgetScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.root.findByType(TextInput).props.onChangeText('20000');
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(Button).props.onPress();
+  });
+  expect(reset).not.toHaveBeenCalled();
+  expect(ensureCatalog).toHaveBeenCalledWith(expect.stringMatching(/^cat-2:/), 'CAT');
+  expect(
+    renderer.root.findAllByProps({ children: '상점 물품을 불러오지 못했어요. 다시 시도해주세요.' })
+      .length,
+  ).toBeGreaterThan(0);
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(Button).props.onPress();
+  });
+  expect(startSession).toHaveBeenCalledTimes(1);
+  expect(ensureCatalog).toHaveBeenCalledTimes(2);
+  expect(reset).toHaveBeenCalled();
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 

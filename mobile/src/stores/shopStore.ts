@@ -7,6 +7,7 @@ import {
   type Species,
 } from '../services/shop/catalog';
 import {
+  readSessionShopCatalog,
   readShopProducts,
   readShopSnapshot,
   writeShopSnapshot,
@@ -65,8 +66,8 @@ export const useShopStore = create<ShopState>((set, get) => {
     ready: false,
     error: null,
     open: session => {
-      setShopCatalog(readShopProducts());
       const sessionKey = `${session.petId}:${session.startedAt}`;
+      setShopCatalog(readSessionShopCatalog(sessionKey) ?? readShopProducts());
       const saved = readShopSnapshot(sessionKey);
       const snapshot: ShopSnapshot = {
         hospitalEvents: saved?.hospitalEvents ?? [],

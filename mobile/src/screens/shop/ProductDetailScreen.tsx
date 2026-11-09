@@ -104,17 +104,19 @@ export function ProductDetailScreen({ navigation, route }: Props) {
                 </View>
               ))}
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="가격 근거"
-              accessibilityState={{ expanded: basisExpanded }}
-              onPress={() => setBasisExpanded(current => !current)}
-              style={styles.basisToggle}
-            >
-              <Text style={s.label}>가격 근거</Text>
-              <FilterArrowIcon width={18} height={18} />
-            </Pressable>
-            {basisExpanded ? (
+            {p.market.basis || p.market.sources.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="가격 근거"
+                accessibilityState={{ expanded: basisExpanded }}
+                onPress={() => setBasisExpanded(current => !current)}
+                style={styles.basisToggle}
+              >
+                <Text style={s.label}>가격 근거</Text>
+                <FilterArrowIcon width={18} height={18} />
+              </Pressable>
+            ) : null}
+            {basisExpanded && (p.market.basis || p.market.sources.length > 0) ? (
               <View style={styles.basisContent}>
                 <Text style={s.body}>{p.market.basis}</Text>
                 {p.market.sources.map(source => (
