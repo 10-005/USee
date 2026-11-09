@@ -52,6 +52,7 @@ class CareActionService(
             ?: throw BusinessException(SimulationErrorCode.SIMULATION_NOT_FOUND)
         progress.catchUp(session)
         if (!session.isInProgress) throw BusinessException(SimulationErrorCode.SIMULATION_NOT_IN_PROGRESS)
+        if (command.actionCode == ActionCode.VET_VISIT) return visitVet(session)
         val rule = CareRules.of(command.actionCode) ?: throw invalid("actionCode", "지원하지 않는 돌봄 행동입니다: ${command.actionCode}")
 
         val equipment = rule.requiredEquipment?.let { category ->
@@ -69,7 +70,18 @@ class CareActionService(
         }
         // 로그의 item_seq는 쓴 물품: 소모품, 또는 골라 쓴 기구(장난감)
         val usedItemSeq = consumed?.item?.itemSeq ?: equipment?.takeIf { rule.selectsEquipment }?.itemSeq
-        return record(session, rule, consumed, usedItemSeq, effect)
+        return record(session, rule.actionCode, consumed, usedItemSeq, effect)
+    }
+
+    /**
+     * 병원 진료(S15P31D106-254, Q486). 기구·소모품이 없고 병원 자체 효과도 없다. 정답이 병원인 대기 이벤트가 있을 때만
+     * 그 해결 효과·진료비(EVENT 지출)를 반영하고, 없으면 409로 끝낸다(로그·마지막 행동 시각을 남기지 않음, Q489).
+     * 앞선 진행(catchUp)에서 이벤트가 만료됐으면 여기서 409가 되고 만료는 저장된다(noRollbackFor).
+     */
+    private fun visitVet(session: SimulationSession): CareActionResult {
+        events.pending(session)?.takeIf { it.isAnsweredBy(ActionCode.VET_VISIT) }
+            ?: throw BusinessException(SimulationErrorCode.SIMULATION_VET_NOT_NEEDED)
+        return record(session, ActionCode.VET_VISIT, consumed = null, usedItemSeq = null, effect = StatEffect.NONE)
     }
 
     /**
@@ -105,7 +117,7 @@ class CareActionService(
 
     private fun record(
         session: SimulationSession,
-        rule: CareRule,
+        actionCode: ActionCode,
         consumed: ConsumedItem?,
         usedItemSeq: Long?,
         effect: StatEffect,
@@ -113,13 +125,13 @@ class CareActionService(
         val now = statRefresher.now()
         val itemResult = session.applyEffect(effect)
         // 대기 이벤트의 정답이면 해결 효과를 이어서 더한다. 오답은 평소 행동으로만 처리(패널티 없음, Q486)
-        val answered = events.pending(session)?.takeIf { it.isAnsweredBy(rule.actionCode) }
+        val answered = events.pending(session)?.takeIf { it.isAnsweredBy(actionCode) }
         val eventResult = answered?.let { session.applyEffect(it.scenario.resolveEffect()) }
         // statDelta·로그는 물품 효과 + 해결 효과 합산
         val result = eventResult?.let { EffectResult(itemResult.before, it.after) } ?: itemResult
         session.recordAction(now)
         val log = actionLogRepository.save(
-            SimulationActionLog.care(session, rule.actionCode, usedItemSeq, result, answered?.occurrence?.occurrenceSeq),
+            SimulationActionLog.care(session, actionCode, usedItemSeq, result, answered?.occurrence?.occurrenceSeq),
         )
         val resolved = answered?.let { events.resolve(session, it, log, checkNotNull(eventResult), now) }
         return CareActionResult(log, session, consumed, result.delta, resolved)

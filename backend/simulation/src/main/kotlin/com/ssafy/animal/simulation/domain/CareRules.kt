@@ -45,7 +45,7 @@ data class CareRule(
 }
 
 /**
- * 돌봄 행동 규칙표(S15P31D106-238·246). VET_VISIT은 254에서 추가한다.
+ * 돌봄 행동 규칙표(S15P31D106-238·246). VET_VISIT은 기구·소모품·자체 효과가 없어 표에 두지 않고 CareActionService가 따로 처리한다(254).
  * 목욕은 위생 관리 키트만 있으면 무제한(사용자 결정 2026-11-09, 명세 18.6의 SHAMPOO 소모를 대체).
  */
 object CareRules {

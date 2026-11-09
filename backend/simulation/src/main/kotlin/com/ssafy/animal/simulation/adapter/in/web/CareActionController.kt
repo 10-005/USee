@@ -10,6 +10,7 @@ import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULA
 import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_NOT_FOUND
 import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_NOT_IN_PROGRESS
 import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES
+import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_VET_NOT_NEEDED
 import com.ssafy.animal.simulation.adapter.`in`.web.SimulationDocExamples.SIMULATION_SHOP_ITEM_NOT_FOUND
 import com.ssafy.animal.simulation.application.port.`in`.CareActionCommand
 import com.ssafy.animal.simulation.application.port.`in`.CareActionResult
@@ -62,9 +63,13 @@ class CareActionController(
             "  - `PLAY`: 장난감 1개 이상 보유, 소모 없이 무제한. `itemSeq`로 보유한 장난감을 고르면 그 효과, 생략하면 보유한 첫 번째 장난감 효과\n" +
             "  - `GIVE_CATNIP`: 기구 없이 캣닢(CATNIP, 고양이 전용) 1개, `itemSeq` 필수. 평소 효과는 활력 +15·친밀도 +3·안정감 -5(가안). " +
             "직전 캣닢 뒤 6시간 안에 또 주면 남용으로 보고 캣닢 효과 대신 안정감 -20만 들어간다(가안, 캣닢은 그래도 1개 쓴다)\n" +
-            "- 그 밖의 코드(VET_VISIT·산책·시스템)는 아직 400.\n" +
+            "  - `VET_VISIT`: 병원 진료. 기구·소모품 없음, `itemSeq` 생략. **정답이 병원인 대기 이벤트가 있을 때만** 된다" +
+            "(앱은 대기 이벤트에 `vetVisit`가 있을 때만 병원 버튼을 켠다). 병원 자체 효과는 없고 이벤트 해결 효과가 들어가며, " +
+            "진료비(`vetVisit.cost`)를 잔액에서 빼고 지출 내역에 EVENT로 남긴다(잔액 음수 허용). 그런 이벤트가 없으면 409 `SIMULATION_VET_NOT_NEEDED`" +
+            "(행동 이력·마지막 행동 시각은 바뀌지 않음. 화면을 띄운 사이 시한이 지나 만료된 경우도 여기 해당)\n" +
+            "- 산책·시스템 코드는 400.\n" +
             "- `statDelta`는 실제로 바뀐 양만 담는다(포만감 90에 +30이면 +10, 이미 100이면 빠짐).\n" +
-            "- 돈은 쓰지 않는다. 마지막 행동 시각이 갱신되고 행동 이력(CARE)이 1건 남는다.\n" +
+            "- 병원 진료비 외에는 돈을 쓰지 않는다. 마지막 행동 시각이 갱신되고 행동 이력(CARE)이 1건 남는다.\n" +
             "- 대기 중인 집 돌발 이벤트가 있고 이 행동이 정답이면 해결 효과를 더하고 `resolvedEvent`에 결과를 준다. " +
             "`statDelta`는 물품 효과 + 해결 효과 합산, `resolvedEvent.eventStatDelta`는 그중 이벤트 몫. " +
             "해결 효과에도 대가가 있을 수 있다(예: 놀아 주면 안정감은 오르지만 포만감·활력이 준다).\n" +
@@ -83,6 +88,7 @@ class CareActionController(
                         ExampleObject(name = "물 주기(소모품 없음)", value = WATER_SUCCESS),
                         ExampleObject(name = "캣닢 남용(6시간 안에 또 줌)", value = CATNIP_OVERUSE_SUCCESS),
                         ExampleObject(name = "돌발 이벤트 해결(놀아 주기, 대가 포함)", value = PLAY_RESOLVED_SUCCESS),
+                        ExampleObject(name = "병원 진료(진료비 차감)", value = VET_VISIT_SUCCESS),
                     ],
                 ),
             ],
@@ -136,7 +142,8 @@ class CareActionController(
         ),
         ApiResponse(
             responseCode = "409",
-            description = "진행 중이 아닌 세션, 필요 기구 없음(펫샵에서 구매 안내), 소모품 미보유·다 씀·고른 장난감 미보유, 세션 종과 맞지 않는 물품",
+            description = "진행 중이 아닌 세션, 필요 기구 없음(펫샵에서 구매 안내), 소모품 미보유·다 씀·고른 장난감 미보유, 세션 종과 맞지 않는 물품, " +
+                "병원에 갈 이벤트가 없음(앱은 진행 중 조회로 이벤트 상태를 다시 받는다)",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -146,6 +153,7 @@ class CareActionController(
                         ExampleObject(name = "SIMULATION_EQUIPMENT_MISSING", value = SIMULATION_EQUIPMENT_MISSING),
                         ExampleObject(name = "SIMULATION_ITEM_NOT_IN_INVENTORY", value = SIMULATION_ITEM_NOT_IN_INVENTORY),
                         ExampleObject(name = "SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES", value = SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES),
+                        ExampleObject(name = "SIMULATION_VET_NOT_NEEDED", value = SIMULATION_VET_NOT_NEEDED),
                     ],
                 ),
             ],
@@ -182,8 +190,15 @@ class CareActionController(
                 """"balance":118000,"resolvedEvent":{"occurrenceSeq":90001,"scenarioTitle":"쿠션을 물어뜯어요",""" +
                 """"resultText":"신나게 놀고 나니 쿠션에는 관심이 없어졌어요. 배가 좀 고파 보여요.",""" +
                 """"eventStatDelta":{"satiety":-5,"bond":5,"calmness":10,"energy":-10},"eventCost":0}},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+        const val VET_VISIT_SUCCESS =
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"actionLogSeq":50005,"actionType":"CARE","actionCode":"VET_VISIT",""" +
+                """"consumedItem":null,"statDelta":{"calmness":-10,"health":30},""" +
+                """"stats":{"satiety":40,"hydration":35,"cleanliness":60,"bond":35,"calmness":30,"health":68,"energy":40,"calculatedDttm":"2026-11-03T10:00:00+09:00"},""" +
+                """"balance":88000,"resolvedEvent":{"occurrenceSeq":90003,"scenarioTitle":"축 처져 있어요",""" +
+                """"resultText":"진단서: 가벼운 장염 소견. 처방식과 휴식을 권장합니다. 병원에 다녀와 조금 지쳤어요.",""" +
+                """"eventStatDelta":{"calmness":-10,"health":30},"eventCost":30000}},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val UNSUPPORTED_ACTION =
-            """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"actionCode","reason":"지원하지 않는 돌봄 행동입니다: VET_VISIT"}],"traceId":"4f2c9e1a7b3d4c5e"}"""
+            """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"actionCode","reason":"지원하지 않는 돌봄 행동입니다: WALK_START"}],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val ITEM_REQUIRED =
             """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"itemSeq","reason":"이 행동에는 사용할 물품이 필요합니다."}],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val ITEM_MISMATCH =
@@ -193,7 +208,7 @@ class CareActionController(
 
 /** actionCode는 DB action_code 값(FEED 등). 응답·18.7의 actionType(CARE 등 분류)과 다른 필드다 */
 data class CareActionRequest(
-    @field:Schema(description = "돌봄 행동 코드. 지금은 FEED·WATER·CLEAN_LITTER·BATHE·SNACK·MEDICINE·PLAY·GIVE_CATNIP", example = "FEED")
+    @field:Schema(description = "돌봄 행동 코드. FEED·WATER·CLEAN_LITTER·BATHE·SNACK·MEDICINE·PLAY·GIVE_CATNIP·VET_VISIT", example = "FEED")
     @field:NotNull
     val actionCode: ActionCode?,
     @field:Schema(
@@ -220,7 +235,7 @@ data class CareActionResponse(
     val statDelta: Map<String, Int>,
     @field:Schema(description = "행동 직후 스탯")
     val stats: StatsResponse,
-    @field:Schema(description = "현재 잔액(원). 돌봄 행동은 돈을 쓰지 않는다", example = "118000")
+    @field:Schema(description = "현재 잔액(원). 병원 진료비 외에는 돌봄 행동이 돈을 쓰지 않는다", example = "118000")
     val balance: Int,
     @field:Schema(description = "이 행동이 대기 중 돌발 이벤트의 정답이었으면 해결 결과, 아니면 null", nullable = true)
     val resolvedEvent: ResolvedEventResponse?,

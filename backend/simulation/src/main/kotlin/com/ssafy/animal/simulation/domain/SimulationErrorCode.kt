@@ -25,4 +25,6 @@ enum class SimulationErrorCode(
     SIMULATION_ITEM_NOT_IN_INVENTORY(HttpStatus.CONFLICT, "보유하지 않았거나 다 쓴 물품입니다."),
     /** 기구는 세션당 1개(18.9) */
     SIMULATION_EQUIPMENT_ALREADY_OWNED(HttpStatus.CONFLICT, "이미 보유한 기구입니다."),
+    /** 18.6 VET_VISIT인데 정답이 병원인 대기 이벤트가 없음(Q486). 성공·무변화 응답으로 바꾸지 않는다(Q489) */
+    SIMULATION_VET_NOT_NEEDED(HttpStatus.CONFLICT, "지금은 병원에 갈 필요가 없습니다."),
 }
