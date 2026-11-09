@@ -27,6 +27,8 @@ class FakeSimulationStore : SimulationSessionRepository, SimulationActionLogRepo
     override fun findActiveForUpdate(userSeq: Int) =
         sessions.firstOrNull { it.userSeq == userSeq && it.status == SessionStatus.IN_PROGRESS }
 
+    override fun findByIdForUpdate(sessionSeq: Long) = sessions.firstOrNull { it.sessionSeq == sessionSeq }
+
     override fun save(session: SimulationSession) = session.also {
         if (it.sessionSeq == null) {
             ReflectionTestUtils.setField(it, "sessionSeq", 3000L + sessions.size + 1)

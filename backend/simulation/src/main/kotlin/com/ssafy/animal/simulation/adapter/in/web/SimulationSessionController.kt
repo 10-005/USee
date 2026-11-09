@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -33,4 +34,9 @@ class SimulationSessionController(
     @PreAuthorize("hasRole('USER')")
     fun getActive(@AuthenticationPrincipal user: AuthUser): SimulationSessionResponse? =
         sessionQueryUseCase.getActive(user.userSeq)?.let(SimulationSessionResponse::from)
+
+    /** 18.4 세션 상세. 본인만 보며 그 외(보호소 포함)는 404로 존재를 감추므로 역할 제한을 두지 않는다(Q483) */
+    @GetMapping("/{sessionSeq}")
+    fun getDetail(@AuthenticationPrincipal user: AuthUser, @PathVariable sessionSeq: Long) =
+        SimulationSessionResponse.from(sessionQueryUseCase.getDetail(user.userSeq, sessionSeq))
 }

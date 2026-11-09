@@ -1,13 +1,16 @@
 package com.ssafy.animal.simulation.application.service
 
+import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.simulation.application.service.FakeSimulationStore.Companion.MALTESE
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
+import com.ssafy.animal.simulation.domain.SimulationErrorCode
 import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SpeciesType
 import com.ssafy.animal.simulation.domain.StatCalculator
 import com.ssafy.animal.simulation.domain.StatCalculatorTest
 import com.ssafy.animal.simulation.domain.Stats
+import org.springframework.test.util.ReflectionTestUtils
 import java.time.Clock
 import java.time.Duration
 import java.time.OffsetDateTime
@@ -15,6 +18,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -75,6 +79,41 @@ class SimulationSessionQueryServiceTest {
 
         assertEquals(afterFirst, session.stats())
         assertEquals(start.plusHours(3), session.statsCalculatedDttm)
+    }
+
+    @Test
+    fun `18_4는 본인 세션 상세를 돌려주고 진행 중이면 스탯을 계산해 저장한다`() {
+        val session = startSession()
+
+        val detail = serviceAt(start.plusHours(2)).getDetail(17, session.sessionSeq!!)
+
+        assertEquals(session, detail.session)
+        assertEquals(start.plusHours(2), session.statsCalculatedDttm)
+    }
+
+    @Test
+    fun `18_4는 남의 세션이나 없는 세션이면 404 SIMULATION_NOT_FOUND`() {
+        val session = startSession(userSeq = 18)
+
+        assertNotFound { serviceAt(start).getDetail(17, session.sessionSeq!!) }
+        assertNotFound { serviceAt(start).getDetail(17, 9999L) }
+    }
+
+    @Test
+    fun `18_4는 종료된 세션의 스탯을 다시 계산하지 않는다`() {
+        val session = startSession()
+        ReflectionTestUtils.setField(session, "status", SessionStatus.ABANDONED)
+        ReflectionTestUtils.setField(session, "endedDttm", start.plusHours(1))
+
+        val detail = serviceAt(start.plusDays(3)).getDetail(17, session.sessionSeq!!)
+
+        assertEquals(SessionStatus.ABANDONED, detail.session.status)
+        assertEquals(calculator.initialStats(), session.stats())
+        assertEquals(start, session.statsCalculatedDttm)
+    }
+
+    private fun assertNotFound(block: () -> Unit) {
+        assertEquals(SimulationErrorCode.SIMULATION_NOT_FOUND, assertFailsWith<BusinessException> { block() }.errorCode)
     }
 
     @Test

@@ -10,6 +10,9 @@ interface SimulationSessionRepository {
     /** 요청자의 진행 중 세션을 행 잠금(FOR UPDATE)으로 조회한다. 없으면 null */
     fun findActiveForUpdate(userSeq: Int): SimulationSession?
 
+    /** 세션을 행 잠금(FOR UPDATE)으로 조회한다. 진행 중이면 지연 계산 결과를 쓰기 때문. 없으면 null */
+    fun findByIdForUpdate(sessionSeq: Long): SimulationSession?
+
     /**
      * 세션을 저장한다. 사전 조회를 지나 부분 UNIQUE(USER당 진행 중 1개)에 걸리면(경쟁 상태)
      * 사전 조회와 같은 409 SIMULATION_ACTIVE_ALREADY_EXISTS로 바꿔 던진다.

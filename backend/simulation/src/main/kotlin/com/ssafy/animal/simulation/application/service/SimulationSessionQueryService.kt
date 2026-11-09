@@ -1,9 +1,11 @@
 package com.ssafy.animal.simulation.application.service
 
+import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionDetail
 import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionQueryUseCase
 import com.ssafy.animal.simulation.application.port.out.SimulationSessionRepository
 import com.ssafy.animal.simulation.domain.SessionStatus
+import com.ssafy.animal.simulation.domain.SimulationErrorCode
 import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.StatCalculator
 import org.springframework.stereotype.Service
@@ -23,6 +25,15 @@ class SimulationSessionQueryService(
     @Transactional
     override fun getActive(userSeq: Long): SimulationSessionDetail? {
         val session = sessionRepository.findActiveForUpdate(Math.toIntExact(userSeq)) ?: return null
+        refreshStats(session)
+        return detailAssembler.assemble(session)
+    }
+
+    @Transactional
+    override fun getDetail(userSeq: Long, sessionSeq: Long): SimulationSessionDetail {
+        val session = sessionRepository.findByIdForUpdate(sessionSeq)
+            ?.takeIf { it.userSeq.toLong() == userSeq }
+            ?: throw BusinessException(SimulationErrorCode.SIMULATION_NOT_FOUND)
         refreshStats(session)
         return detailAssembler.assemble(session)
     }

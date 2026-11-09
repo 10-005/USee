@@ -190,6 +190,35 @@ class SimulationSessionControllerTest {
         then(sessionQueryUseCase).shouldHaveNoInteractions()
     }
 
+    @Test
+    fun `18_4는 세션 상세를 돌려준다`() {
+        given(sessionQueryUseCase.getDetail(17, 3001L)).willReturn(SimulationSessionDetail(session(), maltese, Equipment.NONE, null))
+
+        mockMvc.get("/api/simulation/v1/simulations/3001") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
+            status { isOk() }
+            jsonPath("$.data.sessionSeq") { value(3001) }
+            jsonPath("$.data.breed.breedName") { value("말티즈") }
+        }
+    }
+
+    @Test
+    fun `18_4는 SHELTER도 역할로 막지 않고 서비스의 404로 존재를 감춘다`() {
+        given(sessionQueryUseCase.getDetail(77, 3001L)).willThrow(BusinessException(SimulationErrorCode.SIMULATION_NOT_FOUND))
+
+        mockMvc.get("/api/simulation/v1/simulations/3001") { header(HttpHeaders.AUTHORIZATION, SHELTER_TOKEN) }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("SIMULATION_NOT_FOUND") }
+        }
+    }
+
+    @Test
+    fun `18_4는 세션 번호가 숫자가 아니면 400 COMMON_INVALID_INPUT`() {
+        mockMvc.get("/api/simulation/v1/simulations/abc") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("COMMON_INVALID_INPUT") }
+        }
+    }
+
     companion object {
         private val keyPair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
 

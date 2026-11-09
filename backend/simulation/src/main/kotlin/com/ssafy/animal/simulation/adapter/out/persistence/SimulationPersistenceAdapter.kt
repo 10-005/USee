@@ -11,11 +11,17 @@ import jakarta.persistence.LockModeType
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 
 interface SimulationSessionJpaRepository : JpaRepository<SimulationSession, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     fun findFirstByUserSeqAndStatus(userSeq: Int, status: SessionStatus): SimulationSession?
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from SimulationSession s where s.sessionSeq = :sessionSeq")
+    fun findByIdForUpdate(@Param("sessionSeq") sessionSeq: Long): SimulationSession?
 }
 
 interface SimulationActionLogJpaRepository : JpaRepository<SimulationActionLog, Long>
@@ -28,6 +34,8 @@ class SimulationPersistenceAdapter(
 
     override fun findActiveForUpdate(userSeq: Int): SimulationSession? =
         sessionJpaRepository.findFirstByUserSeqAndStatus(userSeq, SessionStatus.IN_PROGRESS)
+
+    override fun findByIdForUpdate(sessionSeq: Long): SimulationSession? = sessionJpaRepository.findByIdForUpdate(sessionSeq)
 
     // IDENTITY라 save 시점에 INSERT가 나가므로 부분 UNIQUE 위반도 여기서 잡힌다
     override fun save(session: SimulationSession): SimulationSession = try {
