@@ -2,6 +2,7 @@ package com.ssafy.animal.simulation.application.service
 
 import com.ssafy.animal.simulation.application.port.`in`.SessionMaintenanceUseCase
 import com.ssafy.animal.simulation.application.port.out.SimulationSessionRepository
+import com.ssafy.animal.simulation.application.port.out.WalkRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -12,6 +13,8 @@ class SessionMaintenanceService(
     private val events: SessionEvents,
     private val statRefresher: SessionStatRefresher,
     private val pushNotifier: SimulationPushNotifier,
+    private val walkRepository: WalkRepository,
+    private val walkLifecycle: WalkLifecycle,
 ) : SessionMaintenanceUseCase {
 
     @Transactional(readOnly = true)
@@ -28,6 +31,9 @@ class SessionMaintenanceService(
         progress.catchUp(session)
         if (!session.isInProgress) return
         val now = statRefresher.now()
+        // 하트비트가 끊긴 산책은 마지막 하트비트 시각으로 끝낸다(252). 그 결과 세션이 끝났으면 여기서 멈춘다
+        walkRepository.findActive(sessionSeq)?.let { walkLifecycle.endIfStale(session, it, now) }
+        if (!session.isInProgress) return
         val created = events.triggerCondition(session, now) ?: events.triggerRandom(session, now) ?: return
         pushNotifier.eventOccurred(session, created.scenario)
     }
