@@ -3,6 +3,7 @@ package com.ssafy.animal.core.user.adapter.`in`.web
 import com.ssafy.animal.common.auth.Role
 import com.ssafy.animal.common.docs.SuccessResponseSchema
 import com.ssafy.animal.core.image.application.port.`in`.ImageSummary
+import com.ssafy.animal.core.image.application.port.`in`.OrderedImage
 import com.ssafy.animal.core.user.application.port.`in`.MyProfile
 import com.ssafy.animal.core.user.application.port.`in`.PublicProfile
 import com.ssafy.animal.core.user.application.port.`in`.UpdateMyProfileCommand
@@ -10,6 +11,7 @@ import com.ssafy.animal.core.user.domain.AccountStatus
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.LocalDate
 import java.util.Optional
+import com.ssafy.animal.core.image.application.port.`in`.ordered
 
 /** 3.2 부분 갱신. 필드 미전달은 null, 명시적 null은 Optional.empty()로 들어온다 */
 data class UpdateMyProfileRequest(
@@ -60,10 +62,10 @@ data class PublicProfileResponse(
     @field:Schema(description = "역할. USER: 일반 회원, SHELTER: 보호소 담당자", example = "USER")
     val role: Role,
     @field:Schema(description = "프로필 사진. USER면 회원 사진, SHELTER면 보호소 프로필 사진. 없으면 null", nullable = true)
-    val profileImage: ImageSummary?,
+    val profileImage: OrderedImage?,
 ) {
     companion object {
-        fun from(profile: PublicProfile) = PublicProfileResponse(profile.userSeq, profile.displayName, profile.role, profile.profileImage)
+        fun from(profile: PublicProfile) = PublicProfileResponse(profile.userSeq, profile.displayName, profile.role, profile.profileImage?.ordered())
     }
 }
 

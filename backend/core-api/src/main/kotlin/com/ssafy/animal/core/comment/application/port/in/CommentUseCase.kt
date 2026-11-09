@@ -4,6 +4,7 @@ import com.ssafy.animal.common.auth.Role
 import com.ssafy.animal.common.event.TargetType
 import com.ssafy.animal.core.comment.domain.CommentType
 import com.ssafy.animal.core.image.application.port.`in`.ImageSummary
+import com.ssafy.animal.core.image.application.port.`in`.OrderedImage
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.OffsetDateTime
 import java.util.Optional
@@ -68,7 +69,7 @@ data class CommentDetail(
     @field:Schema(description = "본문. 삭제된 댓글이거나 사진만 있으면 null", nullable = true, example = "근처에서 본 것 같아요.")
     val body: String?,
     @field:Schema(description = "첨부 사진. 없거나 삭제된 댓글이면 null", nullable = true)
-    val image: ImageSummary?,
+    val image: OrderedImage?,
     @get:Schema(name = "isDeleted", description = "삭제 여부. true면 body·image가 null이고 화면은 삭제 안내를 보여 준다", example = "false")
     val isDeleted: Boolean,
     @field:Schema(description = "삭제되지 않은 답글 수. 답글 자신은 항상 0", example = "2")
@@ -88,7 +89,7 @@ data class CommentAuthor(
     @field:Schema(description = "역할. USER: 일반 회원, SHELTER: 보호소 담당자", example = "USER")
     val role: Role,
     @field:Schema(description = "프로필 사진. USER는 회원 사진, SHELTER는 보호소 사진. 없거나 탈퇴 작성자면 null", nullable = true)
-    val profileImage: ImageSummary?,
+    val profileImage: OrderedImage?,
 )
 
 private const val COMMENT_TYPE_DESCRIPTION = "댓글 종류. MISSING_COMMENT: 실종 신고 댓글, FOUND_COMMENT: 발견 신고 댓글"

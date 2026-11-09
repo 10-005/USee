@@ -76,6 +76,7 @@ class PetService(
             val oldSeqs = petRepository.findImageSeqs(pet.petSeq!!)
             if (oldSeqs != newSeqs) {
                 petRepository.replaceImages(pet.petSeq!!, newSeqs)
+                pet.markModified() // 사진만 바뀌어도 6.4 성공이면 mod_dttm을 갱신한다
                 // 연결 해제는 이미 DB에 반영됐다. 다른 참조가 없을 때만 원본 삭제(Q383)
                 (oldSeqs - newSeqs.toSet()).forEach(imageUseCase::deleteIfUnreferenced)
             }

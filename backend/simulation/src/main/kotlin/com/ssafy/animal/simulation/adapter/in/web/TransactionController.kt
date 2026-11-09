@@ -46,7 +46,7 @@ class TransactionController(
             "- 펫샵 구매(PURCHASE)와 동물병원 진료비(EVENT)를 준다. `transactionType`으로 거를 수 있다(생략 시 전체).\n" +
             "- 구매면 `item`(물품), 진료비면 `occurrenceSeq`(비용이 생긴 돌발 이벤트)가 채워지고 나머지는 null.\n" +
             "- `balanceAfter`는 그 지출 직후 잔액(음수 가능). 종료된 세션도 조회할 수 있다.\n" +
-            "- size 기본 50. sort 허용 필드는 `regDttm`만(기본 `regDttm,desc`).",
+            "- size 기본 20. sort 허용 필드는 `regDttm`만(기본 `regDttm,desc`).",
     )
     @ApiResponses(
         ApiResponse(
@@ -108,7 +108,7 @@ class TransactionController(
         @Parameter(description = "세션 번호", example = "3001") @PathVariable sessionSeq: Long,
         @Parameter(description = "$TRANSACTION_TYPE_DESC. 생략하면 전체", example = "PURCHASE")
         @RequestParam(required = false) transactionType: TransactionType?,
-        @PageableDefault(size = 50) pageable: Pageable,
+        @PageableDefault(size = 20) pageable: Pageable,
     ) = PageResponse.of(
         transactionQueryUseCase.getTransactions(user.userSeq, sessionSeq, transactionType, pageable).map(TransactionResponse::from),
     )

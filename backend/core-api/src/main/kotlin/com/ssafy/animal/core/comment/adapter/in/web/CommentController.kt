@@ -33,6 +33,9 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.util.Optional
+import com.ssafy.animal.common.response.ErrorDetail
+import com.ssafy.animal.common.exception.CommonErrorCode
+import com.ssafy.animal.common.exception.BusinessException
 
 /** 13장 댓글·답글. 권한은 로그인(USER·SHELTER 모두) */
 @Tag(name = "댓글", description = "실종·발견 신고 게시물의 댓글·답글(깊이 1). 게시물 targetType MISSING·FOUND ↔ commentType MISSING_COMMENT·FOUND_COMMENT")
@@ -584,9 +587,9 @@ class CommentController(
 }
 
 data class CreateCommentRequest(
-    @field:Schema(description = "게시물 종류. MISSING(실종 신고) 또는 FOUND(발견 신고)만. 다른 값은 400", example = "MISSING")
+    @field:Schema(description = "게시물 종류. MISSING(실종 신고) 또는 FOUND(발견 신고)만. 다른 값은 400 COMMON_INVALID_INPUT", allowableValues = ["MISSING", "FOUND"], example = "MISSING")
     @field:NotNull
-    val targetType: TargetType?,
+    val targetType: String?,
     @field:Schema(description = "게시물 번호", example = "101")
     @field:NotNull
     val targetSeq: Long?,
@@ -597,7 +600,12 @@ data class CreateCommentRequest(
     @field:Schema(description = "첨부 사진 번호(0~1개). 본인이 올린 이미지만", nullable = true, example = "null")
     val imageSeq: Long?,
 ) {
-    fun toCommand() = CreateCommentCommand(targetType!!, targetSeq!!, parentCommentSeq, body, imageSeq)
+    // 모르는 문자열도 JSON 변환 오류(COMMON_INVALID_JSON)가 아니라 명세(13.3)대로 400 COMMON_INVALID_INPUT
+    fun toCommand() = CreateCommentCommand(
+        TargetType.entries.firstOrNull { it.name == targetType }
+            ?: throw BusinessException(CommonErrorCode.COMMON_INVALID_INPUT, errors = listOf(ErrorDetail("targetType", "MISSING 또는 FOUND만 허용합니다."))),
+        targetSeq!!, parentCommentSeq, body, imageSeq,
+    )
 }
 
 /** 13.4 부분 수정. 미전달은 null(유지), 명시적 null은 Optional.empty()(해제) */

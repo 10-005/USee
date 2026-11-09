@@ -27,4 +27,9 @@ abstract class BaseTimeEntity : BaseCreatedEntity() {
     protected fun touchModDttm() {
         modDttm = OffsetDateTime.now()
     }
+
+    /** 연결 테이블(사진 등)만 바뀌어 이 엔티티의 컬럼은 그대로일 때 호출한다. 엔티티를 변경 상태로 만들어 UPDATE와 mod_dttm 갱신이 일어나게 한다 */
+    fun markModified() {
+        modDttm = OffsetDateTime.now()
+    }
 }

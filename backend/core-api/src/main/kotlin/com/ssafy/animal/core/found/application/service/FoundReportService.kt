@@ -40,6 +40,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionOperations
 import java.time.OffsetDateTime
+import com.ssafy.animal.core.image.application.port.`in`.ordered
 
 /**
  * 등록·수정은 역지오코딩(외부 호출)을 트랜잭션 밖에서 먼저 하고 쓰기만 transactionOperations로 묶는다(21.1 2단계).
@@ -146,7 +147,14 @@ class FoundReportService(
             throw BusinessException(CommonErrorCode.COMMON_INVALID_INPUT, errors = listOf(ErrorDetail("status", "이미 ${status.name} 상태입니다.")))
         }
         report.changeStatus(status, closedReason?.trim()?.ifEmpty { null }, OffsetDateTime.now(), Math.toIntExact(viewer.userSeq))
-        return foundReportRepository.saveAndFlush(report)
+        val saved = foundReportRepository.saveAndFlush(report)
+        // 재개하면 다시 매칭 대상이 된다(17.8 Q432 "등록·CLOSED→ACTIVE 재개·사진 diff"). 이벤트 종류는 등록과 같게 보낸다(실종 7.6과 동일)
+        if (status == FoundStatus.ACTIVE) {
+            val seq = saved.foundReportSeq!!
+            val imageSeqs = foundReportRepository.findImages(listOf(seq))[seq].orEmpty().map { it.imageSeq }
+            publishMatch(MatchEventType.FOUND_REPORT_REGISTERED, saved, imageSeqs, catalogUseCase.requireClassification(saved.combinationSeq))
+        }
+        return saved
     }
 
     @Transactional
@@ -210,7 +218,7 @@ class FoundReportService(
                 userSeq = report.userSeq.toLong(),
                 displayName = if (reporter == null || reporter.isDeleted) WITHDRAWN_NAME else reporter.nickname,
                 role = Role.USER,
-                profileImage = reporter?.takeUnless { it.isDeleted }?.profileImageSeq?.let(imageUseCase::findSummary),
+                profileImage = reporter?.takeUnless { it.isDeleted }?.profileImageSeq?.let(imageUseCase::findSummary)?.ordered(),
             ),
             shelterName = foundReportRepository.findShelterName(report.shelterSeq),
             // 비공개 연락처는 작성자·이 신고의 담당 보호소만(8.2)

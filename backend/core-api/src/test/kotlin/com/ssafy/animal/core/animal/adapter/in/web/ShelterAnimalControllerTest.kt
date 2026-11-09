@@ -188,6 +188,16 @@ class ShelterAnimalControllerTest {
             status { isBadRequest() }
             jsonPath("$.errors[0].field") { value("combinationSeq") }
         }
+        // 공고 날짜 형식 오류도 COMMON_INVALID_JSON이 아니라 명세대로 COMMON_INVALID_INPUT
+        mockMvc.post("/api/core/v1/shelter-animals") {
+            header(HttpHeaders.AUTHORIZATION, SHELTER_TOKEN)
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"combinationSeq":88,"gender":"UNKNOWN","noticeStartDate":"2026/10/29","imageSeqs":[1701]}"""
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("COMMON_INVALID_INPUT") }
+            jsonPath("$.errors[0].field") { value("noticeStartDate") }
+        }
         mockMvc.post("/api/core/v1/shelter-animals") {
             header(HttpHeaders.AUTHORIZATION, USER_TOKEN)
             contentType = MediaType.APPLICATION_JSON

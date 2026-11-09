@@ -43,7 +43,7 @@ class ActionLogController(
             "- 돌봄·산책·이벤트 만료·세션 시작/종료 기록을 준다. `actionType`으로 거를 수 있다(생략 시 전체).\n" +
             "- `item`은 쓴 물품(없으면 null), `statDelta`는 실제로 바뀐 스탯(세션 시작 등 SYSTEM 기록은 null), `statsAfter`는 행동 직후 스탯 7종.\n" +
             "- `walkSeq`는 산책 중 행동, `occurrenceSeq`는 이 행동이 해결했거나(CARE·WALK) 만료된(EVENT) 돌발 이벤트. 해당 없으면 null.\n" +
-            "- 종료된 세션도 조회할 수 있다. size 기본 50. sort 허용 필드는 `regDttm`만(기본 `regDttm,desc`).",
+            "- 종료된 세션도 조회할 수 있다. size 기본 20. sort 허용 필드는 `regDttm`만(기본 `regDttm,desc`).",
     )
     @ApiResponses(
         ApiResponse(
@@ -105,7 +105,7 @@ class ActionLogController(
         @Parameter(description = "세션 번호", example = "3001") @PathVariable sessionSeq: Long,
         @Parameter(description = "$ACTION_TYPE_DESC. 생략하면 전체", example = "CARE")
         @RequestParam(required = false) actionType: ActionType?,
-        @PageableDefault(size = 50) pageable: Pageable,
+        @PageableDefault(size = 20) pageable: Pageable,
     ) = PageResponse.of(actionLogQueryUseCase.getActionLogs(user.userSeq, sessionSeq, actionType, pageable).map(ActionLogResponse::from))
 
     private companion object {

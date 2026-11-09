@@ -23,6 +23,7 @@ import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.Optional
+import com.ssafy.animal.core.image.application.port.`in`.ordered
 
 @Service
 class CommentService(
@@ -145,8 +146,8 @@ class CommentService(
                 val role = Role.valueOf(row.role)
                 when {
                     row.deleted -> CommentAuthor(seq.toLong(), WITHDRAWN_NAME, role, null)
-                    role == Role.SHELTER -> CommentAuthor(seq.toLong(), row.shelterName, role, row.shelterImageSeq?.let(imageUseCase::findSummary))
-                    else -> CommentAuthor(seq.toLong(), row.nickname, role, row.profileImageSeq?.let(imageUseCase::findSummary))
+                    role == Role.SHELTER -> CommentAuthor(seq.toLong(), row.shelterName, role, row.shelterImageSeq?.let(imageUseCase::findSummary)?.ordered())
+                    else -> CommentAuthor(seq.toLong(), row.nickname, role, row.profileImageSeq?.let(imageUseCase::findSummary)?.ordered())
                 }
             }
         // ponytail: 댓글 이미지는 건마다 findSummary 1회(PK 조회). 댓글이 많아져 느려지면 ImageUseCase에 일괄 조회 추가
@@ -159,7 +160,7 @@ class CommentService(
                 targetSeq = c.postSeq.toLong(),
                 author = authors[c.userSeq] ?: CommentAuthor(c.userSeq.toLong(), WITHDRAWN_NAME, Role.USER, null),
                 body = c.body.takeUnless { c.isDeleted },
-                image = c.imageSeq?.takeUnless { c.isDeleted }?.let(imageUseCase::findSummary),
+                image = c.imageSeq?.takeUnless { c.isDeleted }?.let(imageUseCase::findSummary)?.ordered(),
                 isDeleted = c.isDeleted,
                 replyCount = replyCounts[c.commentSeq] ?: 0,
                 regDttm = c.regDttm,

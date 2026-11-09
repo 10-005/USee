@@ -11,6 +11,7 @@ import com.ssafy.animal.core.found.domain.FoundReportContent
 import com.ssafy.animal.core.found.domain.FoundStatus
 import com.ssafy.animal.core.found.domain.Gender
 import com.ssafy.animal.core.image.application.port.`in`.ImageSummary
+import com.ssafy.animal.core.image.application.port.`in`.OrderedImage
 import io.swagger.v3.oas.annotations.media.Schema
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -170,7 +171,7 @@ data class ActorSummary(
     @field:Schema(description = "역할. 발견 신고 작성자는 항상 USER", example = "USER")
     val role: Role,
     @field:Schema(description = "프로필 사진. 없거나 탈퇴한 회원이면 null", nullable = true)
-    val profileImage: ImageSummary?,
+    val profileImage: OrderedImage?,
 )
 
 data class FoundReportDetail(
