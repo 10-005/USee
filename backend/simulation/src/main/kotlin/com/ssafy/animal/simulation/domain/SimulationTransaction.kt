@@ -83,5 +83,26 @@ class SimulationTransaction protected constructor(
                 description = "${item.itemName} × $quantity",
             )
         }
+
+        /**
+         * 이벤트 해결 비용 기록(VET_VISIT 진료비 = 시나리오 resolve_cost, M15·Q486). 254에서 부른다.
+         * 표시 문구는 "동물병원 진료비 · 시나리오 제목"이며 컬럼 길이(200)에 맞춰 자른다.
+         */
+        fun event(sessionSeq: Long, occurrenceSeq: Long, amount: Int, balanceAfter: Int, scenarioTitle: String): SimulationTransaction {
+            require(amount >= 0) { "금액은 0 이상이어야 합니다: $amount" }
+            return SimulationTransaction(
+                sessionSeq = sessionSeq,
+                transactionType = TransactionType.EVENT,
+                itemSeq = null,
+                occurrenceSeq = occurrenceSeq,
+                quantity = 1,
+                amount = amount,
+                balanceAfter = balanceAfter,
+                description = "$VET_FEE_LABEL · $scenarioTitle".take(DESCRIPTION_MAX_LENGTH),
+            )
+        }
+
+        private const val VET_FEE_LABEL = "동물병원 진료비"
+        private const val DESCRIPTION_MAX_LENGTH = 200
     }
 }
