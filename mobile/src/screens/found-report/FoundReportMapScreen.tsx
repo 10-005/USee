@@ -190,6 +190,10 @@ export function FoundReportMapScreen({ navigation }: Props) {
           </View>
         ) : null}
 
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>신고 {reports.length}건</Text>
+        </View>
+
         {candidates ? (
           <View style={styles.resultsPanel}>
             {candidates.length ? (
@@ -229,10 +233,6 @@ export function FoundReportMapScreen({ navigation }: Props) {
             <EmptyState area={searchedArea} />
           </View>
         ) : null}
-
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>신고 {reports.length}건</Text>
-        </View>
 
         {selectedReport ? (
           <Pressable
@@ -341,7 +341,8 @@ const styles = StyleSheet.create({
     maxHeight: 230,
     position: 'absolute',
     right: 20,
-    top: 0,
+    top: -8,
+    zIndex: 2,
   },
   resultsScroll: { maxHeight: 230 },
   resultItem: {
@@ -367,6 +368,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     position: 'absolute',
     top: 12,
+    zIndex: 1,
   },
   countText: { ...typography.captionSemiBold12, color: colors.gray700 },
   emptyCard: {

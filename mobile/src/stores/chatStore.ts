@@ -123,7 +123,12 @@ export const useChatStore = create<ChatState>((set, get) => {
       return;
     }
     const stored = await getStoredValue<Room[]>(STORAGE_KEYS.CHAT_ROOMS);
-    const rooms = migrateRooms(stored ?? initialRooms);
+    const migratedRooms = migrateRooms(stored ?? initialRooms);
+    // Keep one unread fixture visible in development so the unread UI can be reviewed.
+    const rooms =
+      __DEV__ && migratedRooms.length > 0 && migratedRooms.every(room => room.unreadCount === 0)
+        ? migratedRooms.map((room, index) => (index === 0 ? { ...room, unreadCount: 1 } : room))
+        : migratedRooms;
     if (
       stored &&
       (rooms.length !== stored.length || rooms.some((room, index) => room !== stored[index]))

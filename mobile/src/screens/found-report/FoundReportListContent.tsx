@@ -461,9 +461,9 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   tabs: { flexDirection: 'row', height: 56 },
-  tab: { alignItems: 'center', flex: 1, justifyContent: 'flex-end' },
-  activeTabText: { ...typography.bodySemiBold16, color: colors.green400, marginBottom: 16 },
-  tabText: { ...typography.bodyRegular16, color: colors.gray600, marginBottom: 16 },
+  tab: { alignItems: 'center', flex: 1, justifyContent: 'space-between', paddingTop: 16 },
+  activeTabText: { ...typography.bodySemiBold16, color: colors.green400, height: 20 },
+  tabText: { ...typography.bodyRegular16, color: colors.gray600, height: 20 },
   activeIndicator: { backgroundColor: colors.green400, height: 4, width: '100%' },
   inactiveIndicator: { backgroundColor: colors.gray200, height: 1, width: '100%' },
   listArea: { flex: 1 },

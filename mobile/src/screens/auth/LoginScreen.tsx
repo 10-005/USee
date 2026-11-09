@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import KakaoLoginButton from '../../assets/icons/common/kakao-login-btn.svg';
-import Logo from '../../assets/images/logo.png';
+import Logo from '../../assets/images/usee_logo.png';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 

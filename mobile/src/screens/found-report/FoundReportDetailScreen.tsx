@@ -610,8 +610,8 @@ const styles = StyleSheet.create({
     width: 40,
   },
   reporter: { alignItems: 'center', flexDirection: 'row', height: 62, paddingHorizontal: 20 },
-  profileImage: { borderRadius: radius.pill, height: 48, width: 48 },
-  reporterName: { ...typography.titleSemiBold18, color: colors.gray600, marginLeft: 16 },
+  profileImage: { borderRadius: radius.pill, height: 40, width: 40 },
+  reporterName: { ...typography.bodySemiBold16, color: colors.gray600, marginLeft: 12 },
   myReporterName: { color: colors.green400 },
   reportMeta: { ...typography.captionRegular10, color: colors.gray300, marginLeft: 'auto' },
   indicators: {
