@@ -7,6 +7,7 @@ import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SimulationInventoryItem
 import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SimulationShopItem
+import com.ssafy.animal.simulation.domain.SimulationTransaction
 import com.ssafy.animal.simulation.domain.SpeciesType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -44,6 +45,14 @@ interface ImageUrlResolver {
 interface ShopItemRepository {
     /** 판매 중(is_active)인 물품. speciesType이 있으면 그 종과 ALL 물품만. display_order, item_seq 순 */
     fun findActive(speciesType: SpeciesType?): List<SimulationShopItem>
+
+    /** 판매 중단 물품도 포함해 단건 조회. 없으면 null */
+    fun findByItemSeq(itemSeq: Long): SimulationShopItem?
+}
+
+/** 지출 내역(DB 38). 한 번 쓰고 바꾸지 않는다 */
+interface TransactionRepository {
+    fun save(transaction: SimulationTransaction): SimulationTransaction
 }
 
 /** 세션별 보유 물품. 호출하는 쪽이 세션 행을 잠근 상태(FOR UPDATE)에서 쓴다 */

@@ -112,6 +112,14 @@ class SimulationSession(
     var lastActionDttm: OffsetDateTime? = null
         protected set
 
+    /** 잔액에서 amount를 뺀다. 잔액은 음수가 되어도 허용한다(M5). 차감 후 잔액을 돌려준다 */
+    fun spend(amount: Int): Int {
+        check(status == SessionStatus.IN_PROGRESS) { "진행 중인 세션만 돈을 씁니다: $status" }
+        require(amount >= 0) { "지출액은 0 이상이어야 합니다: $amount" }
+        balance = Math.subtractExact(balance, amount)
+        return balance
+    }
+
     /** 지연 계산 결과를 반영한다(M2). calculatedAt은 계산기가 돌려준 tick 경계 시각 */
     fun applyStats(stats: Stats, calculatedAt: OffsetDateTime) {
         check(status == SessionStatus.IN_PROGRESS) { "진행 중인 세션만 스탯을 갱신합니다: $status" }
