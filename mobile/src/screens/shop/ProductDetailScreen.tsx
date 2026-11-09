@@ -3,7 +3,7 @@ import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/navigation/types';
-import { AppHeader, Button } from '../../components/common';
+import { AppHeader, Button, SkeletonBlock, SkeletonGroup } from '../../components/common';
 import { ProductArt } from '../../components/shop/ProductArt';
 import { QuantityControl } from '../../components/shop/QuantityControl';
 import { findProduct, money } from '../../services/shop/catalog';
@@ -55,7 +55,9 @@ export function ProductDetailScreen({ navigation, route }: Props) {
           </Pressable>
         }
       />
-      {!allowed || !p ? (
+      {status === 'loading' ? (
+        <ProductDetailSkeleton />
+      ) : !allowed || !p ? (
         <View style={s.empty}>
           <Text style={s.body}>이 반려동물이 사용할 수 있는 상품을 찾을 수 없어요.</Text>
         </View>
@@ -197,6 +199,28 @@ export function ProductDetailScreen({ navigation, route }: Props) {
     </SafeAreaView>
   );
 }
+
+function ProductDetailSkeleton() {
+  return (
+    <SkeletonGroup accessibilityLabel="상품 상세 불러오는 중" style={styles.skeletonContainer}>
+      <SkeletonBlock style={styles.skeletonHero} />
+      <SkeletonBlock style={styles.skeletonCategory} />
+      <SkeletonBlock style={styles.skeletonName} />
+      <SkeletonBlock style={styles.skeletonPrice} />
+      <SkeletonBlock style={styles.skeletonDescription} />
+      <View style={styles.skeletonInfoSection}>
+        <SkeletonBlock style={styles.skeletonSectionTitle} />
+        {[0, 1, 2, 3].map(index => (
+          <View key={index} style={styles.skeletonInfoRow}>
+            <SkeletonBlock style={styles.skeletonInfoLabel} />
+            <SkeletonBlock style={styles.skeletonInfoValue} />
+          </View>
+        ))}
+      </View>
+    </SkeletonGroup>
+  );
+}
+
 const styles = StyleSheet.create({
   infoSection: { borderTopWidth: 1, borderTopColor: colors.gray200, paddingVertical: 24, gap: 10 },
   sectionTitle: { ...typography.titleBold18, color: colors.black, marginBottom: 8 },
@@ -238,4 +262,15 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   toastText: { ...typography.bodyRegular14, color: colors.white },
+  skeletonCategory: { height: 14, marginTop: 18, width: '32%' },
+  skeletonContainer: { flex: 1, padding: 20 },
+  skeletonDescription: { height: 14, marginTop: 24, width: '92%' },
+  skeletonHero: { aspectRatio: 1.35, borderRadius: 16, width: '100%' },
+  skeletonInfoLabel: { height: 14, width: 58 },
+  skeletonInfoRow: { flexDirection: 'row', gap: 18 },
+  skeletonInfoSection: { gap: 14, marginTop: 28 },
+  skeletonInfoValue: { flex: 1, height: 14 },
+  skeletonName: { height: 22, marginTop: 12, width: '68%' },
+  skeletonPrice: { height: 20, marginTop: 14, width: '38%' },
+  skeletonSectionTitle: { height: 20, marginBottom: 6, width: 82 },
 });

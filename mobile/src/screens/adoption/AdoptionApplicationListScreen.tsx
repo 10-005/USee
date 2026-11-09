@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
-import { AppHeader } from '../../components/common';
+import { AppHeader, ListScreenSkeleton } from '../../components/common';
 import {
   type AdoptionApplicationRecord,
   type AdoptionApplicationStatus,
@@ -86,15 +86,17 @@ export function AdoptionApplicationListScreen({ navigation }: Props) {
   const [draft, setDraft] = useState<AdoptionApplicationDraft<unknown> | null>(null);
   const [filter, setFilter] = useState<FilterValue>('ALL');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([getAdoptionApplicationRecord(), getAdoptionApplicationDraft()]).then(
-        ([storedRecord, storedDraft]) => {
+      setLoading(true);
+      Promise.all([getAdoptionApplicationRecord(), getAdoptionApplicationDraft()])
+        .then(([storedRecord, storedDraft]) => {
           setRecord(storedRecord);
           setDraft(storedDraft);
-        },
-      );
+        })
+        .finally(() => setLoading(false));
     }, []),
   );
 
@@ -162,7 +164,9 @@ export function AdoptionApplicationListScreen({ navigation }: Props) {
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
       <AppHeader onBackPress={navigation.goBack} title="입양 신청 내역" />
-      {totalCount === 0 ? (
+      {loading ? (
+        <ListScreenSkeleton accessibilityLabel="입양 신청 내역 불러오는 중" />
+      ) : totalCount === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>입양 신청 내역이 없습니다</Text>
           <Text style={styles.emptyDescription}>
