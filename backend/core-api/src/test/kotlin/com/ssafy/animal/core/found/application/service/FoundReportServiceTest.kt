@@ -200,9 +200,16 @@ class FoundReportServiceTest {
         val forbidden = assertFailsWith<BusinessException> { service.changeStatus(assignedShelter, 210, FoundStatus.ACTIVE, null) }
         assertEquals(CommonErrorCode.AUTH_FORBIDDEN, forbidden.errorCode)
 
+        assertEquals(emptyList<Any>(), events) // 종료는 매칭 요청을 내지 않는다
+        given(repository.findImages(listOf(210))).willReturn(mapOf(210 to listOf(FoundReportImage(210, 1201, 0))))
         val reopened = service.changeStatus(author, 210, FoundStatus.ACTIVE, null)
         assertEquals(FoundStatus.ACTIVE, reopened.status)
         assertNull(reopened.closedDttm)
+        // 재개하면 등록과 같은 매칭 요청(17.8 Q432)
+        assertEquals(
+            listOf<Any>(MatchRequested(MatchEventType.FOUND_REPORT_REGISTERED, TargetType.FOUND, 210, listOf("images/2026/10/a.jpg"), "DOG", content.occurredDttm)),
+            events,
+        )
 
         val otherShelter = assertFailsWith<BusinessException> { service.changeStatus(AuthUser(78, Role.SHELTER, 8), 210, FoundStatus.CLOSED, null) }
         assertEquals(FoundErrorCode.FOUND_REPORT_NOT_FOUND, otherShelter.errorCode)

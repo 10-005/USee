@@ -27,6 +27,7 @@ import java.util.Optional
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -129,6 +130,16 @@ class PetServiceTest {
         assertEquals(PetGender.MALE, detail.pet.gender)
         assertEquals(listOf(1003L, 1001L), links[seq.toInt()])
         assertEquals(listOf(1002L), released)
+    }
+
+    @Test
+    fun `6_4 사진만 바꿔도 수정 시각을 갱신한다`() {
+        val seq = create().petSeq.toLong()
+        assertNull(pets[seq.toInt()]!!.modDttm)
+
+        service.update(1, seq, UpdatePetCommand(imageSeqs = listOf(1002, 1001)))
+
+        assertNotNull(pets[seq.toInt()]!!.modDttm)
     }
 
     @Test

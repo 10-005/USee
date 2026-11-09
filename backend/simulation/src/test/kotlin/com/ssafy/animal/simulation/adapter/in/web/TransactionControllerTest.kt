@@ -84,7 +84,7 @@ class TransactionControllerTest {
 
     @Test
     fun `18_11은 유형 필터를 넘기고, 없는 유형 값이면 400`() {
-        val pageable = PageRequest.of(0, 50)
+        val pageable = PageRequest.of(0, 20)
         given(transactionQueryUseCase.getTransactions(17, 3001L, TransactionType.PURCHASE, pageable)).willReturn(PageImpl(emptyList(), pageable, 0))
 
         mockMvc.get("/api/simulation/v1/simulations/3001/transactions?transactionType=PURCHASE") {
@@ -103,7 +103,7 @@ class TransactionControllerTest {
 
     @Test
     fun `18_11은 보호소도 역할로 막지 않고 서비스의 404로 존재를 감춘다`() {
-        val pageable = PageRequest.of(0, 50)
+        val pageable = PageRequest.of(0, 20)
         given(transactionQueryUseCase.getTransactions(77, 3001L, null, pageable)).willThrow(BusinessException(SimulationErrorCode.SIMULATION_NOT_FOUND))
 
         mockMvc.get("/api/simulation/v1/simulations/3001/transactions") { header(HttpHeaders.AUTHORIZATION, WebTestTokens.SHELTER) }.andExpect {

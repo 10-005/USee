@@ -32,6 +32,19 @@ data class ImageSummary(
     val imageUrl: String,
 )
 
+/** 1.4 `ImageRef`(imageSeq·imageUrl·displayOrder). 작성자 프로필·댓글 사진처럼 한 장짜리도 이 형태로 내보낸다 */
+@Schema(name = "ImageRef", description = "이미지 참조(1.4)")
+data class OrderedImage(
+    @field:Schema(description = "이미지 번호", example = "1301")
+    val imageSeq: Long,
+    @field:Schema(description = "공개 이미지 URL(서명·만료 없는 고정 주소)", example = "https://cdn.example.com/images/2026/11/3f1c2a9e.jpg")
+    val imageUrl: String,
+    @field:Schema(description = "표시 순서. 한 장짜리는 1", example = "1")
+    val displayOrder: Int,
+)
+
+fun ImageSummary.ordered(displayOrder: Int = 1) = OrderedImage(imageSeq, imageUrl, displayOrder)
+
 data class IssueUploadUrlCommand(
     val userSeq: Long,
     val fileName: String?,

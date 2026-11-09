@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import java.util.Optional
+import com.ssafy.animal.core.image.application.port.`in`.ordered
 
 /**
  * 등록·수정은 역지오코딩(외부 호출)을 트랜잭션 밖에서 먼저 하고(명세 21.1 2단계) 쓰기만 TransactionTemplate으로 묶는다.
@@ -201,7 +202,7 @@ class MissingReportService(
             MissingImageRef(imageSeq, imageUseCase.findSummary(imageSeq)?.imageUrl, index + 1)
         }
         val author = missingReportRepository.findAuthor(report.userSeq)?.let {
-            MissingAuthor(it.userSeq.toLong(), it.nickname, Role.valueOf(it.role), it.profileImageSeq?.let(imageUseCase::findSummary))
+            MissingAuthor(it.userSeq.toLong(), it.nickname, Role.valueOf(it.role), it.profileImageSeq?.let(imageUseCase::findSummary)?.ordered())
         }
         val isAuthor = report.userSeq.toLong() == viewerUserSeq
         return MissingDetail(

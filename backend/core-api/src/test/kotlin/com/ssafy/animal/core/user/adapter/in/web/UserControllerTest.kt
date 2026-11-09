@@ -119,6 +119,18 @@ class UserControllerTest {
             status { isNotFound() }
             jsonPath("$.code") { value("USER_NOT_FOUND") }
         }
+        // 정수 범위를 넘는 번호는 500이 아니라 400
+        mockMvc.get("/api/core/v1/users/9999999999/profile") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("COMMON_INVALID_INPUT") }
+        }
+        // 프로필 사진은 1.4 ImageRef(displayOrder 포함)
+        given(userProfileUseCase.getPublicProfile(20)).willReturn(PublicProfile(20, "사진있음", Role.USER, ImageSummary(1301, "https://cdn/1301.jpg")))
+        mockMvc.get("/api/core/v1/users/20/profile") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
+            status { isOk() }
+            jsonPath("$.data.profileImage.imageSeq") { value(1301) }
+            jsonPath("$.data.profileImage.displayOrder") { value(1) }
+        }
     }
 
     companion object {

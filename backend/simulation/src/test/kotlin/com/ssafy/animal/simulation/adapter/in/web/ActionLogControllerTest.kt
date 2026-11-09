@@ -88,7 +88,7 @@ class ActionLogControllerTest {
 
     @Test
     fun `18_7은 없는 분류 값이면 400, 보호소는 서비스의 404로 감춰진다`() {
-        given(actionLogQueryUseCase.getActionLogs(77, 3001L, null, PageRequest.of(0, 50)))
+        given(actionLogQueryUseCase.getActionLogs(77, 3001L, null, PageRequest.of(0, 20)))
             .willThrow(BusinessException(SimulationErrorCode.SIMULATION_NOT_FOUND))
 
         mockMvc.get("/api/simulation/v1/simulations/3001/action-logs?actionType=PLAY") { header(HttpHeaders.AUTHORIZATION, WebTestTokens.USER) }

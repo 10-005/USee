@@ -184,6 +184,12 @@ class CommentControllerTest {
             status { isBadRequest() }
             jsonPath("$.code") { value("COMMON_INVALID_INPUT") }
         }
+        // 모르는 문자열도 COMMON_INVALID_JSON이 아니라 COMMON_INVALID_INPUT
+        post("""{"targetType":"FOO","targetSeq":101,"body":"x"}""").andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("COMMON_INVALID_INPUT") }
+            jsonPath("$.errors[0].field") { value("targetType") }
+        }
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.ssafy.animal.core.missing.application.port.`in`
 import com.ssafy.animal.common.auth.Role
 import com.ssafy.animal.core.catalog.application.port.`in`.AnimalClassification
 import com.ssafy.animal.core.image.application.port.`in`.ImageSummary
+import com.ssafy.animal.core.image.application.port.`in`.OrderedImage
 import com.ssafy.animal.core.missing.domain.MissingGender
 import com.ssafy.animal.core.missing.domain.MissingReport
 import com.ssafy.animal.core.missing.domain.MissingStatus
@@ -118,5 +119,5 @@ data class MissingAuthor(
     @field:Schema(description = "역할. 실종 신고 작성자는 USER", example = "USER")
     val role: Role,
     @field:Schema(description = "프로필 사진. 없으면 null", nullable = true)
-    val profileImage: ImageSummary?,
+    val profileImage: OrderedImage?,
 )

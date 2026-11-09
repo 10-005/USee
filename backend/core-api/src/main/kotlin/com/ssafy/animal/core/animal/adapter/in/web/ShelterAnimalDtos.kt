@@ -47,10 +47,10 @@ data class RegisterAnimalRequest(
     val healthCheck: String? = null,
     @field:Schema(description = "예방접종 상태", nullable = true)
     val vaccinationStatus: String? = null,
-    @field:Schema(description = "공고 시작일(YYYY-MM-DD). 생략하면 등록일(KST)", nullable = true, example = "2026-10-29")
-    val noticeStartDate: LocalDate? = null,
-    @field:Schema(description = "공고 종료일(YYYY-MM-DD). 생략하면 시작일+10일. 시작일보다 빠르면 400", nullable = true, example = "2026-11-08")
-    val noticeEndDate: LocalDate? = null,
+    @field:Schema(format = "date", description = "공고 시작일(YYYY-MM-DD). 생략하면 등록일(KST)", nullable = true, example = "2026-10-29")
+    val noticeStartDate: String? = null,
+    @field:Schema(format = "date", description = "공고 종료일(YYYY-MM-DD). 생략하면 시작일+10일. 시작일보다 빠르면 400", nullable = true, example = "2026-11-08")
+    val noticeEndDate: String? = null,
     @field:Schema(description = "입양 상태. AVAILABLE=입양 가능, UNAVAILABLE=입양 불가. 생략하면 UNAVAILABLE. ADOPTED는 400", allowableValues = ["AVAILABLE", "UNAVAILABLE"], nullable = true, example = "UNAVAILABLE")
     val adoptionStatus: String? = null,
     @field:Schema(description = "사진 이미지 번호(4.2로 이 계정이 올린 것). 1~3장, 중복 불가. 배열 순서가 표시 순서이고 첫 장이 대표 사진", example = "[1701, 1702]")
@@ -62,8 +62,8 @@ data class RegisterAnimalRequest(
             combinationSeq!!, gender.toEnum("gender")!!, age, isNeutered, microchipNumber, registrationNumber,
             weight, description, healthCheck, vaccinationStatus,
         ),
-        noticeStartDate = noticeStartDate,
-        noticeEndDate = noticeEndDate,
+        noticeStartDate = noticeStartDate.toDate("noticeStartDate"),
+        noticeEndDate = noticeEndDate.toDate("noticeEndDate"),
         adoptionStatus = adoptionStatus.toEnum("adoptionStatus"),
         imageSeqs = imageSeqs.orEmpty(),
     )
@@ -103,10 +103,10 @@ data class UpdateAnimalRequest(
 
 /** 11.6 */
 data class ManageAnimalRequest(
-    @field:Schema(description = "공고 시작일(YYYY-MM-DD). 보내면 변경", nullable = true, example = "2026-10-29")
-    val noticeStartDate: LocalDate? = null,
-    @field:Schema(description = "공고 종료일(YYYY-MM-DD). 보내면 변경. 변경 결과가 시작일보다 빠르면 400", nullable = true, example = "2026-11-15")
-    val noticeEndDate: LocalDate? = null,
+    @field:Schema(format = "date", description = "공고 시작일(YYYY-MM-DD). 보내면 변경", nullable = true, example = "2026-10-29")
+    val noticeStartDate: String? = null,
+    @field:Schema(format = "date", description = "공고 종료일(YYYY-MM-DD). 보내면 변경. 변경 결과가 시작일보다 빠르면 400", nullable = true, example = "2026-11-15")
+    val noticeEndDate: String? = null,
     @field:Schema(description = "보호 상태. PROTECTING=보호 중, RETURNED=반환 완료, ADOPTED=입양 완료, ENDED=보호 종료. 생략하면 상태는 그대로", allowableValues = ["PROTECTING", "RETURNED", "ADOPTED", "ENDED"], nullable = true, example = "PROTECTING")
     val status: String? = null,
     @field:Schema(description = "입양 상태. AVAILABLE·UNAVAILABLE. status=PROTECTING일 때만. 생략하면 현재 값 유지(다른 상태에서 복귀하면 UNAVAILABLE)", allowableValues = ["AVAILABLE", "UNAVAILABLE"], nullable = true, example = "AVAILABLE")
@@ -123,7 +123,7 @@ data class ManageAnimalRequest(
     val memo: String? = null,
 ) {
     fun toCommand() = ManageAnimalCommand(
-        noticeStartDate, noticeEndDate, status.toEnum("status"), adoptionStatus.toEnum("adoptionStatus"),
+        noticeStartDate.toDate("noticeStartDate"), noticeEndDate.toDate("noticeEndDate"), status.toEnum("status"), adoptionStatus.toEnum("adoptionStatus"),
         endReason.toEnum("endReason"), recipientName, recipientPhone, reason, memo,
     )
 }
@@ -131,6 +131,13 @@ data class ManageAnimalRequest(
 inline fun <reified E : Enum<E>> String?.toEnum(field: String): E? = this?.let { value ->
     enumValues<E>().firstOrNull { it.name == value }
         ?: throw BusinessException(CommonErrorCode.COMMON_INVALID_INPUT, errors = listOf(ErrorDetail(field, "허용되지 않는 값입니다: $value")))
+}
+
+/** 날짜 형식 오류를 JSON 변환 오류(COMMON_INVALID_JSON)가 아니라 명세(11.4·11.6)대로 400 COMMON_INVALID_INPUT으로 */
+fun String?.toDate(field: String): LocalDate? = this?.let { value ->
+    runCatching { LocalDate.parse(value) }.getOrElse {
+        throw BusinessException(CommonErrorCode.COMMON_INVALID_INPUT, errors = listOf(ErrorDetail(field, "YYYY-MM-DD 형식이어야 합니다: $value")))
+    }
 }
 
 // Swagger 문서 전용 성공 응답 미러(런타임 미사용)

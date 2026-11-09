@@ -278,8 +278,9 @@ class UserController(
         ),
     )
     @GetMapping("/{userSeq}/profile")
-    fun getPublicProfile(@Parameter(description = "조회할 회원 번호", example = "18") @PathVariable userSeq: Long) =
-        PublicProfileResponse.from(userProfileUseCase.getPublicProfile(userSeq))
+    // 회원 번호는 INTEGER라 Int로 받는다. 범위를 넘으면 타입 변환 실패로 400 COMMON_INVALID_INPUT(500이 나지 않게)
+    fun getPublicProfile(@Parameter(description = "조회할 회원 번호", example = "18") @PathVariable userSeq: Int) =
+        PublicProfileResponse.from(userProfileUseCase.getPublicProfile(userSeq.toLong()))
 
     private companion object {
         // 문서 예시 전용
