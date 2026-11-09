@@ -29,6 +29,9 @@ enum class ActionCode(val type: ActionType) {
     WALK_END(ActionType.WALK),
     GIVE_WATER(ActionType.WALK),
     GIVE_SNACK(ActionType.WALK),
+
+    /** 산책 중 배변 치우기(S15P31D106-252, 사용자 결정). 배변봉투 1개를 쓰고 산책 배변 이벤트만 해결한다 */
+    CLEAN_UP_POOP(ActionType.WALK),
     EVENT_EXPIRE(ActionType.EVENT),
     SESSION_START(ActionType.SYSTEM),
     SESSION_END(ActionType.SYSTEM),

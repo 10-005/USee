@@ -31,6 +31,21 @@ internal object SimulationDocExamples {
     const val SIMULATION_VET_NOT_NEEDED =
         """{"status":409,"code":"SIMULATION_VET_NOT_NEEDED","message":"지금은 병원에 갈 필요가 없습니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
 
+    const val SIMULATION_WALK_NOT_FOR_SPECIES =
+        """{"status":409,"code":"SIMULATION_WALK_NOT_FOR_SPECIES","message":"산책은 강아지만 할 수 있습니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+    const val SIMULATION_WALK_ALREADY_IN_PROGRESS =
+        """{"status":409,"code":"SIMULATION_WALK_ALREADY_IN_PROGRESS","message":"이미 산책 중입니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+    const val SIMULATION_WALK_NOT_IN_PROGRESS =
+        """{"status":409,"code":"SIMULATION_WALK_NOT_IN_PROGRESS","message":"진행 중인 산책이 아닙니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+    const val SIMULATION_WALK_NOT_FOUND =
+        """{"status":404,"code":"SIMULATION_WALK_NOT_FOUND","message":"산책을 찾을 수 없습니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+    const val SIMULATION_POOP_NOT_FOUND =
+        """{"status":409,"code":"SIMULATION_POOP_NOT_FOUND","message":"치울 배변이 없습니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+
+    /** 경로의 산책 번호가 숫자가 아님 */
+    const val WALK_SEQ_TYPE_MISMATCH =
+        """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"walkSeq","reason":"타입이 올바르지 않습니다."}],"traceId":"4f2c9e1a7b3d4c5e"}"""
+
     /** 경로의 세션 번호가 숫자가 아님 */
     const val SESSION_SEQ_TYPE_MISMATCH =
         """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"sessionSeq","reason":"타입이 올바르지 않습니다."}],"traceId":"4f2c9e1a7b3d4c5e"}"""
@@ -61,6 +76,6 @@ internal object SimulationDocExamples {
         """{"sessionSeq":3001,"userSeq":17,"animalName":"초코","breed":""" + BREED_JSON +
             ""","speciesType":"DOG","personality":"FRIENDLY","status":"IN_PROGRESS","expectedCost":150000,"balance":118000,""" +
             """"startedDttm":"2026-11-01T14:00:00+09:00","endsDttm":"2026-11-08T14:00:00+09:00","endedDttm":null,"stats":""" + STATS_JSON +
-            ""","lastActionDttm":"2026-11-01T16:40:00+09:00","equipment":{"foodBowl":true,"waterBowl":true,"litterBox":false,"toy":false},""" +
+            ""","lastActionDttm":"2026-11-01T16:40:00+09:00","equipment":{"foodBowl":true,"waterBowl":true,"litterBox":false,"toy":false,"leash":false},""" +
             """"pendingEvent":null,"activeWalkSeq":null}"""
 }

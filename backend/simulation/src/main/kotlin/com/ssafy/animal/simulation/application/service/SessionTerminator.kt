@@ -2,8 +2,8 @@ package com.ssafy.animal.simulation.application.service
 
 import com.ssafy.animal.simulation.application.port.out.EventOccurrenceRepository
 import com.ssafy.animal.simulation.application.port.out.ReportRepository
-import com.ssafy.animal.simulation.application.port.out.SessionClosingRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationActionLogRepository
+import com.ssafy.animal.simulation.application.port.out.WalkRepository
 import com.ssafy.animal.simulation.domain.ActionCode
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationActionLog
@@ -23,7 +23,7 @@ import java.time.OffsetDateTime
  */
 @Component
 class SessionTerminator(
-    private val closingRepository: SessionClosingRepository,
+    private val walkRepository: WalkRepository,
     private val occurrenceRepository: EventOccurrenceRepository,
     private val actionLogRepository: SimulationActionLogRepository,
     private val reportRepository: ReportRepository,
@@ -33,7 +33,8 @@ class SessionTerminator(
 
     fun end(session: SimulationSession, status: SessionStatus, endedAt: OffsetDateTime): SimulationReport {
         val sessionSeq = checkNotNull(session.sessionSeq) { "저장 전 세션입니다." }
-        closingRepository.endActiveWalks(sessionSeq, endedAt)
+        // 진행 중 산책은 산책 효과 없이 닫는다
+        walkRepository.findActive(sessionSeq)?.end(endedAt)
         occurrenceRepository.findPending(sessionSeq)?.expire()
         session.end(status, endedAt)
 

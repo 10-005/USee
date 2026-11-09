@@ -38,7 +38,7 @@ internal const val CARE_TAG = "모의 입양 돌봄"
 internal const val CARE_TAG_DESC = "밥·물·배변·목욕 등 돌봄 행동과 행동 이력. 행동마다 필요한 기구를 보유해야 하고, 소모품은 1개씩 쓴다"
 internal const val ACTION_TYPE_DESC = "행동 분류. CARE: 돌봄, WALK: 산책, EVENT: 이벤트 만료, SYSTEM: 세션 시작·종료"
 internal const val ACTION_CODE_DESC = "행동 코드. CARE: FEED·WATER·CLEAN_LITTER·BATHE·PLAY·SNACK·MEDICINE·GIVE_CATNIP·VET_VISIT, " +
-    "WALK: WALK_START·WALK_END·GIVE_WATER·GIVE_SNACK, EVENT: EVENT_EXPIRE, SYSTEM: SESSION_START·SESSION_END"
+    "WALK: WALK_START·WALK_END·GIVE_WATER·GIVE_SNACK·CLEAN_UP_POOP, EVENT: EVENT_EXPIRE, SYSTEM: SESSION_START·SESSION_END"
 
 @Tag(name = CARE_TAG, description = CARE_TAG_DESC)
 @RestController

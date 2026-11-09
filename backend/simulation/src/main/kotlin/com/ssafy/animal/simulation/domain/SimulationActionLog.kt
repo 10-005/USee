@@ -89,6 +89,30 @@ class SimulationActionLog(
             )
         }
 
+        /**
+         * 산책 로그(WALK_START·WALK_END·GIVE_WATER·GIVE_SNACK·CLEAN_UP_POOP, 252). result가 없으면(산책 시작) 변화 없이 그 시점 스탯만.
+         * occurrenceSeq는 이 행동이 해결한 산책 이벤트
+         */
+        fun walk(
+            session: SimulationSession,
+            actionCode: ActionCode,
+            walkSeq: Long,
+            result: EffectResult? = null,
+            itemSeq: Long? = null,
+            occurrenceSeq: Long? = null,
+        ): SimulationActionLog {
+            require(actionCode.type == ActionType.WALK) { "WALK 코드가 아닙니다: $actionCode" }
+            return SimulationActionLog(
+                sessionSeq = checkNotNull(session.sessionSeq) { "저장 전 세션입니다." },
+                actionCode = actionCode,
+                statsAfter = result?.after ?: session.stats(),
+                statDelta = result?.deltaJson(),
+                itemSeq = itemSeq,
+                walkSeq = walkSeq,
+                occurrenceSeq = occurrenceSeq,
+            )
+        }
+
         /** 돌발 이벤트 만료(EVENT_EXPIRE). stat_delta는 실제 반영된 방치 효과(Q486) */
         fun eventExpire(session: SimulationSession, occurrence: EventOccurrence, result: EffectResult): SimulationActionLog =
             SimulationActionLog(

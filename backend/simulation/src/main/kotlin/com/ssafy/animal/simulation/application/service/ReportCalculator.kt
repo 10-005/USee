@@ -1,9 +1,9 @@
 package com.ssafy.animal.simulation.application.service
 
 import com.ssafy.animal.simulation.application.port.out.EventOccurrenceRepository
-import com.ssafy.animal.simulation.application.port.out.SessionClosingRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationActionLogRepository
 import com.ssafy.animal.simulation.application.port.out.TransactionRepository
+import com.ssafy.animal.simulation.application.port.out.WalkRepository
 import com.ssafy.animal.simulation.config.SimulationProperties
 import com.ssafy.animal.simulation.domain.ActionType
 import com.ssafy.animal.simulation.domain.ReportAggregator
@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component
  */
 @Component
 class ReportCalculator(
-    private val closingRepository: SessionClosingRepository,
+    private val walkRepository: WalkRepository,
     private val occurrenceRepository: EventOccurrenceRepository,
     private val transactionRepository: TransactionRepository,
     private val actionLogRepository: SimulationActionLogRepository,
@@ -35,7 +35,7 @@ class ReportCalculator(
                 actionCount = actionLogRepository.countByTypes(sessionSeq, ACTION_TYPES),
                 eventCount = events.total,
                 eventResolvedCount = events.resolved,
-                walkCount = closingRepository.countWalks(sessionSeq),
+                walkCount = walkRepository.countWalks(sessionSeq),
             ),
             sessionDays = properties.sessionDuration.toDays().toInt(),
         )

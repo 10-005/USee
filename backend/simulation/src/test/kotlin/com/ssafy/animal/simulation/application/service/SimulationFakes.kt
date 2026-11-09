@@ -16,7 +16,8 @@ import com.ssafy.animal.simulation.application.port.out.ReportListEntry
 import com.ssafy.animal.simulation.application.port.out.ReportRepository
 import com.ssafy.animal.simulation.application.port.out.UserInfo
 import com.ssafy.animal.simulation.application.port.out.UserReader
-import com.ssafy.animal.simulation.application.port.out.SessionClosingRepository
+import com.ssafy.animal.simulation.application.port.out.WalkRepository
+import com.ssafy.animal.simulation.domain.SimulationWalk
 import com.ssafy.animal.simulation.application.port.out.InventoryEntry
 import com.ssafy.animal.simulation.application.port.out.InventoryRepository
 import com.ssafy.animal.simulation.application.port.out.SessionDetailReader
@@ -67,10 +68,9 @@ class FakeSimulationStore :
     UserReader,
     EventScenarioRepository,
     EventOccurrenceRepository,
-    SessionClosingRepository {
+    WalkRepository {
 
     val reports = mutableListOf<SimulationReport>()
-    val walkCounts = mutableMapOf<Long, Int>()
 
     override fun save(report: SimulationReport) = report.also {
         ReflectionTestUtils.setField(it, "reportSeq", 9000L + reports.size + 1)
@@ -103,7 +103,24 @@ class FakeSimulationStore :
 
     override fun findUsers(userSeqs: Collection<Int>) = userSeqs.mapNotNull { users[it] }.associateBy { it.userSeq }
 
-    override fun endActiveWalks(sessionSeq: Long, endedAt: OffsetDateTime) = if (activeWalks.remove(sessionSeq) != null) 1 else 0
+
+    // ===== 산책 =====
+    val walks = mutableListOf<SimulationWalk>()
+
+    override fun save(walk: SimulationWalk) = walk.also {
+        if (it.walkSeq == null) {
+            ReflectionTestUtils.setField(it, "walkSeq", 8000L + walks.size + 1)
+            walks += it
+        }
+    }
+
+    override fun findActive(sessionSeq: Long) = walks.firstOrNull { it.sessionSeq == sessionSeq && it.isInProgress }
+
+    override fun findByWalkSeq(walkSeq: Long) = walks.firstOrNull { it.walkSeq == walkSeq }
+
+    override fun countWalks(sessionSeq: Long) = walks.count { it.sessionSeq == sessionSeq }
+
+    override fun countByWalk(walkSeq: Long) = occurrences.count { it.walkSeq == walkSeq }
 
     // ===== 돌발 이벤트 =====
     val scenarios = mutableMapOf<Long, EventScenario>()
@@ -178,10 +195,13 @@ class FakeSimulationStore :
                 13, "헥헥거려요", "혀를 내밀어요", TriggerContext.WALK, TriggerType.RANDOM, ActionCode.GIVE_WATER, speciesScope = SpeciesScope.DOG,
                 resolveEffects = mapOf("hydration" to 10), neglectEffects = mapOf("hydration" to -15),
             ),
+            EventScenario(
+                16, "길에서 똥을 쌌어요", "그냥 두고 갈 수는 없죠", TriggerContext.WALK, TriggerType.RANDOM, ActionCode.CLEAN_UP_POOP, speciesScope = SpeciesScope.DOG,
+                resolveEffects = mapOf("bond" to 2), resultText = "깨끗이 치웠어요.", neglectEffects = mapOf("calmness" to -5, "bond" to -3),
+            ),
         ).forEach { scenarios[it.scenarioSeq] = it }
     }
 
-    override fun countWalks(sessionSeq: Long) = walkCounts[sessionSeq] ?: 0
 
     override fun countByTypes(sessionSeq: Long, types: Collection<ActionType>) =
         logs.count { it.sessionSeq == sessionSeq && it.actionType in types }
@@ -195,7 +215,6 @@ class FakeSimulationStore :
     val logs = mutableListOf<SimulationActionLog>()
     val breeds = mutableMapOf<Int, BreedInfo>()
     val breedLookups = mutableListOf<Int>()
-    val activeWalks = mutableMapOf<Long, Long>()
     val reported = mutableSetOf<Long>()
     val shopItems = mutableMapOf<Long, SimulationShopItem>()
     val inventory = mutableListOf<SimulationInventoryItem>()
@@ -272,7 +291,6 @@ class FakeSimulationStore :
 
     override fun findBreeds(breedSeqs: Collection<Int>) = breedSeqs.mapNotNull { breeds[it] }.associateBy { it.breedSeq }
 
-    override fun findActiveWalkSeq(sessionSeq: Long) = activeWalks[sessionSeq]
 
     override fun findSessionSeqsWithReport(sessionSeqs: Collection<Long>) = sessionSeqs.filterTo(mutableSetOf()) { it in reported }
 
@@ -324,6 +342,8 @@ class FakeSimulationStore :
                 effects = mapOf("energy" to 15, "bond" to 3, "calmness" to -5), displayOrder = 33,
             ),
             SimulationShopItem(35, "기본 상비약", ItemCategory.MEDICINE, 15_000, SpeciesScope.ALL, effects = mapOf("health" to 20), displayOrder = 35),
+            SimulationShopItem(9, "하네스와 리드줄", ItemCategory.LEASH, 14_900, SpeciesScope.DOG, displayOrder = 9),
+            SimulationShopItem(32, "배변봉투", ItemCategory.POOP_BAG, 500, SpeciesScope.DOG, displayOrder = 32),
             SimulationShopItem(90, "단종된 간식", ItemCategory.SNACK, 1_000, SpeciesScope.ALL, displayOrder = 90, isActive = false),
             SimulationShopItem(
                 31, "화장실 모래", ItemCategory.LITTER, 7_200, SpeciesScope.CAT,
@@ -353,7 +373,7 @@ class FakeSimulationStore :
         SessionStatRefresher(StatCalculator(properties.stats, properties.tick), Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul")))
 
     fun events(properties: SimulationProperties = DEFAULT_PROPERTIES, random: RandomGenerator = ScriptedRandom()) =
-        SessionEvents(this, this, this, this, properties, random)
+        SessionEvents(this, this, this, this, this, properties, random)
 
     companion object {
         val MALTESE = BreedInfo(21, "말티즈", CatalogSpeciesCode.DOG, Personality.FRIENDLY, "https://cdn/breeds/maltese.png")

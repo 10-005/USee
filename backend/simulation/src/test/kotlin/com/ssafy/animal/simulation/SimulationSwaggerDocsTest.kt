@@ -15,6 +15,7 @@ import com.ssafy.animal.simulation.application.port.`in`.SimulationReportQueryUs
 import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionQueryUseCase
 import com.ssafy.animal.simulation.application.port.`in`.StartSimulationUseCase
 import com.ssafy.animal.simulation.application.port.`in`.TransactionQueryUseCase
+import com.ssafy.animal.simulation.application.port.`in`.WalkUseCase
 import com.ssafy.animal.simulation.domain.SimulationErrorCode
 import org.junit.jupiter.api.Test
 import org.springdoc.core.configuration.SpringDocConfiguration
@@ -65,6 +66,7 @@ class SimulationSwaggerDocsTest {
     @MockitoBean lateinit var actionLogQueryUseCase: ActionLogQueryUseCase
     @MockitoBean lateinit var reportQueryUseCase: SimulationReportQueryUseCase
     @MockitoBean lateinit var eventQueryUseCase: EventQueryUseCase
+    @MockitoBean lateinit var walkUseCase: WalkUseCase
 
     private val mapper = ObjectMapper()
 
@@ -81,8 +83,8 @@ class SimulationSwaggerDocsTest {
     fun `모든 API에 요약과 태그와 401 응답 문서가 있다`() {
         val operations = operations(apiDocs())
 
-        // 18.1~18.12, 18.18~18.20
-        assertTrue(operations.size >= 15, "simulation API 문서 수: ${operations.size}")
+        // 18.1~18.12, 18.14~18.20
+        assertTrue(operations.size >= 19, "simulation API 문서 수: ${operations.size}")
         operations.forEach { (name, op) ->
             assertTrue(op["summary"]?.asText().orEmpty().isNotBlank(), "$name: summary 없음")
             assertTrue(op["tags"]?.size() ?: 0 > 0, "$name: 태그 없음")

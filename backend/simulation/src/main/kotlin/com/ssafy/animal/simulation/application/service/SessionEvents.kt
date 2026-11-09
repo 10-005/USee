@@ -5,6 +5,7 @@ import com.ssafy.animal.simulation.application.port.out.EventOccurrenceRepositor
 import com.ssafy.animal.simulation.application.port.out.EventScenarioRepository
 import com.ssafy.animal.simulation.application.port.out.SimulationActionLogRepository
 import com.ssafy.animal.simulation.application.port.out.TransactionRepository
+import com.ssafy.animal.simulation.application.port.out.WalkRepository
 import com.ssafy.animal.simulation.config.SimulationProperties
 import com.ssafy.animal.simulation.domain.ActionCode
 import com.ssafy.animal.simulation.domain.EffectResult
@@ -13,6 +14,7 @@ import com.ssafy.animal.simulation.domain.EventScenario
 import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SimulationSession
 import com.ssafy.animal.simulation.domain.SimulationTransaction
+import com.ssafy.animal.simulation.domain.SimulationWalk
 import com.ssafy.animal.simulation.domain.TriggerContext
 import com.ssafy.animal.simulation.domain.TriggerType
 import org.springframework.stereotype.Component
@@ -30,6 +32,7 @@ class SessionEvents(
     private val occurrenceRepository: EventOccurrenceRepository,
     private val actionLogRepository: SimulationActionLogRepository,
     private val transactionRepository: TransactionRepository,
+    private val walkRepository: WalkRepository,
     private val properties: SimulationProperties,
     /** RANDOM 발생 판정·시나리오 추첨. 테스트는 정해진 값을 돌려주는 구현으로 바꾼다 */
     private val random: RandomGenerator,
@@ -93,10 +96,34 @@ class SessionEvents(
         return PendingEvent(occurrenceRepository.save(EventOccurrence.occur(session, scenario, at, at.plus(properties.event.homeExpiry))), scenario)
     }
 
-    /** 진행 중이고, 조용한 시간이 아니고, 예정 종료 전이며, 대기 이벤트가 없을 때만 새 이벤트를 만든다 */
-    private fun canTrigger(session: SimulationSession, at: OffsetDateTime): Boolean =
-        session.isInProgress && !properties.event.isQuiet(at) && at.isBefore(session.endsDttm) &&
-            occurrenceRepository.findPending(checkNotNull(session.sessionSeq)) == null
+    /**
+     * 집 이벤트는 진행 중이고, 조용한 시간이 아니고, 예정 종료 전이며, 대기 이벤트가 없고,
+     * 산책 중이 아닐 때만 만든다(산책 중에는 산책 이벤트만, 사용자 결정 2026-11-09)
+     */
+    private fun canTrigger(session: SimulationSession, at: OffsetDateTime): Boolean {
+        val sessionSeq = checkNotNull(session.sessionSeq)
+        return session.isInProgress && !properties.event.isQuiet(at) && at.isBefore(session.endsDttm) &&
+            occurrenceRepository.findPending(sessionSeq) == null && walkRepository.findActive(sessionSeq) == null
+    }
+
+    /**
+     * 산책 이벤트(WALK·RANDOM, 252). 하트비트마다 대기 이벤트가 없고 이 산책의 이벤트가 최대 횟수 미만이면
+     * 설정 확률로 만들고, 종·성격에 맞는 산책 시나리오를 가중치로 고른다. 시한은 산책 이벤트 시한(5분 [가안]).
+     * 산책은 밤에도 하므로 조용한 시간을 보지 않는다. 푸시는 없고 하트비트 응답으로 전한다(Q481).
+     */
+    fun triggerWalk(session: SimulationSession, walk: SimulationWalk, at: OffsetDateTime): PendingEvent? {
+        val config = properties.walk
+        val walkSeq = checkNotNull(walk.walkSeq) { "저장 전 산책입니다." }
+        if (!session.isInProgress || !walk.isInProgress) return null
+        if (occurrenceRepository.findPending(checkNotNull(session.sessionSeq)) != null) return null
+        if (occurrenceRepository.countByWalk(walkSeq) >= config.eventMaxPerWalk) return null
+        if (random.nextDouble() >= config.eventChancePerHeartbeat) return null
+
+        val candidates = scenarioRepository.findActive(TriggerContext.WALK, TriggerType.RANDOM)
+            .filter { it.appliesTo(session.speciesType, session.personality) }
+        val scenario = pickWeighted(candidates) ?: return null
+        return PendingEvent(occurrenceRepository.save(EventOccurrence.occur(session, scenario, at, at.plus(config.eventExpiry), walkSeq)), scenario)
+    }
 
     /**
      * HOME·RANDOM 이벤트를 확률로 만든다(스케줄러 판정 1회분, M11·사용자 결정 2026-11-09).
@@ -138,4 +165,8 @@ data class PendingEvent(
     /** 집 이벤트이고 이 돌봄 행동이 정답인지. 산책 이벤트는 산책 중 행동으로만 해결한다(252) */
     fun isAnsweredBy(actionCode: ActionCode): Boolean =
         scenario.triggerContext == TriggerContext.HOME && scenario.resolveActionCode == actionCode
+
+    /** 이 산책의 이벤트이고 이 산책 중 행동이 정답인지(Q486: WALK는 같은 walk_seq일 때만) */
+    fun isAnsweredOnWalk(actionCode: ActionCode, walkSeq: Long): Boolean =
+        scenario.triggerContext == TriggerContext.WALK && occurrence.walkSeq == walkSeq && scenario.resolveActionCode == actionCode
 }

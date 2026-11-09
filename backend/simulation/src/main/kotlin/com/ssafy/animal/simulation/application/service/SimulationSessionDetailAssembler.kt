@@ -7,7 +7,7 @@ import com.ssafy.animal.simulation.application.port.out.BreedReader
 import com.ssafy.animal.simulation.application.port.out.EventOccurrenceRepository
 import com.ssafy.animal.simulation.application.port.out.EventScenarioRepository
 import com.ssafy.animal.simulation.application.port.out.InventoryRepository
-import com.ssafy.animal.simulation.application.port.out.SessionDetailReader
+import com.ssafy.animal.simulation.application.port.out.WalkRepository
 import com.ssafy.animal.simulation.domain.SimulationSession
 import org.springframework.stereotype.Component
 
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component
 class SimulationSessionDetailAssembler(
     private val breedReader: BreedReader,
     private val inventoryRepository: InventoryRepository,
-    private val detailReader: SessionDetailReader,
+    private val walkRepository: WalkRepository,
     private val occurrenceRepository: EventOccurrenceRepository,
     private val scenarioRepository: EventScenarioRepository,
 ) {
@@ -32,7 +32,7 @@ class SimulationSessionDetailAssembler(
             session = session,
             breed = resolved,
             equipment = inventoryRepository.findEquipment(sessionSeq),
-            activeWalkSeq = detailReader.findActiveWalkSeq(sessionSeq),
+            activeWalkSeq = walkRepository.findActive(sessionSeq)?.walkSeq,
             pendingEvent = pendingEvent(sessionSeq),
         )
     }

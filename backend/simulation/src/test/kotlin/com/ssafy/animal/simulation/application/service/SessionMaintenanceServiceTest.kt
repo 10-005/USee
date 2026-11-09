@@ -4,7 +4,10 @@ import com.ssafy.animal.common.event.EventPublisher
 import com.ssafy.animal.common.event.SimulationPushRequested
 import com.ssafy.animal.common.event.SimulationPushType
 import com.ssafy.animal.simulation.config.SimulationProperties
+import com.ssafy.animal.simulation.domain.ActionCode
 import com.ssafy.animal.simulation.domain.EventOccurrence
+import com.ssafy.animal.simulation.domain.SimulationWalk
+import com.ssafy.animal.simulation.domain.WalkStatus
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationSession
@@ -33,6 +36,7 @@ class SessionMaintenanceServiceTest {
     private fun serviceAt(now: OffsetDateTime) = SessionMaintenanceService(
         store, store.progress(properties, now), store.events(properties, random), store.refresher(properties, now),
         SimulationPushNotifier(object : EventPublisher { override fun publish(event: Any) { pushes += event } }),
+        store, WalkLifecycle(store, store, store.events(properties, random), store.terminator(properties), properties),
     )
 
     private fun session(userSeq: Int, endsAt: OffsetDateTime = start.plusDays(7)) = store.save(
@@ -278,5 +282,34 @@ class SessionMaintenanceServiceTest {
         serviceAt(start.plusHours(9)).advance(sick.sessionSeq!!)
 
         assertTrue(store.occurrences.isEmpty())
+    }
+
+    // ===== 산책(252) =====
+
+    @Test
+    fun `하트비트가 10분 넘게 끊긴 산책은 스케줄러가 마지막 하트비트 시각으로 끝낸다`() {
+        val dog = session(17)
+        val walk = store.save(SimulationWalk.start(dog, start.plusHours(1))).apply { heartbeat(start.plusHours(1).plusMinutes(30)) }
+
+        serviceAt(start.plusHours(1).plusMinutes(35)).advance(dog.sessionSeq!!)
+        assertTrue(walk.isInProgress)
+
+        serviceAt(start.plusHours(1).plusMinutes(41)).advance(dog.sessionSeq!!)
+        assertEquals(WalkStatus.ENDED, walk.status)
+        assertEquals(start.plusHours(1).plusMinutes(30), walk.endedDttm)
+        assertEquals(ActionCode.WALK_END, store.logs.last().actionCode)
+    }
+
+    @Test
+    fun `산책 중에는 집 이벤트를 만들지 않는다`() {
+        store.stockScenarios()
+        val dog = sessionWith(healthy.copy(health = 35))
+        store.save(SimulationWalk.start(dog, start.plusHours(1))).heartbeat(start.plusHours(1))
+        random = ScriptedRandom(doubles = listOf(0.0, 0.0))
+
+        serviceAt(start.plusHours(1).plusMinutes(5)).advance(dog.sessionSeq!!)
+
+        assertTrue(store.occurrences.isEmpty())
+        assertTrue(pushes.isEmpty())
     }
 }
