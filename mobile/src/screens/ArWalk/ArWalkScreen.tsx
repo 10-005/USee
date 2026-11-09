@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Pressable,
   Text,
   View,
@@ -33,6 +34,19 @@ const STARTUP_ERRORS: Partial<Record<FloorTrackingStatus, string>> = {
   unsupported: '이 기기는 AR 산책을 지원하지 않습니다.',
   error: 'AR 산책을 시작하지 못했습니다. 카메라 권한을 확인해 주세요.',
 };
+
+const CARE_ACTIONS = [
+  {
+    action: 'drink',
+    label: '물 주기',
+    image: require('../../../android/app/src/main/assets/models/img_walk_water.png'),
+  },
+  {
+    action: 'eat',
+    label: '간식 던지기',
+    image: require('../../../android/app/src/main/assets/models/img_walk_treat.png'),
+  },
+] as const;
 
 export function ArWalkScreen({
   route,
@@ -69,6 +83,9 @@ export function ArWalkScreen({
   const [status, setStatus] = useState<FloorTrackingStatus>('searching');
   const [placementRequest, setPlacementRequest] = useState(0);
   const [canReposition, setCanReposition] = useState(true);
+  const [canGiveCare, setCanGiveCare] = useState(false);
+  const [careRequest, setCareRequest] = useState('');
+  const careRequestId = useRef(0);
   const [showTraversalDebug, setShowTraversalDebug] = useState(false);
   const [hasSeenDog, setHasSeenDog] = useState(false);
   const [loadingDots, setLoadingDots] = useState(2);
@@ -84,6 +101,13 @@ export function ArWalkScreen({
       Alert.alert('산책 음성 명령', voice.error);
     }
   }, [voice.error]);
+
+  useEffect(() => {
+    if (!isFocused || !hasPermission) {
+      setCanGiveCare(false);
+      setCareRequest('');
+    }
+  }, [isFocused, hasPermission]);
 
   useEffect(() => {
     if (walkStartedAt === null) {
@@ -115,6 +139,7 @@ export function ArWalkScreen({
 
   const onTracking = (event: NativeSyntheticEvent<FloorTracking>) => {
     const next = event.nativeEvent;
+    setCanGiveCare(isFocused && next.status === 'anchored' && next.canGiveCare === true);
     if (next.cleanupRequestId && next.cleanupRequestId !== lastCleanupRequest.current) {
       lastCleanupRequest.current = next.cleanupRequestId;
       const consumed = useShopStore.getState().consume({ bags: 1 });
@@ -152,6 +177,7 @@ export function ArWalkScreen({
           cleanupResponse={cleanupResponse}
           onBagPurchase={openBagPurchase}
           actionRequest={voice.actionRequest}
+          careRequest={careRequest}
         />
       ) : (
         <View style={styles.message}>
@@ -220,6 +246,21 @@ export function ArWalkScreen({
         >
           <VoiceMicrophone listening={voice.isListening} />
         </Pressable>
+      )}
+      {hasPermission && isFocused && canGiveCare && !bagPurchaseVisible && (
+        <View style={[styles.careActions, { bottom: insets.bottom + 24 }]}>
+          {CARE_ACTIONS.map(({ action, label, image }) => (
+            <Pressable
+              key={action}
+              accessibilityRole="button"
+              accessibilityLabel={label}
+              onPress={() => setCareRequest(`${++careRequestId.current}:${action}`)}
+              style={styles.careButton}
+            >
+              <Image source={image} style={styles.careIcon} />
+            </Pressable>
+          ))}
+        </View>
       )}
       {hasPermission && canReposition && (
         <Pressable

@@ -5,6 +5,33 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun waterApproachAndTreatThrowRunOnlyFromSeatedPose() {
+    val leader = DogLeader()
+    fun frame() = leader.update(0.05f, 0f, 0f, 0f, -1f, floor)
+    val start = frame()
+    val camera = LeashPoint(0f, 1f, 0f)
+    assertFalse(leader.giveCare("drink", camera))
+    leader.requestAction("sit")
+    repeat(25) { frame() }
+    assertTrue(leader.canGiveCare)
+    assertTrue(leader.giveCare("drink", camera))
+    assertFalse(leader.giveCare("eat", camera))
+    val waterFrames = List(190) { frame() }
+    assertTrue(waterFrames.any { it.clip == "Walk" && it.z > start.z })
+    assertTrue(waterFrames.any { it.clip == "Drink" })
+    assertTrue(leader.canGiveCare)
+
+    assertTrue(leader.giveCare("eat", camera))
+    val launch = leader.careItem!!.second
+    repeat(6) { frame() }
+    val inFlight = leader.careItem!!.second
+    assertTrue(inFlight.z < launch.z)
+    val treatFrames = List(170) { frame() }
+    assertTrue(treatFrames.any { it.clip == "Eat" || it.clip == "EatTear" })
+    assertNull(leader.careItem)
+    assertTrue(leader.canGiveCare)
+  }
+
   @Test fun spinMakesExactlyOneFullTurnWithoutTranslatingAndStaysStoppedAfterward() {
     val leader = DogLeader()
     val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)

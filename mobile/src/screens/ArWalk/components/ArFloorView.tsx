@@ -23,6 +23,7 @@ export type FloorTracking = {
   onScreen?: boolean;
   userMoving?: boolean;
   cleanupRequestId?: number;
+  canGiveCare?: boolean;
 };
 
 type ArFloorNativeProps = ViewProps & {
@@ -30,6 +31,7 @@ type ArFloorNativeProps = ViewProps & {
   showTraversalDebug?: boolean;
   placementRequest?: number;
   actionRequest?: string;
+  careRequest?: string;
   bagAvailable?: boolean;
   cleanupResponse?: string;
   onTracking?: (event: NativeSyntheticEvent<FloorTracking>) => void;

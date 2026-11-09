@@ -13,9 +13,12 @@ import com.facebook.react.uimanager.events.Event
 import com.google.ar.core.Config
 import com.google.ar.core.Frame
 import com.google.ar.core.Session
+import com.google.ar.core.TrackingState
 import io.github.sceneview.ar.ARSceneView
+import io.github.sceneview.math.Direction
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
+import io.github.sceneview.math.Size
 import io.github.sceneview.math.colorOf
 import io.github.sceneview.node.CylinderNode
 import io.github.sceneview.node.ModelNode
@@ -29,6 +32,10 @@ class ArFloorView(
   private var sceneView: ARSceneView? = null
   private val modelLoad = SceneModelLoad()
   private var cleanup: WalkCleanupView? = null
+  private val careNodes = mutableMapOf<String, OwnedImageNode>()
+  private var pendingCare: String? = null
+  private var lastCareRequest = ""
+  private var lastCanGiveCare = false
 
   private var traversalDebug: TraversalDebugView? = null
   private var showTraversalDebug = false
@@ -132,6 +139,12 @@ class ArFloorView(
     }
   }
 
+  fun requestCare(request: String) {
+    if (!active || request.isEmpty() || request == lastCareRequest) return
+    lastCareRequest = request
+    pendingCare = request.substringAfter(':')
+  }
+
   fun setActive(next: Boolean) {
     if (active == next) {
       return
@@ -191,7 +204,7 @@ class ArFloorView(
     ).apply {
       layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
       onSessionUpdated = { session, frame -> handleFrame(session, frame) }
-      beforeDestroy = { modelLoad.cancel(); releaseSceneResources() }
+      beforeDestroy = { modelLoad.cancel(); releaseSceneResources(this) }
       onFrameFailure = {
         post {
           if (sceneView === this) {
@@ -269,7 +282,13 @@ class ArFloorView(
     }
   }
 
-  private fun releaseSceneResources() {
+  private fun releaseSceneResources(scene: ARSceneView) {
+    careNodes.values.forEach { node ->
+      scene.removeChildNode(node)
+      node.destroy()
+    }
+    careNodes.clear()
+    pendingCare = null
     cleanup?.let { it.release(); removeView(it) }
     cleanup = null
     dogNode?.onPoseUpdated = null
@@ -344,6 +363,14 @@ class ArFloorView(
     android.opengl.Matrix.multiplyMV(clipPoint, 0, projectionMatrix, 0, cameraPoint, 0)
     val onScreen = shown.dog.visible && clipPoint[3] > 0f &&
       kotlin.math.abs(clipPoint[0]) <= clipPoint[3] && kotlin.math.abs(clipPoint[1]) <= clipPoint[3]
+    val careAvailable = camera.trackingState == TrackingState.TRACKING && onScreen && leader.canGiveCare
+    val careRequest = pendingCare
+    pendingCare = null
+    if (careAvailable && careRequest != null) {
+      val origin = if (careRequest == "eat") leashHand else leashCamera
+      if (origin != null) leader.giveCare(careRequest, origin)
+    }
+    updateCareItem(cameraPose.tx(), cameraPose.tz())
     val node = dogNode
     val shadow = shadowNode
     val rotationNow = SystemClock.elapsedRealtimeNanos()
@@ -388,7 +415,33 @@ class ArFloorView(
       dogNode?.cancelAttention()
       cleanup?.pause()
     }
-    emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen, shown.dog.userMoving)
+    emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen,
+      shown.dog.userMoving, careAvailable && leader.canGiveCare)
+  }
+
+  private fun updateCareItem(cameraX: Float, cameraZ: Float) {
+    val item = leader.careItem
+    careNodes.forEach { (action, node) -> node.isVisible = action == item?.first }
+    if (item == null) return
+    val scene = sceneView ?: return
+    val (action, point) = item
+    val node = careNodes.getOrPut(action) {
+      val bowl = action == "drink"
+      OwnedImageNode(
+        materialLoader = scene.materialLoader,
+        imageFileLocation = if (bowl) "models/img_walk_water.png" else "models/img_walk_treat.png",
+        size = if (bowl) Size(0.28f, 0.18f, 0f) else Size(0.15f, 0.1f, 0f),
+        normal = Direction(0f, 0f, 1f),
+      ).apply {
+        isShadowCaster = false
+        isShadowReceiver = false
+        scene.addChildNode(this)
+      }
+    }
+    node.position = Position(point.x, point.y + if (action == "drink") 0.07f else 0.04f, point.z)
+    node.rotation = Rotation(y = Math.toDegrees(
+      kotlin.math.atan2(cameraX - point.x, cameraZ - point.z).toDouble(),
+    ).toFloat())
   }
 
   private fun pawLift(node: ModelNode): Float {
@@ -396,12 +449,13 @@ class ArFloorView(
     return -node.scale.y * feet - PAW_SINK
   }
 
-  private fun emit(status: String, visible: Boolean, clip: String, moving: Boolean, onScreen: Boolean, userMoving: Boolean) {
+  private fun emit(status: String, visible: Boolean, clip: String, moving: Boolean, onScreen: Boolean,
+    userMoving: Boolean, canGiveCare: Boolean = false) {
     if (disposed) {
       return
     }
     val cleanupRequestId = cleanup?.collectionRequestId ?: 0L
-    val key = "$status|$visible|$moving|$onScreen|$userMoving|$cleanupRequestId"
+    val key = "$status|$visible|$moving|$onScreen|$userMoving|$cleanupRequestId|$canGiveCare"
     val now = SystemClock.elapsedRealtime()
     if (pendingEventKey != key) {
       pendingEventKey = key
@@ -411,8 +465,9 @@ class ArFloorView(
       return
     }
     // React only needs a settled caption, not every transient tracking/clip change.
-    if (lastEventKey.isNotEmpty() && now - pendingEventSince < 300L) return
+    if (lastEventKey.isNotEmpty() && lastCanGiveCare == canGiveCare && now - pendingEventSince < 300L) return
     lastEventKey = key
+    lastCanGiveCare = canGiveCare
     val viewId = id
     if (viewId == NO_ID) {
       return
@@ -433,6 +488,7 @@ class ArFloorView(
           onScreen = onScreen,
           userMoving = userMoving,
           cleanupRequestId = cleanupRequestId,
+          canGiveCare = canGiveCare,
         ),
       )
     }
@@ -506,6 +562,7 @@ class ArFloorView(
     private val onScreen: Boolean,
     private val userMoving: Boolean,
     private val cleanupRequestId: Long,
+    private val canGiveCare: Boolean,
   ) : Event<TrackingEvent>(surfaceId, viewId) {
     override fun getEventName(): String = "topTracking"
 
@@ -523,6 +580,7 @@ class ArFloorView(
       putBoolean("onScreen", onScreen)
       putBoolean("userMoving", userMoving)
       putDouble("cleanupRequestId", cleanupRequestId.toDouble())
+      putBoolean("canGiveCare", canGiveCare)
     }
   }
 }

@@ -82,6 +82,22 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  careActions: {
+    position: 'absolute',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 10,
+  },
+  careButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  careIcon: { width: 44, height: 32, resizeMode: 'contain' },
   areaToggle: {
     alignItems: 'center',
     flexDirection: 'row',

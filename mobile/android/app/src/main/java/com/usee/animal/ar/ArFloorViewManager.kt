@@ -35,6 +35,11 @@ class ArFloorViewManager : SimpleViewManager<ArFloorView>() {
     view.requestAction(request.orEmpty())
   }
 
+  @ReactProp(name = "careRequest")
+  fun setCareRequest(view: ArFloorView, request: String?) {
+    view.requestCare(request.orEmpty())
+  }
+
   @ReactProp(name = "bagAvailable", defaultBoolean = false)
   fun setBagAvailable(view: ArFloorView, available: Boolean) { view.setBagAvailable(available) }
 

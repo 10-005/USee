@@ -47,6 +47,17 @@ class DogAnimationController(
     if (action in ACTIONS) requested = action
   }
 
+  internal fun carePose(clip: String, loop: Boolean = false) = change(clip, loop)
+
+  internal fun clipSeconds(clip: String) = durations[clip] ?: 1f
+
+  internal fun beginConsumption(action: String) = start(plan(action))
+
+  internal fun advanceConsumption(dt: Float): Boolean {
+    advanceSteps(dt)
+    return steps.isNotEmpty()
+  }
+
   fun holdSpin() {
     requested = null
     steps = emptyList()
@@ -110,18 +121,7 @@ class DogAnimationController(
       return current
     }
     if (steps.isNotEmpty()) {
-      stepSeconds += dt
-      while (steps.isNotEmpty() && stepSeconds >= steps[stepIndex].seconds) {
-        stepSeconds -= steps[stepIndex].seconds
-        stepIndex++
-        if (stepIndex == steps.size) {
-          steps = emptyList()
-          change("Idle", true)
-        } else {
-          val step = steps[stepIndex]
-          change(step.clip, step.loop, force = true)
-        }
-      }
+      advanceSteps(dt)
       return current
     }
     if (stoppedSeconds >= 3f && !shortIdlePlayed) {
@@ -134,6 +134,21 @@ class DogAnimationController(
       settleMotion("Idle", dt)
     }
     return current
+  }
+
+  private fun advanceSteps(dt: Float) {
+    stepSeconds += dt
+    while (steps.isNotEmpty() && stepSeconds >= steps[stepIndex].seconds) {
+      stepSeconds -= steps[stepIndex].seconds
+      stepIndex++
+      if (stepIndex == steps.size) {
+        steps = emptyList()
+        change("Idle", true)
+      } else {
+        val step = steps[stepIndex]
+        change(step.clip, step.loop, force = true)
+      }
+    }
   }
 
   private fun movementClip(speed: Float, forward: Float, right: Float): String {

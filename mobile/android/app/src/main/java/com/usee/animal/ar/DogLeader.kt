@@ -19,6 +19,51 @@ class DogLeader(
   private var poopTargetX = 0f
   private var poopTargetZ = 0f
   private var poopDeposited = false
+  private enum class CareStage { STAND, APPROACH, CONSUME }
+  private data class Care(
+    val action: String,
+    val origin: LeashPoint,
+    var target: LeashPoint,
+    var stage: CareStage = CareStage.STAND,
+    var seconds: Float = 0f,
+  )
+  private var care: Care? = null
+  internal val canGiveCare: Boolean
+    get() = placed && care == null && spinElapsed == null && poopStage == null &&
+      (animations.current.clip == "SitIdle" || animations.current.clip == "SitIdle2")
+
+  internal fun giveCare(action: String, origin: LeashPoint): Boolean {
+    if (!canGiveCare || (action != "drink" && action != "eat")) return false
+    val dx = origin.x - x
+    val dz = origin.z - z
+    val distance = hypot(dx, dz)
+    if (distance < 0.45f) return false
+    val offset = if (action == "drink") (distance - 0.4f).coerceIn(0.4f, 1.5f) else 0.4f
+    care = Care(action, origin, LeashPoint(x + dx / distance * offset, y, z + dz / distance * offset))
+    commandedHold = "sit"
+    attentionSeconds = 0f
+    animations.pause()
+    animations.carePose("SitEnd")
+    return true
+  }
+
+  internal val careItem: Pair<String, LeashPoint>?
+    get() = care?.let { current ->
+      if (current.action == "drink") {
+        if (current.stage == CareStage.STAND) null else current.action to current.target
+      } else if (current.stage == CareStage.CONSUME && animations.current.clip != "EatDrinkStart") {
+        null
+      } else {
+        val t = (current.seconds / 0.65f).coerceIn(0f, 1f)
+        val start = current.origin
+        val end = current.target
+        current.action to LeashPoint(
+          start.x + (end.x - start.x) * t,
+          start.y + (end.y - start.y) * t + 1.6f * t * (1f - t),
+          start.z + (end.z - start.z) * t,
+        )
+      }
+    }
 
   fun beginPoop(rightX: Float, rightZ: Float) {
     if (!placed || poopStage != null || commandedHold != null || attentionSeconds > 0f) return
@@ -93,6 +138,10 @@ class DogLeader(
 
   fun requestAction(action: String) {
     if (!placed || poopStage != null) return
+    if (care != null) {
+      if (action != "go" && action != "stop") return
+      care = null
+    }
     attentionSeconds = 0f
     if (action == "spin") {
       if (spinElapsed != null) return
@@ -132,7 +181,7 @@ class DogLeader(
   private var spinStartYaw = 0f
 
   fun requestAttention(): Boolean {
-    if (!placed || poopStage != null || spinElapsed != null) return false
+    if (!placed || poopStage != null || spinElapsed != null || care != null) return false
     attentionSeconds = 3f
     speed = 0f
     moving = false
@@ -144,6 +193,7 @@ class DogLeader(
   }
 
   fun pauseTracking() {
+    care = null
     attentionSeconds = 0f
     spinElapsed = null
     hasCamera = false
@@ -238,6 +288,7 @@ class DogLeader(
     previousCameraX = cameraX
     previousCameraZ = cameraZ
     hasCamera = true
+    care?.let { return updateCare(it, dt, cameraX, cameraZ, floorAt) }
     spinElapsed?.let { elapsed ->
       val next = (elapsed + deltaSeconds.coerceIn(0f, 0.25f)).coerceAtMost(3f)
       spinElapsed = next
@@ -494,6 +545,69 @@ class DogLeader(
       }
     }
     return frame(true, speed)
+  }
+
+  private fun updateCare(
+    current: Care,
+    dt: Float,
+    cameraX: Float,
+    cameraZ: Float,
+    floorAt: (Float, Float) -> Float?,
+  ): DogFrame {
+    current.seconds += dt
+    speed = 0f
+    moving = false
+    blocked = false
+    userMoving = hypot(velocityX, velocityZ) > 0.15f
+    stopReason = ""
+    val dx = current.target.x - x
+    val dz = current.target.z - z
+    val distance = hypot(dx, dz)
+    when (current.stage) {
+      CareStage.STAND -> if (current.seconds >= animations.clipSeconds("SitEnd") &&
+        (current.action == "drink" || current.seconds >= 0.65f)) {
+        yaw = atan2(dx, dz)
+        val ground = if (current.action == "drink") stepFloor(dx / distance, dz / distance, distance, floorAt) else y
+        if (ground == null || !canPlaceAt(x, z, current.target.x, current.target.z, y)) {
+          finishCare(dt)
+        } else {
+          current.target = current.target.copy(y = ground)
+          current.stage = CareStage.APPROACH
+        }
+      }
+      CareStage.APPROACH -> {
+        val step = min((distance - 0.4f).coerceAtLeast(0f), 0.7f * dt)
+        if (step <= 0f) {
+          if (distance <= 0.401f) {
+            current.stage = CareStage.CONSUME
+            animations.beginConsumption(current.action)
+          }
+        } else {
+          val ux = dx / distance
+          val uz = dz / distance
+          val ground = stepFloor(ux, uz, step, floorAt)
+          if (ground == null || !avoidsWalker(ux, uz, step, cameraX, cameraZ) ||
+            !canPlaceAt(x, z, x + ux * step, z + uz * step, y)) {
+            finishCare(dt)
+          } else {
+            x += ux * step
+            z += uz * step
+            y = ground
+            speed = step / dt
+            moving = true
+            animations.carePose("Walk", loop = true)
+          }
+        }
+      }
+      CareStage.CONSUME -> if (!animations.advanceConsumption(dt)) finishCare(dt)
+    }
+    return frame(true, speed)
+  }
+
+  private fun finishCare(dt: Float) {
+    care = null
+    animations.pause()
+    animations.holdPosition(true, dt)
   }
 
   private fun avoidsWalker(
