@@ -2,12 +2,12 @@ package com.ssafy.animal.simulation.adapter.`in`.web
 
 import com.ssafy.animal.common.config.CommonWebAutoConfiguration
 import com.ssafy.animal.common.exception.BusinessException
-import com.ssafy.animal.simulation.application.port.`in`.Equipment
 import com.ssafy.animal.simulation.application.port.`in`.SimulationSessionDetail
 import com.ssafy.animal.simulation.application.port.`in`.StartSimulationCommand
 import com.ssafy.animal.simulation.application.port.`in`.StartSimulationUseCase
 import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.port.out.CatalogSpeciesCode
+import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SimulationErrorCode
 import com.ssafy.animal.simulation.domain.SimulationSession

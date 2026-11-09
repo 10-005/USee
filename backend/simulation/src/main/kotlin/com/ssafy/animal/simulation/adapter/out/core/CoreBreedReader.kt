@@ -5,6 +5,7 @@ import com.ssafy.animal.simulation.application.port.out.BreedReader
 import com.ssafy.animal.simulation.application.port.out.CatalogSpeciesCode
 import com.ssafy.animal.simulation.domain.Personality
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.jdbc.core.RowMapper
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Component
 
@@ -27,24 +28,31 @@ class CoreBreedReader(
     private val storage: StorageUrlProperties,
 ) : BreedReader {
 
+    private val rowMapper = RowMapper { rs, _ ->
+        BreedInfo(
+            breedSeq = rs.getInt("breed_seq"),
+            breedName = rs.getString("breed_name"),
+            speciesCode = CatalogSpeciesCode.valueOf(rs.getString("species_code")),
+            personality = Personality.valueOf(rs.getString("personality")),
+            representativeImageUrl = rs.getString("image_key")?.let(storage::publicUrl),
+        )
+    }
+
     override fun findBreed(breedSeq: Int): BreedInfo? =
-        jdbcTemplate.query(FIND_BREED, mapOf("breedSeq" to breedSeq)) { rs, _ ->
-            BreedInfo(
-                breedSeq = rs.getInt("breed_seq"),
-                breedName = rs.getString("breed_name"),
-                speciesCode = CatalogSpeciesCode.valueOf(rs.getString("species_code")),
-                personality = Personality.valueOf(rs.getString("personality")),
-                representativeImageUrl = rs.getString("image_key")?.let(storage::publicUrl),
-            )
-        }.firstOrNull()
+        jdbcTemplate.query("$SELECT_BREEDS WHERE b.breed_seq = :breedSeq", mapOf("breedSeq" to breedSeq), rowMapper).firstOrNull()
+
+    override fun findBreeds(breedSeqs: Collection<Int>): Map<Int, BreedInfo> {
+        if (breedSeqs.isEmpty()) return emptyMap()
+        return jdbcTemplate.query("$SELECT_BREEDS WHERE b.breed_seq IN (:breedSeqs)", mapOf("breedSeqs" to breedSeqs.toSet()), rowMapper)
+            .associateBy { it.breedSeq }
+    }
 
     companion object {
-        private val FIND_BREED = """
+        private val SELECT_BREEDS = """
             SELECT b.breed_seq, b.breed_name, s.species_code, b.personality, i.image_key
             FROM core.animal_breeds b
             JOIN core.animal_species s ON s.species_seq = b.species_seq
             LEFT JOIN core.images i ON i.image_seq = b.representative_image_seq
-            WHERE b.breed_seq = :breedSeq
         """.trimIndent()
     }
 }

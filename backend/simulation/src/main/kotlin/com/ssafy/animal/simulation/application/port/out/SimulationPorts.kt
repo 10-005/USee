@@ -1,5 +1,6 @@
 package com.ssafy.animal.simulation.application.port.out
 
+import com.ssafy.animal.simulation.domain.Equipment
 import com.ssafy.animal.simulation.domain.Personality
 import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SimulationSession
@@ -23,6 +24,21 @@ interface SimulationActionLogRepository {
 /** core 스키마 품종 기준정보 읽기 전용 조회(Q420·Q482). 잠그지 않는다 */
 interface BreedReader {
     fun findBreed(breedSeq: Int): BreedInfo?
+
+    /** 목록용 일괄 조회. 없는 품종은 결과 맵에서 빠진다 */
+    fun findBreeds(breedSeqs: Collection<Int>): Map<Int, BreedInfo>
+}
+
+/** 세션 상세·목록에 붙는 파생 정보. 인벤토리·산책·리포트 엔티티가 생기기 전까지 읽기 전용 조회로 둔다 */
+interface SessionDetailReader {
+    /** 수량 1 이상인 기구 4종 보유 여부 */
+    fun findEquipment(sessionSeq: Long): Equipment
+
+    /** 진행 중 산책(세션당 최대 1건, 부분 UNIQUE). 없으면 null */
+    fun findActiveWalkSeq(sessionSeq: Long): Long?
+
+    /** 종료 리포트가 있는 세션 번호(18.3 hasReport) */
+    fun findSessionSeqsWithReport(sessionSeqs: Collection<Long>): Set<Long>
 }
 
 /** core.animal_species.species_code. ETC는 모의 입양을 시작할 수 없다(M8) */
