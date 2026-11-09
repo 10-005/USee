@@ -13,6 +13,7 @@ import com.ssafy.animal.notification.application.port.`in`.NotificationEventUseC
 import com.ssafy.animal.notification.application.port.out.DeviceTokenRepository
 import com.ssafy.animal.notification.application.port.out.FcmMessage
 import com.ssafy.animal.notification.application.port.out.FcmSender
+import com.ssafy.animal.notification.application.port.out.InvalidFcmTokenException
 import com.ssafy.animal.notification.application.port.out.NotificationRepository
 import com.ssafy.animal.notification.domain.Notification
 import com.ssafy.animal.notification.domain.title
@@ -92,9 +93,16 @@ class NotificationEventService(
         send(FcmMessage(token.fcmToken, title, body, data))
     }
 
-    /** 실패해도 DB 알림은 보존하고 재시도하지 않는다(17.8) */
+    /** 실패해도 DB 알림은 보존하고 재시도하지 않는다(17.8). 만료된 토큰은 비활성화해 다음부터 보내지 않는다 */
     private fun send(message: FcmMessage) {
-        runCatching { fcmSender.send(message) }.onFailure { log.warn("[fcm] 발송 실패 data={}", message.data, it) }
+        try {
+            fcmSender.send(message)
+        } catch (e: InvalidFcmTokenException) {
+            deviceTokenRepository.deactivateToken(e.token, OffsetDateTime.now())
+            log.info("[fcm] 만료된 토큰 비활성화 token={}…", e.token.take(8))
+        } catch (e: Exception) {
+            log.warn("[fcm] 발송 실패 data={}", message.data, e)
+        }
     }
 
     companion object {

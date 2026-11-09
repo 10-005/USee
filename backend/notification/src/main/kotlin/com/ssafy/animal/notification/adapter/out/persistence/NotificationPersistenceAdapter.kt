@@ -20,6 +20,7 @@ import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Transactional
 import java.time.OffsetDateTime
 
 interface NotificationJpaRepository : JpaRepository<Notification, Long> {
@@ -67,6 +68,7 @@ interface DeviceTokenJpaRepository : JpaRepository<DeviceToken, Long> {
     @Query("update DeviceToken d set d.isActive = false, d.modDttm = :now where d.userSeq = :userSeq and d.isActive = true")
     fun deactivateUser(@Param("userSeq") userSeq: Int, @Param("now") now: OffsetDateTime): Int
 
+    @Transactional // FCM 발송 실패 처리(트랜잭션 밖)에서도 호출된다
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update DeviceToken d set d.isActive = false, d.modDttm = :now where d.fcmToken = :token and d.isActive = true")
     fun deactivateToken(@Param("token") token: String, @Param("now") now: OffsetDateTime): Int

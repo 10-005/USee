@@ -62,6 +62,16 @@ class NotificationEventServiceTest {
     }
 
     @Test
+    fun `만료된 토큰이면 저장은 남기고 그 토큰을 비활성화한다`() {
+        fcm.expiredToken = "token-17"
+        service.onNotificationRequested(reply)
+
+        assertEquals(1, notifications.rows.size)
+        assertNull(tokens.findActive(17))
+        assertEquals("token-18", tokens.findActive(18)?.fcmToken)
+    }
+
+    @Test
     fun `NotificationCreated는 저장 없이 그 message로 푸시하고 빈 필드는 data에서 뺀다`() {
         service.onNotificationCreated(NotificationCreated(805, 17, NotificationType.AI_MATCH, "근처에서 목격제보가 올라왔어요. 확인해보세요.", TargetType.FOUND, 210))
 

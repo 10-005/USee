@@ -5,6 +5,7 @@ import com.ssafy.animal.common.event.TargetType
 import com.ssafy.animal.notification.application.port.out.DeviceTokenRepository
 import com.ssafy.animal.notification.application.port.out.FcmMessage
 import com.ssafy.animal.notification.application.port.out.FcmSender
+import com.ssafy.animal.notification.application.port.out.InvalidFcmTokenException
 import com.ssafy.animal.notification.application.port.out.NotificationRepository
 import com.ssafy.animal.notification.domain.DeviceToken
 import com.ssafy.animal.notification.domain.Notification
@@ -75,9 +76,11 @@ class FakeDeviceTokenRepository : DeviceTokenRepository {
 class RecordingFcmSender : FcmSender {
     val sent = mutableListOf<FcmMessage>()
     var fail = false
+    var expiredToken: String? = null
 
     override fun send(message: FcmMessage) {
         if (fail) error("FCM down")
+        if (message.token == expiredToken) throw InvalidFcmTokenException(message.token)
         sent += message
     }
 }
