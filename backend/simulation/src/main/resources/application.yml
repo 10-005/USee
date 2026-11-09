@@ -30,6 +30,10 @@ api:
 jwt:
   public-key: ${JWT_PUBLIC_KEY}
 
+# 품종 대표 이미지 URL 변환용(core-api와 같은 값). imageUrl = {public-base-url}/{image_key}
+storage:
+  public-base-url: ${STORAGE_PUBLIC_BASE_URL:}
+
 # 모의 입양 코드 설정값(API 명세 18.0 [가안], Q429). DB에 두지 않으며 플레이 테스트 후 조정한다
 simulation:
   tick: 1h
