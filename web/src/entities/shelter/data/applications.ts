@@ -133,34 +133,96 @@ export function countOptions(animal: string | null) {
       ),
   });
 }
+const questionGroups = [
+  {
+    title: '주거 및 동거 환경',
+    fields: [
+      [1, '주거 형태'],
+      [2, '주거 소유 형태'],
+      [3, '반려동물 양육 가능 여부'],
+      [4, '동거인 유무'],
+      [5, '동거인의 입양 동의'],
+      [11, '동물 알레르기가 있는 가족'],
+    ],
+  },
+  {
+    title: '양육 경험 및 돌봄 환경',
+    fields: [
+      [6, '현재 함께 사는 동물'],
+      [7, '함께 사는 동물 소개'],
+      [8, '과거 양육 경험'],
+      [9, '반려동물이 하루 평균 혼자 있는 시간'],
+      [10, '주로 돌볼 사람'],
+      [12, '이사·장기 부재 시 돌봄 계획'],
+    ],
+  },
+  {
+    title: '입양 및 돌봄 계획',
+    fields: [
+      [13, '입양 동기'],
+      [14, '한 달 예상 양육비'],
+      [15, '양육이 어려워질 경우 대처 계획'],
+      [16, '중성화·예방접종 동의 여부'],
+    ],
+  },
+  {
+    title: '입양 전 교육',
+    fields: [
+      [17, '교육 이수 여부'],
+      [18, '교육기관'],
+      [19, '이수한 교육 과정'],
+      [20, '이수일'],
+    ],
+  },
+] as const;
+
+export function applicationSections(
+  data: Pick<
+    Detail,
+    'applicant' | 'careAddress' | 'careAddressDetail' | 'email' | 'visitHopeDate' | 'answers'
+  > &
+    Partial<Pick<Detail, 'questions'>>,
+) {
+  const basic: [string, string][] = [
+    ['신청자', data.applicant.name],
+    ['생년월일', data.applicant.birthDate],
+    ['연락처', data.applicant.phone],
+    ['실제 양육 예정 장소', [data.careAddress, data.careAddressDetail].filter(Boolean).join(' ')],
+    ['이메일', data.email],
+    ['방문 상담 희망일', data.visitHopeDate],
+  ].map(([k, v]) => [k!, v || '미등록']);
+  const sections = [{ title: '신청자 기본 정보', rows: basic }];
+  const extra: [string, string][] = [];
+  const fields = new Map<number, { label: string; rows: [string, string][] }>();
+  for (const group of questionGroups) {
+    const rows: [string, string][] = [];
+    sections.push({ title: group.title, rows });
+    for (const [id, label] of group.fields) fields.set(id, { label, rows });
+  }
+  const questions =
+    data.questions ??
+    Array.from(fields, ([questionSeq, field]) => ({
+      questionSeq,
+      questionText: field.label,
+    }));
+  for (const { questionSeq, questionText } of questions) {
+    const value = data.answers[questionSeq];
+    if (value == null) continue;
+    const field = fields.get(questionSeq);
+    (field?.rows ?? extra).push([
+      field?.label ?? questionText,
+      Array.isArray(value) ? value.join(', ') : value,
+    ]);
+  }
+  if (extra.length) sections.push({ title: '추가 문항', rows: extra });
+  return sections;
+}
 export function detailOptions(id: string) {
   return queryOptions({
     queryKey: ['adoptions', 'detail', id],
     queryFn: async ({ signal }) => {
       const data = await read<Detail>(base + '/' + encodeURIComponent(id), signal);
       const a = data.animalSummary;
-      const basic: [string, string][] = [
-        ['신청자', data.applicant.name],
-        ['생년월일', data.applicant.birthDate],
-        ['전화번호', data.applicant.phone],
-        ['실제 양육 장소', data.careAddress],
-        ['상세 주소', data.careAddressDetail],
-        ['이메일', data.email],
-        ['방문 상담 희망일', data.visitHopeDate],
-      ].map(([k, v]) => [k!, v || '미등록']);
-      const groups = [
-        { title: '주거 및 동거 환경', ids: [1, 2, 3, 4, 5, 11] },
-        { title: '양육 경험 및 돌봄 환경', ids: [6, 7, 8, 9, 10, 12] },
-        { title: '입양 및 돌봄 계획', ids: [13, 14, 15, 16] },
-        { title: '입양 전 교육', ids: [17, 18, 19, 20] },
-      ].map((group) => ({ ...group, rows: [] as [string, string][] }));
-      const other = { title: '추가 문항', rows: [] as [string, string][] };
-      for (const { questionSeq, questionText } of data.questions) {
-        const value = data.answers[questionSeq];
-        if (value == null) continue;
-        const section = groups.find((group) => group.ids.includes(questionSeq)) ?? other;
-        section.rows.push([questionText, Array.isArray(value) ? value.join(', ') : value]);
-      }
       return {
         userSeq: data.userSeq,
         record: { ...record(data, data.applicant.name), reason: data.rejectionReason ?? undefined },
@@ -179,11 +241,7 @@ export function detailOptions(id: string) {
               chip: a.microchipNumber,
             }
           : undefined,
-        questions: [
-          { title: '신청자 기본 정보', rows: basic },
-          ...groups,
-          ...(other.rows.length ? [other] : []),
-        ],
+        questions: applicationSections(data),
       };
     },
   });
