@@ -2,10 +2,9 @@ package com.ssafy.animal.simulation.adapter.out.summary
 
 import com.ssafy.animal.simulation.application.port.out.ReportSummaryGenerator
 import com.ssafy.animal.simulation.config.LlmConfig
-import com.ssafy.animal.simulation.domain.OccurrenceStatus
-import com.ssafy.animal.simulation.domain.ReportAggregator
+import com.ssafy.animal.simulation.domain.KoreanLabels
 import com.ssafy.animal.simulation.domain.ReportSummaryInput
-import com.ssafy.animal.simulation.domain.ReportSummaryWriter
+import com.ssafy.animal.simulation.domain.SummaryEvidence
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.http.client.JdkClientHttpRequestFactory
@@ -15,8 +14,8 @@ import java.net.http.HttpClient
 import java.time.Duration
 
 /**
- * OpenAI Chat Completions로 리포트 요약을 만든다(Q517). 서버가 계산한 일차별 집계 JSON만 보내고(원본 이력·회원 정보 없음)
- * `{ overall, good, lacking }`을 받아 빈 줄로 잇는다. 호출·형식·검증에 실패하면 예외를 던지고,
+ * OpenAI Chat Completions로 리포트 요약을 만든다(Q517). 서버가 집계에서 골라 만든 근거 문장 후보만 보내고(원본 이력·회원 정보 없음)
+ * `{ overall, good, lacking }`을 받아 빈 줄로 잇는다. 이름이 없거나 후보에 없는 일차를 쓰면 실패로 본다. 호출·형식·검증에 실패하면 예외를 던지고,
  * 재시도와 규칙 문구 대체는 ReportSummaryService가 한다. API 키는 로그·예외 메시지에 남기지 않는다.
  */
 class OpenAiReportSummaryGenerator(
@@ -31,11 +30,13 @@ class OpenAiReportSummaryGenerator(
         .build()
 
     override fun generate(input: ReportSummaryInput): String {
+        val payload = payload(input)
         val request = mapOf(
             "model" to config.model,
+            "temperature" to TEMPERATURE,
             "messages" to listOf(
                 mapOf("role" to "system", "content" to SYSTEM_PROMPT),
-                mapOf("role" to "user", "content" to jsonMapper.writeValueAsString(payload(input))),
+                mapOf("role" to "user", "content" to jsonMapper.writeValueAsString(payload)),
             ),
             "response_format" to mapOf("type" to "json_object"),
         )
@@ -47,11 +48,16 @@ class OpenAiReportSummaryGenerator(
             // 오류 본문에 키 일부가 담길 수 있어(401) 상태 코드만 남긴다
             .onStatus({ it.isError }) { _, response -> throw IllegalStateException("OpenAI 호출 실패: HTTP ${response.statusCode.value()}") }
             .body(String::class.java)
-        return parse(checkNotNull(body) { "OpenAI 응답 본문이 없습니다." })
+        @Suppress("UNCHECKED_CAST")
+        return parse(
+            checkNotNull(body) { "OpenAI 응답 본문이 없습니다." },
+            input.animalName,
+            (payload.getValue("good") as List<String>) + (payload.getValue("lacking") as List<String>),
+        )
     }
 
-    /** choices[0].message.content의 JSON에서 세 문단을 꺼내 검증한다 */
-    internal fun parse(body: String): String {
+    /** choices[0].message.content의 JSON에서 세 문단을 꺼내 검증한다. candidates는 LLM에 보낸 근거 문장 후보 */
+    internal fun parse(body: String, animalName: String, candidates: List<String>): String {
         val content = jsonMapper.readTree(body).path("choices").path(0).path("message").path("content")
         check(content.isString) { "OpenAI 응답에 content가 없습니다." }
         val result = jsonMapper.readTree(content.stringValue())
@@ -63,63 +69,47 @@ class OpenAiReportSummaryGenerator(
         val summary = paragraphs.joinToString("\n\n")
         check(summary.length <= MAX_LENGTH) { "요약이 너무 깁니다: ${summary.length}자" }
         FORBIDDEN.firstOrNull { it in summary }?.let { error("요약에 금지 표현이 있습니다: $it") }
+        check(animalName in summary) { "요약에 동물 이름이 없습니다." }
+        // 후보에 없는 일차를 지어냈으면 실패. 후보에 일차가 하나도 없으면 건너뛴다
+        val allowed = candidates.flatMap(::daysIn).toSet()
+        if (allowed.isNotEmpty()) {
+            (daysIn(summary) - allowed).firstOrNull()?.let { error("요약에 근거 없는 일차가 있습니다: ${it}일차") }
+        }
         return summary
     }
 
-    /** LLM에 보내는 집계 JSON(명세 18.18 Q517 입력). 평가 일차까지만 보낸다 */
+    /** LLM에 보내는 JSON(2차 수정): 동물·결과와 서버가 고른 근거 문장 후보만 보낸다 */
     internal fun payload(input: ReportSummaryInput): Map<String, Any?> {
         val care = checkNotNull(input.care) { "일차별 집계가 없어 LLM 요약을 만들 수 없습니다." }
-        val top = ReportAggregator.CATEGORY_KEYS
-            .map { it to (input.spentByCategory[it] ?: 0) }
-            .filter { it.second > 0 }
-            .maxByOrNull { it.second }
+        val evidence = SummaryEvidence.build(input, care)
         return mapOf(
             "animal" to mapOf(
                 "name" to input.animalName,
-                "species" to input.speciesType.name,
+                "species" to KoreanLabels.species(input.speciesType),
                 "breed" to input.breedName,
-                "personality" to input.personality.name,
+                "personality" to KoreanLabels.personality(input.personality),
             ),
             "result" to mapOf(
                 "status" to input.status.name,
-                "endedDay" to input.endedDay,
-                "sessionDays" to input.sessionDays,
+                "statusText" to SummaryEvidence.statusText(input),
                 "evaluatedDays" to care.evaluatedDays,
             ),
-            "careGuideline" to care.guideline.mapKeys { it.key.name },
-            "budget" to mapOf(
-                "expectedCost" to input.expectedCost,
-                "totalSpent" to input.totalSpent,
-                "referenceCost" to input.referenceCost,
-                "topCategory" to top?.let { mapOf("name" to ReportSummaryWriter.categoryLabel(it.first), "amount" to it.second) },
-            ),
-            "days" to care.days.take(care.evaluatedDays).map { day ->
-                mapOf(
-                    "day" to day.day,
-                    "care" to day.counts.mapKeys { it.key.name },
-                    "spent" to day.spent,
-                    "lowestStats" to day.lowestStats,
-                    "events" to day.events.map {
-                        mapOf(
-                            "title" to it.title,
-                            "answerAction" to it.resolveActionCode.name,
-                            "result" to it.status.name,
-                            "minutesToResolve" to it.minutesToResolve,
-                        )
-                    },
-                )
-            },
-            "deviations" to mapOf(
-                "belowGuidelineDays" to care.belowGuidelineDays.mapKeys { it.key.name },
-                "dangerZoneDays" to care.dangerZoneDays,
-                "unresolvedEventCount" to care.unresolvedEventCount,
-            ),
-            "finalStats" to input.finalStats,
+            "good" to evidence.good,
+            "lacking" to evidence.lacking,
         )
     }
 
     companion object {
         private val PARAGRAPH_KEYS = listOf("overall", "good", "lacking")
+
+        /** 사실을 바꾸지 않도록 낮게 둔다 */
+        const val TEMPERATURE = 0.3
+
+        /** "3일차", "2·5일차", "2, 5일차"의 일차 번호 */
+        private val DAY_PATTERN = Regex("""((?:\d+\s*[·,]\s*)*\d+)\s*일차""")
+
+        fun daysIn(text: String): Set<Int> =
+            DAY_PATTERN.findAll(text).flatMap { m -> Regex("""\d+""").findAll(m.groupValues[1]).map { it.value.toInt() } }.toSet()
 
         /** 전체 길이 상한(명세: 300~400자 권장, 600자 초과는 실패) */
         const val MAX_LENGTH = 600
@@ -133,36 +123,40 @@ class OpenAiReportSummaryGenerator(
 
         val SYSTEM_PROMPT = """
             당신은 반려동물 모의 입양 체험(7일)의 결과 리포트 요약을 쓰는 도우미입니다.
-            사용자 메시지로 서버가 계산한 집계 JSON 하나가 옵니다. 계산과 기준 이탈 판정은 서버가 이미 했으니, 당신은 그 결과를 설명만 합니다.
+            사용자 메시지로 JSON 하나가 옵니다. animal은 동물 정보, result.statusText는 체험 결과입니다.
+            good(잘한 점)과 lacking(아쉬운 점)은 서버가 집계에서 골라 만든 근거 문장 후보입니다. lacking은 심한 순서입니다.
+            당신은 후보를 골라 자연스러운 문장으로 잇기만 합니다.
 
             [출력 형식]
             - 반드시 JSON 객체 하나만 출력합니다: {"overall": "...", "good": "...", "lacking": "..."}
-            - overall: 체험 전체 평가, good: 잘한 점, lacking: 부족한 점과 다음에 해 볼 것. 각각 1~3문장입니다.
+            - overall: 첫 문장에 animal.name과 result.statusText의 결과를 넣고, 전체 인상을 한 줄 덧붙입니다.
+            - good: good 후보에서 2개 안팎을 골라 씁니다.
+            - lacking: lacking 후보에서 2~3개를 골라 쓰고, 마지막 문장은 "~해 보세요"로 끝나는 조언 하나로 마칩니다.
+            - 후보가 대체 한 줄뿐이면(예: "권장 횟수에 못 미친 날과 미해결 돌발 상황이 없음") 그 내용만 짧게 씁니다. good 후보가 비어 있으면 good에는 돌봄 기록이 거의 없었다는 내용만 한 문장으로 씁니다.
             - 세 값을 합쳐 300~400자 정도로 씁니다. 600자를 넘기면 안 됩니다.
 
+            [사실 규칙]
+            - 후보에 없는 사실, 숫자, 일차를 쓰지 않습니다. 후보의 일차와 숫자를 바꾸지 않습니다.
+            - 서로 다른 일차의 후보를 원인과 결과로 잇지 않습니다. 같은 일차의 후보만 한 문장으로 묶을 수 있습니다.
+
             [말투와 금지 사항]
-            - "~했어요"체로 씁니다. 읽는 사람을 부르는 호칭(님, 당신, 보호자님 등)을 쓰지 않습니다. 본인과 보호소가 같은 글을 봅니다.
-            - 마크다운(굵게, 목록, 제목 기호 등)과 이모지를 쓰지 않습니다. 일반 문장만 씁니다.
-            - 입력에 없는 숫자를 만들지 않습니다. 숫자는 입력 값을 그대로 인용합니다.
-            - 화면에 이미 있는 합계(총지출, 총 돌봄 횟수)를 늘어놓지 말고, "3일차에 물을 한 번도 주지 않았어요"처럼 일차별 근거를 인용합니다.
-            - status가 FAILED(돌봄 부족으로 중단)나 ABANDONED(중도 포기)여도 비난하지 않습니다.
-            - 죽음과 관련된 표현은 절대 쓰지 않습니다. FAILED는 "돌봄이 부족해 체험이 중단됐어요"처럼 표현합니다.
+            - 모든 문장을 "~했어요", "~였어요"처럼 "~요"로 끝냅니다. lacking의 마지막 조언만 "~해 보세요"로 씁니다.
+            - "~하였고", "~하였습니다", "~할 계획이에요"처럼 딱딱하거나 본인이 말하는 투를 쓰지 않습니다.
+            - 읽는 사람을 부르는 호칭이나 주어(님, 당신, 보호자님, 사용자 등)를 쓰지 않습니다. 본인과 보호소가 같은 글을 봅니다.
+            - 마크다운(굵게, 목록, 제목 기호 등)과 이모지를 쓰지 않습니다.
+            - result.status가 FAILED(돌봄 부족으로 중단)나 ABANDONED(중도 포기)여도 비난하지 않습니다.
+            - 죽음과 관련된 표현은 절대 쓰지 않습니다.
 
-            [정답 기준]
-            1. 하루 권장 횟수 careGuideline: deviations.belowGuidelineDays에 키별로 권장 횟수에 못 미친 일차가 있습니다.
-            2. 위험 구간: 포만감·수분·청결도가 20 미만이거나 안정감이 20 이하이면 건강이 깎입니다. deviations.dangerZoneDays에 스탯별로 위험 구간에 들어간 일차가 있습니다.
-            3. 돌발 이벤트의 정답 행동: days[].events의 answerAction이 정답이고, result가 RESOLVED면 해결, EXPIRED면 시간 안에 해결하지 못한 것입니다. minutesToResolve는 해결까지 걸린 분입니다.
-            4. 예산: budget.expectedCost(예상 비용)와 budget.referenceCost(필수 기구와 7일치 소모품 최소 예산)를 비교합니다. topCategory는 가장 많이 쓴 분류입니다.
-
-            [입력 읽는 법]
-            - result.evaluatedDays까지의 일차만 days에 있습니다. 마지막 일차는 하루를 다 채우지 못했을 수 있으니 그날 횟수가 적은 것을 크게 탓하지 않습니다.
-            - lowestStats는 그날 행동 기록에서 본 가장 낮은 스탯입니다. null이면 그날은 돌봄 행동이 없었다는 뜻입니다.
-            - 고양이(species CAT)는 산책이 없어 WALK 키가 없습니다.
-            - 이름 대응: FEED=밥, WATER=물, CLEAN_LITTER=배변 청소, PLAY=놀이·간식, WALK=산책, BATHE=목욕, MEDICINE=약, VET_VISIT=병원 진료,
-              GIVE_WATER=산책 중 물 주기, GIVE_SNACK=산책 중 간식, GIVE_CATNIP=캣닢, CLEAN_UP_POOP=산책 중 배변 치우기,
-              satiety=포만감, hydration=수분, cleanliness=청결도, bond=친밀도, calmness=안정감, health=건강, energy=활력,
-              DOG=개, CAT=고양이, ACTIVE=활발함, TIMID=소심함, AGGRESSIVE=예민함, FRIENDLY=다정함.
-              출력에는 영문 키 대신 한국어 이름을 씁니다.
+            [예시]
+            입력:
+            {"animal":{"name":"나비","species":"고양이","breed":"코리안 숏헤어","personality":"소심함"},
+             "result":{"status":"COMPLETED","statusText":"7일 돌봄을 끝까지 마침","evaluatedDays":7},
+             "good":["2일차: '헤어볼을 토했어요'를 25분 만에 해결(목욕)","밥: 7일 중 7일 권장 횟수(3회)를 채움"],
+             "lacking":["5일차: 청결도가 15까지 떨어짐(20 미만이면 건강이 깎임)","5일차: 배변 청소 0회(권장 2회)","놀이·간식 부족: 1·4일차(권장 2회)"]}
+            출력:
+            {"overall":"나비의 7일 돌봄을 끝까지 마쳤어요. 끼니는 꾸준히 챙겼지만 화장실 관리에서 아쉬움이 남았어요.",
+             "good":"2일차에 '헤어볼을 토했어요' 상황을 25분 만에 목욕으로 해결했어요. 밥은 7일 내내 권장 횟수인 3회를 채웠어요.",
+             "lacking":"5일차에는 배변 청소를 한 번도 하지 않았고, 그날 청결도가 15까지 떨어졌어요. 1일차와 4일차에는 놀이·간식이 권장 2회보다 적었어요. 화장실은 하루 두 번 치워 주는 습관을 들여 보세요."}
         """.trimIndent()
     }
 }

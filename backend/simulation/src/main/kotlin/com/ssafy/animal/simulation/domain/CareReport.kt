@@ -75,6 +75,8 @@ data class CareReport(
     val belowGuidelineDays: Map<CareKey, List<Int>>,
     val dangerZoneDays: Map<String, List<Int>>,
     val unresolvedEventCount: Int,
+    /** 위험 구간 판정에 쓴 기준(근거 문장에 기준 숫자를 넣는다) */
+    val penalty: HealthPenalty,
 )
 
 /** 일차별 돌봄 집계(Q517). 순수 계산이며 일차는 ReportAggregator.dayOf와 같은 규칙 */
@@ -106,6 +108,7 @@ object CareAggregator {
                 .filterValues { it.isNotEmpty() }
                 .mapKeys { it.key.key },
             unresolvedEventCount = source.events.count { it.status == OccurrenceStatus.EXPIRED },
+            penalty = penalty,
         )
     }
 

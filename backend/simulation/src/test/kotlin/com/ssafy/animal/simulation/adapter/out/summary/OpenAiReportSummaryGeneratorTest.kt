@@ -46,26 +46,49 @@ class OpenAiReportSummaryGeneratorTest {
     }
 
     @Test
-    fun `모델·response_format·키 헤더로 호출하고 세 문단을 빈 줄로 잇는다`() {
+    fun `모델·temperature·response_format·키 헤더와 근거 후보만 담은 입력으로 호출하고 세 문단을 빈 줄로 잇는다`() {
         server.expect(requestTo("https://api.openai.com/v1/chat/completions"))
             .andExpect(method(HttpMethod.POST))
             .andExpect(header("Authorization", "Bearer test-key"))
             .andExpect(jsonPath("$.model").value("gpt-4o-mini"))
+            .andExpect(jsonPath("$.temperature").value(0.3))
             .andExpect(jsonPath("$.response_format.type").value("json_object"))
             .andExpect(jsonPath("$.messages[0].role").value("system"))
             .andExpect(jsonPath("$.messages[1].role").value("user"))
-            // 사용자 메시지는 집계 JSON뿐(회원 번호 등 원본 정보 없음)
-            .andExpect(jsonPath("$.messages[1].content", containsString("\"belowGuidelineDays\"")))
+            // 사용자 메시지는 근거 후보 JSON(일차별 표·이탈 표시·최종 스탯·원본 정보 없음)
+            .andExpect(jsonPath("$.messages[1].content", containsString("\"lacking\"")))
+            .andExpect(jsonPath("$.messages[1].content", containsString("\"statusText\"")))
+            .andExpect(jsonPath("$.messages[1].content", not(containsString("\"days\""))))
+            .andExpect(jsonPath("$.messages[1].content", not(containsString("\"deviations\""))))
+            .andExpect(jsonPath("$.messages[1].content", not(containsString("\"finalStats\""))))
             .andExpect(content().string(not(containsString("userSeq"))))
             .andRespond(
                 withSuccess(
-                    """{"choices":[{"index":0,"message":{"role":"assistant","content":"{\"overall\":\"7일을 마쳤어요.\",\"good\":\" 밥을 잘 챙겼어요. \",\"lacking\":\"3일차에 물이 부족했어요.\"}"},"finish_reason":"stop"}]}""",
+                    """{"choices":[{"index":0,"message":{"role":"assistant","content":"{\"overall\":\"3일째에 초코의 돌봄을 그만뒀어요.\",\"good\":\" 1일차에 물그릇 상황을 30분 만에 해결했어요. \",\"lacking\":\"2일차에 물을 주지 않았어요.\"}"},"finish_reason":"stop"}]}""",
                     MediaType.APPLICATION_JSON,
                 ),
             )
 
-        assertEquals("7일을 마쳤어요.\n\n밥을 잘 챙겼어요.\n\n3일차에 물이 부족했어요.", generator.generate(input()))
+        assertEquals("3일째에 초코의 돌봄을 그만뒀어요.\n\n1일차에 물그릇 상황을 30분 만에 해결했어요.\n\n2일차에 물을 주지 않았어요.", generator.generate(input()))
         server.verify()
+    }
+
+    @Test
+    fun `동물 이름이 없거나 후보에 없는 일차를 쓰면 예외`() {
+        respond("""{"overall":"돌봄을 그만뒀어요.","good":"밥을 챙겼어요.","lacking":"물이 부족했어요."}""")
+        assertFailsWith<IllegalStateException> { generator.generate(input()) }
+
+        server.reset()
+        respond("""{"overall":"초코의 돌봄을 그만뒀어요.","good":"밥을 챙겼어요.","lacking":"5일차에 물이 부족했어요."}""")
+        val invented = assertFailsWith<IllegalStateException> { generator.generate(input()) }
+        assertEquals("요약에 근거 없는 일차가 있습니다: 5일차", invented.message)
+    }
+
+    @Test
+    fun `일차 번호는 묶음 표기도 읽는다`() {
+        assertEquals(setOf(2, 5, 7), OpenAiReportSummaryGenerator.daysIn("물 부족: 2·5일차(권장 3회), 7일차에도"))
+        assertEquals(setOf(1, 4), OpenAiReportSummaryGenerator.daysIn("1일차와 4일차에는"))
+        assertEquals(emptySet(), OpenAiReportSummaryGenerator.daysIn("7일 중 6일"))
     }
 
     @Test
@@ -113,16 +136,16 @@ class OpenAiReportSummaryGeneratorTest {
     }
 
     @Test
-    fun `입력 JSON은 평가 일차까지만 담고 이벤트·이탈·예산을 싣는다`() {
+    fun `입력 JSON은 동물·결과와 근거 후보만 담는다`() {
         val payload = generator.payload(input())
 
-        @Suppress("UNCHECKED_CAST")
-        val days = payload["days"] as List<Map<String, Any?>>
-        assertEquals(listOf(1, 2, 3), days.map { it["day"] })
-        assertEquals(mapOf("title" to "물그릇을 엎었어요", "answerAction" to "WATER", "result" to "RESOLVED", "minutesToResolve" to 30L), (days[0]["events"] as List<*>).single())
-        assertEquals(mapOf("name" to "사료", "amount" to 21_200), (payload["budget"] as Map<*, *>)["topCategory"])
-        assertEquals(93_300, (payload["budget"] as Map<*, *>)["referenceCost"])
-        assertEquals(listOf(1, 2, 3), ((payload["deviations"] as Map<*, *>)["belowGuidelineDays"] as Map<*, *>)["WALK"])
+        assertEquals(setOf("animal", "result", "good", "lacking"), payload.keys)
+        assertEquals(mapOf("name" to "초코", "species" to "개", "breed" to "말티즈", "personality" to "다정함"), payload["animal"])
+        assertEquals(mapOf("status" to "ABANDONED", "statusText" to "3일째에 그만둠", "evaluatedDays" to 3), payload["result"])
+        assertEquals(listOf("1일차: '물그릇을 엎었어요'를 30분 만에 해결(물 주기)", "예상 비용 150,000원보다 118,800원 덜 씀"), payload["good"])
+        // 포기 세션이라 마지막(3일차)은 0회 후보에서 빠진다
+        assertEquals("1일차: 물 0회(권장 3회)", (payload["lacking"] as List<*>).first())
+        assertFalse((payload["lacking"] as List<*>).any { "3일차" in it.toString() })
     }
 
     @Test
