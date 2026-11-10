@@ -3,6 +3,14 @@ import ReactTestRenderer from 'react-test-renderer';
 import { loadSimulationReports } from '../../services/simulation/reports';
 import { MockAdoptionOverviewScreen } from './MockAdoptionOverviewScreen';
 
+jest.mock('../../services/simulation/activeSession', () => {
+  const actual = jest.requireActual('../../services/simulation/activeSession');
+  return {
+    ...actual,
+    getActiveSimulation: jest.fn().mockResolvedValue(null),
+  };
+});
+
 jest.mock('../../services/simulation/reports', () => ({
   loadSimulationReports: jest.fn(),
   invalidateSimulationReports: jest.fn(),

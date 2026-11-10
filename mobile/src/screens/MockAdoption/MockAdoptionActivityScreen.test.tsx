@@ -17,6 +17,14 @@ import { PetStatsDialog } from './PetStatsDialog';
 import { VetVisitDialog } from './VetVisitDialog';
 import { useShopStore } from '../../stores/shopStore';
 
+jest.mock('../../services/simulation/shopItems', () => {
+  const actual = jest.requireActual('../../services/simulation/shopItems');
+  return {
+    ...actual,
+    ensureSessionShopCatalog: jest.fn().mockResolvedValue(undefined),
+  };
+});
+
 jest.mock('../../services/simulation/care', () => {
   const actual = jest.requireActual('../../services/simulation/care');
   return {

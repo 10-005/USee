@@ -14,6 +14,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeader, Button } from '../../components/common';
 import {
+  applyActiveSimulation,
+  getActiveSimulation,
+} from '../../services/simulation/activeSession';
+import {
   getSimulationReportErrorMessage,
   invalidateSimulationReports,
   loadSimulationReports,
@@ -88,17 +92,30 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
       let mounted = true;
       reportsActive.current = true;
       setReportsLoading(true);
-      getActiveMockAdoption()
+      getActiveSimulation()
+        .then(active => applyActiveSimulation(active))
         .then(value => {
-          if (mounted) {
-            setSession(value);
+          if (!mounted) {
+            return;
           }
+          setSession(value);
+          setFailed(false);
         })
-        .catch(() => {
-          if (mounted) {
-            setFailed(true);
-          }
-        })
+        .catch(() =>
+          getActiveMockAdoption()
+            .then(value => {
+              if (!mounted) {
+                return;
+              }
+              setSession(value);
+              setFailed(false);
+            })
+            .catch(() => {
+              if (mounted) {
+                setFailed(true);
+              }
+            }),
+        )
         .finally(() => {
           if (!mounted) {
             return;

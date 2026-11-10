@@ -16,6 +16,14 @@ beforeEach(async () => {
   await AsyncStorage.clear();
 });
 
+jest.mock('../../services/simulation/activeSession', () => {
+  const actual = jest.requireActual('../../services/simulation/activeSession');
+  return {
+    ...actual,
+    getActiveSimulation: jest.fn().mockRejectedValue(new Error('offline')),
+  };
+});
+
 jest.mock('../../services/simulation/reports', () => ({
   loadSimulationReports: jest.fn().mockResolvedValue({ reports: [], freshSessionSeqs: [] }),
   clearSimulationReports: jest.fn(),

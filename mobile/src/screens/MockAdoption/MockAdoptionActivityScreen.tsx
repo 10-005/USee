@@ -27,13 +27,14 @@ import {
   getCareActionErrorMessage,
   performCareAction,
 } from '../../services/simulation/care';
+import { readCurrentActiveSimulation } from '../../services/simulation/activeSession';
 import { invalidateSimulationReports } from '../../services/simulation/reports';
 import { endMockAdoption, getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { mockAdoptionPets } from './data';
 import { RoomPet } from './RoomPet';
 import { useToilet } from './useToilet';
 import { TreatLauncher } from './TreatLauncher';
-import { PetStatsDialog, type PetStats } from './PetStatsDialog';
+import { PetStatsDialog } from './PetStatsDialog';
 import { useShopSession } from '../shop/useShopSession';
 import { useShopStore } from '../../stores/shopStore';
 import { consumeCareSupplies, findCareSupply } from '../../services/shop/consumption';
@@ -48,17 +49,6 @@ import {
   type SimulationEvent,
 } from '../../services/simulation/events';
 
-// Temporary preview values until the server provides the selected pet's stats.
-const mockPetStats: PetStats = {
-  hunger: 75,
-  hydration: 18,
-  clean: 65,
-  friendship: 82,
-  stress: 8,
-  health: 92,
-  activity: 45,
-};
-
 const BOWL_VISUAL_OFFSET = 70;
 const PREVIOUS_ACTION_HEIGHT = 72;
 
@@ -71,6 +61,11 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const purchased = (id: string) =>
     shopStatus === 'ready' && shop.ownedItems.some(item => item.productId === id);
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
+  const activeSimulation = readCurrentActiveSimulation();
+  const synced =
+    activeSimulation && session?.sessionSeq === activeSimulation.sessionSeq
+      ? activeSimulation
+      : null;
   const toilet = useToilet(route.params.petId, pet?.category ?? 'dog');
   const petProducts = availableProducts(pet?.category ?? 'dog');
   const ownsServer = (category: string) =>
@@ -79,14 +74,35 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     pet ? findCareSupply(pet.category, action)?.itemSeq : undefined;
   const hasTreat = petProducts.some(p => p.category === '간식' && owns(p.id));
   const hasToy = petProducts.some(p => p.category === '놀이' && p.kind === 'durable' && owns(p.id));
+  const hasFoodBowl = synced ? synced.equipment.foodBowl : owns('bowl') || ownsServer('FOOD_BOWL');
+  const hasWaterBowl = synced
+    ? synced.equipment.waterBowl
+    : owns('waterBowl') || ownsServer('WATER_BOWL');
+  const showLitter = synced
+    ? synced.equipment.litterBox
+    : pet?.category === 'dog'
+    ? purchased('pads') || ownsServer('LITTER')
+    : owns('litterBox') || ownsServer('LITTER_BOX');
+  const showToy = synced ? synced.equipment.toy : hasToy;
   const [statsVisible, setStatsVisible] = useState(false);
-  // TODO: refresh from the current session on entry / EVENT push, then apply server status.
   const [hospitalVisible, setHospitalVisible] = useState(false);
   const hospitalEvents = (shop.hospitalEvents ?? []).filter(
     event => getVetVisit(event) && Date.now() < Date.parse(event.expiresDttm),
   );
   const pendingEvent = hospitalEvents[0] ?? null;
   const [suddenEvent, setSuddenEvent] = useState<SimulationEvent | null>(null);
+  useEffect(() => {
+    const event = synced?.pendingEvent;
+    if (
+      shopStatus !== 'ready' ||
+      !event ||
+      event.status !== SimulationEventStatus.Pending ||
+      !event.vetVisit
+    ) {
+      return;
+    }
+    useShopStore.getState().enqueueHospitalEvent(event);
+  }, [shopStatus, synced]);
   const vetVisit = getVetVisit(pendingEvent);
   const walkPending = useRef(false);
   const [care, setCare] = useState<{
@@ -437,11 +453,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           onHidden={onPetHidden}
         />
       ) : null}
-      {pet &&
-      !bathing &&
-      (pet.category === 'dog'
-        ? purchased('pads') || ownsServer('LITTER')
-        : owns('litterBox') || ownsServer('LITTER_BOX')) ? (
+      {pet && !bathing && showLitter ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
@@ -635,8 +647,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         <View style={styles.room} pointerEvents="box-none">
           <View style={styles.bowls}>
             {(['food', 'water'] as const).map(kind =>
-              owns(kind === 'food' ? 'bowl' : 'waterBowl') ||
-              ownsServer(kind === 'food' ? 'FOOD_BOWL' : 'WATER_BOWL') ? (
+              (kind === 'food' ? hasFoodBowl : hasWaterBowl) ? (
                 <Pressable
                   key={kind}
                   accessibilityRole="button"
@@ -717,7 +728,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           }}
         />
       ) : null}
-      {roomVisible && pet?.category === 'dog' && hasToy && !leaving && !bathing ? (
+      {roomVisible && pet?.category === 'dog' && showToy && !leaving && !bathing ? (
         <TreatLauncher
           dockHidden={!!care || treatActive || bathReturning}
           item="toy"
@@ -819,7 +830,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         <PetStatsDialog
           visible={statsVisible}
           petName={session?.petName ?? pet.name}
-          stats={mockPetStats}
+          stats={synced?.stats}
           onClose={() => setStatsVisible(false)}
         />
       ) : null}

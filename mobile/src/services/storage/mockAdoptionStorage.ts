@@ -115,6 +115,31 @@ export async function saveMockAdoptionWalk(walkSeq: number) {
   await setStoredValue(STORAGE_KEYS.MOCK_ADOPTION_SESSION, { ...session, walkSeq });
 }
 
+export async function updateMockAdoptionServerState(patch: {
+  sessionSeq: number;
+  walkSeq: number | null;
+}) {
+  if (!isPositiveId(patch.sessionSeq) || (patch.walkSeq !== null && !isPositiveId(patch.walkSeq))) {
+    throw new Error('Invalid simulation session');
+  }
+  const session = await getStoredValue<MockAdoptionSession>(STORAGE_KEYS.MOCK_ADOPTION_SESSION);
+  if (
+    !session ||
+    !isStoredSession(session) ||
+    Date.now() >= session.expiresAt ||
+    (session.sessionSeq !== undefined && session.sessionSeq !== patch.sessionSeq)
+  ) {
+    return;
+  }
+  const next: MockAdoptionSession = { ...session, sessionSeq: patch.sessionSeq };
+  if (patch.walkSeq === null) {
+    delete next.walkSeq;
+  } else {
+    next.walkSeq = patch.walkSeq;
+  }
+  await setStoredValue(STORAGE_KEYS.MOCK_ADOPTION_SESSION, next);
+}
+
 export async function clearMockAdoptionWalk() {
   const session = await getStoredValue<MockAdoptionSession>(STORAGE_KEYS.MOCK_ADOPTION_SESSION);
   if (!session || !isStoredSession(session) || session.walkSeq === undefined) {

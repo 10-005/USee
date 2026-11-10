@@ -13,13 +13,13 @@ import { colors, typography } from '../../theme';
 import CloseIcon from '../../assets/icons/common/cancel.svg';
 
 export const petStatItems = [
-  { key: 'hunger', label: '배고픔', english: 'Hunger' },
-  { key: 'hydration', label: '목마름', english: 'Hydration' },
-  { key: 'clean', label: '청결', english: 'Clean' },
-  { key: 'friendship', label: '친밀도', english: 'Friendship' },
-  { key: 'stress', label: '스트레스', english: 'Stress' },
+  { key: 'satiety', label: '포만감', english: 'Satiety' },
+  { key: 'hydration', label: '수분', english: 'Hydration' },
+  { key: 'cleanliness', label: '청결도', english: 'Cleanliness' },
+  { key: 'bond', label: '친밀도', english: 'Bond' },
+  { key: 'calmness', label: '안정감', english: 'Calmness' },
   { key: 'health', label: '건강', english: 'Health' },
-  { key: 'activity', label: '활동', english: 'Activity' },
+  { key: 'energy', label: '활력', english: 'Energy' },
 ] as const;
 
 export type PetStats = Record<(typeof petStatItems)[number]['key'], number | null>;

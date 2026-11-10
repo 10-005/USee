@@ -10,7 +10,7 @@ test('shows seven unknown stats and supports all dialog dismissal paths', async 
       <PetStatsDialog visible petName="시바 이누" onClose={onClose} />,
     );
   });
-  for (const label of ['배고픔', '목마름', '청결', '친밀도', '스트레스', '건강', '활동']) {
+  for (const label of ['포만감', '수분', '청결도', '친밀도', '안정감', '건강', '활력']) {
     const progress = renderer!.root.findAllByProps({ accessibilityLabel: label })[0];
     expect(progress.props.accessibilityValue).toEqual({ text: '상태 정보 없음' });
   }
@@ -33,16 +33,16 @@ test('supports actual zero and hundred values, clamps invalid bounds, leaves mis
         visible
         petName="시바 이누"
         onClose={jest.fn()}
-        stats={{ hunger: 0, hydration: 100, stress: 120, activity: -5, health: Number.NaN }}
+        stats={{ satiety: 0, hydration: 100, calmness: 120, energy: -5, health: Number.NaN }}
       />,
     );
   });
   const value = (label: string) =>
     renderer!.root.findAllByProps({ accessibilityLabel: label })[0].props.accessibilityValue;
-  expect(value('배고픔')).toEqual({ min: 0, max: 100, now: 0 });
-  expect(value('목마름')).toEqual({ min: 0, max: 100, now: 100 });
-  expect(value('스트레스').now).toBe(100);
-  expect(value('활동').now).toBe(0);
+  expect(value('포만감')).toEqual({ min: 0, max: 100, now: 0 });
+  expect(value('수분')).toEqual({ min: 0, max: 100, now: 100 });
+  expect(value('안정감').now).toBe(100);
+  expect(value('활력').now).toBe(0);
   expect(value('건강')).toEqual({ text: '상태 정보 없음' });
   expect(value('친밀도')).toEqual({ text: '상태 정보 없음' });
   await ReactTestRenderer.act(() => renderer.unmount());
