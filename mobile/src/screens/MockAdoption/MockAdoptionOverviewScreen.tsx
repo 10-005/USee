@@ -272,8 +272,9 @@ export function MockAdoptionOverviewScreen({ navigation }: Props) {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`${report.animalName} 리포트 상세보기`}
-                    accessibilityState={{ disabled: true }}
-                    disabled
+                    onPress={() =>
+                      navigation.navigate('MockAdoptionReport', { sessionSeq: report.sessionSeq })
+                    }
                     style={styles.detailButton}
                   >
                     <Text style={styles.detailLabel}>상세보기</Text>
@@ -361,6 +362,6 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 32,
   },
-  detailLabel: { ...typography.bodyRegular14, color: colors.gray300 },
-  detailArrow: { ...typography.bodyRegular16, color: colors.gray300 },
+  detailLabel: { ...typography.bodyRegular14, color: colors.green400 },
+  detailArrow: { ...typography.bodyRegular16, color: colors.green400 },
 });
