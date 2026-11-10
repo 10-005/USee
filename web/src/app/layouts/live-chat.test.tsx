@@ -56,6 +56,18 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
     let data;
     if (path.endsWith('/rooms')) data = { content: [room], hasNext: false };
     else if (path.endsWith('/messages')) data = { content: [old], hasNext: false };
+    else if (path.endsWith('/shelter-animals/me/42'))
+      data = {
+        animalSeq: 42,
+        classification: { speciesName: '개', breedName: '말티즈', colorName: '흰색' },
+        gender: 'MALE',
+        age: '2살',
+        weight: '3.5kg',
+        protectionStatus: 'PROTECTING',
+        images: [{ imageUrl: '/maltese.jpg' }],
+        regDttm: '2026-11-10',
+        rescueInfo: {},
+      };
     else if (path.endsWith('/unread-count')) data = { totalUnreadMessageCount: 1 };
     else if (path.endsWith('/read')) data = { unreadCount: 0 };
     else if (path === '/api/chat/v1/chats/rooms/9/counterpart') {
@@ -145,4 +157,16 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
   });
   await waitFor(() => expect(input).toHaveValue(''));
   expect(screen.getByText('네, 가능합니다.')).toBeVisible();
+  receive({
+    ...old,
+    chatMessageSeq: 18,
+    messageType: 'SHARED_POST',
+    sharedTargetType: 'SHELTER_ANIMAL',
+    sharedTargetSeq: 42,
+  });
+  const card = await screen.findByRole('link', {
+    name: /보호.*말티즈.*2살 \| 수컷 \| 흰색 \| 3.5kg/,
+  });
+  expect(card).toHaveAttribute('href', '/animals/42');
+  expect(card.querySelector('img')).toHaveAttribute('src', '/maltese.jpg');
 });

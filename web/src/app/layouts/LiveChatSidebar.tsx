@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { ChatSidebar, type ChatSummary } from '@/shared/ui/ChatSidebar';
-import { ChatRoomView } from '@/shared/ui/ChatRoom';
+import { ChatAnimalPost, ChatRoomView } from '@/shared/ui/ChatRoom';
+import { animalDetailOptions, detailRecord } from '@/entities/shelter/data/animals';
 import { animalLabel } from '@/entities/shelter/animal-label';
 import { adoptionStatusLabels } from '@/entities/shelter/data/applications';
 import {
@@ -20,6 +21,17 @@ import type { ChatMessage } from '@/entities/chat/model';
 import avatar from '@/shared/assets/figma/chat-avatar.png';
 import { createImageUploader } from '@/shared/api/image-upload';
 import { refreshChatToken, shelterRequest } from '@/shared/api/session';
+
+function SharedAnimalPost({ id }: { id: string }) {
+  const animal = useQuery({ ...animalDetailOptions(id), select: detailRecord });
+  if (animal.data) return <ChatAnimalPost animal={animal.data} />;
+  if (animal.isPending) return <p role="status">보호동물 정보를 불러오는 중이에요.</p>;
+  return (
+    <Link className="chat-post" to={'/animals/' + id}>
+      공유된 보호동물 보기
+    </Link>
+  );
+}
 
 function CounterpartCard({
   roomId,
@@ -303,11 +315,7 @@ function LiveRoom({
       }
       sendText={(content) => send({ type: 'TEXT', content })}
       sendPhoto={async (file) => send({ type: 'IMAGE', imageSeq: await upload.confirm(file) })}
-      renderPost={(seq) => (
-        <Link className="chat-post" to={'/animals/' + seq}>
-          공유된 보호동물 보기
-        </Link>
-      )}
+      renderPost={(seq) => <SharedAnimalPost id={seq} />}
       leave={async () => {
         await chatRequest('/rooms/' + id + '/leave', { method: 'POST' });
         cache.removeQueries({ queryKey: historyOptions(id).queryKey });
