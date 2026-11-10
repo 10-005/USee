@@ -126,7 +126,7 @@ export function ExpenseHistory({
   return (
     <ScrollView contentContainerStyle={styles.content}>
       <Text style={styles.balanceLabel}>현재 잔액</Text>
-      <Text style={styles.balance}>{money(balance)}</Text>
+      <Text style={[styles.balance, balance < 0 && styles.negativeBalance]}>{money(balance)}</Text>
       <Text style={styles.balanceHint}>모의 입양에 사용할 수 있는 금액이에요</Text>
       <View style={styles.toolbar}>
         <Pressable
@@ -215,6 +215,7 @@ const styles = StyleSheet.create({
     color: colors.green400,
     marginTop: 6,
   },
+  negativeBalance: { color: colors.danger },
   balanceHint: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 8 },
   toolbar: { marginTop: 8, alignItems: 'flex-end' },
   sortText: { ...typography.bodyRegular14, color: colors.gray500 },

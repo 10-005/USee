@@ -187,7 +187,10 @@ export function ShopScreen({ navigation, route }: Props) {
             <Text
               numberOfLines={1}
               accessibilityLiveRegion="polite"
-              style={styles.remainingBudget}
+              style={[
+                styles.remainingBudget,
+                shop.budget - shop.spent < 0 && styles.negativeBudget,
+              ]}
             >{`남은 예산 ${money(shop.budget - shop.spent)}`}</Text>
             <Button
               onPress={() => navigation.navigate('ShopCart', { petId })}
@@ -236,6 +239,7 @@ function ShopSkeleton({ cardWidth }: { cardWidth: number }) {
 
 const styles = StyleSheet.create({
   remainingBudget: { ...typography.captionRegular10, color: colors.gray500, textAlign: 'center' },
+  negativeBudget: { color: colors.danger },
   searchRow: { flexDirection: 'row', marginHorizontal: 20, marginTop: 4 },
   filterBar: { height: 54, minHeight: 54, flexShrink: 0, backgroundColor: colors.white },
   filterScroll: { flex: 1 },

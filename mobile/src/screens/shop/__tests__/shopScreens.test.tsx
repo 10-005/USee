@@ -1,6 +1,6 @@
 import renderer, { act } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { FlatList, Keyboard } from 'react-native';
+import { FlatList, Keyboard, StyleSheet } from 'react-native';
 import { ShopScreen } from '../ShopScreen';
 import { ProductDetailScreen } from '../ProductDetailScreen';
 import { CartScreen } from '../CartScreen';
@@ -17,6 +17,7 @@ import {
   isActiveSimulationStale,
 } from '../../../services/simulation/activeSession';
 import { StackRouter, StackActions } from '@react-navigation/routers';
+import { colors } from '../../../theme';
 
 const mockShopSession: {
   pet: { id: string; name: string; category: 'dog' };
@@ -286,6 +287,50 @@ it('shows the server inventory, balance and a used-up consumable', async () => {
   expect(screen.root.findByProps({ children: '보유 5개' })).toBeDefined();
   expect(screen.root.findByProps({ children: '다 썼음' })).toBeDefined();
   act(() => screen.unmount());
+});
+
+it('shows a negative budget in the danger color', () => {
+  useShopStore.setState({ spent: 60000 });
+  let shop!: renderer.ReactTestRenderer;
+  act(() => {
+    shop = renderer.create(
+      wrap(
+        <ShopScreen
+          navigation={{ navigate: jest.fn() } as never}
+          route={{ key: 'shop', name: 'PetShop', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  expect(
+    StyleSheet.flatten(shop.root.findByProps({ children: '남은 예산 -10,000원' }).props.style)
+      .color,
+  ).toBe(colors.danger);
+  act(() => shop.unmount());
+
+  let inventory!: renderer.ReactTestRenderer;
+  act(() => {
+    inventory = renderer.create(
+      wrap(
+        <InventoryScreen
+          navigation={{ navigate: jest.fn(), goBack: jest.fn() } as never}
+          route={{ key: 'inventory', name: 'ShopInventory', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  expect(
+    StyleSheet.flatten(inventory.root.findByProps({ children: '-10,000원' }).props.style).color,
+  ).toBe(colors.danger);
+  act(() => inventory.root.findByProps({ accessibilityLabel: '지출 내역' }).props.onPress());
+  const balances = inventory.root
+    .findAllByProps({ children: '-10,000원' })
+    .filter(node => StyleSheet.flatten(node.props.style)?.color);
+  expect(balances.length).toBeGreaterThanOrEqual(2);
+  balances.forEach(node => {
+    expect(StyleSheet.flatten(node.props.style).color).toBe(colors.danger);
+  });
+  act(() => inventory.unmount());
 });
 
 it('shows paid items, remaining money and individual usage counters', () => {

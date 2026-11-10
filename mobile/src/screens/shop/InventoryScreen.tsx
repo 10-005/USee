@@ -186,7 +186,7 @@ export function InventoryScreen({ navigation, route }: Props) {
               adjustsFontSizeToFit
               minimumFontScale={0.7}
               numberOfLines={1}
-              style={styles.budgetText}
+              style={[styles.budgetText, balance < 0 && styles.negativeBudget]}
             >
               {money(balance)}
             </Text>
@@ -393,6 +393,7 @@ const styles = StyleSheet.create({
     color: colors.black,
     flexShrink: 1,
   },
+  negativeBudget: { color: colors.danger },
   tabs: {
     flexDirection: 'row',
     marginHorizontal: 20,
