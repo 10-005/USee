@@ -3,6 +3,7 @@ import { SimulationEventStatus, type SimulationEvent } from '../services/simulat
 import {
   availableProducts,
   findProduct,
+  isFoodProduct,
   setShopCatalog,
   type Product,
   type Species,
@@ -44,6 +45,26 @@ type ShopState = ShopSnapshot & {
 };
 export const cartTotal = (cart: Record<string, number>, ids = Object.keys(cart)) =>
   ids.reduce((sum, id) => sum + (findProduct(id)?.price ?? 0) * (cart[id] ?? 0), 0);
+
+export function foodPurchaseError(
+  inventory: Record<string, number>,
+  cart: Record<string, number>,
+  ids: string[],
+): string | null {
+  for (const id of ids) {
+    const product = findProduct(id);
+    if (!product || !isFoodProduct(product)) {
+      continue;
+    }
+    if ((inventory[id] ?? 0) > 0) {
+      return '가진 사료를 다 쓴 뒤에 다시 살 수 있어요.';
+    }
+    if ((cart[id] ?? 0) !== 1) {
+      return '사료는 한 번에 1개만 구매할 수 있어요.';
+    }
+  }
+  return null;
+}
 
 const storageError = '기기에 저장하지 못했어요. 저장 공간을 확인하고 다시 시도해주세요.';
 let expenseSequence = 0;
@@ -190,6 +211,9 @@ export const useShopStore = create<ShopState>((set, get) => {
       ) {
         return false;
       }
+      if (isFoodProduct(p) && (quantity > 1 || (quantity > 0 && (state.inventory[id] ?? 0) > 0))) {
+        return false;
+      }
       const cart = { ...state.cart };
       if (quantity === 0) {
         delete cart[id];
@@ -263,6 +287,10 @@ export const useShopStore = create<ShopState>((set, get) => {
         })
       ) {
         return '구매할 수 없는 상품이 있어요.';
+      }
+      const foodError = foodPurchaseError(state.inventory, state.cart, ids);
+      if (foodError) {
+        return foodError;
       }
       const total = cartTotal(state.cart, ids);
       const inventory = { ...state.inventory };

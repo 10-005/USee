@@ -150,7 +150,8 @@ it('applies a server purchase to the spent budget and inventory', () => {
   };
   replaceSessionShopCatalog(shop().sessionKey, 'DOG', [{ displayOrder: 0, product }]);
   shop().open(session);
-  expect(shop().setQuantity('11', 5, 'dog')).toBe(true);
+  expect(shop().setQuantity('11', 5, 'dog')).toBe(false);
+  expect(shop().setQuantity('11', 1, 'dog')).toBe(true);
   expect(shop().applyServerPurchase('11', { amount: 40000, inventoryQuantity: 5 })).toBeNull();
   expect(shop().spent).toBe(40000);
   expect(shop().inventory['11']).toBe(5);
@@ -159,7 +160,7 @@ it('applies a server purchase to the spent budget and inventory', () => {
 });
 
 it('buys only walk bags, saves purchase history and budget, and preserves the cart', () => {
-  shop().setQuantity('food', 2, 'dog');
+  shop().setQuantity('food', 1, 'dog');
   const selected = [...shop().selectedIds];
   expect(shop().buyWalkBags()).toBeNull();
   expect(shop().inventory.bags).toBe(10);
@@ -167,7 +168,7 @@ it('buys only walk bags, saves purchase history and budget, and preserves the ca
     expect.objectContaining({ productId: 'bags', capacity: 10, remaining: 10 }),
   ]);
   expect(shop().budget - shop().spent).toBe(49500);
-  expect(shop().cart).toEqual({ food: 2 });
+  expect(shop().cart).toEqual({ food: 1 });
   expect(shop().selectedIds).toEqual(selected);
   shop().open(session);
   expect(shop().inventory.bags).toBe(10);
@@ -209,36 +210,49 @@ it('enforces species and valid quantities while allowing quantities above the fo
   shop().setQuantity('food', -1, 'dog');
   shop().setQuantity('food', 1.5, 'dog');
   expect(shop().cart).toEqual({});
-  expect(shop().setQuantity('food', 100, 'dog')).toBe(true);
-  expect(shop().setQuantity('bowl', 2, 'dog')).toBe(true);
-  expect(shop().cart).toEqual({ food: 100, bowl: 2 });
+  expect(shop().setQuantity('food', 100, 'dog')).toBe(false);
+  expect(shop().setQuantity('food', 1, 'dog')).toBe(true);
+  expect(shop().setQuantity('bowl', 100, 'dog')).toBe(true);
+  expect(shop().cart).toEqual({ food: 1, bowl: 100 });
 });
 
 it('purchases selected items atomically, converts bundles and allows repeat durable purchases', () => {
-  shop().setQuantity('food', 2, 'dog');
+  shop().setQuantity('food', 1, 'dog');
   shop().setQuantity('bowl', 1, 'dog');
   shop().selectAll(['food']);
-  expect(cartTotal(shop().cart, shop().selectedIds)).toBe(21200);
+  expect(cartTotal(shop().cart, shop().selectedIds)).toBe(10600);
   expect(shop().checkout('dog')).toBeNull();
-  expect(shop().spent).toBe(21200);
+  expect(shop().spent).toBe(10600);
   expect(shop().expenses).toEqual([
     expect.objectContaining({
       kind: 'purchase',
-      title: '균형 잡힌 사료 × 2',
-      detail: '식사 · 2개 구매',
-      amount: 21200,
-      balanceAfter: 28800,
+      title: '균형 잡힌 사료 × 1',
+      detail: '식사 · 1개 구매',
+      amount: 10600,
+      balanceAfter: 39400,
     }),
   ]);
-  expect(shop().inventory.food).toBe(24);
+  expect(shop().inventory.food).toBe(12);
   expect(shop().cart).toEqual({ bowl: 1 });
   shop().selectAll(['bowl']);
   expect(shop().checkout('dog')).toBeNull();
   shop().setQuantity('bowl', 1, 'dog');
   expect(shop().cart).toEqual({ bowl: 1 });
   expect(shop().checkout('dog')).toBeNull();
-  expect(shop().spent).toBe(41200);
+  expect(shop().spent).toBe(30600);
   expect(shop().inventory.bowl).toBe(2);
+});
+
+it('buys one food pack and blocks another until it is used up', () => {
+  expect(shop().setQuantity('food', 2, 'dog')).toBe(false);
+  expect(shop().setQuantity('food', 1, 'dog')).toBe(true);
+  expect(shop().checkout('dog')).toBeNull();
+  expect(shop().inventory.food).toBe(12);
+  expect(shop().setQuantity('food', 1, 'dog')).toBe(false);
+  expect(shop().checkout('dog')).toContain('선택');
+  expect(shop().consume({ food: 12 })).toBe(true);
+  expect(shop().setQuantity('food', 1, 'dog')).toBe(true);
+  expect(shop().checkout('dog')).toBeNull();
 });
 
 it('accumulates repeated additions beyond 99 and restores added budget on reopening', () => {
@@ -257,13 +271,13 @@ it('accumulates repeated additions beyond 99 and restores added budget on reopen
 });
 
 it('allows purchases beyond the budget and restores the negative balance', () => {
-  shop().setQuantity('food', 5, 'dog');
+  shop().setQuantity('bowl', 6, 'dog');
   expect(shop().checkout('dog')).toBeNull();
-  expect(shop().budget - shop().spent).toBe(-3000);
+  expect(shop().budget - shop().spent).toBe(-10000);
   expect(shop().cart).toEqual({});
-  expect(shop().inventory.food).toBe(60);
+  expect(shop().inventory.bowl).toBe(6);
   shop().open(session);
-  expect(shop().budget - shop().spent).toBe(-3000);
+  expect(shop().budget - shop().spent).toBe(-10000);
 });
 
 it('rejects checkout after the adoption expires', () => {
@@ -314,14 +328,17 @@ it('keeps the UI and saved state unchanged when the purchase transaction fails',
 });
 
 it('tracks each purchased package independently and restores remaining uses', () => {
-  shop().setQuantity('food', 2, 'dog');
+  shop().setQuantity('food', 1, 'dog');
+  expect(shop().checkout('dog')).toBeNull();
+  expect(shop().consume({ food: 12 })).toBe(true);
+  shop().setQuantity('food', 1, 'dog');
   expect(shop().checkout('dog')).toBeNull();
   expect(
     shop()
       .ownedItems.filter(i => i.productId === 'food')
       .map(i => i.remaining),
-  ).toEqual([12, 12]);
-  expect(shop().consume({ food: 13 })).toBe(true);
+  ).toEqual([0, 12]);
+  expect(shop().consume({ food: 1 })).toBe(true);
   expect(
     shop()
       .ownedItems.filter(i => i.productId === 'food')
@@ -339,9 +356,12 @@ it('tracks each purchased package independently and restores remaining uses', ()
 });
 
 it('uses the requested item and atomically rejects incomplete cleaning supplies', () => {
-  shop().setQuantity('food', 2, 'dog');
+  shop().setQuantity('food', 1, 'dog');
   shop().setQuantity('cleaner', 1, 'dog');
   shop().setQuantity('bowl', 1, 'dog');
+  shop().checkout('dog');
+  expect(shop().consume({ food: 12 })).toBe(true);
+  shop().setQuantity('food', 1, 'dog');
   shop().checkout('dog');
   const packs = shop().ownedItems.filter(i => i.productId === 'food');
   expect(shop().consume({ food: 1 }, packs[1].id)).toBe(true);
@@ -349,7 +369,7 @@ it('uses the requested item and atomically rejects incomplete cleaning supplies'
     shop()
       .ownedItems.filter(i => i.productId === 'food')
       .map(i => i.remaining),
-  ).toEqual([12, 11]);
+  ).toEqual([0, 11]);
   expect(shop().consume({ cleaner: 1, pads: 1 })).toBe(false);
   expect(shop().inventory.cleaner).toBe(10);
   expect(shop().consume({ bowl: 1 })).toBe(false);

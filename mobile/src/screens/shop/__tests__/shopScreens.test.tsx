@@ -289,7 +289,7 @@ it('shows the server inventory, balance and a used-up consumable', async () => {
 });
 
 it('shows paid items, remaining money and individual usage counters', () => {
-  useShopStore.getState().setQuantity('food', 2, 'dog');
+  useShopStore.getState().setQuantity('food', 1, 'dog');
   useShopStore.getState().checkout('dog');
   useShopStore.getState().consume({ food: 1 });
   let screen!: renderer.ReactTestRenderer;
@@ -303,21 +303,15 @@ it('shows paid items, remaining money and individual usage counters', () => {
       ),
     );
   });
-  expect(screen.root.findByProps({ children: '28,800원' })).toBeDefined();
+  expect(screen.root.findByProps({ children: '39,400원' })).toBeDefined();
   expect(
     screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 1번째 남은 수량 11끼' }),
   ).toBeDefined();
-  expect(
-    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 2번째 남은 수량 12끼' }),
-  ).toBeDefined();
   act(() => {
-    useShopStore.getState().consume({ food: 12 });
+    useShopStore.getState().consume({ food: 11 });
   });
   expect(
     screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 1번째 남은 수량 0끼' }),
-  ).toBeDefined();
-  expect(
-    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 2번째 남은 수량 11끼' }),
   ).toBeDefined();
   act(() => screen.unmount());
 });
@@ -406,9 +400,10 @@ it('adds the chosen quantity from detail', () => {
   act(() =>
     screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 수량 늘리기' }).props.onPress(),
   );
-  act(() =>
-    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 수량 늘리기' }).props.onPress(),
-  );
+  expect(
+    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 수량 늘리기' }).props
+      .accessibilityState.disabled,
+  ).toBe(true);
   const basis = findProduct('food')!.market.basis;
   expect(screen.root.findAllByProps({ children: basis })).toHaveLength(0);
   act(() => screen.root.findByProps({ accessibilityLabel: '가격 근거' }).props.onPress());
@@ -422,7 +417,40 @@ it('adds the chosen quantity from detail', () => {
       node.findAllByProps({ children: '장바구니 담기' }).length > 0,
   )[0];
   act(() => addButton.props.onPress());
-  expect(useShopStore.getState().cart.food).toBe(2);
+  expect(useShopStore.getState().cart.food).toBe(1);
+  act(() => screen.unmount());
+});
+
+it('blocks another food purchase until the owned pack is used up', () => {
+  useShopStore.getState().setQuantity('food', 1, 'dog');
+  expect(useShopStore.getState().checkout('dog')).toBeNull();
+  let screen!: renderer.ReactTestRenderer;
+  act(() => {
+    screen = renderer.create(
+      wrap(
+        <ProductDetailScreen
+          navigation={{ navigate: jest.fn() } as never}
+          route={{
+            key: 'detail',
+            name: 'ShopProductDetail',
+            params: { petId: 'dog-1', productId: 'food' },
+          }}
+        />,
+      ),
+    );
+  });
+  expect(
+    screen.root.findByProps({ children: '가진 사료를 다 쓴 뒤에 다시 살 수 있어요.' }),
+  ).toBeDefined();
+  const addButton = screen.root.findAll(
+    node =>
+      node.props.accessibilityRole === 'button' &&
+      node.props.onPress &&
+      node.findAllByProps({ children: '장바구니 담기' }).length > 0,
+  )[0];
+  expect(addButton.props.disabled).toBe(true);
+  act(() => addButton.props.onPress());
+  expect(useShopStore.getState().cart.food).toBeUndefined();
   act(() => screen.unmount());
 });
 
@@ -443,6 +471,7 @@ it('changes cart quantity and completes a confirmed mock purchase', () => {
   act(() =>
     screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 수량 늘리기' }).props.onPress(),
   );
+  expect(useShopStore.getState().cart.food).toBe(1);
   const buyButton = screen.root.findAll(
     node =>
       node.props.accessibilityRole === 'button' &&
@@ -451,8 +480,8 @@ it('changes cart quantity and completes a confirmed mock purchase', () => {
   )[0];
   act(() => buyButton.props.onPress());
   act(() => screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress());
-  expect(useShopStore.getState().spent).toBe(21200);
-  expect(useShopStore.getState().inventory.food).toBe(24);
+  expect(useShopStore.getState().spent).toBe(10600);
+  expect(useShopStore.getState().inventory.food).toBe(12);
   expect(useShopStore.getState().cart).toEqual({});
   expect(popTo).toHaveBeenCalledWith('ShopInventory', { petId: 'dog-1' });
   expect(popTo).toHaveBeenCalledTimes(1);
@@ -522,21 +551,21 @@ it('purchases a server item from the cart and keeps the cart when purchase fails
     { displayOrder: 0, product: serverFood },
   ]);
   useShopStore.getState().open(session);
-  useShopStore.getState().setQuantity('11', 5, 'dog');
+  useShopStore.getState().setQuantity('11', 1, 'dog');
   mockShopSession.session = { sessionSeq: 3001 };
   jest.mocked(purchaseSimulationItems).mockResolvedValue({
     purchases: [
       {
         transactionSeq: 70001,
         item: { itemSeq: 11, itemName: '건식 사료 1kg', category: 'FOOD' },
-        quantity: 5,
-        amount: 40000,
-        balanceAfter: 110000,
-        inventoryQuantity: 5,
+        quantity: 1,
+        amount: 8000,
+        balanceAfter: 142000,
+        inventoryQuantity: 1,
       },
     ],
-    totalAmount: 40000,
-    balanceAfter: 110000,
+    totalAmount: 8000,
+    balanceAfter: 142000,
   });
   let screen!: renderer.ReactTestRenderer;
   await act(async () => {
@@ -562,14 +591,15 @@ it('purchases a server item from the cart and keeps the cart when purchase fails
   await act(async () => {
     await screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress();
   });
-  expect(purchaseSimulationItems).toHaveBeenCalledWith(3001, [{ itemSeq: 11, quantity: 5 }]);
+  expect(purchaseSimulationItems).toHaveBeenCalledWith(3001, [{ itemSeq: 11, quantity: 1 }]);
   expect(isActiveSimulationStale()).toBe(true);
-  expect(useShopStore.getState().inventory['11']).toBe(5);
-  expect(useShopStore.getState().spent).toBe(40000);
+  expect(useShopStore.getState().inventory['11']).toBe(1);
+  expect(useShopStore.getState().spent).toBe(8000);
   expect(useShopStore.getState().cart).toEqual({});
   expect(popTo).toHaveBeenCalledWith('ShopInventory', { petId: 'dog-1' });
 
   await act(async () => {
+    useShopStore.setState({ inventory: { '11': 0 } });
     useShopStore.getState().setQuantity('11', 1, 'dog');
   });
   jest

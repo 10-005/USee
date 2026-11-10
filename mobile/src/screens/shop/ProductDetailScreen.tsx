@@ -7,7 +7,7 @@ import { AppHeader, Button, SkeletonBlock, SkeletonGroup } from '../../component
 import { CartHeaderButton } from '../../components/shop/CartHeaderButton';
 import { ProductArt } from '../../components/shop/ProductArt';
 import { QuantityControl } from '../../components/shop/QuantityControl';
-import { findProduct, money } from '../../services/shop/catalog';
+import { findProduct, isFoodProduct, money } from '../../services/shop/catalog';
 import { useShopStore } from '../../stores/shopStore';
 import { useShopSession } from './useShopSession';
 import { shopStyles as s } from '../../components/shop/shopStyles';
@@ -31,8 +31,11 @@ export function ProductDetailScreen({ navigation, route }: Props) {
       adding.current = false;
     }
   }, [quantity]);
-  const max = 10;
+  const food = Boolean(p && isFoodProduct(p));
+  const foodOwned = food && (shop.inventory[productId] ?? 0) > 0;
+  const max = food ? 1 : 10;
   const inCart = shop.cart[productId] ?? 0;
+  const foodLimit = food && inCart + quantity > 1;
   const cartCount = Object.values(shop.cart).reduce((sum, count) => sum + count, 0);
   const allowed = pet && p && (p.species === 'all' || pet.category === p.species);
   return (
@@ -152,10 +155,14 @@ export function ProductDetailScreen({ navigation, route }: Props) {
             ) : null}
             {status === 'error' ? <Button onPress={retry}>쇼핑 정보 다시 불러오기</Button> : null}
             <Text accessibilityLiveRegion="polite" style={s.body}>
-              {shop.error ||
-                (inCart
-                  ? `장바구니에 ${inCart}묶음 담겨 있어요.`
-                  : '모의 구매에 사용할 수 있어요.')}
+              {foodOwned
+                ? '가진 사료를 다 쓴 뒤에 다시 살 수 있어요.'
+                : foodLimit
+                ? '사료는 한 번에 1개만 담을 수 있어요.'
+                : shop.error ||
+                  (inCart
+                    ? `장바구니에 ${inCart}묶음 담겨 있어요.`
+                    : '모의 구매에 사용할 수 있어요.')}
             </Text>
             <View style={s.between}>
               <QuantityControl
@@ -169,9 +176,9 @@ export function ProductDetailScreen({ navigation, route }: Props) {
               <Text style={styles.price}>{money(p.price * quantity)}</Text>
             </View>
             <Button
-              disabled={status !== 'ready' || quantity === 0}
+              disabled={status !== 'ready' || quantity === 0 || foodOwned || foodLimit}
               onPress={() => {
-                if (adding.current || quantity === 0) {
+                if (adding.current || quantity === 0 || foodOwned || foodLimit) {
                   return;
                 }
                 adding.current = true;

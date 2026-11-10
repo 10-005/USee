@@ -9,7 +9,7 @@ import InfoIcon from '../../assets/icons/common/info.svg';
 import { colors } from '../../theme';
 import { ProductArt } from '../../components/shop/ProductArt';
 import { QuantityControl } from '../../components/shop/QuantityControl';
-import { availableProducts, findProduct, money } from '../../services/shop/catalog';
+import { availableProducts, findProduct, isFoodProduct, money } from '../../services/shop/catalog';
 import {
   getPurchaseErrorMessage,
   purchaseSimulationItems,
@@ -17,7 +17,7 @@ import {
 import { invalidateActiveSimulation } from '../../services/simulation/activeSession';
 import { invalidateSimulationTransactions } from '../../services/simulation/transactions';
 import { ApiClientError } from '../../services/api';
-import { useShopStore, cartTotal } from '../../stores/shopStore';
+import { useShopStore, cartTotal, foodPurchaseError } from '../../stores/shopStore';
 import { useShopSession } from './useShopSession';
 import { shopStyles as s } from '../../components/shop/shopStyles';
 
@@ -127,6 +127,11 @@ export function CartScreen({ navigation, route }: Props) {
       }
       if (Date.now() >= state.expiresAt) {
         showPurchaseResult('모의 입양 기간이 종료되었어요.');
+        return;
+      }
+      const foodError = foodPurchaseError(state.inventory, state.cart, selectedIds);
+      if (foodError) {
+        showPurchaseResult(foodError);
         return;
       }
       const lines: Array<{ id: string; itemSeq: number; quantity: number }> = [];
@@ -272,7 +277,7 @@ export function CartScreen({ navigation, route }: Props) {
                         compact
                         name={p.name}
                         value={shop.cart[id]}
-                        max={Number.MAX_SAFE_INTEGER}
+                        max={isFoodProduct(p) ? 1 : Number.MAX_SAFE_INTEGER}
                         onChange={n => shop.setQuantity(id, n, pet!.category)}
                       />
                     </View>
