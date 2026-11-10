@@ -3,6 +3,7 @@ import ReactTestRenderer, { type ReactTestInstance } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import {
+  type AdoptionApplicationStatus,
   cancelAdoptionApplication,
   deleteAdoptionDraft,
   getAdoptionApplication,
@@ -101,7 +102,7 @@ function pressAction(root: ReactTestInstance, value: string) {
   action.props.onPress();
 }
 
-async function renderScreen(status = applicationDetail.status) {
+async function renderScreen(status: AdoptionApplicationStatus = applicationDetail.status) {
   mockedGetApplication.mockResolvedValue({ ...applicationDetail, status });
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
