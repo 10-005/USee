@@ -2,6 +2,7 @@ import type { ImageSourcePropType } from 'react-native';
 import { create } from 'zustand';
 
 import type { LostReport } from '../screens/lost-report/data';
+import { formatKoreanAddress } from '../utils/address';
 import { getApiErrorDisplayMessage } from '../services/api';
 import {
   changeMissingReportStatus,
@@ -45,7 +46,7 @@ export const mapMissingSummary = (report: MissingReportSummary, isMine: boolean)
   id: String(report.missingReportSeq),
   images: imageSources([report.representativeImageUrl]),
   isMine,
-  location: report.address,
+  location: formatKoreanAddress(report.address),
   name: report.classification?.breedName ?? '실종 동물',
   neutered: report.isNeutered,
   species: speciesLabel(report.classification?.speciesCode),

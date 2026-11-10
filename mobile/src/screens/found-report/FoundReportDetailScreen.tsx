@@ -38,6 +38,7 @@ import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { useContentReportStore } from '../../stores/contentReportStore';
 import { useFoundReportDraftStore } from '../../stores/foundReportDraftStore';
 import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
+import { useFoundReportStore } from '../../stores/foundReportStore';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
 import { useLostReportEditStore } from '../../stores/lostReportEditStore';
 import { useMissingReportStore } from '../../stores/missingReportStore';
@@ -64,6 +65,13 @@ export function getContactDisplayValue(contact?: string) {
 
 export function FoundReportDetailScreen({ navigation, route }: Props) {
   const isLostReport = route.name === 'LostReportDetail';
+  const apiFoundReport = useFoundReportStore(state => state.reportById[route.params.reportId]);
+  const apiFoundDetail = useFoundReportStore(state => state.detailsById[route.params.reportId]);
+  const fetchFoundReport = useFoundReportStore(state => state.fetchReport);
+  const deleteApiFoundReport = useFoundReportStore(state => state.deleteReport);
+  const setApiFoundReportStatus = useFoundReportStore(state => state.setStatus);
+  const foundReportDetailLoading = useFoundReportStore(state => state.isDetailLoading);
+  const foundReportDetailError = useFoundReportStore(state => state.error);
   const apiLostReport = useMissingReportStore(state => state.reportById[route.params.reportId]);
   const apiLostDetail = useMissingReportStore(state => state.detailsById[route.params.reportId]);
   const fetchLostReport = useMissingReportStore(state => state.fetchReport);
@@ -75,10 +83,9 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     'highlightCommentId' in route.params ? route.params.highlightCommentId : undefined;
   const baseReport = isLostReport
     ? apiLostReport ?? getLostReport(route.params.reportId)
-    : getFoundReport(route.params.reportId);
+    : apiFoundReport ?? getFoundReport(route.params.reportId);
   const foundReportEdit = useFoundReportEditStore(state => state.editsById[route.params.reportId]);
   const lostReportEdit = useLostReportEditStore(state => state.editsById[route.params.reportId]);
-  const deleteFoundReport = useFoundReportEditStore(state => state.deleteReport);
   const report = {
     ...baseReport,
     ...(isLostReport ? lostReportEdit : foundReportEdit),
@@ -104,15 +111,16 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const bookmarked = useAdoptionBookmarkStore(state => state.bookmarkedIds.includes(report.id));
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
   const storedStatus = useReportStatusStore(state => state.statusById[report.id]);
-  const setReportStatus = useReportStatusStore(state => state.setStatus);
   const contentReports = useContentReportStore(state => state.reports);
   const addContentReport = useContentReportStore(state => state.addReport);
 
   useEffect(() => {
     if (isLostReport) {
       fetchLostReport(route.params.reportId).catch(() => undefined);
+    } else {
+      fetchFoundReport(route.params.reportId).catch(() => undefined);
     }
-  }, [fetchLostReport, isLostReport, route.params.reportId]);
+  }, [fetchFoundReport, fetchLostReport, isLostReport, route.params.reportId]);
   const progressStatus =
     storedStatus ?? (report.status === '완료' || report.status === '종료' ? 'completed' : 'active');
   const isCompleted = progressStatus === 'completed';
@@ -121,10 +129,12 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
       ? '종료'
       : '실종'
     : isCompleted
-    ? '완료'
+    ? '종료'
     : '제보';
 
-  const reporterName = report.isMine ? '내 닉네임' : '시샤';
+  const reporterName =
+    (isLostReport ? apiLostDetail?.user?.displayName : apiFoundDetail?.reporter?.displayName) ??
+    (report.isMine ? '내 닉네임' : '사용자');
   const openChat = async (name: string, authorId: string) => {
     try {
       const params = await useChatStore
@@ -188,7 +198,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
         if (isLostReport) {
           await setApiLostReportStatus(report.id, pendingStatus);
         } else {
-          setReportStatus(report.id, pendingStatus);
+          await setApiFoundReportStatus(report.id, pendingStatus);
         }
       } catch {
         Alert.alert('상태 변경 실패', '잠시 후 다시 시도해 주세요.');
@@ -202,6 +212,27 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <AppHeader onBackPress={navigation.goBack} title="실종 신고 상세" />
         <DetailScreenSkeleton accessibilityLabel="실종 신고 상세 불러오는 중" />
+      </SafeAreaView>
+    );
+  }
+
+  if (!isLostReport && !apiFoundReport && (foundReportDetailLoading || !foundReportDetailError)) {
+    return (
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <AppHeader onBackPress={navigation.goBack} title="발견 신고 상세" />
+        <DetailScreenSkeleton accessibilityLabel="발견 신고 상세 불러오는 중" />
+      </SafeAreaView>
+    );
+  }
+
+  if (!isLostReport && !apiFoundReport && foundReportDetailError) {
+    return (
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <AppHeader onBackPress={navigation.goBack} title="발견 신고 상세" />
+        <View style={styles.loadError}>
+          <Text style={styles.loadErrorText}>{foundReportDetailError}</Text>
+          <Button onPress={() => fetchFoundReport(route.params.reportId)}>다시 시도</Button>
+        </View>
       </SafeAreaView>
     );
   }
@@ -388,6 +419,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                   age: report.age,
                   breed: report.name,
                   color: report.color,
+                  combinationSeq: apiFoundDetail?.classification?.combinationSeq ?? null,
                   contact: report.contact ?? '',
                   description: report.description,
                   exposeContact: Boolean(report.contact),
@@ -403,14 +435,16 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                     type: 'image/jpeg',
                     uri: Image.resolveAssetSource(image)?.uri ?? '',
                   })),
-                  latitude: null,
+                  imageSeqs: apiFoundDetail?.images.map(image => image.imageSeq) ?? [],
+                  latitude: apiFoundDetail?.latitude ?? null,
                   location: report.location,
-                  longitude: null,
-                  microchipNumber: '',
-                  microchipStatus: 'unknown',
-                  neutered: report.neutered ? 'done' : 'not-done',
+                  longitude: apiFoundDetail?.longitude ?? null,
+                  microchipNumber: apiFoundDetail?.microchipNumber ?? '',
+                  microchipStatus: apiFoundDetail?.microchipNumber ? 'done' : 'unknown',
+                  neutered:
+                    report.neutered === null ? 'unknown' : report.neutered ? 'done' : 'not-done',
                   species: report.species === '개' ? '강아지' : report.species,
-                  terrain: '',
+                  terrain: apiFoundDetail?.landmarkDescription ?? '',
                   weight: report.weight,
                 });
                 navigation.navigate('PetRegistration', {
@@ -479,7 +513,12 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                       return;
                     }
                   } else {
-                    deleteFoundReport(report.id);
+                    try {
+                      await deleteApiFoundReport(report.id);
+                    } catch {
+                      Alert.alert('발견 신고 삭제 실패', '잠시 후 다시 시도해 주세요.');
+                      return;
+                    }
                   }
                   setDeleteVisible(false);
                   navigation.goBack();
@@ -554,12 +593,12 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             <Text style={styles.statusModalGuide}>변경할 상태를 선택해주세요</Text>
             <StatusOption
               active={selectedStatus === 'active'}
-              label="진행 중"
+              label={isLostReport ? '실종' : '제보'}
               onPress={() => setSelectedStatus('active')}
             />
             <StatusOption
               active={selectedStatus === 'completed'}
-              label="완료"
+              label="종료"
               onPress={() => setSelectedStatus('completed')}
             />
             <Pressable
@@ -584,7 +623,9 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
         <View style={styles.confirmBackdrop}>
           <View style={styles.confirmCard}>
             <Text style={styles.confirmTitle}>
-              {`상태를 ${pendingStatus === 'completed' ? '완료' : '진행 중'}로 변경하시겠습니까?`}
+              {`상태를 ${
+                pendingStatus === 'completed' ? '종료' : isLostReport ? '실종' : '제보'
+              }로 변경하시겠습니까?`}
             </Text>
             <Text style={styles.confirmDescription}>
               상태 변경 결과는 목록과 상세 화면에 바로 반영됩니다.
@@ -639,6 +680,18 @@ function StatusOption({
 }
 
 const styles = StyleSheet.create({
+  loadError: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 16,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  loadErrorText: {
+    ...typography.bodyRegular14,
+    color: colors.gray600,
+    textAlign: 'center',
+  },
   safeArea: { backgroundColor: colors.white, flex: 1 },
   headerMenuButton: {
     alignItems: 'center',

@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -8,6 +9,8 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -36,11 +39,13 @@ import {
   TimePickerModal,
 } from '../../components/common';
 import { MAX_IMAGE_SIZE_MB } from '../../constants/upload';
+import { getApiErrorDisplayMessage } from '../../services/api';
+import { createFoundReport, updateFoundReport } from '../../services/foundReports';
 import {
   useFoundReportDraftStore,
   type FoundReportDraft,
 } from '../../stores/foundReportDraftStore';
-import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
+import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FoundReportForm'>;
@@ -76,21 +81,37 @@ export const formatFoundDateTime = (value: string) => {
 export function FoundReportFormScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const contactInitializedRef = useRef(false);
   const draft = useFoundReportDraftStore(state => state.draft);
   const resetDraft = useFoundReportDraftStore(state => state.resetDraft);
   const updateDraft = useFoundReportDraftStore(state => state.updateDraft);
-  const updateReport = useFoundReportEditStore(state => state.updateReport);
+  const profilePhone = useProfileStore(state => state.profile.phone);
+  const loadProfile = useProfileStore(state => state.loadProfile);
   const [step, setStep] = useState<Step>(2);
   const [error, setError] = useState('');
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [pendingDate, setPendingDate] = useState<Date | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = Boolean(route.params?.reportId);
+
+  useEffect(() => {
+    loadProfile().catch(() => undefined);
+  }, [loadProfile]);
+
+  useEffect(() => {
+    if (!contactInitializedRef.current && profilePhone) {
+      contactInitializedRef.current = true;
+      updateDraft({ contact: profilePhone });
+    } else if (draft.contact) {
+      contactInitializedRef.current = true;
+    }
+  }, [draft.contact, profilePhone, updateDraft]);
 
   const canContinue = useMemo(() => {
     if (step === 2) {
       return Boolean(draft.foundAt && draft.location && draft.foundSituation.trim());
     }
-    return !draft.exposeContact || PHONE_PATTERN.test(draft.contact);
+    return PHONE_PATTERN.test(draft.contact);
   }, [draft, step]);
 
   const goBack = useCallback(() => {
@@ -116,7 +137,17 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
     setPendingDate(selected);
   };
 
-  const submit = () => {
+  const openSubmittedReport = (reportId: string) => {
+    navigation.reset({
+      index: 1,
+      routes: [
+        { name: 'Home', params: { initialReportTab: 'found', initialTab: 'search' } },
+        { name: 'FoundReportDetail', params: { reportId } },
+      ],
+    });
+  };
+
+  const submit = async () => {
     Keyboard.dismiss();
     if (!canContinue) {
       setError('필수 항목을 확인해 주세요.');
@@ -127,27 +158,60 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
       setError('');
       return;
     }
-    if (isEditing && route.params?.reportId) {
-      updateReport(route.params.reportId, {
-        age: draft.age,
-        color: draft.color,
-        contact: draft.exposeContact ? draft.contact : undefined,
-        date: draft.foundAt.slice(0, 10),
-        description: draft.foundSituation,
-        gender: draft.gender === 'male' ? '수컷' : draft.gender === 'female' ? '암컷' : '모름',
-        images: draft.images.map(image => ({ uri: image.uri })),
-        location: draft.location,
-        name: draft.breed,
-        neutered: draft.neutered === 'done',
-        species: draft.species === '강아지' ? '개' : (draft.species as '고양이' | '기타'),
-        weight: draft.weight,
-      });
-      resetDraft();
-      navigation.navigate('FoundReportDetail', { reportId: route.params.reportId });
+    if (isSubmitting) {
       return;
     }
-    resetDraft();
-    navigation.navigate('Home');
+    if (
+      !draft.combinationSeq ||
+      draft.imageSeqs.length === 0 ||
+      draft.latitude === null ||
+      draft.longitude === null
+    ) {
+      setError('동물 정보와 발견 장소를 다시 확인해 주세요.');
+      return;
+    }
+    const request = {
+      address: draft.location,
+      age: draft.age.trim() || null,
+      combinationSeq: draft.combinationSeq,
+      description:
+        [draft.description.trim(), draft.foundSituation.trim()].filter(Boolean).join('\n') || null,
+      gender:
+        draft.gender === 'male'
+          ? ('MALE' as const)
+          : draft.gender === 'female'
+          ? ('FEMALE' as const)
+          : ('UNKNOWN' as const),
+      imageSeqs: draft.imageSeqs,
+      isNeutered: draft.neutered === 'done' ? true : draft.neutered === 'not-done' ? false : null,
+      isPhonePublic: draft.exposeContact,
+      landmarkDescription: draft.terrain.trim() || null,
+      latitude: draft.latitude,
+      longitude: draft.longitude,
+      microchipNumber: draft.microchipNumber.trim() || null,
+      occurredDttm: draft.foundAt,
+      reporterPhone: draft.contact.replace(/\D/g, ''),
+      weight: draft.weight.trim() || null,
+    };
+    setIsSubmitting(true);
+    try {
+      if (isEditing && route.params?.reportId) {
+        await updateFoundReport(Number(route.params.reportId), request);
+        resetDraft();
+        openSubmittedReport(route.params.reportId);
+      } else {
+        const created = await createFoundReport(request);
+        resetDraft();
+        openSubmittedReport(String(created.foundReportSeq));
+      }
+    } catch (submitError) {
+      Alert.alert(
+        `발견 신고 ${isEditing ? '수정' : '등록'} 실패`,
+        getApiErrorDisplayMessage(submitError, '잠시 후 다시 시도해 주세요.'),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const bottomStyle = { bottom: insets.bottom + 16 };
@@ -164,42 +228,46 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
         >
           <ScrollView
             ref={scrollRef}
-          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 96 }]}
-          decelerationRate="fast"
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
-          onTouchStart={Keyboard.dismiss}
-          showsVerticalScrollIndicator={false}
-        >
-          {step === 2 ? (
-            <FoundInformationStep
-              draft={draft}
-              onOpenDateTime={openDateTime}
-              onOpenLocation={() =>
-                navigation.navigate('LostReportLocationPicker', { target: 'found-report' })
-              }
-              onUpdate={updateDraft}
-            />
-          ) : null}
-          {step === 3 ? <ContactStep draft={draft} onUpdate={updateDraft} /> : null}
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+            contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 96 }]}
+            decelerationRate="fast"
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+            onTouchStart={Keyboard.dismiss}
+            showsVerticalScrollIndicator={false}
+          >
+            {step === 2 ? (
+              <FoundInformationStep
+                draft={draft}
+                onOpenDateTime={openDateTime}
+                onOpenLocation={() =>
+                  navigation.navigate('LostReportLocationPicker', { target: 'found-report' })
+                }
+                onUpdate={updateDraft}
+              />
+            ) : null}
+            {step === 3 ? <ContactStep draft={draft} onUpdate={updateDraft} /> : null}
+            {error ? <Text style={styles.error}>{error}</Text> : null}
           </ScrollView>
         </KeyboardAvoidingView>
       </KeyboardAwareInputProvider>
       <Pressable
-        disabled={!canContinue}
+        disabled={!canContinue || isSubmitting}
         onPress={submit}
         style={({ pressed }) => [
           styles.submit,
           bottomStyle,
-          !canContinue && styles.submitDisabled,
-          pressed && canContinue && styles.pressed,
+          (!canContinue || isSubmitting) && styles.submitDisabled,
+          pressed && canContinue && !isSubmitting && styles.pressed,
         ]}
       >
-        <Text style={styles.submitText}>
-          {step === 3 ? (isEditing ? '게시글 수정' : '게시글 등록') : '다음'}
-        </Text>
+        {isSubmitting ? (
+          <ActivityIndicator color={colors.white} />
+        ) : (
+          <Text style={styles.submitText}>
+            {step === 3 ? (isEditing ? '게시글 수정' : '게시글 등록') : '다음'}
+          </Text>
+        )}
       </Pressable>
       <DatePickerModal
         maximumDate={new Date()}
