@@ -1,6 +1,7 @@
 package com.ssafy.animal.simulation.config
 
 import com.ssafy.animal.simulation.domain.CareConfig
+import com.ssafy.animal.simulation.domain.DemoConfig
 import com.ssafy.animal.simulation.domain.EventConfig
 import com.ssafy.animal.simulation.domain.ShopRules
 import com.ssafy.animal.simulation.domain.StatRules
@@ -21,6 +22,7 @@ data class SimulationProperties(
     val report: ReportConfig = ReportConfig(),
     val event: EventConfig = EventConfig(),
     val walk: WalkConfig = WalkConfig(),
+    val demo: DemoConfig = DemoConfig(),
 )
 
 /** 리포트 요약 설정(Q444·Q487 [가안]) */

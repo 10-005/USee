@@ -98,11 +98,12 @@ class SessionEvents(
 
     /**
      * 집 이벤트는 진행 중이고, 조용한 시간이 아니고, 예정 종료 전이며, 대기 이벤트가 없고,
-     * 산책 중이 아닐 때만 만든다(산책 중에는 산책 이벤트만, 사용자 결정 2026-11-09)
+     * 산책 중이 아닐 때만 만든다(산책 중에는 산책 이벤트만, 사용자 결정 2026-11-09). 시연 회원은 만들지 않는다
      */
     private fun canTrigger(session: SimulationSession, at: OffsetDateTime): Boolean {
         val sessionSeq = checkNotNull(session.sessionSeq)
-        return session.isInProgress && !properties.event.isQuiet(at) && at.isBefore(session.endsDttm) &&
+        return !properties.demo.isDemo(session) &&
+            session.isInProgress && !properties.event.isQuiet(at) && at.isBefore(session.endsDttm) &&
             occurrenceRepository.findPending(sessionSeq) == null && walkRepository.findActive(sessionSeq) == null
     }
 
@@ -116,6 +117,7 @@ class SessionEvents(
         val walkSeq = checkNotNull(walk.walkSeq) { "저장 전 산책입니다." }
         if (!session.isInProgress || !walk.isInProgress) return null
         if (occurrenceRepository.findPending(checkNotNull(session.sessionSeq)) != null) return null
+        if (properties.demo.isDemo(session)) return triggerDemoWalk(session, walk, walkSeq, at)
         if (occurrenceRepository.countByWalk(walkSeq) >= config.eventMaxPerWalk) return null
         if (random.nextDouble() >= config.eventChancePerHeartbeat) return null
 
@@ -123,6 +125,20 @@ class SessionEvents(
             .filter { it.appliesTo(session.speciesType, session.personality) }
         val scenario = pickWeighted(candidates) ?: return null
         return PendingEvent(occurrenceRepository.save(EventOccurrence.occur(session, scenario, at, at.plus(config.eventExpiry), walkSeq)), scenario)
+    }
+
+    /**
+     * 시연 회원의 산책 이벤트: 확률·추첨 없이 시작 후 설정 시간(30초)이 지난 첫 하트비트에서 배변 시나리오를 산책당 한 번만 만든다.
+     * 다른 산책 이벤트는 만들지 않는다.
+     */
+    private fun triggerDemoWalk(session: SimulationSession, walk: SimulationWalk, walkSeq: Long, at: OffsetDateTime): PendingEvent? {
+        val demo = properties.demo
+        if (occurrenceRepository.countByWalk(walkSeq) > 0) return null
+        if (Duration.between(walk.startedDttm, at) < demo.walkPoopAfter) return null
+        val scenario = checkNotNull(scenarioRepository.findByScenarioSeq(demo.walkPoopScenarioSeq)) {
+            "시연 배변 시나리오가 없습니다: scenarioSeq=${demo.walkPoopScenarioSeq}"
+        }
+        return PendingEvent(occurrenceRepository.save(EventOccurrence.occur(session, scenario, at, at.plus(properties.walk.eventExpiry), walkSeq)), scenario)
     }
 
     /**
