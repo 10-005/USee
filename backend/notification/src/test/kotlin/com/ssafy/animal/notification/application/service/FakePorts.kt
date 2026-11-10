@@ -7,8 +7,10 @@ import com.ssafy.animal.notification.application.port.out.FcmMessage
 import com.ssafy.animal.notification.application.port.out.FcmSender
 import com.ssafy.animal.notification.application.port.out.InvalidFcmTokenException
 import com.ssafy.animal.notification.application.port.out.NotificationRepository
+import com.ssafy.animal.notification.application.port.out.NotificationSettingRepository
 import com.ssafy.animal.notification.domain.DeviceToken
 import com.ssafy.animal.notification.domain.Notification
+import com.ssafy.animal.notification.domain.NotificationSetting
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
@@ -83,4 +85,14 @@ class RecordingFcmSender : FcmSender {
         if (message.token == expiredToken) throw InvalidFcmTokenException(message.token)
         sent += message
     }
+}
+
+class FakeNotificationSettingRepository : NotificationSettingRepository {
+    val rows = mutableMapOf<Int, NotificationSetting>()
+
+    override fun find(userSeq: Int) = rows[userSeq]
+
+    override fun findAll(userSeqs: Collection<Int>) = userSeqs.mapNotNull(rows::get)
+
+    override fun getOrCreateForUpdate(userSeq: Int) = rows.getOrPut(userSeq) { NotificationSetting(userSeq) }
 }
