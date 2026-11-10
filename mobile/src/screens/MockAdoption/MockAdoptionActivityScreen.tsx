@@ -84,6 +84,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     ? purchased('pads') || ownsServer('LITTER')
     : owns('litterBox') || ownsServer('LITTER_BOX');
   const showToy = synced ? synced.equipment.toy : hasToy;
+  const hasGroomingKit = owns('hygiene') || ownsServer('GROOMING_KIT');
   const [statsVisible, setStatsVisible] = useState(false);
   const [hospitalVisible, setHospitalVisible] = useState(false);
   const [closedVetSeq, setClosedVetSeq] = useState<number | null>(null);
@@ -597,8 +598,18 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                 accessibilityRole="button"
                 accessibilityLabel="목욕하기"
                 disabled={busy || leaving || !!care || treatActive}
-                onPress={startBath}
-                style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
+                onPress={() => {
+                  if (!hasGroomingKit) {
+                    showToast('위생 관리 키트가 필요해요!');
+                    return;
+                  }
+                  startBath();
+                }}
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  !hasGroomingKit && styles.dimmed,
+                  pressed && styles.pressed,
+                ]}
               >
                 <Image
                   source={require('../../assets/images/mock-adoption/img_shower.png')}
@@ -909,6 +920,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   actionButton: { width: 60, alignItems: 'center', gap: 4 },
+  dimmed: { opacity: 0.4 },
   actionImage: { width: 60, height: 60 },
   actionCaption: { ...typography.captionRegular10, color: colors.gray700, textAlign: 'center' },
   rightActions: { width: 60, alignItems: 'center', gap: 16 },

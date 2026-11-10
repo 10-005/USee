@@ -415,6 +415,8 @@ test('sends a bath without an item and a hospital visit only after the fee is pa
   jest.mocked(performCareAction).mockResolvedValue({} as never);
   const session = await startMockAdoption('dog-1', 50000, '초코', 3001);
   useShopStore.getState().open(session);
+  useShopStore.getState().setQuantity('hygiene', 1, 'dog');
+  useShopStore.getState().checkout('dog');
   const now = Date.now();
   await applyActiveSimulation({
     sessionSeq: 3001,
@@ -634,11 +636,40 @@ test.each([
   await AsyncStorage.clear();
 });
 
+test('dims bathing until a grooming kit is owned', async () => {
+  await AsyncStorage.clear();
+  jest.mocked(performCareAction).mockReset();
+  const session = await startMockAdoption('dog-1', 35000, '초코', 3001);
+  useShopStore.getState().open(session);
+  const props = {
+    navigation: { goBack: jest.fn() },
+    route: { key: 'bath', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  const bath = () => renderer.root.findAllByProps({ accessibilityLabel: '목욕하기' })[0];
+  expect(StyleSheet.flatten(bath().props.style({ pressed: false })).opacity).toBe(0.4);
+  await ReactTestRenderer.act(() => bath().props.onPress());
+  expect(
+    renderer.root.findAllByProps({ children: '위생 관리 키트가 필요해요!' }).length,
+  ).toBeGreaterThan(0);
+  expect(performCareAction).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => {
+    useShopStore.getState().setQuantity('hygiene', 1, 'dog');
+    useShopStore.getState().checkout('dog');
+  });
+  expect(StyleSheet.flatten(bath().props.style({ pressed: false })).opacity).toBeUndefined();
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
 test('bath fades out and back in for two seconds each while blocking input', async () => {
   await AsyncStorage.clear();
   const session = await startMockAdoption('dog-1', 35000);
   useShopStore.getState().open(session);
   useShopStore.getState().setQuantity('pads', 1, 'dog');
+  useShopStore.getState().setQuantity('hygiene', 1, 'dog');
   useShopStore.getState().checkout('dog');
   const timing = jest.spyOn(Animated, 'timing').mockImplementation((_value, config) => ({
     start: callback => {
