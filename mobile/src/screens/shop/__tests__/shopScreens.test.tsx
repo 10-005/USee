@@ -11,6 +11,7 @@ import { findProduct } from '../../../services/shop/catalog';
 import { ApiClientError } from '../../../services/api';
 import { purchaseSimulationItems } from '../../../services/simulation/purchase';
 import { getSimulationInventory } from '../../../services/simulation/inventory';
+import { loadTransactionsOnEntry } from '../../../services/simulation/transactions';
 import { StackRouter, StackActions } from '@react-navigation/routers';
 
 const mockShopSession: {
@@ -43,6 +44,28 @@ jest.mock('../../../services/simulation/purchase', () => {
     purchaseSimulationItems: jest.fn(),
   };
 });
+
+jest.mock('@react-navigation/native', () => ({
+  useFocusEffect: (effect: () => void | (() => void)) => {
+    require('react').useEffect(() => {
+      const cleanup = effect();
+      return typeof cleanup === 'function' ? cleanup : undefined;
+    }, [effect]);
+  },
+}));
+
+jest.mock('../../../services/simulation/transactions', () => ({
+  getTransactionErrorMessage: () => '지출 내역을 불러오지 못했어요. 다시 시도해주세요.',
+  invalidateSimulationTransactions: jest.fn(),
+  isSimulationTransactionsStale: jest.fn(() => false),
+  loadMoreSimulationTransactions: jest.fn(async () => ({
+    items: [],
+    page: 0,
+    hasNext: false,
+    totalElements: 0,
+  })),
+  loadTransactionsOnEntry: jest.fn(async () => null),
+}));
 jest.mock('react-native/Libraries/Alert/Alert', () => ({
   __esModule: true,
   default: { alert: jest.fn() },
@@ -67,6 +90,7 @@ beforeEach(() => {
   db.executeSync("DELETE FROM products WHERE origin = 'server'");
   delete mockShopSession.session;
   jest.clearAllMocks();
+  jest.mocked(loadTransactionsOnEntry).mockResolvedValue(null);
   useShopStore.setState({ sessionKey: '' });
   useShopStore
     .getState()
@@ -98,8 +122,8 @@ it('searches the list and opens details without quantity or add controls', () =>
   expect(screen.root.findAllByProps({ accessibilityLabel: '물그릇 장바구니 담기' })).toHaveLength(
     0,
   );
-  act(() => screen.root.findByProps({ accessibilityLabel: '보유 목록' }).props.onPress());
-  expect(navigate).toHaveBeenCalledWith('ShopInventory', { petId: 'dog-1' });
+  act(() => screen.root.findByProps({ accessibilityLabel: '장바구니 0개' }).props.onPress());
+  expect(navigate).toHaveBeenCalledWith('ShopCart', { petId: 'dog-1' });
   act(() => screen.unmount());
 });
 
@@ -243,8 +267,8 @@ it('shows the server inventory, balance and a used-up consumable', async () => {
     );
   });
   expect(getSimulationInventory).toHaveBeenCalledWith(3001);
+  expect(screen.root.findByProps({ accessibilityLabel: '남은 예산 110,000원' })).toBeDefined();
   expect(screen.root.findByProps({ children: '110,000원' })).toBeDefined();
-  expect(screen.root.findByProps({ children: '예상 예산 150,000원' })).toBeDefined();
   const detailButtons = (name: string) =>
     screen.root.findAll(
       node =>
@@ -290,6 +314,46 @@ it('shows paid items, remaining money and individual usage counters', () => {
   expect(
     screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 2번째 남은 수량 11끼' }),
   ).toBeDefined();
+  act(() => screen.unmount());
+});
+
+it('shows expenses loaded for the adoption session', async () => {
+  mockShopSession.session = { sessionSeq: 3001 };
+  jest.mocked(loadTransactionsOnEntry).mockResolvedValue({
+    items: [
+      {
+        transactionSeq: 70001,
+        transactionType: 'PURCHASE',
+        item: { itemSeq: 22, itemName: '균형 잡힌 사료', category: 'FOOD' },
+        occurrenceSeq: null,
+        quantity: 2,
+        amount: 21200,
+        balanceAfter: 128800,
+        description: '균형 잡힌 사료 × 2',
+        regDttm: '2026-11-01T15:10:00+09:00',
+      },
+    ],
+    page: 0,
+    hasNext: false,
+    totalElements: 1,
+  });
+  let screen!: renderer.ReactTestRenderer;
+  await act(async () => {
+    screen = renderer.create(
+      wrap(
+        <InventoryScreen
+          navigation={{ navigate: jest.fn(), goBack: jest.fn() } as never}
+          route={{ key: 'inventory', name: 'ShopInventory', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  expect(loadTransactionsOnEntry).toHaveBeenCalledWith(3001);
+  act(() => screen.root.findByProps({ accessibilityLabel: '지출 내역' }).props.onPress());
+  expect(screen.root.findByProps({ children: '균형 잡힌 사료 × 2' })).toBeDefined();
+  expect(screen.root.findByProps({ children: '사료 · 2개 구매' })).toBeDefined();
+  expect(screen.root.findByProps({ children: '-21,200원' })).toBeDefined();
+  expect(screen.root.findByProps({ children: '거래 후 잔액 128,800원' })).toBeDefined();
   act(() => screen.unmount());
 });
 

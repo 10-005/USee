@@ -158,6 +158,23 @@ test('system back waits for the model surface to disappear and ignores repeated 
   subscribe.mockRestore();
 });
 
+test('inventory icon opens the owned items screen', async () => {
+  const navigate = jest.fn();
+  const props = {
+    navigation: { navigate, goBack: jest.fn() },
+    route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'cat-2' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.root.findAllByProps({ accessibilityLabel: '내 물건' })[0].props.onPress();
+  });
+  expect(navigate).toHaveBeenCalledWith('ShopInventory', { petId: 'cat-2' });
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
 test('activity screen has one action connected to the existing AR walk', async () => {
   const navigate = jest.fn();
   const goBack = jest.fn();

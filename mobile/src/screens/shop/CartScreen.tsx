@@ -14,6 +14,7 @@ import {
   getPurchaseErrorMessage,
   purchaseSimulationItems,
 } from '../../services/simulation/purchase';
+import { invalidateSimulationTransactions } from '../../services/simulation/transactions';
 import { ApiClientError } from '../../services/api';
 import { useShopStore, cartTotal } from '../../stores/shopStore';
 import { useShopSession } from './useShopSession';
@@ -147,6 +148,7 @@ export function CartScreen({ navigation, route }: Props) {
           sessionSeq,
           lines.map(line => ({ itemSeq: line.itemSeq, quantity: line.quantity })),
         );
+        invalidateSimulationTransactions(sessionSeq);
         for (let index = 0; index < lines.length; index += 1) {
           const saved = useShopStore
             .getState()

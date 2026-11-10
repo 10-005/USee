@@ -56,10 +56,20 @@ it('orders hospital issues, persists payment and ignore, and prevents duplicate 
   expect(shop().hospitalEvents?.map(event => event.occurrenceSeq)).toEqual([1, 2]);
   expect(shop().resolveHospitalEvent(1, true)).toBe(true);
   expect(shop().budget - shop().spent).toBe(20000);
+  expect(shop().expenses).toEqual([
+    expect.objectContaining({
+      kind: 'event',
+      title: '동물병원 진료비',
+      detail: '진료 필요',
+      amount: 30000,
+      balanceAfter: 20000,
+    }),
+  ]);
   expect(shop().resolveHospitalEvent(1, true)).toBe(false);
   expect(shop().resolveHospitalEvent(2, false)).toBe(true);
   shop().open(session);
   expect(shop().spent).toBe(30000);
+  expect(shop().expenses).toHaveLength(1);
   expect(
     shop().hospitalEvents?.every(event => event.status === SimulationEventStatus.Resolved),
   ).toBe(true);
@@ -211,6 +221,15 @@ it('purchases selected items atomically, converts bundles and allows repeat dura
   expect(cartTotal(shop().cart, shop().selectedIds)).toBe(21200);
   expect(shop().checkout('dog')).toBeNull();
   expect(shop().spent).toBe(21200);
+  expect(shop().expenses).toEqual([
+    expect.objectContaining({
+      kind: 'purchase',
+      title: '균형 잡힌 사료 × 2',
+      detail: '식사 · 2개 구매',
+      amount: 21200,
+      balanceAfter: 28800,
+    }),
+  ]);
   expect(shop().inventory.food).toBe(24);
   expect(shop().cart).toEqual({ bowl: 1 });
   shop().selectAll(['bowl']);

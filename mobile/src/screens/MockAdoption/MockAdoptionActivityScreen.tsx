@@ -33,6 +33,7 @@ import {
   readCurrentActiveSimulation,
 } from '../../services/simulation/activeSession';
 import { invalidateSimulationReports } from '../../services/simulation/reports';
+import { invalidateSimulationTransactions } from '../../services/simulation/transactions';
 import {
   getSimulationStats,
   getSimulationStatsErrorMessage,
@@ -320,11 +321,15 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     if (!pendingEvent) {
       return;
     }
+    const activeAdoption = pay ? await getActiveMockAdoption() : null;
     if (pay) {
       const recorded = await recordCare(SimulationCareAction.VetVisit);
       if (recorded !== true) {
         Alert.alert('동물병원', recorded);
         return;
+      }
+      if (activeAdoption?.sessionSeq) {
+        invalidateSimulationTransactions(activeAdoption.sessionSeq);
       }
     }
     const paidOnServer = pay && Boolean((await getActiveMockAdoption())?.sessionSeq);
@@ -592,15 +597,34 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         pointerEvents={bathing || bathReturning ? 'none' : 'box-none'}
       >
         <View style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="뒤로가기"
-            disabled={leaving}
-            onPress={() => hideThenNavigate(() => navigation.goBack())}
-            style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-          >
-            <BackIcon width={24} height={24} />
-          </Pressable>
+          <View style={styles.headerTop}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="뒤로가기"
+              disabled={leaving}
+              onPress={() => hideThenNavigate(() => navigation.goBack())}
+              style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+            >
+              <BackIcon width={24} height={24} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="내 물건"
+              disabled={leaving}
+              onPress={() =>
+                hideThenNavigate(() =>
+                  navigation.navigate('ShopInventory', { petId: route.params.petId }),
+                )
+              }
+              style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+            >
+              <Image
+                source={require('../../assets/images/mock-adoption/img_inventory.png')}
+                resizeMode="contain"
+                style={styles.inventoryIcon}
+              />
+            </Pressable>
+          </View>
           <View style={styles.actionColumns}>
             <View style={styles.action}>
               {__DEV__ && pet ? (
@@ -973,6 +997,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  inventoryIcon: { width: 40, height: 40 },
   iconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   room: { flex: 1 },
   bowls: {
