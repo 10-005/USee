@@ -3,6 +3,12 @@ import type { AxiosInstance } from 'axios';
 import { simulationClient } from '../api/client';
 import { ApiClientError } from '../api/errors';
 import { readApiData } from '../api/response';
+import {
+  clearSimulationInventoryRows,
+  markSimulationInventoryRowStale,
+  readSimulationInventoryRow,
+  writeSimulationInventoryRow,
+} from '../shop/shopDatabase';
 import type { ShopItemCategory } from './shopItems';
 
 export type InventoryItem = {
@@ -216,4 +222,99 @@ export async function getSimulationInventory(
   }
   const response = await client.get(`/simulations/${sessionSeq}/inventory`);
   return readSimulationInventory(readApiData(response.data));
+}
+
+function parseStoredInventory(payload: string): SimulationInventory | null {
+  try {
+    const value = JSON.parse(payload) as Partial<SimulationInventory>;
+    if (
+      typeof value.balance !== 'number' ||
+      !Number.isInteger(value.balance) ||
+      typeof value.expectedCost !== 'number' ||
+      !Number.isInteger(value.expectedCost) ||
+      value.expectedCost < 0 ||
+      !Array.isArray(value.items) ||
+      !Array.isArray(value.equipment)
+    ) {
+      return null;
+    }
+    const items = value.items.map(item => readInventoryItem(item));
+    if (new Set(items.map(item => item.itemSeq)).size !== items.length) {
+      return null;
+    }
+    const equipment = value.equipment.map(entry => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        throw invalidInventory();
+      }
+      if (typeof entry.key !== 'string' || entry.key.length === 0) {
+        throw invalidInventory();
+      }
+      if (typeof entry.label !== 'string' || entry.label.length === 0) {
+        throw invalidInventory();
+      }
+      if (entry.itemSeq !== undefined && !isPositiveId(entry.itemSeq)) {
+        throw invalidInventory();
+      }
+      return {
+        key: entry.key,
+        label: entry.label,
+        ...(entry.itemSeq === undefined ? {} : { itemSeq: entry.itemSeq }),
+        ...('imageUrl' in entry ? { imageUrl: readImageUrl(entry.imageUrl) } : {}),
+      };
+    });
+    return {
+      balance: value.balance,
+      expectedCost: value.expectedCost,
+      equipment,
+      items,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readStoredInventory(
+  sessionSeq: number,
+): { inventory: SimulationInventory; stale: boolean } | null {
+  const row = readSimulationInventoryRow(sessionSeq);
+  if (!row) {
+    return null;
+  }
+  const inventory = parseStoredInventory(row.payload);
+  if (!inventory) {
+    return null;
+  }
+  return { inventory, stale: row.stale };
+}
+
+export function clearSimulationInventories(): void {
+  clearSimulationInventoryRows();
+}
+
+export function invalidateSimulationInventory(sessionSeq: number): void {
+  if (!isPositiveId(sessionSeq)) {
+    return;
+  }
+  markSimulationInventoryRowStale(sessionSeq);
+}
+
+export function isSimulationInventoryStale(sessionSeq: number): boolean {
+  const stored = readStoredInventory(sessionSeq);
+  return !stored || stored.stale;
+}
+
+export async function loadInventoryOnEntry(
+  sessionSeq: number,
+  client: SimulationClient = simulationClient,
+): Promise<SimulationInventory | null> {
+  const stored = readStoredInventory(sessionSeq);
+  if (stored && !stored.stale) {
+    return stored.inventory;
+  }
+  if (!isPositiveId(sessionSeq)) {
+    return null;
+  }
+  const inventory = await getSimulationInventory(sessionSeq, client);
+  writeSimulationInventoryRow(sessionSeq, JSON.stringify(inventory), false);
+  return inventory;
 }

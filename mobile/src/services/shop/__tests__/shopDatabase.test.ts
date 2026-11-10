@@ -72,6 +72,22 @@ it('restores selection, bundle quantities, budget and inventory', () => {
   };
   writeShopSnapshot(purchased);
   expect(readShopSnapshot(snapshot.sessionKey)).toEqual(purchased);
+  const withExpense = {
+    ...purchased,
+    expenses: [
+      {
+        id: 'expense-1',
+        kind: 'purchase' as const,
+        title: '균형 잡힌 사료 × 2',
+        detail: '식사 · 2개 구매',
+        amount: 21200,
+        balanceAfter: 28800,
+        occurredAt: 1_700_000_000_000,
+      },
+    ],
+  };
+  writeShopSnapshot(withExpense);
+  expect(readShopSnapshot(snapshot.sessionKey)).toEqual(withExpense);
 });
 
 it('rolls back budget, cart deletion and inventory together when any write fails', () => {

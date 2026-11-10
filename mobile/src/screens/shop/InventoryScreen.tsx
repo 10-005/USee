@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/navigation/types';
@@ -10,13 +11,21 @@ import { ApiClientError } from '../../services/api';
 import { products, money, type Product } from '../../services/shop/catalog';
 import {
   getInventoryErrorMessage,
-  getSimulationInventory,
+  loadInventoryOnEntry,
   type InventoryItem,
   type SimulationInventory,
 } from '../../services/simulation/inventory';
+import {
+  getTransactionErrorMessage,
+  isSimulationTransactionsStale,
+  loadMoreSimulationTransactions,
+  loadTransactionsOnEntry,
+  type SimulationTransactionList,
+} from '../../services/simulation/transactions';
 import { useShopStore } from '../../stores/shopStore';
 import { useShopSession } from './useShopSession';
-import { colors } from '../../theme';
+import { colors, typography } from '../../theme';
+import { ExpenseHistory } from './ExpenseHistory';
 
 const categoryLabel: Record<InventoryItem['category'], string> = {
   FOOD_BOWL: '식사',
@@ -63,15 +72,18 @@ export function InventoryScreen({ navigation, route }: Props) {
   const [remoteInventory, setRemoteInventory] = useState<SimulationInventory | null>(null);
   const [remoteError, setRemoteError] = useState<string>();
   const [attempt, setAttempt] = useState(0);
+  const [tab, setTab] = useState<'items' | 'expenses'>('items');
+  const [expenseList, setExpenseList] = useState<SimulationTransactionList | null>(null);
+  const [expenseLoading, setExpenseLoading] = useState(false);
+  const [expenseError, setExpenseError] = useState<string>();
   const purchased = products.filter(p => shop.ownedItems.some(item => item.productId === p.id));
   useEffect(() => {
     if (status !== 'ready' || !session?.sessionSeq) {
       return undefined;
     }
     let active = true;
-    setRemoteInventory(null);
     setRemoteError(undefined);
-    getSimulationInventory(session.sessionSeq)
+    loadInventoryOnEntry(session.sessionSeq)
       .then(inventory => {
         if (active) {
           setRemoteInventory(inventory);
@@ -90,13 +102,136 @@ export function InventoryScreen({ navigation, route }: Props) {
       active = false;
     };
   }, [attempt, session?.sessionSeq, status]);
+  const reloadExpenses = useCallback(async () => {
+    const sessionSeq = session?.sessionSeq;
+    if (!sessionSeq) {
+      return;
+    }
+    setExpenseLoading(true);
+    setExpenseError(undefined);
+    try {
+      setExpenseList(await loadTransactionsOnEntry(sessionSeq));
+    } catch (error) {
+      setExpenseError(getTransactionErrorMessage(error));
+    } finally {
+      setExpenseLoading(false);
+    }
+  }, [session?.sessionSeq]);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const sessionSeq = session?.sessionSeq;
+      if (!sessionSeq) {
+        return undefined;
+      }
+      if (isSimulationTransactionsStale(sessionSeq)) {
+        setExpenseLoading(true);
+        setExpenseError(undefined);
+      }
+      loadTransactionsOnEntry(sessionSeq)
+        .then(list => {
+          if (active) {
+            setExpenseList(list);
+          }
+        })
+        .catch(error => {
+          if (active) {
+            setExpenseError(getTransactionErrorMessage(error));
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setExpenseLoading(false);
+          }
+        });
+      return () => {
+        active = false;
+      };
+    }, [session?.sessionSeq]),
+  );
+  const loadMoreExpenses = async () => {
+    const sessionSeq = session?.sessionSeq;
+    if (!sessionSeq || expenseLoading) {
+      return;
+    }
+    setExpenseLoading(true);
+    setExpenseError(undefined);
+    try {
+      setExpenseList(await loadMoreSimulationTransactions(sessionSeq));
+    } catch (error) {
+      setExpenseError(getTransactionErrorMessage(error));
+    } finally {
+      setExpenseLoading(false);
+    }
+  };
   const reloadRemote = () => setAttempt(current => current + 1);
+  const balance = remoteInventory ? remoteInventory.balance : shop.budget - shop.spent;
+  const itemsLoading =
+    status === 'loading' || (!!session?.sessionSeq && !remoteInventory && !remoteError);
+  const itemsError = status === 'error' || !!remoteError;
   return (
     <SafeAreaView style={s.screen}>
-      <AppHeader title="보유 목록" onBackPress={() => navigation.goBack()} />
-      {status === 'loading' || (session?.sessionSeq && !remoteInventory && !remoteError) ? (
+      <AppHeader
+        title="내 물건"
+        onBackPress={() => navigation.goBack()}
+        rightActionWidth={136}
+        rightAction={
+          <View accessible accessibilityLabel={`남은 예산 ${money(balance)}`} style={styles.budget}>
+            <Image
+              source={require('../../assets/images/shop/img_money.png')}
+              resizeMode="contain"
+              style={styles.moneyIcon}
+            />
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+              numberOfLines={1}
+              style={[styles.budgetText, balance < 0 && styles.negativeBudget]}
+            >
+              {money(balance)}
+            </Text>
+          </View>
+        }
+      />
+      <View style={styles.tabs}>
+        {(
+          [
+            { key: 'items', label: '보유 아이템' },
+            { key: 'expenses', label: '지출 내역' },
+          ] as const
+        ).map(item => {
+          const selected = tab === item.key;
+          return (
+            <Pressable
+              key={item.key}
+              accessibilityRole="tab"
+              accessibilityLabel={item.label}
+              accessibilityState={{ selected }}
+              onPress={() => setTab(item.key)}
+              style={[styles.tab, selected && styles.tabSelected]}
+            >
+              <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>
+                {item.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {tab === 'expenses' ? (
+        <ExpenseHistory
+          balance={balance}
+          error={expenseError}
+          hasNext={expenseList?.hasNext ?? false}
+          loaded={expenseList !== null}
+          loading={expenseLoading}
+          totalElements={expenseList?.totalElements ?? 0}
+          transactions={expenseList?.items ?? []}
+          onLoadMore={loadMoreExpenses}
+          onRetry={reloadExpenses}
+        />
+      ) : itemsLoading ? (
         <InventorySkeleton />
-      ) : status === 'error' || remoteError ? (
+      ) : itemsError ? (
         <View style={s.empty}>
           <Text style={s.body}>{remoteError ?? '보유 물품을 불러오지 못했어요.'}</Text>
           <Button onPress={session?.sessionSeq ? reloadRemote : retry}>다시 시도</Button>
@@ -105,13 +240,6 @@ export function InventoryScreen({ navigation, route }: Props) {
         <ServerInventory petId={petId} inventory={remoteInventory} navigation={navigation} />
       ) : (
         <ScrollView contentContainerStyle={s.content}>
-          <View style={s.banner}>
-            <View style={s.between}>
-              <Text style={s.label}>남은 금액</Text>
-              <Text style={s.green}>{money(shop.budget - shop.spent)}</Text>
-            </View>
-            <Text style={s.body}>{`구매 금액 ${money(shop.spent)}`}</Text>
-          </View>
           {!purchased.length ? (
             <View style={s.empty}>
               <Text style={s.label}>아직 구매한 물건이 없어요</Text>
@@ -193,13 +321,6 @@ function ServerInventory({
   }));
   return (
     <ScrollView contentContainerStyle={s.content}>
-      <View style={s.banner}>
-        <View style={s.between}>
-          <Text style={s.label}>남은 금액</Text>
-          <Text style={s.green}>{money(inventory.balance)}</Text>
-        </View>
-        <Text style={s.body}>{`예상 예산 ${money(inventory.expectedCost)}`}</Text>
-      </View>
       {!rows.length ? (
         <View style={s.empty}>
           <Text style={s.label}>아직 구매한 물건이 없어요</Text>
@@ -257,6 +378,38 @@ function InventorySkeleton() {
 }
 
 const styles = StyleSheet.create({
+  budget: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+  },
+  moneyIcon: { width: 26, height: 26 },
+  budgetText: {
+    ...typography.bodySemiBold16,
+    fontSize: 14,
+    lineHeight: 18,
+    color: colors.black,
+    flexShrink: 1,
+  },
+  negativeBudget: { color: colors.danger },
+  tabs: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray200,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.transparent,
+  },
+  tabSelected: { borderBottomColor: colors.green400 },
+  tabLabel: { ...typography.bodySemiBold16, color: colors.gray400 },
+  tabLabelSelected: { color: colors.green400 },
   card: { borderWidth: 1, borderColor: colors.gray200, borderRadius: 12, padding: 14, gap: 12 },
   image: { width: 64 },
   packs: { borderTopWidth: 1, borderColor: colors.gray200, paddingTop: 12, gap: 8 },
