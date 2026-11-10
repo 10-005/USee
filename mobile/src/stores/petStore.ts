@@ -1,14 +1,26 @@
 import type { ImageSourcePropType } from 'react-native';
 import { create } from 'zustand';
 
+import { getApiErrorDisplayMessage } from '../services/api';
+import {
+  deleteMyPet,
+  getMyPet,
+  getMyPets,
+  type PetDetail,
+  type PetGender,
+  type PetListItem,
+} from '../services/pets';
+
 export type Pet = {
   age: number | null;
   breed: string;
   color: string;
+  combinationSeq?: number;
   description: string;
   gender: '암컷' | '수컷' | '모름';
   id: string;
   image: ImageSourcePropType;
+  imageSeqs?: number[];
   images: ImageSourcePropType[];
   microchipNumber: string;
   name: string;
@@ -17,60 +29,98 @@ export type Pet = {
   weight: number | null;
 };
 
-const initialPets: Pet[] = [
-  {
-    age: 8,
-    breed: '말티즈',
-    color: '흰색',
-    description: '꼬리 끝이 뭉툭함',
-    gender: '수컷',
-    id: 'mongsil',
-    image: require('../assets/images/mypage/pets/mongsil.jpg'),
-    images: [
-      require('../assets/images/mypage/pets/mongsil.jpg'),
-      require('../assets/images/mypage/pets/mongsil.jpg'),
-      require('../assets/images/mypage/pets/mongsil.jpg'),
-    ],
-    microchipNumber: '1234567890000',
-    name: '몽실이',
-    neutered: true,
-    species: '강아지',
-    weight: 5,
-  },
-  {
-    age: 13,
-    breed: '푸들',
-    color: '갈색',
-    description: '사람을 좋아하고 온순함',
-    gender: '암컷',
-    id: 'bori',
-    image: require('../assets/images/mypage/pets/bori.jpg'),
-    images: [
-      require('../assets/images/mypage/pets/bori.jpg'),
-      require('../assets/images/mypage/pets/bori.jpg'),
-      require('../assets/images/mypage/pets/bori.jpg'),
-    ],
-    microchipNumber: '9876543210000',
-    name: '보리',
-    neutered: false,
-    species: '강아지',
-    weight: 4,
-  },
-];
-
 type PetState = {
-  addPet: (pet: Pet) => void;
-  deletePet: (petId: string) => void;
+  deletePet: (petId: string) => Promise<void>;
+  error: string | null;
+  fetchPet: (petId: string) => Promise<Pet | null>;
+  fetchPets: () => Promise<void>;
+  isDetailLoading: boolean;
+  isLoading: boolean;
   pets: Pet[];
   resetPets: () => void;
-  updatePet: (pet: Pet) => void;
+  upsertPet: (pet: Pet) => void;
 };
 
-export const usePetStore = create<PetState>(set => ({
-  addPet: pet => set(state => ({ pets: [...state.pets, pet] })),
-  deletePet: petId => set(state => ({ pets: state.pets.filter(pet => pet.id !== petId) })),
-  pets: initialPets,
-  resetPets: () => set({ pets: initialPets }),
-  updatePet: pet =>
-    set(state => ({ pets: state.pets.map(item => (item.id === pet.id ? pet : item)) })),
+const genderLabel = (gender: PetGender): Pet['gender'] =>
+  gender === 'MALE' ? '수컷' : gender === 'FEMALE' ? '암컷' : '모름';
+
+const numericValue = (value: string | null | undefined): number | null => {
+  if (!value) {
+    return null;
+  }
+  const parsed = Number.parseFloat(value.replace(/[^0-9.]/g, ''));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const imageSource = (url: string): ImageSourcePropType => ({ uri: url });
+
+export const mapPetListItem = (pet: PetListItem): Pet => ({
+  age: null,
+  breed: pet.classification.breedName,
+  color: pet.classification.colorName,
+  combinationSeq: pet.classification.combinationSeq,
+  description: '',
+  gender: genderLabel(pet.gender),
+  id: String(pet.petSeq),
+  image: imageSource(pet.representativeImageUrl),
+  imageSeqs: [],
+  images: [imageSource(pet.representativeImageUrl)],
+  microchipNumber: '',
+  name: pet.name,
+  neutered: null,
+  species: pet.classification.speciesName,
+  weight: null,
+});
+
+export const mapPetDetail = (pet: PetDetail): Pet => ({
+  ...mapPetListItem(pet),
+  age: numericValue(pet.age),
+  description: pet.description ?? '',
+  imageSeqs: pet.images.map(image => image.imageSeq),
+  images: pet.images.map(image => imageSource(image.imageUrl)),
+  microchipNumber: pet.microchipNumber ?? '',
+  neutered: pet.isNeutered,
+  weight: numericValue(pet.weight),
+});
+
+export const usePetStore = create<PetState>((set, get) => ({
+  deletePet: async petId => {
+    await deleteMyPet(Number(petId));
+    set(state => ({ pets: state.pets.filter(pet => pet.id !== petId) }));
+  },
+  error: null,
+  fetchPet: async petId => {
+    set({ error: null, isDetailLoading: true });
+    try {
+      const pet = mapPetDetail(await getMyPet(Number(petId)));
+      get().upsertPet(pet);
+      return pet;
+    } catch (error) {
+      set({ error: getApiErrorDisplayMessage(error, '반려동물 정보를 불러오지 못했어요.') });
+      return null;
+    } finally {
+      set({ isDetailLoading: false });
+    }
+  },
+  fetchPets: async () => {
+    set({ error: null, isLoading: true });
+    try {
+      const page = await getMyPets();
+      set({ pets: page.content.map(mapPetListItem) });
+    } catch (error) {
+      set({ error: getApiErrorDisplayMessage(error, '반려동물 목록을 불러오지 못했어요.') });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+  isDetailLoading: false,
+  isLoading: false,
+  pets: [],
+  resetPets: () => set({ error: null, isDetailLoading: false, isLoading: false, pets: [] }),
+  upsertPet: pet =>
+    set(state => ({
+      pets: state.pets.some(item => item.id === pet.id)
+        ? state.pets.map(item => (item.id === pet.id ? pet : item))
+        : [pet, ...state.pets],
+    })),
 }));

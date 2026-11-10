@@ -1,5 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,6 +17,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'LostReportPetSelection'
 export function LostReportPetSelectionScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const pets = usePetStore(state => state.pets);
+  const fetchPets = usePetStore(state => state.fetchPets);
   const entryMode = useLostReportDraftStore(state => state.entryMode);
   const selectedPetId = useLostReportDraftStore(state => state.selectedPetId);
   const selectManual = useLostReportDraftStore(state => state.selectManual);
@@ -28,6 +30,12 @@ export function LostReportPetSelectionScreen({ navigation }: Props) {
   useEffect(() => {
     resetSelection();
   }, [resetSelection]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPets().catch(() => undefined);
+    }, [fetchPets]),
+  );
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
