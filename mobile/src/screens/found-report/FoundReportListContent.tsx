@@ -27,12 +27,14 @@ import { colors, radius, typography } from '../../theme';
 import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
 import { useLostReportEditStore } from '../../stores/lostReportEditStore';
 import { useMissingReportStore } from '../../stores/missingReportStore';
+import { useCatalogStore } from '../../stores/catalogStore';
 import { useReportStatusStore } from '../../stores/reportStatusStore';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import {
   AdoptionFilterSheet,
   type AdoptionFilters,
   type FilterKey,
+  type TwoColumnFilterOptions,
 } from '../Home/AdoptionFilterSheet';
 import { foundReports, type FoundReport } from './data';
 import type { LostReport } from '../lost-report/data';
@@ -99,8 +101,10 @@ export const filterReports = <T extends Report>(
       (region === '전체' || report.location.startsWith(region.replace(/(특별시|광역시)$/, '시'))) &&
       (filters.species === '전체' || report.species === filters.species.split(' > ')[0]) &&
       (filters.status === '전체' || report.status === filters.status) &&
-      (filters.gender === '전체' || report.gender === filters.gender) &&
-      (filters.neutered === '전체' || report.neutered === (filters.neutered === '중성화 O'))
+      (filters.gender === '전체' || report.gender === filters.gender || report.gender === '모름') &&
+      (filters.neutered === '전체' ||
+        report.neutered === null ||
+        report.neutered === (filters.neutered === '중성화 O'))
     );
   });
   return [...filtered].sort((a, b) =>
@@ -138,12 +142,81 @@ export function FoundReportListContent({
   const fetchLostReports = useMissingReportStore(state => state.fetchReports);
   const lostReportsLoading = useMissingReportStore(state => state.isLoading);
   const lostReportsError = useMissingReportStore(state => state.error);
+  const districts = useCatalogStore(state => state.districts);
+  const speciesCatalog = useCatalogStore(state => state.species);
+  const breedsBySpecies = useCatalogStore(state => state.breedsBySpecies);
+  const loadDistricts = useCatalogStore(state => state.loadDistricts);
+  const loadSpecies = useCatalogStore(state => state.loadSpecies);
+  const loadBreeds = useCatalogStore(state => state.loadBreeds);
 
   useEffect(() => {
     if (activeTab === 'lost') {
-      fetchLostReports().catch(() => undefined);
+      loadDistricts().catch(() => undefined);
+      loadSpecies().catch(() => undefined);
     }
-  }, [activeTab, fetchLostReports]);
+  }, [activeTab, loadDistricts, loadSpecies]);
+
+  useEffect(() => {
+    if (activeTab === 'lost' && speciesCatalog.length > 0) {
+      Promise.all(speciesCatalog.map(item => loadBreeds(item.speciesSeq))).catch(() => undefined);
+    }
+  }, [activeTab, loadBreeds, speciesCatalog]);
+
+  const regionOptions = useMemo<TwoColumnFilterOptions>(() => {
+    const grouped: TwoColumnFilterOptions = { 전체: [] };
+    districts.forEach(district => {
+      grouped[district.sidoName] ??= ['전체'];
+      if (!grouped[district.sidoName].includes(district.sigunguName)) {
+        grouped[district.sidoName].push(district.sigunguName);
+      }
+    });
+    return grouped;
+  }, [districts]);
+
+  const speciesOptions = useMemo<TwoColumnFilterOptions>(() => {
+    const options: TwoColumnFilterOptions = { 전체: [] };
+    speciesCatalog.forEach(item => {
+      options[item.speciesName] = [
+        '전체',
+        ...(breedsBySpecies[item.speciesSeq] ?? []).map(breed => breed.breedName),
+      ];
+    });
+    return options;
+  }, [breedsBySpecies, speciesCatalog]);
+
+  const missingSearchParams = useMemo(() => {
+    const [periodStart = '전체', periodEnd = ''] = filters.period.split('|');
+    const [sidoName, sigunguName] = filters.region.split(' > ');
+    const speciesName = filters.species.split(' > ')[0];
+    const district = sigunguName
+      ? districts.find(item => item.sidoName === sidoName && item.sigunguName === sigunguName)
+      : undefined;
+    const selectedSpecies = speciesCatalog.find(item => item.speciesName === speciesName);
+    return {
+      districtCode: district?.districtCode,
+      keyword: query.trim() || undefined,
+      occurredFrom: periodStart === '전체' ? undefined : periodStart.replaceAll('.', '-'),
+      occurredTo: periodEnd ? periodEnd.replaceAll('.', '-') : undefined,
+      sort: filters.sort === '오래된 순' ? 'regDttm,asc' : 'regDttm,desc',
+      speciesSeq: selectedSpecies?.speciesSeq,
+      status:
+        filters.status === '실종'
+          ? ('ACTIVE' as const)
+          : filters.status === '종료'
+          ? ('CLOSED' as const)
+          : undefined,
+    };
+  }, [districts, filters, query, speciesCatalog]);
+
+  useEffect(() => {
+    if (activeTab !== 'lost') {
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetchLostReports(missingSearchParams).catch(() => undefined);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [activeTab, fetchLostReports, missingSearchParams]);
 
   const reports = useMemo(() => {
     const source = (activeTab === 'found' ? foundReports : apiLostReports)
@@ -172,7 +245,27 @@ export function FoundReportListContent({
               : '종료',
         } as Report;
       });
-    return filterReports(source, query, filters);
+    if (activeTab === 'found') {
+      return filterReports(source, query, filters);
+    }
+    const [selectedSido, selectedSigungu] = filters.region.split(' > ');
+    const selectedBreed = filters.species.split(' > ')[1];
+    return source.filter(report => {
+      const matchesSido =
+        selectedSido === '전체' ||
+        Boolean(selectedSigungu) ||
+        report.location.startsWith(selectedSido) ||
+        report.location.startsWith(selectedSido.replace(/(특별시|광역시)$/, '시'));
+      const matchesBreed =
+        !selectedBreed || selectedBreed === '전체' || report.name === selectedBreed;
+      const matchesGender =
+        filters.gender === '전체' || report.gender === filters.gender || report.gender === '모름';
+      const matchesNeutered =
+        filters.neutered === '전체' ||
+        report.neutered === null ||
+        report.neutered === (filters.neutered === '중성화 O');
+      return matchesSido && matchesBreed && matchesGender && matchesNeutered;
+    });
   }, [
     activeTab,
     apiLostReports,
@@ -494,6 +587,8 @@ export function FoundReportListContent({
         filters={filters}
         onChange={(key, value) => setFilters(current => ({ ...current, [key]: value }))}
         onClose={() => setActiveFilter(null)}
+        regionOptions={activeTab === 'lost' ? regionOptions : undefined}
+        speciesOptions={activeTab === 'lost' ? speciesOptions : undefined}
         statusOptions={
           activeTab === 'found' ? ['전체', '진행 중', '완료'] : ['전체', '실종', '종료']
         }

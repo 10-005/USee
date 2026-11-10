@@ -61,6 +61,7 @@ export type MissingReportSearchParams = {
   occurredTo?: string;
   page?: number;
   size?: number;
+  sort?: string;
   speciesSeq?: number;
   status?: MissingReportStatus;
 };

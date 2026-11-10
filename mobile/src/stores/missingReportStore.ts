@@ -47,7 +47,7 @@ export const mapMissingSummary = (report: MissingReportSummary, isMine: boolean)
   isMine,
   location: report.address,
   name: report.classification?.breedName ?? '실종 동물',
-  neutered: report.isNeutered === true,
+  neutered: report.isNeutered,
   species: speciesLabel(report.classification?.speciesCode),
   status: report.status === 'ACTIVE' ? '실종' : '종료',
   weight: report.weight ?? '모름',

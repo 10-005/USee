@@ -297,7 +297,9 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
         <View style={styles.section}>
           <InfoRow
             label="성별"
-            value={`${report.gender} (중성화 ${report.neutered ? 'O' : 'X'})`}
+            value={`${report.gender} (중성화 ${
+              report.neutered === null ? '모름' : report.neutered ? 'O' : 'X'
+            })`}
           />
           <InfoRow label="나이" value={report.age} />
           <InfoRow label="몸무게" value={report.weight} />
