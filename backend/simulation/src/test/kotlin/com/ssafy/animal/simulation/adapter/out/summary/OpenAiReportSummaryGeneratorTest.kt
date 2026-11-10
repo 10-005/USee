@@ -31,6 +31,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class OpenAiReportSummaryGeneratorTest {
 
@@ -65,12 +66,12 @@ class OpenAiReportSummaryGeneratorTest {
             .andExpect(content().string(not(containsString("userSeq"))))
             .andRespond(
                 withSuccess(
-                    """{"choices":[{"index":0,"message":{"role":"assistant","content":"{\"overall\":\"3일째에 초코의 돌봄을 그만뒀어요.\",\"good\":\" 1일차에 물그릇 상황을 30분 만에 해결했어요. \",\"lacking\":\"2일차에 물을 주지 않았어요.\"}"},"finish_reason":"stop"}]}""",
+                    """{"choices":[{"index":0,"message":{"role":"assistant","content":"{\"overall\":\"3일째에 초코의 돌봄을 그만뒀어요.\",\"good\":\" 1일차에 물그릇 상황을 30분 만에 해결했어요. 예상보다 118,800원 덜 썼어요. \",\"lacking\":\"2일차에 물을 주지 않았어요.\"}"},"finish_reason":"stop"}]}""",
                     MediaType.APPLICATION_JSON,
                 ),
             )
 
-        assertEquals("3일째에 초코의 돌봄을 그만뒀어요.\n\n1일차에 물그릇 상황을 30분 만에 해결했어요.\n\n2일차에 물을 주지 않았어요.", generator.generate(input()))
+        assertEquals("3일째에 초코의 돌봄을 그만뒀어요.\n\n1일차에 물그릇 상황을 30분 만에 해결했어요. 예상보다 118,800원 덜 썼어요.\n\n2일차에 물을 주지 않았어요.", generator.generate(input()))
         server.verify()
     }
 
@@ -97,6 +98,33 @@ class OpenAiReportSummaryGeneratorTest {
             "3일째에 초코의 돌봄을 그만뒀어요.\n\n예상보다 118,800원 덜 썼어요.\n\n1·2일차에 밥이 부족했어요. 밥을 하루 3회 챙겨 보세요.",
             generator.generate(input()),
         )
+    }
+
+    @Test
+    fun `예산 줄을 보냈는데 요약에 그 금액이 없으면 예외이고 지출이 없으면 검사하지 않는다`() {
+        respond("""{"overall":"3일째에 초코의 돌봄을 그만뒀어요.","good":"1일차에 물그릇 상황을 30분 만에 해결했어요.","lacking":"1·2일차에 밥이 부족했어요. 밥을 하루 3회 챙겨 보세요."}""")
+        val missing = assertFailsWith<IllegalStateException> { generator.generate(input()) }
+        assertEquals("요약에 예산 금액이 없습니다: 118,800", missing.message)
+
+        // 지출 0원이면 예산 줄이 없어 같은 응답이 통과한다
+        server.reset()
+        respond("""{"overall":"3일째에 초코의 돌봄을 그만뒀어요.","good":"1일차에 물그릇 상황을 30분 만에 해결했어요.","lacking":"1·2일차에 밥이 부족했어요. 밥을 하루 3회 챙겨 보세요."}""")
+        val noSpend = input().let { it.copy(totalSpent = 0, spentByCategory = it.spentByCategory.mapValues { 0 }) }
+        generator.generate(noSpend)
+    }
+
+    @Test
+    fun `예산 금액은 더 씀·덜 씀이면 차액, 맞춰 씀이면 예상 비용이다`() {
+        assertEquals("15,300", OpenAiReportSummaryGenerator.budgetAmount(listOf("3일차: 물 0회", "예상 비용보다 15,300원 더 씀, 가장 많이 쓴 분류는 병원 진료비(30,000원)")))
+        assertEquals("50,000", OpenAiReportSummaryGenerator.budgetAmount(listOf("예상 비용 150,000원보다 50,000원 덜 씀")))
+        assertEquals("120,000", OpenAiReportSummaryGenerator.budgetAmount(listOf("예상 비용 120,000원에 맞춰 씀")))
+        assertEquals(null, OpenAiReportSummaryGenerator.budgetAmount(listOf("밥은 하루 3회가 권장")))
+    }
+
+    @Test
+    fun `프롬프트에 예산 문장을 반드시 쓰라는 규칙이 있다`() {
+        assertTrue("\"예상 비용\"으로 시작하는 줄이 있으면, 그 줄은 고르는 개수와 별도로 반드시 한 문장으로 씁니다" in OpenAiReportSummaryGenerator.SYSTEM_PROMPT)
+        assertTrue("예상 비용보다 8,000원을 더 썼고" in OpenAiReportSummaryGenerator.SYSTEM_PROMPT)
     }
 
     @Test

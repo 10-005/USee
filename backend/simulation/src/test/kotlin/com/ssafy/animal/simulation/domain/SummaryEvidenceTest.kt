@@ -155,6 +155,39 @@ class SummaryEvidenceTest {
     }
 
     @Test
+    fun `예산 초과 줄은 6개 상한에서 잘리지 않고 아쉬운 점 맨 뒤에 남는다`() {
+        val care = CareFixtures.care(start, evaluatedDays = 7) // 0회 후보만 7줄
+
+        val lacking = evidence(care, expectedCost = 50_000, spent = mapOf("FOOD" to 60_000)).lacking
+
+        assertEquals(SummaryEvidence.LIMIT, lacking.size)
+        assertTrue(lacking.dropLast(1).last().startsWith("5일차: "))
+        assertEquals("예상 비용보다 10,000원 더 씀, 가장 많이 쓴 분류는 사료(60,000원)", lacking.last())
+    }
+
+    @Test
+    fun `예산 안 지출 줄도 잘한 점 6개 상한에서 잘리지 않는다`() {
+        val events = (0..2).map { CareEventRecord("물그릇을 엎었어요", ActionCode.WATER, OccurrenceStatus.RESOLVED, start.plusDays(it.toLong()).plusHours(2), start.plusDays(it.toLong()).plusHours(2).plusMinutes(10)) }
+        val care = CareFixtures.care(start, evaluatedDays = 3, logs = logs(full, full, full), events = events) // 해결 3 + 매일 채움 5
+
+        val good = evidence(care).good
+
+        assertEquals(SummaryEvidence.LIMIT, good.size)
+        assertEquals("예상 비용 150,000원보다 50,000원 덜 씀", good.last())
+        assertEquals(listOf("예상 비용 100,000원에 맞춰 씀"), evidence(care, expectedCost = 100_000).good.takeLast(1))
+    }
+
+    @Test
+    fun `지출이 0원이면 예산 줄이 없다`() {
+        val care = CareFixtures.care(start, evaluatedDays = 7)
+
+        val evidence = evidence(care, expectedCost = 100_000, spent = emptyMap())
+
+        assertFalse((evidence.good + evidence.lacking).any { it.startsWith("예상 비용") })
+        assertEquals(SummaryEvidence.LIMIT, evidence.lacking.size)
+    }
+
+    @Test
     fun `고양이 세션은 산책 후보가 없다`() {
         val care = CareFixtures.care(start, species = SpeciesType.CAT, evaluatedDays = 2)
 
