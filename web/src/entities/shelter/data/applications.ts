@@ -11,7 +11,7 @@ export const statusCodes = {
   거절: 'REJECTED',
 } as const;
 type Status = (typeof statusCodes)[AdoptionStatus];
-const labels: Record<Status, AdoptionStatus> = {
+export const adoptionStatusLabels: Record<Status, AdoptionStatus> = {
   SUBMITTED: '심사 대기',
   APPROVED: '서류 승인',
   ADOPTED: '최종 승인',
@@ -53,7 +53,7 @@ function record(row: Application, applicant: string | null): Adoption {
   const a = row.animalSummary;
   return {
     id: String(row.applicationSeq),
-    status: labels[row.status],
+    status: adoptionStatusLabels[row.status],
     date: row.submittedDttm?.slice(0, 10) || '미등록',
     applicant: applicant || '미등록',
     animalId: a ? String(a.animalSeq) : '',
@@ -131,33 +131,6 @@ export function countOptions(animal: string | null) {
           (animal ? '?animalSeq=' + encodeURIComponent(animal) : ''),
         signal,
       ),
-  });
-}
-export function applicantApplicationsOptions(userSeq: number) {
-  return queryOptions({
-    queryKey: ['adoptions', 'by-applicant', userSeq],
-    queryFn: async ({ client, signal }) => {
-      const matches = new Map<string, Adoption>();
-      for (let page = 0; ; page++) {
-        const result = await read<PageData<Item>>(
-          base + '/received?sort=submittedDttm,desc&size=24&page=' + page,
-          signal,
-        );
-        for (let start = 0; start < result.content.length; start += 4) {
-          signal.throwIfAborted();
-          const batch = result.content.slice(start, start + 4);
-          const details = await Promise.all(
-            batch.map((item) => client.fetchQuery(detailOptions(String(item.applicationSeq)))),
-          );
-          for (const detail of details) {
-            if (detail.userSeq === userSeq) matches.set(detail.record.id, detail.record);
-          }
-        }
-        if (!result.content.length || page + 1 >= result.totalPages || result.hasNext === false)
-          break;
-      }
-      return [...matches.values()];
-    },
   });
 }
 export function detailOptions(id: string) {

@@ -12,6 +12,25 @@ export type Room = {
   lastMessageDttm: string | null;
   unreadCount: number;
 };
+type CounterpartProfile = {
+  nickname: string;
+  realName: string | null;
+  profileImage: Room['counterpart']['profileImage'];
+  applications: {
+    applicationSeq: number;
+    speciesName: string;
+    breedName: string;
+    status: keyof typeof import('@/entities/shelter/data/applications').adoptionStatusLabels;
+    submittedDttm: string | null;
+  }[];
+};
+export function counterpartOptions(roomId: number) {
+  return queryOptions({
+    queryKey: ['chat', 'counterpart', roomId],
+    queryFn: ({ signal }) =>
+      chatRequest<CounterpartProfile>('/rooms/' + roomId + '/counterpart', { signal }),
+  });
+}
 export type Message = {
   chatRoomSeq: number;
   chatMessageSeq: number;

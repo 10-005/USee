@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { ChatSidebar, type ChatSummary } from '@/shared/ui/ChatSidebar';
 import { ChatRoomView } from '@/shared/ui/ChatRoom';
-import { applicantApplicationsOptions } from '@/entities/shelter/data/applications';
+import { animalLabel } from '@/entities/shelter/animal-label';
+import { adoptionStatusLabels } from '@/entities/shelter/data/applications';
 import {
   chatRequest,
+  counterpartOptions,
   historyOptions,
   roomsOptions,
   timeLabel,
@@ -19,28 +21,58 @@ import avatar from '@/shared/assets/figma/chat-avatar.png';
 import { createImageUploader } from '@/shared/api/image-upload';
 import { refreshChatToken, shelterRequest } from '@/shared/api/session';
 
-function ApplicantLinks({ userSeq, onClose }: { userSeq: number; onClose: () => void }) {
-  const query = useQuery(applicantApplicationsOptions(userSeq));
+function CounterpartCard({
+  roomId,
+  onClose,
+  identity,
+}: {
+  roomId: number;
+  onClose: () => void;
+  identity: (displayName?: string, avatarSrc?: string) => ReactNode;
+}) {
+  const query = useQuery(counterpartOptions(roomId));
   if (query.isError)
     return (
-      <button type="button" onClick={() => void query.refetch()}>
-        입양 신청서 다시 불러오기
-      </button>
+      <>
+        {identity()}
+        <button type="button" onClick={() => void query.refetch()}>
+          상대방 정보 다시 불러오기
+        </button>
+      </>
     );
-  if (query.isPending) return <p role="status">입양 신청서를 확인하고 있어요.</p>;
-  if (!query.data.length) return null;
+  if (query.isPending)
+    return (
+      <>
+        {identity()}
+        <p role="status">상대방 정보를 불러오고 있어요.</p>
+      </>
+    );
+  const { nickname, realName, profileImage, applications } = query.data;
   return (
-    <section className="chat-profile__applications">
-      <h3>관련 입양 신청</h3>
-      {query.data.map((item) => (
-        <Link key={item.id} to={'/adoptions/' + item.id} onClick={onClose}>
-          <strong>{item.name}</strong>
-          <span>
-            {item.date} · 신청 {item.id}번 · {item.status}
-          </span>
-        </Link>
-      ))}
-    </section>
+    <>
+      {identity(
+        realName ? nickname + ' (' + realName + ')' : nickname,
+        profileImage?.imageUrl || avatar,
+      )}
+      {applications.length > 0 && (
+        <section className="chat-profile__applications">
+          <h3>관련 입양 신청</h3>
+          {applications.map((item) => (
+            <Link
+              key={item.applicationSeq}
+              to={'/adoptions/' + item.applicationSeq}
+              onClick={onClose}
+            >
+              <strong>{animalLabel(item.speciesName, item.breedName)}</strong>
+              <span>
+                {item.submittedDttm?.slice(0, 10) || '미등록'} · 신청 {item.applicationSeq}번 ·{' '}
+                {adoptionStatusLabels[item.status]}
+              </span>
+            </Link>
+          ))}
+        </section>
+      )}
+    </>
   );
 }
 function summary(room: Room): ChatSummary {
@@ -236,11 +268,9 @@ function LiveRoom({
   return (
     <ChatRoomView
       chat={summary(room)}
-      renderApplications={(close) =>
-        room.counterpart.userSeq != null && (
-          <ApplicantLinks userSeq={room.counterpart.userSeq} onClose={close} />
-        )
-      }
+      renderProfile={(close, identity) => (
+        <CounterpartCard roomId={id} onClose={close} identity={identity} />
+      )}
       onBack={onBack}
       text={text}
       setText={setText}
