@@ -7,7 +7,7 @@
 > **백엔드 스택 [확정]:** JDK 21, Spring Boot 4.1.2, Kotlin 2.3.21, JPA + QueryDSL, PostgreSQL 17, Redis 7.4, RabbitMQ(STOMP relay + 서비스 간 이벤트), AWS S3(presigned PUT), 네이버 지도 역지오코딩. OpenSearch는 도입하지 않습니다(S7). 서비스 4개: core-api(8080) / chat(8081) / notification(8082) / simulation(8083).
 
 **표기 규칙**
-- **[확정 정책]**: DB v20에서 확인되는 기능·권한·상태·제약, 또는 Q406~Q502·S1~S8 질의응답으로 확정한 사항. **[가안]**: 추천안을 채택했고 수치는 코드 설정값으로 둔 사항(플레이 테스트·운영 후 조정). **[초안]**: DTO 필드 이름·예시 값·세부 검증 등 구현 중 조정 가능한 제안. 확정 정책과 초안이 충돌하면 DB v20과 1장 공통 규약이 우선합니다. **v14에는 [미정] 항목이 없습니다.** 팀 논의 대기 항목(11장 발생장소·공고번호 등)은 20.3에 따로 모았습니다.
+- **[확정 정책]**: DB v20에서 확인되는 기능·권한·상태·제약, 또는 Q406~Q503·S1~S8 질의응답으로 확정한 사항. **[가안]**: 추천안을 채택했고 수치는 코드 설정값으로 둔 사항(플레이 테스트·운영 후 조정). **[초안]**: DTO 필드 이름·예시 값·세부 검증 등 구현 중 조정 가능한 제안. 확정 정책과 초안이 충돌하면 DB v20과 1장 공통 규약이 우선합니다. **v14에는 [미정] 항목이 없습니다.** 팀 논의 대기 항목(11장 발생장소·공고번호 등)은 20.3에 따로 모았습니다.
 - 표의 `/...` 경로는 **해당 장의 서비스 접두어**를 앞에 붙인 상대 경로입니다. core-api `/api/core/v1`(2~13·15·16장), chat `/api/chat/v1`(14장), notification `/api/notification/v1`(17장), simulation `/api/simulation/v1`(18장). **[비인증]** 표시 외에는 로그인 필수입니다.
 - 이 문서는 **클라이언트·보호소 업무 API**를 다룹니다. **ADMIN API는 이번 프로젝트 구현 범위 외**(Q410·Q411)이며 별도 장을 두지 않습니다. 내부 AI 워커 및 공공데이터 ETL 전용 API는 다루지 않습니다.
 
@@ -30,6 +30,7 @@
 | Q500 | **푸시 문구·포기 시 SESSION_END 생략(260 구현).** EVENT 푸시는 제목 "{이름}에게 무슨 일이 생겼어요", 본문 "{시나리오 제목}. 들어와서 살펴봐 주세요."로 무슨 일인지만 알리고 정답 행동은 말하지 않습니다(설명 전체는 길어서 넣지 않음). SESSION_END는 완료 "{이름}와(과)의 7일이 끝났어요. 리포트를 확인해 보세요.", 돌봄 부족 "돌봄이 부족해 {이름}의 체험이 중단됐어요. 리포트를 확인해 보세요."(죽음 표현 없음). **포기(ABANDONED)는 사용자가 직접 끝내 리포트를 바로 보므로 SESSION_END를 보내지 않습니다**(Q481·Q487의 "종료 시 1회"에서 포기 제외). 종료 시각이 밤이어도 미루지 않고 그대로 보냅니다(세션은 시작 시각 기준 7일). 문구는 코드 상수, DB 변경 없음 | 18.0·18.5·21.5·21.6 |
 | Q501 | **산책 구현(252).** 산책 중 행동에 **`CLEAN_UP_POOP`(배변 치우기, 배변봉투 1개)** 을 새로 두고, 그 행동이 정답인 산책 시나리오 #16 "길에서 똥을 쌌어요"를 추가합니다(시나리오 WALK 정답 CHECK 확장). 배변 이벤트가 없을 때의 `CLEAN_UP_POOP`은 409 `SIMULATION_POOP_NOT_FOUND`(봉투를 쓰지 않음). **AGGRESSIVE 산책 가중치는 두지 않습니다**: 성격은 시간당 감소 배율에만 영향(Q490 정리). 수치 [가안]: 산책 효과는 종료 시 10분 단위(60분까지, 10분 미만 없음)로 10분마다 활력 +7·안정감 +4·친밀도 +1·포만감 -2·수분 -3·청결도 -2, 산책 중 물 주기 수분 +20, 산책 이벤트는 하트비트마다 8%·산책당 최대 3회·시한 5분(#13~#16 같은 가중치). 하트비트가 10분 넘게 끊기면 마지막 하트비트 시각으로 자동 종료(종료 API도 같은 시각으로 결과를 줌). **산책 중에는 집 이벤트를 만들지 않습니다.** 세션 상세 `equipment`에 `leash`(하네스와 리드줄) 추가(Q495의 남은 결정) | 18.0·18.2·18.12·18.14~18.17·19장·DB v20 39·41 |
 | Q502 | **12.15 신청자 모의 입양 리포트 목록 구현(2026-11-10).** 보류였던 12.15(= 18.21)를 구현합니다. 담당 SHELTER가 소속 보호소의 제출된 신청서(타 보호소·DRAFT·CANCELED는 404)로 신청자의 **종료 리포트 전체**를 동물·품종과 상관없이 최근 종료 순, 페이지 없는 배열로 받습니다. 항목은 **동물 정보(가상 이름·품종)·기간(시작·종료)·총지출만**이고 상세는 `sessionSeq`로 18.18을 부릅니다(요약·상태·예상 비용은 넣지 않음). core-api가 simulation 세션·리포트를 읽기 전용 JOIN하며, 그 SELECT 권한은 스키마 소유자인 simulation Flyway가 core_app에 줍니다(서버 DB 초기화는 core_app에 simulation 권한을 주지 않음) | 12.15·18.21 |
+| Q503 | **18.9 장바구니 일괄 구매(2026-11-10).** 앱의 장바구니에서 한 번에 사도록 18.9 요청을 `{ "items": [ { itemSeq, quantity } ] }`(1~50줄)로 바꾸고 단건 본문은 대체합니다. **전부 사거나 하나도 사지 않습니다**: 세션 잠금·지연 계산 뒤 모든 줄을 먼저 검증하고(앞 줄부터, 첫 오류 응답) 통과해야 쓰므로 한 줄이라도 오류면 잔액·보유·지출이 그대로입니다. 같은 `itemSeq` 두 줄은 400(합치지 않음), 줄 단위 400의 `field`는 `items[i].quantity` 형식. 지출 내역은 물품마다 1건씩 요청 순서대로(18.11 형식·리포트 집계 유지), 응답은 `purchases[]`(종전 단건 응답 형식, `balanceAfter`는 그 물품 직후 잔액) + `totalAmount` + 최종 `balanceAfter`. DB 변경 없음 | 18.9·21.5 |
 
 ## v13 변경 요약 (v12 → v13)
 
@@ -2081,7 +2082,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | 18.6 | POST | `/simulations/{sessionSeq}/actions` | 본인 | 돌봄 행동 `{actionCode, itemSeq?}`(`VET_VISIT` 포함, PENDING 이벤트 해결 겸함) |
 | 18.7 | GET | `/simulations/{sessionSeq}/action-logs` | 본인 | 행동 이력 |
 | 18.8 | GET | `/simulations/shop/items` | 로그인 | 펫샵 물품 목록 `?speciesType=` |
-| 18.9 | POST | `/simulations/{sessionSeq}/purchases` | 본인 | 구매 `{itemSeq, quantity}` |
+| 18.9 | POST | `/simulations/{sessionSeq}/purchases` | 본인 | 장바구니 구매 `{items:[{itemSeq, quantity}]}`(전부 또는 없음, Q503) |
 | 18.10 | GET | `/simulations/{sessionSeq}/inventory` | 본인 | 보유 물품 + 잔액 |
 | 18.11 | GET | `/simulations/{sessionSeq}/transactions` | 본인 | 지출 내역 |
 | 18.12 | GET | `/simulations/{sessionSeq}/events` | 본인 | 발생 이벤트 `?status=` |
@@ -2220,23 +2221,24 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 
 ### 18.9 POST /simulations/{sessionSeq}/purchases · 18.10 GET /.../inventory · 18.11 GET /.../transactions
 
-**18.9 요청 [초안]** `{ "itemSeq": 22, "quantity": 2 }`. `quantity`는 1~99(Q492).
+**18.9 요청 [초안]** (장바구니, Q503) `{ "items": [ { "itemSeq": 22, "quantity": 2 }, { "itemSeq": 1, "quantity": 1 } ] }`. `items`는 1~50줄, 각 `quantity`는 1~99(Q492). 같은 `itemSeq`를 두 줄로 담을 수 없습니다(수량을 합쳐 한 줄로). v14 초안의 단건 본문 `{ itemSeq, quantity }`는 이 형식으로 대체합니다.
 
 **18.9 성공 201 `data` [초안]**
 ```json
 {
-  "transactionSeq": 70001,
-  "item": { "itemSeq": 22, "itemName": "균형 잡힌 사료", "category": "FOOD" },
-  "quantity": 2,
-  "amount": 21200,
-  "balanceAfter": 128800,
-  "inventoryQuantity": 24
+  "purchases": [
+    { "transactionSeq": 70001, "item": { "itemSeq": 22, "itemName": "균형 잡힌 사료", "category": "FOOD" }, "quantity": 2, "amount": 21200, "balanceAfter": 128800, "inventoryQuantity": 24 },
+    { "transactionSeq": 70002, "item": { "itemSeq": 1, "itemName": "밥그릇", "category": "FOOD_BOWL" }, "quantity": 1, "amount": 10000, "balanceAfter": 118800, "inventoryQuantity": 1 }
+  ],
+  "totalAmount": 31200,
+  "balanceAfter": 118800
 }
 ```
-- **[확정 정책]** 구매 시 `amount = price × quantity`를 잔액에서 차감하며 **잔액이 음수가 되어도 허용**합니다(M5). 인벤토리는 `quantity × usesPerPurchase`만큼 늘고(Q492, 예: 사료 2개 = 24끼) `inventoryQuantity`는 구매 후 사용 가능 횟수입니다. 거래 이력의 `quantity`는 산 개수입니다. 세션 잠금 뒤 스탯 지연 계산에서 건강 0·예정 종료면 종료를 저장하고 409 `SIMULATION_NOT_IN_PROGRESS`(Q496). 기구는 `quantity=1`만 허용하고 이미 보유 중이면 409 `SIMULATION_EQUIPMENT_ALREADY_OWNED`. `species_scope`가 세션 종과 맞지 않으면 409 `SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES`. 트랜잭션: 세션 잠금 → `simulation_transactions(PURCHASE)` INSERT → `balance` 갱신 → `simulation_inventory_items` UPSERT(`UNIQUE(session_seq,item_seq)`).
+- **[확정 정책] 장바구니 일괄 구매(Q503):** 담은 물품을 **전부 사거나 하나도 사지 않습니다.** 세션 잠금·지연 계산 뒤 장바구니를 앞에서부터 모두 검증하고(첫 오류를 응답) 통과해야 쓰기를 시작하므로, 한 줄이라도 오류면 잔액·보유·지출 내역이 그대로입니다. 지출 내역(PURCHASE)은 **물품마다 1건씩 요청 순서대로** 남고(18.11 형식 유지), `purchases[].balanceAfter`는 그 물품을 산 직후 잔액, `data.balanceAfter`는 모두 산 뒤 잔액, `totalAmount`는 `amount`의 합입니다. 줄 단위 400의 `errors[].field`는 `items[i].quantity`처럼 몇 번째 줄인지 담습니다.
+- **[확정 정책]** 구매 시 물품마다 `amount = price × quantity`를 잔액에서 차감하며 **잔액이 음수가 되어도 허용**합니다(M5). 인벤토리는 `quantity × usesPerPurchase`만큼 늘고(Q492, 예: 사료 2개 = 24끼) `inventoryQuantity`는 구매 후 사용 가능 횟수입니다. 거래 이력의 `quantity`는 산 개수입니다. 세션 잠금 뒤 스탯 지연 계산에서 건강 0·예정 종료면 종료를 저장하고 409 `SIMULATION_NOT_IN_PROGRESS`(Q496). 기구는 `quantity=1`만 허용하고 이미 보유 중이면 409 `SIMULATION_EQUIPMENT_ALREADY_OWNED`. `species_scope`가 세션 종과 맞지 않으면 409 `SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES`. 트랜잭션: 세션 잠금 → 지연 계산 → 장바구니 전체 검증 → 물품마다 `simulation_inventory_items` UPSERT(`UNIQUE(session_seq,item_seq)`) → `balance` 갱신 → `simulation_transactions(PURCHASE)` INSERT.
 - **18.10 성공 200 `data`** `{ "balance":110000, "expectedCost":150000, "equipment":{SimulationEquipment}, "items":[ { "itemSeq":11, "itemName":"건식 사료 1kg", "category":"FOOD", "isConsumable":true, "quantity":5, "imageUrl":"https://..." } ] }`. 수량 0인 소모품 행도 포함(앱이 "다 썼음" 표시 가능, [초안]). `quantity`는 남은 사용 횟수(묶음은 끼·회 단위, Q492)이며 기구는 1입니다.
 - **18.11 요청** `?transactionType=PURCHASE&page=0&size=50&sort=regDttm,desc` → `data.content[]` `{ transactionSeq, transactionType:"PURCHASE"|"EVENT", item:{itemSeq,itemName,category}|null, occurrenceSeq|null, quantity, amount, balanceAfter, description, regDttm }`. 필터 `transactionType`. 정렬 화이트리스트 `regDttm`. 본인만(Q435·Q483).
-- **오류 [초안]** 404 `SIMULATION_NOT_FOUND`, `SIMULATION_SHOP_ITEM_NOT_FOUND`(비활성 물품 포함); 400 `COMMON_INVALID_INPUT`(quantity 1~99 밖); 409 `SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES`, `SIMULATION_EQUIPMENT_ALREADY_OWNED`, `SIMULATION_NOT_IN_PROGRESS`.
+- **오류 [초안]** 404 `SIMULATION_NOT_FOUND`, `SIMULATION_SHOP_ITEM_NOT_FOUND`(비활성 물품 포함); 400 `COMMON_INVALID_INPUT`(`items` 누락·빈 배열·50줄 초과·빈 줄, quantity 1~99 밖, 같은 물품 중복, 기구 2개 이상); 409 `SIMULATION_SHOP_ITEM_NOT_FOR_SPECIES`, `SIMULATION_EQUIPMENT_ALREADY_OWNED`, `SIMULATION_NOT_IN_PROGRESS`.
 
 ### 18.12 GET /simulations/{sessionSeq}/events · (18.13 삭제, Q486)
 
@@ -2633,6 +2635,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | Q500 푸시 문구·포기 생략 (2026-11-09) | EVENT "{이름}에게 무슨 일이 생겼어요"/"{시나리오 제목}. 들어와서 살펴봐 주세요."(정답 비노출), SESSION_END 완료·돌봄 부족 문구, 포기는 SESSION_END 없음, 밤에도 그대로 발송. 코드 상수, DB 변경 없음 | 18.0·18.5·21.5·21.6 |
 | Q501 산책 구현 규칙 (2026-11-09) | 산책 행동 `CLEAN_UP_POOP`(배변봉투) + 시나리오 #16, 배변 이벤트 없으면 409 `SIMULATION_POOP_NOT_FOUND`. 성격 가중치 없음(시간 감소 배율만). 효과 10분 단위 60분까지(활력 +7·안정감 +4·친밀도 +1·포만감 -2·수분 -3·청결도 -2), 물 +20, 이벤트 8%·산책당 3회·시한 5분. 10분 끊기면 마지막 하트비트 시각으로 종료. 산책 중 집 이벤트 없음. `equipment.leash` 추가. DB: 41번 CHECK 확장·#16 시드 | 18.0·18.2·18.12·18.14~18.17·19장 |
 | Q502 12.15 구현 (2026-11-10) | 담당 SHELTER, 제출된 신청서만(그 외 404), 신청자의 종료 리포트 전체를 최근 종료 순 배열로. 항목은 sessionSeq·animalName·breed·startedDttm·endedDttm·totalSpent. simulation Flyway가 core_app에 세션·리포트 SELECT 권한 부여 | 12.15·18.21 |
+| Q503 18.9 장바구니 구매 (2026-11-10) | 요청 `items[]`(1~50줄, 같은 물품 중복 400), 전부 또는 없음(모든 줄 검증 후 쓰기), 지출은 물품마다 1건씩 요청 순서, 응답 `purchases[]`·`totalAmount`·`balanceAfter`. DB 변경 없음 | 18.9·21.5 |
 
 ### 20.2 미결 안건
 
@@ -2709,7 +2712,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 1. 세션 시작(18.1): 요청자의 `IN_PROGRESS` 세션을 `SELECT ... FOR UPDATE`로 확인(부분 UNIQUE 병행) → `core.animal_breeds`·`animal_species`를 읽기 전용 JOIN해 품종 존재·종 `DOG/CAT` 검증 → 종·성격 스냅샷(품종 성격은 NOT NULL, Q482) → 세션 INSERT(`breed_seq`·`animal_name`(Q484), 초기 스탯, `ends_dttm`, `balance=expected_cost`) → `action_logs(SYSTEM, SESSION_START)`. 실제 보호동물·보호소는 읽지도 저장하지도 않음.
 2. 모든 조회·행동·구매·포기·스케줄러 진입 시 **스탯 지연 계산**: `stats_calculated_dttm`부터 경과 tick × (기본 감소 × 성격 배율, 소수는 세션 시작 기준 누적 버림 Q490)을 적용해 0~100으로 클램프하고 `stats_calculated_dttm` 갱신(`ends_dttm`을 넘겨 계산하지 않음). 계산 중 `health=0`이 되면 그 tick 시각으로 FAILED, `ends_dttm` 경과면 `ends_dttm`으로 COMPLETED 6단계 종료 처리. 쓰기 요청(18.5·18.6·18.9)이면 종료를 커밋하고 409 `SIMULATION_NOT_IN_PROGRESS`(Q496).
 3. 돌봄 행동(18.6·18.16): 세션 잠금 → 지연 계산 → 기구 보유·소모품 수량 검사(`BATHE`는 `GROOMING_KIT` 보유만·소모 없음 Q493, `PLAY`는 고른 장난감 Q494, `VET_VISIT`은 정답이 병원인 PENDING 이벤트 존재 검사) → 수량 -1 → 효과 반영(성격 배율 없음 Q490, `GIVE_CATNIP`은 직전 캣닢 6시간 안이면 남용 효과 Q494) → **PENDING 이벤트 해결 판정(Q486):** 시나리오 `resolve_action_code = actionCode`(WALK면 같은 `walk_seq`)이면 `resolve_effects` 추가 반영 → `resolve_cost>0`이면 `transactions(EVENT)` + 잔액 차감 → occurrence RESOLVED(`resolved_dttm`·`resolved_action_log_seq`) → `action_logs(CARE|WALK, occurrence_seq)` → `last_action_dttm` 갱신. `VET_VISIT` 외에는 돈을 쓰지 않음. 정답이 병원인 PENDING이 없는 `VET_VISIT`은 409로 끝나며 로그·갱신 없음(Q489). 산책 시작(18.14)은 세션 `species_type=DOG`일 때만 허용하고 CAT이면 409 `SIMULATION_WALK_NOT_FOR_SPECIES`(Q488), `LEASH` 미보유면 409 `SIMULATION_EQUIPMENT_MISSING`(Q495).
-4. 구매(18.9): 세션 잠금 → 지연 계산 → `simulation_transactions(PURCHASE)` INSERT(`quantity`=산 개수) → `balance -= amount`(음수 허용) → `simulation_inventory_items` UPSERT(`quantity += 산 개수 × usesPerPurchase`, Q492). 기구는 수량 1·재구매 409.
+4. 구매(18.9, 장바구니 Q503): 세션 잠금 → 지연 계산 → **장바구니 전체 검증(오류면 쓰기 없이 응답)** → 물품마다 요청 순서대로 `simulation_transactions(PURCHASE)` INSERT(`quantity`=산 개수) → `balance -= amount`(음수 허용) → `simulation_inventory_items` UPSERT(`quantity += 산 개수 × usesPerPurchase`, Q492). 기구는 수량 1·재구매 409.
 5. 이벤트: HOME·RANDOM은 스케줄러 판정마다 확률로 발생(대기 없음·22~8시 제외·일차당 2회 미만, 가중치 추첨, Q498), HOME·CONDITION은 스케줄러에서만 RANDOM보다 먼저 조건 판정(Q499) → 쿨다운 확인(`simulation_event_occurrences` 마지막 발생) → 시나리오 `trigger_probability`로 추첨(Q481), WALK는 하트비트(18.15)에서 추첨. PENDING 1개 부분 UNIQUE. HOME 이벤트 발생 커밋 후 `SimulationPushRequested(EVENT)`(이름 + 시나리오 제목, Q500). 해결은 별도 API 없이 3단계 행동 처리 안에서(Q486). 만료는 조회·행동·스케줄러가 감지해 스탯을 만료 시각까지 먼저 계산한 뒤 `neglect_effects` 반영(그 결과 건강 0이면 만료 시각에 FAILED) → EXPIRED + `action_logs(EVENT, EVENT_EXPIRE, occurrence_seq, stat_delta)`; 산책 종료 시 PENDING WALK 이벤트도 같은 처리, 세션 종료 시는 효과 없이 EXPIRED.
 6. 종료(COMPLETED/ABANDONED/FAILED 공통): 스탯 최종 계산 → 진행 중 산책 ENDED·PENDING 이벤트 EXPIRED(방치 효과 없음, Q486) → 상태·`ended_dttm` 갱신 → `simulation_reports` INSERT(지출 집계·최종 스탯·카운트(`event_resolved_count` 포함), `summary=NULL`) → `action_logs(SYSTEM, SESSION_END)` → 내부 이벤트 `SimulationSessionEnded` 발행(Q496) → 커밋(18.5면 여기서 응답) → 커밋 후 비동기 리스너가 요약 생성기(지금은 규칙 문구, LLM은 나중에 교체, Q497)로 `summary` 생성 → 별도 짧은 트랜잭션으로 `UPDATE ... WHERE summary IS NULL`(실패 시 1회 재시도 후 규칙 문구, Q444) → 갱신됐으면 내부 이벤트 `SimulationReportSummarized` → `SimulationPushRequested(SESSION_END)` 이벤트(COMPLETED·FAILED만, ABANDONED는 보내지 않음, Q500)(notification이 FCM, 저장 없음, Q481·Q487). 리포트는 `summary=NULL`로 먼저 저장되며 세션당 1건 UNIQUE, 영구 보존.
 7. 스케줄러(S8, 10분 [가안], `simulation.scheduler.interval`, 인스턴스 1개 전제): simulation의 `@Scheduled` 작업 하나가 진행 중 세션 번호를 모은 뒤 **세션마다 별도 트랜잭션**으로(한 건 실패는 로그만 남기고 다음 세션 진행, Q496) 2단계 계산 → 종료 조건이면 6단계 → PENDING 만료 처리(방치 효과 적용, 그 결과 `health=0`이면 6단계) → CONDITION 시나리오 판정(5단계, 확률 적용) → RANDOM 추첨 → 하트비트 10분 끊긴 산책 자동 종료 → `summary IS NULL`이고 리포트 생성(`reg_dttm`) 후 10분 [가안] 지난 리포트에 6단계의 요약·푸시 흐름 재실행(고아 복구, Q487·Q497, 한 건씩 실패 격리). 방치·스탯 경고 알림은 없음(Q481). simulation은 `device_tokens`를 읽지 않고 일반 `notifications`에도 쓰지 않음. core·notification에는 스케줄 작업 없음.
