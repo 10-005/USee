@@ -38,6 +38,7 @@ type ArFloorNativeProps = ViewProps & {
   compassRegion?: string;
   bagAvailable?: boolean;
   cleanupResponse?: string;
+  poopRequest?: number;
   onTracking?: (event: NativeSyntheticEvent<FloorTracking>) => void;
   onBagPurchase?: () => void;
 };

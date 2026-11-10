@@ -10,6 +10,11 @@ import { colors } from '../../theme';
 import { ProductArt } from '../../components/shop/ProductArt';
 import { QuantityControl } from '../../components/shop/QuantityControl';
 import { availableProducts, findProduct, money } from '../../services/shop/catalog';
+import {
+  getPurchaseErrorMessage,
+  purchaseSimulationItems,
+} from '../../services/simulation/purchase';
+import { ApiClientError } from '../../services/api';
 import { useShopStore, cartTotal } from '../../stores/shopStore';
 import { useShopSession } from './useShopSession';
 import { shopStyles as s } from '../../components/shop/shopStyles';
@@ -17,9 +22,10 @@ import { shopStyles as s } from '../../components/shop/shopStyles';
 type Props = NativeStackScreenProps<RootStackParamList, 'ShopCart'>;
 export function CartScreen({ navigation, route }: Props) {
   const { petId } = route.params;
-  const { pet, status, retry } = useShopSession(petId);
+  const { pet, session, status, retry } = useShopSession(petId);
   const shop = useShopStore();
   const confirming = useRef(false);
+  const purchasing = useRef(false);
   const [purchaseDialog, setPurchaseDialog] = useState<{
     kind: 'confirm' | 'result';
     title: string;
@@ -67,7 +73,7 @@ export function CartScreen({ navigation, route }: Props) {
     </View>
   );
   const purchase = () => {
-    if (confirming.current || !pet || status !== 'ready') {
+    if (confirming.current || purchasing.current || !pet || status !== 'ready') {
       return;
     }
     confirming.current = true;
@@ -81,18 +87,88 @@ export function CartScreen({ navigation, route }: Props) {
     confirming.current = false;
     setPurchaseDialog(null);
   };
+  const showPurchaseResult = (message: string) => {
+    setPurchaseDialog({ kind: 'result', title: '구매 확인', message });
+  };
   const confirmPurchase = () => {
-    if (!confirming.current || !pet) {
+    if (!confirming.current || purchasing.current || !pet) {
       return;
     }
     confirming.current = false;
-    const error = useShopStore.getState().checkout(pet.category);
-    if (error) {
-      setPurchaseDialog({ kind: 'result', title: '구매 확인', message: error });
+    const state = useShopStore.getState();
+    const selectedIds = state.selectedIds.filter(id => state.cart[id]);
+    const serverItems = selectedIds.map(id => findProduct(id));
+    if (!session?.sessionSeq) {
+      const error = state.checkout(pet.category);
+      if (error) {
+        showPurchaseResult(error);
+        return;
+      }
+      setPurchaseDialog(null);
+      navigation.popTo('ShopInventory', { petId });
       return;
     }
+    if (serverItems.some(item => !item?.itemSeq)) {
+      showPurchaseResult('구매할 수 없는 상품이 있어요.');
+      return;
+    }
+    return purchaseOnServer(session.sessionSeq, selectedIds);
+  };
+  const purchaseOnServer = async (sessionSeq: number, selectedIds: string[]) => {
+    purchasing.current = true;
     setPurchaseDialog(null);
-    navigation.popTo('ShopInventory', { petId });
+    try {
+      const state = useShopStore.getState();
+      if (!state.ready) {
+        showPurchaseResult('쇼핑 정보를 불러오는 중이에요.');
+        return;
+      }
+      if (Date.now() >= state.expiresAt) {
+        showPurchaseResult('모의 입양 기간이 종료되었어요.');
+        return;
+      }
+      const lines: Array<{ id: string; itemSeq: number; quantity: number }> = [];
+      for (const id of selectedIds) {
+        const current = useShopStore.getState();
+        const product = findProduct(id);
+        const quantity = current.cart[id];
+        if (!product?.itemSeq || !Number.isInteger(quantity) || quantity < 1) {
+          showPurchaseResult('구매할 수 없는 상품이 있어요.');
+          return;
+        }
+        if (product.kind === 'durable' && quantity !== 1) {
+          showPurchaseResult('기구는 1개만 구매할 수 있어요.');
+          return;
+        }
+        lines.push({ id, itemSeq: product.itemSeq, quantity });
+      }
+      try {
+        const purchased = await purchaseSimulationItems(
+          sessionSeq,
+          lines.map(line => ({ itemSeq: line.itemSeq, quantity: line.quantity })),
+        );
+        for (let index = 0; index < lines.length; index += 1) {
+          const saved = useShopStore
+            .getState()
+            .applyServerPurchase(lines[index].id, purchased.purchases[index]);
+          if (saved) {
+            showPurchaseResult(saved);
+            return;
+          }
+        }
+      } catch (error) {
+        showPurchaseResult(
+          error instanceof ApiClientError
+            ? getPurchaseErrorMessage(error)
+            : '구매하지 못했어요. 다시 시도해주세요.',
+        );
+        return;
+      }
+      setPurchaseDialog(null);
+      navigation.popTo('ShopInventory', { petId });
+    } finally {
+      purchasing.current = false;
+    }
   };
   return (
     <SafeAreaView style={s.screen}>

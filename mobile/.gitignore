@@ -67,6 +67,9 @@ yarn-error.log
 /coverage
 .eslintcache
 
+# 임시 로컬 access token
+src/services/api/accessToken.local.ts
+
 # Yarn
 .yarn/*
 !.yarn/patches

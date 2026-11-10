@@ -19,7 +19,12 @@ export type RootStackParamList = {
   AdoptionApplicationList: undefined;
   AdoptionApplicationReview: { animalId: string };
   AdoptionDetail: { animalId: string };
-  Home: { initialReportTab?: 'found' | 'lost'; initialTab?: 'search' } | undefined;
+  Home:
+    | {
+        initialReportTab?: 'found' | 'lost';
+        initialTab?: 'search';
+      }
+    | undefined;
   FoundReportDetail: { highlightCommentId?: string; reportId: string };
   FoundReportForm: { reportId?: string } | undefined;
   FoundReportMap: undefined;
@@ -29,6 +34,7 @@ export type RootStackParamList = {
   LostReportPetSelection: undefined;
   ChatRoom: { roomId: string; preview?: ChatPreview };
   MockAdoptionActivity: { petId: string };
+  MockAdoptionOverview: undefined;
   NoticeDetail: { noticeId: string };
   NoticeList: undefined;
   Notifications: undefined;

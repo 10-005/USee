@@ -7,6 +7,7 @@ import {
   type Species,
 } from '../services/shop/catalog';
 import {
+  readSessionShopCatalog,
   readShopProducts,
   readShopSnapshot,
   writeShopSnapshot,
@@ -32,6 +33,10 @@ type ShopState = ShopSnapshot & {
   selectAll: (ids: string[]) => void;
   remove: (ids: string[]) => void;
   checkout: (species: Species) => string | null;
+  applyServerPurchase: (
+    productId: string,
+    purchase: { amount: number; inventoryQuantity: number },
+  ) => string | null;
   buyWalkBags: () => string | null;
   consume: (requirements: Record<string, number>, ownedItemId?: string) => boolean;
 };
@@ -65,8 +70,8 @@ export const useShopStore = create<ShopState>((set, get) => {
     ready: false,
     error: null,
     open: session => {
-      setShopCatalog(readShopProducts());
       const sessionKey = `${session.petId}:${session.startedAt}`;
+      setShopCatalog(readSessionShopCatalog(sessionKey) ?? readShopProducts());
       const saved = readShopSnapshot(sessionKey);
       const snapshot: ShopSnapshot = {
         hospitalEvents: saved?.hospitalEvents ?? [],
@@ -243,6 +248,53 @@ export const useShopStore = create<ShopState>((set, get) => {
         ? null
         : storageError;
     },
+    applyServerPurchase: (productId, purchase) => {
+      const state = get();
+      const product = findProduct(productId);
+      if (!state.ready) {
+        return '쇼핑 정보를 불러오는 중이에요.';
+      }
+      if (Date.now() >= state.expiresAt) {
+        return '모의 입양 기간이 종료되었어요.';
+      }
+      if (
+        !product ||
+        product.qty < 1 ||
+        !Number.isInteger(purchase.amount) ||
+        purchase.amount < 0 ||
+        !Number.isInteger(purchase.inventoryQuantity) ||
+        purchase.inventoryQuantity < 0 ||
+        !Number.isSafeInteger(state.spent + purchase.amount)
+      ) {
+        return '구매 결과를 저장하지 못했어요. 다시 시도해주세요.';
+      }
+      const ownedItems = state.ownedItems.filter(item => item.productId !== productId);
+      let remainingUses = purchase.inventoryQuantity;
+      let index = 1;
+      while (remainingUses > 0) {
+        const chunk = Math.min(product.qty, remainingUses);
+        ownedItems.push({
+          id: `${state.sessionKey}:${productId}:${index}`,
+          productId,
+          capacity: product.qty,
+          remaining: chunk,
+        });
+        remainingUses -= chunk;
+        index += 1;
+      }
+      return commit({
+        spent: state.spent + purchase.amount,
+        inventory: {
+          ...state.inventory,
+          [productId]: purchase.inventoryQuantity,
+        },
+        ownedItems,
+        cart: Object.fromEntries(Object.entries(state.cart).filter(([id]) => id !== productId)),
+        selectedIds: state.selectedIds.filter(id => id !== productId),
+      })
+        ? null
+        : storageError;
+    },
     buyWalkBags: () => {
       const state = get();
       if (!state.ready) {
@@ -251,7 +303,9 @@ export const useShopStore = create<ShopState>((set, get) => {
       if (Date.now() >= state.expiresAt) {
         return '모의 입양 기간이 종료되었어요.';
       }
-      const product = availableProducts('dog').find(item => item.id === 'bags');
+      const product =
+        availableProducts('dog').find(item => item.serverCategory === 'POOP_BAG') ??
+        availableProducts('dog').find(item => item.id === 'bags');
       if (!product) {
         return '배변봉투 상품 정보를 불러오지 못했어요.';
       }
@@ -261,12 +315,15 @@ export const useShopStore = create<ShopState>((set, get) => {
       const count = state.ownedItems.filter(item => item.productId === product.id).length;
       return commit({
         spent: state.spent + product.price,
-        inventory: { ...state.inventory, bags: (state.inventory.bags ?? 0) + product.qty },
+        inventory: {
+          ...state.inventory,
+          [product.id]: (state.inventory[product.id] ?? 0) + product.qty,
+        },
         ownedItems: [
           ...state.ownedItems,
           {
-            id: `${state.sessionKey}:bags:${count + 1}`,
-            productId: 'bags',
+            id: `${state.sessionKey}:${product.id}:${count + 1}`,
+            productId: product.id,
             capacity: product.qty,
             remaining: product.qty,
           },

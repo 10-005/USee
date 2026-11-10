@@ -13,6 +13,10 @@ export type Product = {
   atlas?: string;
   price: number;
   placement: string;
+  imageUrl?: string | null;
+  itemSeq?: number;
+  serverCategory?: string;
+  effects?: Record<string, number> | null;
   market: {
     gamePrice: number;
     basis: string;

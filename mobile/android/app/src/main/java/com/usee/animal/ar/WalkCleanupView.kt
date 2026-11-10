@@ -123,15 +123,17 @@ internal class WalkCleanupView(context: Context, private val scene: ARSceneView,
     invalidate()
   }
 
+  fun arm(onPoop: () -> Unit) {
+    if (state.request()) onPoop()
+  }
+
   fun update(dog: DogFrame, userX: Float, userZ: Float, view: FloatArray, projection: FloatArray,
-    rightObstacle: Boolean, onPoop: () -> Unit) {
+    rightObstacle: Boolean) {
     val now = SystemClock.elapsedRealtime()
     val dt = if (lastFrame == 0L) 0f else ((now - lastFrame) / 1000f).coerceAtMost(0.25f)
     lastFrame = now
     tracking = true
-    if (state.update(dt, rightObstacle)) {
-      onPoop()
-    }
+    state.update(dt, rightObstacle)
     if (state.pending && appearedAt == 0L && dog.poopDeposited) {
       // Deposit on the ground beside the rear legs, independent of camera angle.
       val yaw = Math.toRadians(dog.yawDegrees.toDouble()).toFloat()

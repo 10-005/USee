@@ -1,15 +1,31 @@
-import { clearAuthSession, getAccessToken, getRefreshToken, saveAuthSession } from '../auth/authSession';
+import {
+  clearAuthSession,
+  getAccessToken,
+  getRefreshToken,
+  saveAuthSession,
+} from '../auth/authSession';
 import { createApiClient } from './apiClient';
+import type { ApiClientOptions } from './types';
 
-export const API_BASE_URL = 'https://k15d106.p.ssafy.io/api/core/v1';
+export const API_ORIGIN = 'https://k15d106.p.ssafy.io';
+
+export const API_BASE_URL = `${API_ORIGIN}/api/core/v1`;
+
+const refresh: NonNullable<ApiClientOptions['refresh']> = {
+  endpoint: `${API_BASE_URL}/auth/refresh`,
+  getRefreshToken,
+  onAuthenticationFailure: clearAuthSession,
+  onTokensRefreshed: saveAuthSession,
+};
 
 export const apiClient = createApiClient({
   baseURL: API_BASE_URL,
   getAccessToken,
-  refresh: {
-    endpoint: '/auth/refresh',
-    getRefreshToken,
-    onAuthenticationFailure: clearAuthSession,
-    onTokensRefreshed: saveAuthSession,
-  },
+  refresh,
+});
+
+export const simulationClient = createApiClient({
+  baseURL: `${API_ORIGIN}/api/simulation/v1`,
+  getAccessToken,
+  refresh,
 });

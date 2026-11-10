@@ -11,6 +11,7 @@ import {
 import { open } from '@op-engineering/op-sqlite';
 
 const snapshot: ShopSnapshot = {
+  hospitalEvents: [],
   sessionKey: 'database-test',
   budget: 50000,
   expiresAt: Date.now() + 86400000,
@@ -21,7 +22,10 @@ const snapshot: ShopSnapshot = {
   selectedIds: ['food'],
 };
 beforeEach(() => {
-  getShopDatabase().executeSync('DELETE FROM shop_sessions');
+  const db = getShopDatabase();
+  db.executeSync('DELETE FROM shop_sessions');
+  db.executeSync('DELETE FROM simulation_shop_catalogs');
+  db.executeSync("DELETE FROM products WHERE origin = 'server'");
 });
 
 it('migrates aggregate stock into independently counted items without losing remaining uses', () => {
@@ -53,7 +57,7 @@ it('seeds 32 distinct products once and reads the SQL columns', () => {
   db.executeSync('UPDATE products SET price=1234 WHERE id=?', ['food']);
   expect(readShopProducts().find(p => p.id === 'food')!.price).toBe(1234);
   db.executeSync('UPDATE products SET price=10600 WHERE id=?', ['food']);
-  expect(db.executeSync('PRAGMA user_version').rows[0].user_version).toBe(4);
+  expect(db.executeSync('PRAGMA user_version').rows[0].user_version).toBe(5);
 });
 
 it('restores selection, bundle quantities, budget and inventory', () => {

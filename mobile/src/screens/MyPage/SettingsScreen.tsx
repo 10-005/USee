@@ -27,6 +27,7 @@ import {
   useNotificationSettingsStore,
 } from '../../stores/notificationSettingsStore';
 import { usePetStore } from '../../stores/petStore';
+import { clearSimulationReports } from '../../services/simulation/reports';
 import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
 import { useAuthStore } from '../../stores/authStore';
@@ -102,6 +103,7 @@ export function SettingsScreen({ navigation }: Props) {
     try {
       await logout();
     } finally {
+      clearSimulationReports();
       resetUserState();
       setAccountModal(null);
     }
@@ -111,6 +113,7 @@ export function SettingsScreen({ navigation }: Props) {
     try {
       await withdraw();
       await AsyncStorage.clear();
+      clearSimulationReports();
       resetUserState();
       settings.resetSettings();
       setAccountModal(null);

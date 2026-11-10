@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import type { MockAdoptionSession } from '../../services/storage/mockAdoptionStorage';
+import { ensureSessionShopCatalog } from '../../services/simulation/shopItems';
 import { mockAdoptionPets } from '../MockAdoption/data';
 import { useShopStore } from '../../stores/shopStore';
 
@@ -18,8 +19,17 @@ export function useShopSession(petId: string) {
       if (!active) {
         return;
       }
-      if (!loadedSession || loadedSession.petId !== petId) {
+      if (!loadedSession || loadedSession.petId !== petId || !pet) {
         setStatus('error');
+        return;
+      }
+      if (loadedSession.sessionSeq) {
+        await ensureSessionShopCatalog(
+          `${loadedSession.petId}:${loadedSession.startedAt}`,
+          pet.category === 'cat' ? 'CAT' : 'DOG',
+        );
+      }
+      if (!active) {
         return;
       }
       useShopStore.getState().open(loadedSession);
@@ -34,6 +44,6 @@ export function useShopSession(petId: string) {
     return () => {
       active = false;
     };
-  }, [petId, attempt]);
+  }, [pet, petId, attempt]);
   return { pet, session, status, retry: () => setAttempt(n => n + 1) };
 }

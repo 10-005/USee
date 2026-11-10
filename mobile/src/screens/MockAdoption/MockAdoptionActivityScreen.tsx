@@ -15,15 +15,37 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../app/navigation/types';
 import BackIcon from '../../assets/icons/common/left-arrow.svg';
 import { colors, typography } from '../../theme';
-import { endMockAdoption } from '../../services/storage/mockAdoptionStorage';
+import { ApiClientError } from '../../services/api';
+import {
+  abandonSimulation,
+  getSimulationAbandonErrorMessage,
+  isSimulationAlreadyClosed,
+} from '../../services/simulation/abandon';
+import { SimulationCareAction } from '../../services/simulation/actions';
+import {
+  careRequest,
+  getCareActionErrorMessage,
+  performCareAction,
+  type CareStats,
+} from '../../services/simulation/care';
+import {
+  applyActiveSimulation,
+  readCurrentActiveSimulation,
+} from '../../services/simulation/activeSession';
+import { invalidateSimulationReports } from '../../services/simulation/reports';
+import {
+  getSimulationStats,
+  getSimulationStatsErrorMessage,
+} from '../../services/simulation/stats';
+import { endMockAdoption, getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { mockAdoptionPets } from './data';
 import { RoomPet } from './RoomPet';
 import { useToilet } from './useToilet';
 import { TreatLauncher } from './TreatLauncher';
-import { PetStatsDialog, type PetStats } from './PetStatsDialog';
+import { PetStatsDialog } from './PetStatsDialog';
 import { useShopSession } from '../shop/useShopSession';
 import { useShopStore } from '../../stores/shopStore';
-import { consumeCareSupplies } from '../../services/shop/consumption';
+import { consumeCareSupplies, findCareSupply } from '../../services/shop/consumption';
 import { availableProducts } from '../../services/shop/catalog';
 import { SuddenEventDialog } from './SuddenEventDialog';
 import { VetVisitDialog } from './VetVisitDialog';
@@ -34,17 +56,6 @@ import {
   SimulationTriggerType,
   type SimulationEvent,
 } from '../../services/simulation/events';
-
-// Temporary preview values until the server provides the selected pet's stats.
-const mockPetStats: PetStats = {
-  hunger: 75,
-  hydration: 18,
-  clean: 65,
-  friendship: 82,
-  stress: 8,
-  health: 92,
-  activity: 45,
-};
 
 const BOWL_VISUAL_OFFSET = 70;
 const PREVIOUS_ACTION_HEIGHT = 72;
@@ -58,18 +69,63 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const purchased = (id: string) =>
     shopStatus === 'ready' && shop.ownedItems.some(item => item.productId === id);
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
+  const activeSimulation = readCurrentActiveSimulation();
+  const synced =
+    activeSimulation && session?.sessionSeq === activeSimulation.sessionSeq
+      ? activeSimulation
+      : null;
   const toilet = useToilet(route.params.petId, pet?.category ?? 'dog');
   const petProducts = availableProducts(pet?.category ?? 'dog');
+  const ownsServer = (category: string) =>
+    petProducts.some(product => product.serverCategory === category && owns(product.id));
+  const careItemSeq = (action: 'food' | 'treat' | 'clean' | 'bath' | 'play') =>
+    pet ? findCareSupply(pet.category, action)?.itemSeq : undefined;
   const hasTreat = petProducts.some(p => p.category === '간식' && owns(p.id));
   const hasToy = petProducts.some(p => p.category === '놀이' && p.kind === 'durable' && owns(p.id));
+  const hasFoodBowl = synced ? synced.equipment.foodBowl : owns('bowl') || ownsServer('FOOD_BOWL');
+  const hasWaterBowl = synced
+    ? synced.equipment.waterBowl
+    : owns('waterBowl') || ownsServer('WATER_BOWL');
+  const showLitter = synced
+    ? synced.equipment.litterBox
+    : pet?.category === 'dog'
+    ? purchased('pads') || ownsServer('LITTER')
+    : owns('litterBox') || ownsServer('LITTER_BOX');
+  const showToy = synced ? synced.equipment.toy : hasToy;
+  const hasGroomingKit = owns('hygiene') || ownsServer('GROOMING_KIT');
+  const hasLeash =
+    pet?.category !== 'dog' || !!synced?.equipment.leash || owns('harness') || ownsServer('LEASH');
   const [statsVisible, setStatsVisible] = useState(false);
-  // TODO: refresh from the current session on entry / EVENT push, then apply server status.
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [petStats, setPetStats] = useState<CareStats>();
+  const [statsNotice, setStatsNotice] = useState<string>();
+  const statsRequest = useRef(0);
   const [hospitalVisible, setHospitalVisible] = useState(false);
+  const [closedVetSeq, setClosedVetSeq] = useState<number | null>(null);
   const hospitalEvents = (shop.hospitalEvents ?? []).filter(
     event => getVetVisit(event) && Date.now() < Date.parse(event.expiresDttm),
   );
-  const pendingEvent = hospitalEvents[0] ?? null;
+  const serverVetEvent =
+    synced?.pendingEvent &&
+    synced.pendingEvent.occurrenceSeq !== closedVetSeq &&
+    getVetVisit(synced.pendingEvent)
+      ? synced.pendingEvent
+      : null;
+  const pendingEvent =
+    serverVetEvent ?? hospitalEvents.find(event => event.occurrenceSeq !== closedVetSeq) ?? null;
   const [suddenEvent, setSuddenEvent] = useState<SimulationEvent | null>(null);
+  useEffect(() => {
+    const event = synced?.pendingEvent;
+    if (
+      shopStatus !== 'ready' ||
+      !event ||
+      event.status !== SimulationEventStatus.Pending ||
+      !event.vetVisit
+    ) {
+      return;
+    }
+    useShopStore.getState().enqueueHospitalEvent(event);
+  }, [shopStatus, synced]);
   const vetVisit = getVetVisit(pendingEvent);
   const walkPending = useRef(false);
   const [care, setCare] = useState<{
@@ -198,6 +254,11 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   };
   const ending = useRef(false);
   const [busy, setBusy] = useState(false);
+  const showMockAdoptionOverview = () =>
+    navigation.reset({
+      index: 1,
+      routes: [{ name: 'Home' }, { name: 'MockAdoptionOverview' }],
+    });
   const quit = async () => {
     if (ending.current) {
       return;
@@ -205,10 +266,27 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     ending.current = true;
     setBusy(true);
     try {
+      const active = await getActiveMockAdoption();
+      if (active?.sessionSeq) {
+        try {
+          await abandonSimulation(active.sessionSeq);
+          invalidateSimulationReports();
+        } catch (error) {
+          if (!isSimulationAlreadyClosed(error)) {
+            throw error;
+          }
+          invalidateSimulationReports();
+        }
+      }
       await endMockAdoption();
-      hideThenNavigate(() => navigation.replace('MockAdoptionSelection'));
-    } catch {
-      Alert.alert('모의입양', '진행 상태를 초기화하지 못했어요. 다시 시도해주세요.');
+      hideThenNavigate(showMockAdoptionOverview);
+    } catch (caught) {
+      Alert.alert(
+        '모의입양',
+        caught instanceof ApiClientError
+          ? getSimulationAbandonErrorMessage(caught)
+          : '진행 상태를 초기화하지 못했어요. 다시 시도해주세요.',
+      );
     } finally {
       ending.current = false;
       setBusy(false);
@@ -223,11 +301,41 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const confirmTreatment = () => {
     setHospitalVisible(true);
   };
-  const resolveTreatment = (pay: boolean) => {
+  const recordCare = async (actionCode: SimulationCareAction, itemSeq?: number) => {
+    const request = careRequest(actionCode, itemSeq);
+    const active = request ? await getActiveMockAdoption() : null;
+    if (!request || !active?.sessionSeq) {
+      return true as const;
+    }
+    try {
+      await performCareAction(active.sessionSeq, request);
+      return true as const;
+    } catch (error) {
+      return error instanceof ApiClientError
+        ? getCareActionErrorMessage(error)
+        : '돌봄을 진행하지 못했어요. 다시 시도해주세요.';
+    }
+  };
+  const resolveTreatment = async (pay: boolean) => {
     if (!pendingEvent) {
       return;
     }
-    if (!shop.resolveHospitalEvent(pendingEvent.occurrenceSeq, pay)) {
+    if (pay) {
+      const recorded = await recordCare(SimulationCareAction.VetVisit);
+      if (recorded !== true) {
+        Alert.alert('동물병원', recorded);
+        return;
+      }
+    }
+    const paidOnServer = pay && Boolean((await getActiveMockAdoption())?.sessionSeq);
+    if (
+      !useShopStore
+        .getState()
+        .hospitalEvents?.some(event => event.occurrenceSeq === pendingEvent.occurrenceSeq)
+    ) {
+      useShopStore.getState().enqueueHospitalEvent(pendingEvent);
+    }
+    if (!shop.resolveHospitalEvent(pendingEvent.occurrenceSeq, pay) && !paidOnServer) {
       Alert.alert(
         '동물병원',
         useShopStore.getState().error ?? '진료를 처리하지 못했어요. 다시 시도해주세요.',
@@ -240,12 +348,18 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         'bottom',
       );
     }
+    setClosedVetSeq(pendingEvent.occurrenceSeq);
     if (hospitalEvents.length <= 1) {
       setHospitalVisible(false);
     }
   };
-  const startBath = () => {
+  const startBath = async () => {
     if (careBusy.current || bathingRef.current || leaving || busy || !roomVisible) {
+      return;
+    }
+    const recorded = await recordCare(SimulationCareAction.Bathe);
+    if (recorded !== true) {
+      showToast(recorded);
       return;
     }
     bathingRef.current = true;
@@ -267,13 +381,21 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       });
     }, 3000);
   };
-  const provide = (kind: 'food' | 'water') => {
+  const provide = async (kind: 'food' | 'water') => {
     if (careBusy.current || bathingRef.current || leaving || busy || !pet) {
       return;
     }
     const nextStreak = { kind, count: streak.current.kind === kind ? streak.current.count + 1 : 1 };
     if (nextStreak.count >= 5) {
       showToast(kind === 'food' ? '지금은 배불러요' : '지금은 목마르지 않아요');
+      return;
+    }
+    const recorded = await recordCare(
+      kind === 'food' ? SimulationCareAction.Feed : SimulationCareAction.Water,
+      kind === 'food' ? careItemSeq('food') : undefined,
+    );
+    if (recorded !== true) {
+      showToast(recorded);
       return;
     }
     if (kind === 'food' && !consumeCareSupplies(pet.id, pet.category, 'food')) {
@@ -360,15 +482,58 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
             setCare(null);
           }}
           onPress={() => {
-            if (!careBusy.current && !bathingRef.current) {
-              setStatsVisible(true);
+            if (careBusy.current || bathingRef.current) {
+              return;
             }
+            const requestId = ++statsRequest.current;
+            setStatsNotice(undefined);
+            setStatsVisible(true);
+            if (!session?.sessionSeq) {
+              setPetStats(synced?.stats);
+              setStatsLoading(false);
+              return;
+            }
+            setPetStats(undefined);
+            setStatsLoading(true);
+            getSimulationStats(session.sessionSeq)
+              .then(result => {
+                if (statsRequest.current !== requestId) {
+                  return;
+                }
+                if (result.status === 'IN_PROGRESS') {
+                  setPetStats(result.stats);
+                  setStatsLoading(false);
+                  return;
+                }
+                applyActiveSimulation(null)
+                  .then(() => {
+                    if (statsRequest.current !== requestId) {
+                      return;
+                    }
+                    setStatsLoading(false);
+                    hideThenNavigate(showMockAdoptionOverview);
+                  })
+                  .catch(() => {
+                    if (statsRequest.current !== requestId) {
+                      return;
+                    }
+                    setStatsLoading(false);
+                    setStatsNotice('상태를 불러오지 못했어요. 다시 시도해주세요.');
+                  });
+              })
+              .catch(error => {
+                if (statsRequest.current !== requestId) {
+                  return;
+                }
+                setStatsLoading(false);
+                setStatsNotice(getSimulationStatsErrorMessage(error));
+              });
           }}
           leaving={leaving}
           onHidden={onPetHidden}
         />
       ) : null}
-      {pet && !bathing && (pet.category === 'dog' ? purchased('pads') : owns('litterBox')) ? (
+      {pet && !bathing && showLitter ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
@@ -386,6 +551,14 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
               return;
             }
             try {
+              const recorded = await recordCare(
+                SimulationCareAction.CleanLitter,
+                careItemSeq('clean'),
+              );
+              if (recorded !== true) {
+                showToast(recorded);
+                return;
+              }
               if (await toilet.clean(() => consumeCareSupplies(pet.id, pet.category, 'clean'))) {
                 showToast('깨끗해져서 좋아요!');
               } else if (useShopStore.getState().error) {
@@ -467,9 +640,17 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="AR 산책하기"
-                style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  pet?.category === 'dog' && !hasLeash && styles.dimmed,
+                  pressed && styles.pressed,
+                ]}
                 disabled={busy || leaving}
                 onPress={() => {
+                  if (pet?.category === 'dog' && !hasLeash) {
+                    showToast('하네스와 리드줄이 필요해요!');
+                    return;
+                  }
                   hideThenNavigate(() => {
                     walkPending.current = true;
                     navigation.navigate('ArWalk', { petName: session?.petName ?? '' });
@@ -487,8 +668,18 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                 accessibilityRole="button"
                 accessibilityLabel="목욕하기"
                 disabled={busy || leaving || !!care || treatActive}
-                onPress={startBath}
-                style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
+                onPress={() => {
+                  if (!hasGroomingKit) {
+                    showToast('위생 관리 키트가 필요해요!');
+                    return;
+                  }
+                  startBath();
+                }}
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  !hasGroomingKit && styles.dimmed,
+                  pressed && styles.pressed,
+                ]}
               >
                 <Image
                   source={require('../../assets/images/mock-adoption/img_shower.png')}
@@ -554,7 +745,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         <View style={styles.room} pointerEvents="box-none">
           <View style={styles.bowls}>
             {(['food', 'water'] as const).map(kind =>
-              owns(kind === 'food' ? 'bowl' : 'waterBowl') ? (
+              (kind === 'food' ? hasFoodBowl : hasWaterBowl) ? (
                 <Pressable
                   key={kind}
                   accessibilityRole="button"
@@ -617,8 +808,14 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
             careBusy.current = active;
             setTreatActive(active);
           }}
-          onLanded={() => {
+          onLanded={async () => {
             setTreatActive(false);
+            const recorded = await recordCare(SimulationCareAction.Snack, careItemSeq('treat'));
+            if (recorded !== true) {
+              careBusy.current = false;
+              showToast(recorded);
+              return;
+            }
             if (!consumeCareSupplies(pet.id, pet.category, 'treat')) {
               careBusy.current = false;
               showToast(useShopStore.getState().error || '간식을 사용할 수 없어요.');
@@ -629,7 +826,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           }}
         />
       ) : null}
-      {roomVisible && pet?.category === 'dog' && hasToy && !leaving && !bathing ? (
+      {roomVisible && pet?.category === 'dog' && showToy && !leaving && !bathing ? (
         <TreatLauncher
           dockHidden={!!care || treatActive || bathReturning}
           item="toy"
@@ -645,7 +842,14 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
             careBusy.current = active;
             setTreatActive(active);
           }}
-          onLanded={point => {
+          onLanded={async point => {
+            const recorded = await recordCare(SimulationCareAction.Play, careItemSeq('play'));
+            if (recorded !== true) {
+              careBusy.current = false;
+              setTreatActive(false);
+              showToast(recorded);
+              return;
+            }
             setTreatActive(false);
             setToyGround(point);
             setCare({
@@ -724,8 +928,14 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         <PetStatsDialog
           visible={statsVisible}
           petName={session?.petName ?? pet.name}
-          stats={mockPetStats}
-          onClose={() => setStatsVisible(false)}
+          stats={petStats}
+          loading={statsLoading}
+          notice={statsNotice}
+          onClose={() => {
+            statsRequest.current += 1;
+            setStatsLoading(false);
+            setStatsVisible(false);
+          }}
         />
       ) : null}
     </View>
@@ -786,6 +996,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   actionButton: { width: 60, alignItems: 'center', gap: 4 },
+  dimmed: { opacity: 0.4 },
   actionImage: { width: 60, height: 60 },
   actionCaption: { ...typography.captionRegular10, color: colors.gray700, textAlign: 'center' },
   rightActions: { width: 60, alignItems: 'center', gap: 16 },

@@ -1,55 +1,177 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  type ImageSourcePropType,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { RootStackParamList } from '../../app/navigation/types';
 import { AppHeader, Button, ListScreenSkeleton } from '../../components/common';
+import {
+  applyActiveSimulation,
+  getActiveSimulation,
+  type ActiveSimulation,
+} from '../../services/simulation/activeSession';
+import {
+  getSimulationReportErrorMessage,
+  invalidateSimulationReports,
+  loadSimulationReports,
+  type SimulationReport,
+} from '../../services/simulation/reports';
 import {
   getActiveMockAdoption,
   type MockAdoptionSession,
 } from '../../services/storage/mockAdoptionStorage';
 import { colors, radius, typography } from '../../theme';
 import { mockAdoptionPets } from './data';
-import { mockAdoptionReports } from './reportData';
+import { SuddenEventDialog } from './SuddenEventDialog';
+import {
+  isSimulationAutoEnded,
+  SIMULATION_ENDED_DESCRIPTION,
+  SIMULATION_ENDED_TITLE,
+  subscribeSimulationEnded,
+} from '../../services/simulation/sessionEnd';
 
-type Props = {
-  onBack: () => void;
-  onStart: () => void;
-  onResume: (petId: string) => void;
-};
+const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
 
-export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props) {
+function reportDate(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  return match ? `${match[1]}.${match[2]}.${match[3]}` : value;
+}
+
+function localPetImage(breedSeq: string) {
+  return mockAdoptionPets.find(
+    pet => pet.breedCode === breedSeq || pet.breedCode === breedSeq.padStart(5, '0'),
+  )?.image;
+}
+
+function endedPetImage(active: ActiveSimulation): ImageSourcePropType {
+  if (active.breed.representativeImageUrl) {
+    return { uri: active.breed.representativeImageUrl };
+  }
+  return (
+    localPetImage(active.breed.breedSeq) ??
+    require('../../assets/images/mock-adoption/intro-dog.png')
+  );
+}
+
+type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionOverview'>;
+
+export function MockAdoptionOverviewScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const [session, setSession] = useState<MockAdoptionSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [reports, setReports] = useState<SimulationReport[]>([]);
+  const [freshSessionSeqs, setFreshSessionSeqs] = useState<number[]>([]);
+  const [reportError, setReportError] = useState<string>();
+  const [reportsLoading, setReportsLoading] = useState(true);
+  const [endedNotice, setEndedNotice] = useState<{
+    petName: string;
+    image: ImageSourcePropType;
+  } | null>(null);
+  const reportsActive = useRef(true);
+
+  const readReports = useCallback((force = false) => {
+    if (force) {
+      invalidateSimulationReports();
+    }
+    setReportsLoading(true);
+    loadSimulationReports()
+      .then(result => {
+        if (!reportsActive.current) {
+          return;
+        }
+        setReports(result.reports);
+        setFreshSessionSeqs(result.freshSessionSeqs);
+        setReportError(undefined);
+      })
+      .catch(error => {
+        if (!reportsActive.current) {
+          return;
+        }
+        setReportError(getSimulationReportErrorMessage(error));
+      })
+      .finally(() => {
+        if (reportsActive.current) {
+          setReportsLoading(false);
+        }
+      });
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       let mounted = true;
-      getActiveMockAdoption()
-        .then(value => {
-          if (mounted) {
-            setSession(value);
+      reportsActive.current = true;
+      setReportsLoading(true);
+      getActiveSimulation()
+        .then(active =>
+          applyActiveSimulation(active).then(value => ({
+            active,
+            value,
+          })),
+        )
+        .then(result => {
+          if (!mounted) {
+            return;
+          }
+          setSession(result.value);
+          setFailed(false);
+          if (result.active && result.active.status !== 'IN_PROGRESS') {
+            setEndedNotice({
+              petName: result.active.animalName,
+              image: endedPetImage(result.active),
+            });
           }
         })
-        .catch(() => {
-          if (mounted) {
-            setFailed(true);
+        .catch(error => {
+          if (isSimulationAutoEnded(error)) {
+            if (mounted) {
+              setSession(null);
+              setFailed(false);
+            }
+            return;
           }
+          return getActiveMockAdoption()
+            .then(value => {
+              if (!mounted) {
+                return;
+              }
+              setSession(value);
+              setFailed(false);
+            })
+            .catch(() => {
+              if (mounted) {
+                setFailed(true);
+              }
+            });
         })
         .finally(() => {
-          if (mounted) {
-            setLoading(false);
-            setInitialLoading(false);
+          if (!mounted) {
+            return;
           }
+          setLoading(false);
+          setInitialLoading(false);
+          readReports();
         });
       return () => {
         mounted = false;
+        reportsActive.current = false;
       };
-    }, []),
+    }, [readReports]),
   );
+
+  useEffect(() => subscribeSimulationEnded(() => setSession(null)), []);
 
   const openAdoption = async () => {
     setLoading(true);
@@ -58,9 +180,9 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
       setSession(active);
       setFailed(false);
       if (active) {
-        onResume(active.petId);
+        navigation.navigate('MockAdoptionActivity', { petId: active.petId });
       } else {
-        onStart();
+        navigation.navigate('MockAdoptionSelection');
       }
     } catch {
       setFailed(true);
@@ -72,13 +194,13 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
   const petName = session?.petName ?? mockAdoptionPets.find(pet => pet.id === session?.petId)?.name;
 
   return (
-    <View style={styles.container}>
-      <AppHeader title="모의입양" onBackPress={onBack} />
+    <SafeAreaView edges={['top']} style={styles.container}>
+      <AppHeader title="모의입양" onBackPress={navigation.goBack} />
       {initialLoading ? (
         <ListScreenSkeleton accessibilityLabel="모의입양 정보 불러오는 중" />
       ) : (
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.intro}>
@@ -104,56 +226,81 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
             <Text accessibilityRole="header" style={styles.sectionTitle}>
               받은 레포트
             </Text>
-            <Text style={styles.count}>{mockAdoptionReports.length}</Text>
+            <Text style={styles.count}>{reports.length}</Text>
           </View>
-          {mockAdoptionReports.map(report => {
-            const pet = mockAdoptionPets.find(item => item.id === report.petId);
-            return (
-              <View key={report.id} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  {pet ? (
-                    <Image
-                      accessibilityLabel={`${report.petName} (${
-                        pet.category === 'cat' ? '고양이' : '개'
-                      }) 이미지`}
-                      source={pet.image}
-                      resizeMode="contain"
-                      style={styles.petImage}
-                    />
-                  ) : null}
-                  <View style={styles.petInfo}>
-                    <View style={styles.titleRow}>
-                      <Text style={styles.petName}>{report.petName} 모의 입양 결과분석</Text>
-                      {report.isNew ? (
-                        <View style={styles.badge}>
-                          <Text style={styles.badgeText}>new</Text>
-                        </View>
-                      ) : null}
+          {reportsLoading ? (
+            <ActivityIndicator accessibilityLabel="리포트 불러오는 중" />
+          ) : reportError ? (
+            <View style={styles.reportStatus}>
+              <Text style={styles.summary}>{reportError}</Text>
+              <Button onPress={() => readReports(true)}>다시 불러오기</Button>
+            </View>
+          ) : !reports.length ? (
+            <Text style={styles.summary}>아직 받은 레포트가 없어요.</Text>
+          ) : (
+            reports.map(report => {
+              const species = report.breed.speciesType === 'CAT' ? '고양이' : '개';
+              const image = report.breed.representativeImageUrl
+                ? { uri: report.breed.representativeImageUrl }
+                : localPetImage(report.breed.breedSeq);
+              return (
+                <View key={report.sessionSeq} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    {image ? (
+                      <Image
+                        accessibilityLabel={`${report.animalName} (${species}) 이미지`}
+                        source={image}
+                        resizeMode="contain"
+                        style={styles.petImage}
+                      />
+                    ) : null}
+                    <View style={styles.petInfo}>
+                      <View style={styles.titleRow}>
+                        <Text style={styles.petName}>{report.animalName} 모의 입양 결과분석</Text>
+                        {freshSessionSeqs.includes(report.sessionSeq) ? (
+                          <View style={styles.badge}>
+                            <Text style={styles.badgeText}>new</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={styles.date}>{reportDate(report.endedDttm)}</Text>
                     </View>
-                    <Text style={styles.date}>{report.createdAt}</Text>
                   </View>
-                </View>
-                <Text numberOfLines={1} style={styles.summary}>
-                  {report.summary}
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${report.petName} 리포트 상세보기`}
-                  accessibilityState={{ disabled: true }}
-                  disabled
-                  style={styles.detailButton}
-                >
-                  <Text style={styles.detailLabel}>상세보기</Text>
-                  <Text accessible={false} style={styles.detailArrow}>
-                    →
+                  <Text numberOfLines={1} style={styles.summary}>
+                    {`사용 금액 ${won(report.totalSpent)} · 예산 차이 ${won(report.difference)}`}
                   </Text>
-                </Pressable>
-              </View>
-            );
-          })}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${report.animalName} 리포트 상세보기`}
+                    accessibilityState={{ disabled: true }}
+                    disabled
+                    style={styles.detailButton}
+                  >
+                    <Text style={styles.detailLabel}>상세보기</Text>
+                    <Text accessible={false} style={styles.detailArrow}>
+                      →
+                    </Text>
+                  </Pressable>
+                </View>
+              );
+            })
+          )}
         </ScrollView>
       )}
-    </View>
+      {endedNotice ? (
+        <SuddenEventDialog
+          event={{
+            scenario: {
+              title: SIMULATION_ENDED_TITLE,
+              description: SIMULATION_ENDED_DESCRIPTION,
+            },
+          }}
+          image={endedNotice.image}
+          petName={endedNotice.petName}
+          onClose={() => setEndedNotice(null)}
+        />
+      ) : null}
+    </SafeAreaView>
   );
 }
 
@@ -179,6 +326,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { ...typography.titleBold18, color: colors.black },
   count: { ...typography.bodySemiBold16, color: colors.green400 },
+  reportStatus: { gap: 12 },
   card: {
     backgroundColor: '#FCFDFE',
     borderRadius: radius.lg,

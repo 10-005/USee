@@ -69,6 +69,15 @@ class ArFloorView(
   private var modelReady = false
   private var active = false
   private var bagAvailable = false
+  private var poopArmed = false
+  private var lastPoopRequest = 0
+
+  fun requestPoop(request: Int) {
+    if (request > lastPoopRequest) {
+      lastPoopRequest = request
+      poopArmed = true
+    }
+  }
 
   fun setBagAvailable(available: Boolean) {
     bagAvailable = available
@@ -456,8 +465,10 @@ class ArFloorView(
         onRight && (scratch.depth.latest?.evidence(x, dog.y, z, now) == FloorEvidence.OBSTACLE ||
           floorAnalyzer?.latest?.let { it.isFresh(now) && it.evidenceAt(x, dog.y, z, now) == FloorEvidence.OBSTACLE } == true)
       }
-      cleanup?.update(dog, camera.pose.tx(), camera.pose.tz(), viewMatrix, projectionMatrix, obstacle) {
-        leader.beginPoop(rightX, rightZ)
+      cleanup?.update(dog, camera.pose.tx(), camera.pose.tz(), viewMatrix, projectionMatrix, obstacle)
+      if (poopArmed) {
+        poopArmed = false
+        cleanup?.arm { leader.beginPoop(rightX, rightZ) }
       }
     } else {
       dogNode?.cancelAttention()

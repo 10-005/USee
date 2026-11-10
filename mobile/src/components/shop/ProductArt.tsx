@@ -10,7 +10,9 @@ export function ProductArt({ product }: { product: Product }) {
       onLayout={e => setSize(e.nativeEvent.layout.width)}
       style={styles.frame}
     >
-      {size > 0 && (
+      {product.imageUrl ? (
+        <Image source={{ uri: product.imageUrl }} resizeMode="contain" style={styles.photo} />
+      ) : product.itemSeq || size <= 0 ? null : (
         <Image
           source={
             product.atlas === 'items-extra-v2'
@@ -34,6 +36,7 @@ export function ProductArt({ product }: { product: Product }) {
 }
 const styles = StyleSheet.create({
   atlas: { position: 'absolute' },
+  photo: { width: '100%', height: '100%' },
   frame: {
     width: '100%',
     aspectRatio: 1,

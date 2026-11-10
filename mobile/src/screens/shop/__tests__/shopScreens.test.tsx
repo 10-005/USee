@@ -6,17 +6,43 @@ import { ProductDetailScreen } from '../ProductDetailScreen';
 import { CartScreen } from '../CartScreen';
 import { InventoryScreen } from '../InventoryScreen';
 import { useShopStore } from '../../../stores/shopStore';
-import { getShopDatabase } from '../../../services/shop/shopDatabase';
+import { getShopDatabase, replaceSessionShopCatalog } from '../../../services/shop/shopDatabase';
 import { findProduct } from '../../../services/shop/catalog';
+import { ApiClientError } from '../../../services/api';
+import { purchaseSimulationItems } from '../../../services/simulation/purchase';
+import { getSimulationInventory } from '../../../services/simulation/inventory';
 import { StackRouter, StackActions } from '@react-navigation/routers';
 
+const mockShopSession: {
+  pet: { id: string; name: string; category: 'dog' };
+  session?: { sessionSeq: number };
+  status: 'ready';
+  retry: jest.Mock;
+} = {
+  pet: { id: 'dog-1', name: '비숑 프리제', category: 'dog' },
+  status: 'ready',
+  retry: jest.fn(),
+};
+
 jest.mock('../useShopSession', () => ({
-  useShopSession: () => ({
-    pet: { id: 'dog-1', name: '비숑 프리제', category: 'dog' },
-    status: 'ready',
-    retry: jest.fn(),
-  }),
+  useShopSession: () => mockShopSession,
 }));
+
+jest.mock('../../../services/simulation/inventory', () => {
+  const actual = jest.requireActual('../../../services/simulation/inventory');
+  return {
+    ...actual,
+    getSimulationInventory: jest.fn(),
+  };
+});
+
+jest.mock('../../../services/simulation/purchase', () => {
+  const actual = jest.requireActual('../../../services/simulation/purchase');
+  return {
+    ...actual,
+    purchaseSimulationItems: jest.fn(),
+  };
+});
 jest.mock('react-native/Libraries/Alert/Alert', () => ({
   __esModule: true,
   default: { alert: jest.fn() },
@@ -35,7 +61,11 @@ function wrap(element: React.ReactNode) {
   );
 }
 beforeEach(() => {
-  getShopDatabase().executeSync('DELETE FROM shop_sessions');
+  const db = getShopDatabase();
+  db.executeSync('DELETE FROM shop_sessions');
+  db.executeSync('DELETE FROM simulation_shop_catalogs');
+  db.executeSync("DELETE FROM products WHERE origin = 'server'");
+  delete mockShopSession.session;
   jest.clearAllMocks();
   useShopStore.setState({ sessionKey: '' });
   useShopStore
@@ -154,6 +184,78 @@ it('supports multiple category buttons', () => {
   expect(
     screen.root.findByProps({ accessibilityLabel: '간식 분류' }).props.accessibilityState.checked,
   ).toBe(false);
+  act(() => screen.unmount());
+});
+
+it('shows the server inventory, balance and a used-up consumable', async () => {
+  mockShopSession.session = { sessionSeq: 3001 };
+  jest.mocked(getSimulationInventory).mockResolvedValue({
+    balance: 110000,
+    expectedCost: 150000,
+    equipment: [
+      { key: 'foodBowl', label: '밥그릇' },
+      { key: 'waterBowl', label: '물그릇' },
+    ],
+    items: [
+      {
+        itemSeq: 1,
+        itemName: '밥그릇',
+        category: 'FOOD_BOWL',
+        isConsumable: false,
+        quantity: 1,
+        imageUrl: null,
+      },
+      {
+        itemSeq: 2,
+        itemName: '물그릇',
+        category: 'WATER_BOWL',
+        isConsumable: false,
+        quantity: 1,
+        imageUrl: null,
+      },
+      {
+        itemSeq: 11,
+        itemName: '건식 사료 1kg',
+        category: 'FOOD',
+        isConsumable: true,
+        quantity: 5,
+        imageUrl: null,
+      },
+      {
+        itemSeq: 12,
+        itemName: '간식',
+        category: 'SNACK',
+        isConsumable: true,
+        quantity: 0,
+        imageUrl: null,
+      },
+    ],
+  });
+  let screen!: renderer.ReactTestRenderer;
+  await act(async () => {
+    screen = renderer.create(
+      wrap(
+        <InventoryScreen
+          navigation={{ navigate: jest.fn(), goBack: jest.fn() } as never}
+          route={{ key: 'inventory', name: 'ShopInventory', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  expect(getSimulationInventory).toHaveBeenCalledWith(3001);
+  expect(screen.root.findByProps({ children: '110,000원' })).toBeDefined();
+  expect(screen.root.findByProps({ children: '예상 예산 150,000원' })).toBeDefined();
+  const detailButtons = (name: string) =>
+    screen.root.findAll(
+      node =>
+        node.props.accessibilityRole === 'button' &&
+        node.props.accessibilityLabel === `${name} 상세 보기`,
+    );
+  expect(detailButtons('건식 사료 1kg').length).toBeGreaterThan(0);
+  expect(detailButtons('밥그릇')).toHaveLength(detailButtons('건식 사료 1kg').length);
+  expect(detailButtons('물그릇')).toHaveLength(detailButtons('건식 사료 1kg').length);
+  expect(screen.root.findByProps({ children: '보유 5개' })).toBeDefined();
+  expect(screen.root.findByProps({ children: '다 썼음' })).toBeDefined();
   act(() => screen.unmount());
 });
 
@@ -286,6 +388,188 @@ it('changes cart quantity and completes a confirmed mock purchase', () => {
   expect(popTo).toHaveBeenCalledWith('ShopInventory', { petId: 'dog-1' });
   expect(popTo).toHaveBeenCalledTimes(1);
   expect(screen.root.findAllByProps({ children: '구매 완료' })).toHaveLength(0);
+  act(() => screen.unmount());
+});
+
+it('does not purchase on the device when a server session has no item number', () => {
+  mockShopSession.session = { sessionSeq: 3001 };
+  useShopStore.getState().setQuantity('food', 1, 'dog');
+  let screen!: renderer.ReactTestRenderer;
+  act(() => {
+    screen = renderer.create(
+      wrap(
+        <CartScreen
+          navigation={{ popTo: jest.fn() } as never}
+          route={{ key: 'cart', name: 'ShopCart', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  act(() =>
+    screen.root
+      .findAll(
+        node =>
+          node.props.accessibilityRole === 'button' &&
+          node.props.onPress &&
+          node.findAllByProps({ children: '1종 모의 구매하기' }).length > 0,
+      )[0]
+      .props.onPress(),
+  );
+  act(() => screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress());
+  expect(purchaseSimulationItems).not.toHaveBeenCalled();
+  expect(screen.root.findByProps({ children: '구매할 수 없는 상품이 있어요.' })).toBeDefined();
+  expect(useShopStore.getState().spent).toBe(0);
+  expect(useShopStore.getState().cart.food).toBe(1);
+  act(() => screen.unmount());
+});
+
+const serverFood = {
+  id: '11',
+  name: '건식 사료 1kg',
+  qty: 1,
+  unit: '개',
+  species: 'dog' as const,
+  kind: 'consumable' as const,
+  category: '식사',
+  description: '한 끼 분량씩 소모됩니다.',
+  sprite: 0,
+  price: 8000,
+  placement: 'inventory',
+  itemSeq: 11,
+  serverCategory: 'FOOD',
+  imageUrl: null,
+  market: { gamePrice: 8000, basis: '', sources: [] },
+};
+
+it('purchases a server item from the cart and keeps the cart when purchase fails', async () => {
+  const popTo = jest.fn();
+  const session = {
+    petId: 'dog-1',
+    startedAt: 1,
+    expiresAt: Date.now() + 86400000,
+    weeklyBudget: 150000,
+  };
+  replaceSessionShopCatalog(`${session.petId}:${session.startedAt}`, 'DOG', [
+    { displayOrder: 0, product: serverFood },
+  ]);
+  useShopStore.getState().open(session);
+  useShopStore.getState().setQuantity('11', 5, 'dog');
+  mockShopSession.session = { sessionSeq: 3001 };
+  jest.mocked(purchaseSimulationItems).mockResolvedValue({
+    purchases: [
+      {
+        transactionSeq: 70001,
+        item: { itemSeq: 11, itemName: '건식 사료 1kg', category: 'FOOD' },
+        quantity: 5,
+        amount: 40000,
+        balanceAfter: 110000,
+        inventoryQuantity: 5,
+      },
+    ],
+    totalAmount: 40000,
+    balanceAfter: 110000,
+  });
+  let screen!: renderer.ReactTestRenderer;
+  await act(async () => {
+    screen = renderer.create(
+      wrap(
+        <CartScreen
+          navigation={{ popTo } as never}
+          route={{ key: 'cart', name: 'ShopCart', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  const buy = () =>
+    screen.root.findAll(
+      node =>
+        node.props.accessibilityRole === 'button' &&
+        node.props.onPress &&
+        node.findAllByProps({ children: '1종 모의 구매하기' }).length > 0,
+    )[0];
+  await act(async () => {
+    buy().props.onPress();
+  });
+  await act(async () => {
+    await screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress();
+  });
+  expect(purchaseSimulationItems).toHaveBeenCalledWith(3001, [{ itemSeq: 11, quantity: 5 }]);
+  expect(useShopStore.getState().inventory['11']).toBe(5);
+  expect(useShopStore.getState().spent).toBe(40000);
+  expect(useShopStore.getState().cart).toEqual({});
+  expect(popTo).toHaveBeenCalledWith('ShopInventory', { petId: 'dog-1' });
+
+  await act(async () => {
+    useShopStore.getState().setQuantity('11', 1, 'dog');
+  });
+  jest
+    .mocked(purchaseSimulationItems)
+    .mockRejectedValueOnce(
+      new ApiClientError({ code: 'SIMULATION_EQUIPMENT_ALREADY_OWNED', message: 'owned' }),
+    );
+  await act(async () => {
+    buy().props.onPress();
+  });
+  await act(async () => {
+    await screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress();
+  });
+  expect(screen.root.findByProps({ children: '이미 가지고 있는 기구예요.' })).toBeDefined();
+  expect(useShopStore.getState().cart['11']).toBe(1);
+  expect(popTo).toHaveBeenCalledTimes(1);
+  act(() => screen.unmount());
+});
+
+it('requires a single piece of equipment before purchasing', async () => {
+  const popTo = jest.fn();
+  const bowl = {
+    ...serverFood,
+    id: '1',
+    name: '스테인리스 밥그릇',
+    kind: 'durable' as const,
+    price: 12000,
+    itemSeq: 1,
+    serverCategory: 'FOOD_BOWL',
+    placement: 'room',
+  };
+  const session = {
+    petId: 'dog-1',
+    startedAt: 1,
+    expiresAt: Date.now() + 86400000,
+    weeklyBudget: 150000,
+  };
+  replaceSessionShopCatalog(`${session.petId}:${session.startedAt}`, 'DOG', [
+    { displayOrder: 0, product: bowl },
+  ]);
+  useShopStore.getState().open(session);
+  useShopStore.getState().setQuantity('1', 2, 'dog');
+  mockShopSession.session = { sessionSeq: 3001 };
+  let screen!: renderer.ReactTestRenderer;
+  await act(async () => {
+    screen = renderer.create(
+      wrap(
+        <CartScreen
+          navigation={{ popTo } as never}
+          route={{ key: 'cart', name: 'ShopCart', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  await act(async () => {
+    screen.root
+      .findAll(
+        node =>
+          node.props.accessibilityRole === 'button' &&
+          node.props.onPress &&
+          node.findAllByProps({ children: '1종 모의 구매하기' }).length > 0,
+      )[0]
+      .props.onPress();
+  });
+  await act(async () => {
+    await screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress();
+  });
+  expect(purchaseSimulationItems).not.toHaveBeenCalled();
+  expect(screen.root.findByProps({ children: '기구는 1개만 구매할 수 있어요.' })).toBeDefined();
+  expect(popTo).not.toHaveBeenCalled();
   act(() => screen.unmount());
 });
 

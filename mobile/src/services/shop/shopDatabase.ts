@@ -103,7 +103,7 @@ export function getShopDatabase(): DB {
     db.executeSync('PRAGMA foreign_keys = ON');
     db.executeSync('PRAGMA journal_mode = WAL');
     const version = Number(db.executeSync('PRAGMA user_version').rows[0].user_version);
-    if (version > 4) {
+    if (version > 5) {
       throw new Error('Unsupported shop database version');
     }
     if (version === 0) {
@@ -152,6 +152,9 @@ export function getShopDatabase(): DB {
     if (version < 4) {
       migrateShopOwnedItemsV4(db);
     }
+    if (version < 5) {
+      migrateShopCatalogV5(db);
+    }
     db.executeSync(`CREATE TABLE IF NOT EXISTS hospital_events (
       session_id TEXT PRIMARY KEY REFERENCES shop_sessions(id) ON DELETE CASCADE,
       events TEXT NOT NULL)`);
@@ -163,23 +166,101 @@ export function getShopDatabase(): DB {
   }
 }
 
+export function migrateShopCatalogV5(db: DB): void {
+  transaction(db, () => {
+    db.executeSync("ALTER TABLE products ADD COLUMN origin TEXT NOT NULL DEFAULT 'local'");
+    db.executeSync('ALTER TABLE products ADD COLUMN catalog_session TEXT');
+    db.executeSync(`CREATE TABLE simulation_shop_catalogs (
+      session_key TEXT PRIMARY KEY, species_type TEXT NOT NULL, fetched_at INTEGER NOT NULL)`);
+    db.executeSync('PRAGMA user_version = 5');
+  });
+}
+
+function mapProductRow(row: Record<string, unknown>): Product {
+  return {
+    ...JSON.parse(String(row.metadata)),
+    id: String(row.id),
+    name: String(row.name),
+    species: row.species,
+    category: String(row.category),
+    price: Number(row.price),
+    qty: Number(row.bundle_quantity),
+    kind: row.kind,
+    essential: row.essential === 1,
+  } as Product;
+}
+
 export function readShopProducts(): Product[] {
   return getShopDatabase()
-    .executeSync('SELECT * FROM products ORDER BY display_order')
-    .rows.map(
-      row =>
-        ({
-          ...JSON.parse(String(row.metadata)),
-          id: String(row.id),
-          name: String(row.name),
-          species: row.species,
-          category: String(row.category),
-          price: Number(row.price),
-          qty: Number(row.bundle_quantity),
-          kind: row.kind,
-          essential: row.essential === 1,
-        } as Product),
-    );
+    .executeSync("SELECT * FROM products WHERE origin = 'local' ORDER BY display_order")
+    .rows.map(row => mapProductRow(row));
+}
+
+export function hasSessionShopCatalog(sessionKey: string): boolean {
+  return (
+    getShopDatabase().executeSync(
+      'SELECT session_key FROM simulation_shop_catalogs WHERE session_key = ?',
+      [sessionKey],
+    ).rows.length > 0
+  );
+}
+
+export function readSessionShopCatalog(sessionKey: string): Product[] | null {
+  if (!hasSessionShopCatalog(sessionKey)) {
+    return null;
+  }
+  return getShopDatabase()
+    .executeSync(
+      `SELECT * FROM products WHERE origin = 'server' AND catalog_session = ?
+      ORDER BY display_order`,
+      [sessionKey],
+    )
+    .rows.map(row => mapProductRow(row));
+}
+
+export function replaceSessionShopCatalog(
+  sessionKey: string,
+  speciesType: string,
+  items: Array<{ product: Product; displayOrder: number }>,
+): void {
+  if (!sessionKey) {
+    throw new Error('Invalid shop catalog');
+  }
+  const db = getShopDatabase();
+  transaction(db, () => {
+    const serverIds = db
+      .executeSync("SELECT id FROM products WHERE origin = 'server'")
+      .rows.map(row => String(row.id));
+    for (const id of serverIds) {
+      db.executeSync('DELETE FROM cart_items WHERE product_id = ?', [id]);
+      db.executeSync('DELETE FROM inventory_items WHERE product_id = ?', [id]);
+      db.executeSync('DELETE FROM owned_items WHERE product_id = ?', [id]);
+    }
+    db.executeSync("DELETE FROM products WHERE origin = 'server'");
+    db.executeSync('DELETE FROM simulation_shop_catalogs');
+    db.executeSync('INSERT INTO simulation_shop_catalogs VALUES (?, ?, ?)', [
+      sessionKey,
+      speciesType,
+      Date.now(),
+    ]);
+    for (const item of items) {
+      const product = item.product;
+      db.executeSync('INSERT INTO products VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+        product.id,
+        product.name,
+        product.species,
+        product.category,
+        product.price,
+        product.qty,
+        product.kind,
+        product.essential ? 1 : 0,
+        item.displayOrder,
+        JSON.stringify(product),
+        'server',
+        sessionKey,
+      ]);
+    }
+  });
 }
 
 export function readShopSnapshot(sessionKey: string): ShopSnapshot | null {
