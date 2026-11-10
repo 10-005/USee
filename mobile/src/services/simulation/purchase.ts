@@ -5,7 +5,7 @@ import { ApiClientError } from '../api/errors';
 import { readApiData } from '../api/response';
 import type { ShopItemCategory } from './shopItems';
 
-export type ShopPurchaseRequest = {
+export type ShopPurchaseLine = {
   itemSeq: number;
   quantity: number;
 };
@@ -21,6 +21,12 @@ export type ShopPurchase = {
   amount: number;
   balanceAfter: number;
   inventoryQuantity: number;
+};
+
+export type ShopPurchaseResult = {
+  purchases: ShopPurchase[];
+  totalAmount: number;
+  balanceAfter: number;
 };
 
 const ITEM_CATEGORIES = new Set<ShopItemCategory>([
@@ -61,7 +67,7 @@ function invalidPurchase(): ApiClientError {
   return new ApiClientError({ code: 'UNKNOWN_ERROR', message: PURCHASE_FAILURE });
 }
 
-function readPurchase(value: unknown, request: ShopPurchaseRequest): ShopPurchase {
+function readPurchase(value: unknown, request: ShopPurchaseLine): ShopPurchase {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw invalidPurchase();
   }
@@ -104,21 +110,48 @@ export function getPurchaseErrorMessage(error: unknown): string {
   return PURCHASE_FAILURE;
 }
 
-export async function purchaseSimulationItem(
+function readPurchaseResult(value: unknown, items: ShopPurchaseLine[]): ShopPurchaseResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw invalidPurchase();
+  }
+  const result = value as Partial<ShopPurchaseResult>;
+  if (!Array.isArray(result.purchases) || result.purchases.length !== items.length) {
+    throw invalidPurchase();
+  }
+  const purchases = result.purchases.map((purchase, index) => readPurchase(purchase, items[index]));
+  const totalAmount = purchases.reduce((sum, purchase) => sum + purchase.amount, 0);
+  const balanceAfter = purchases[purchases.length - 1]?.balanceAfter;
+  if (
+    typeof result.totalAmount !== 'number' ||
+    !Number.isInteger(result.totalAmount) ||
+    result.totalAmount !== totalAmount ||
+    typeof result.balanceAfter !== 'number' ||
+    !Number.isInteger(result.balanceAfter) ||
+    result.balanceAfter !== balanceAfter
+  ) {
+    throw invalidPurchase();
+  }
+  return { purchases, totalAmount, balanceAfter };
+}
+
+export async function purchaseSimulationItems(
   sessionSeq: number,
-  request: ShopPurchaseRequest,
+  items: ShopPurchaseLine[],
   client: SimulationClient = simulationClient,
-): Promise<ShopPurchase> {
+): Promise<ShopPurchaseResult> {
   if (
     !isPositiveId(sessionSeq) ||
-    !isPositiveId(request.itemSeq) ||
-    !isPositiveId(request.quantity)
+    items.length < 1 ||
+    items.length > 50 ||
+    new Set(items.map(item => item.itemSeq)).size !== items.length ||
+    items.some(
+      item => !isPositiveId(item.itemSeq) || !isPositiveId(item.quantity) || item.quantity > 99,
+    )
   ) {
     throw invalidPurchase();
   }
   const response = await client.post(`/simulations/${sessionSeq}/purchases`, {
-    itemSeq: request.itemSeq,
-    quantity: request.quantity,
+    items: items.map(item => ({ itemSeq: item.itemSeq, quantity: item.quantity })),
   });
-  return readPurchase(readApiData(response.data), request);
+  return readPurchaseResult(readApiData(response.data), items);
 }

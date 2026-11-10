@@ -12,7 +12,7 @@ import { QuantityControl } from '../../components/shop/QuantityControl';
 import { availableProducts, findProduct, money } from '../../services/shop/catalog';
 import {
   getPurchaseErrorMessage,
-  purchaseSimulationItem,
+  purchaseSimulationItems,
 } from '../../services/simulation/purchase';
 import { ApiClientError } from '../../services/api';
 import { useShopStore, cartTotal } from '../../stores/shopStore';
@@ -127,6 +127,7 @@ export function CartScreen({ navigation, route }: Props) {
         showPurchaseResult('모의 입양 기간이 종료되었어요.');
         return;
       }
+      const lines: Array<{ id: string; itemSeq: number; quantity: number }> = [];
       for (const id of selectedIds) {
         const current = useShopStore.getState();
         const product = findProduct(id);
@@ -139,24 +140,29 @@ export function CartScreen({ navigation, route }: Props) {
           showPurchaseResult('기구는 1개만 구매할 수 있어요.');
           return;
         }
-        try {
-          const purchased = await purchaseSimulationItem(sessionSeq, {
-            itemSeq: product.itemSeq,
-            quantity,
-          });
-          const saved = useShopStore.getState().applyServerPurchase(id, purchased);
+        lines.push({ id, itemSeq: product.itemSeq, quantity });
+      }
+      try {
+        const purchased = await purchaseSimulationItems(
+          sessionSeq,
+          lines.map(line => ({ itemSeq: line.itemSeq, quantity: line.quantity })),
+        );
+        for (let index = 0; index < lines.length; index += 1) {
+          const saved = useShopStore
+            .getState()
+            .applyServerPurchase(lines[index].id, purchased.purchases[index]);
           if (saved) {
             showPurchaseResult(saved);
             return;
           }
-        } catch (error) {
-          showPurchaseResult(
-            error instanceof ApiClientError
-              ? getPurchaseErrorMessage(error)
-              : '구매하지 못했어요. 다시 시도해주세요.',
-          );
-          return;
         }
+      } catch (error) {
+        showPurchaseResult(
+          error instanceof ApiClientError
+            ? getPurchaseErrorMessage(error)
+            : '구매하지 못했어요. 다시 시도해주세요.',
+        );
+        return;
       }
       setPurchaseDialog(null);
       navigation.popTo('ShopInventory', { petId });

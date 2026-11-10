@@ -9,7 +9,7 @@ import { useShopStore } from '../../../stores/shopStore';
 import { getShopDatabase, replaceSessionShopCatalog } from '../../../services/shop/shopDatabase';
 import { findProduct } from '../../../services/shop/catalog';
 import { ApiClientError } from '../../../services/api';
-import { purchaseSimulationItem } from '../../../services/simulation/purchase';
+import { purchaseSimulationItems } from '../../../services/simulation/purchase';
 import { getSimulationInventory } from '../../../services/simulation/inventory';
 import { StackRouter, StackActions } from '@react-navigation/routers';
 
@@ -40,7 +40,7 @@ jest.mock('../../../services/simulation/purchase', () => {
   const actual = jest.requireActual('../../../services/simulation/purchase');
   return {
     ...actual,
-    purchaseSimulationItem: jest.fn(),
+    purchaseSimulationItems: jest.fn(),
   };
 });
 jest.mock('react-native/Libraries/Alert/Alert', () => ({
@@ -416,7 +416,7 @@ it('does not purchase on the device when a server session has no item number', (
       .props.onPress(),
   );
   act(() => screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress());
-  expect(purchaseSimulationItem).not.toHaveBeenCalled();
+  expect(purchaseSimulationItems).not.toHaveBeenCalled();
   expect(screen.root.findByProps({ children: '구매할 수 없는 상품이 있어요.' })).toBeDefined();
   expect(useShopStore.getState().spent).toBe(0);
   expect(useShopStore.getState().cart.food).toBe(1);
@@ -455,13 +455,19 @@ it('purchases a server item from the cart and keeps the cart when purchase fails
   useShopStore.getState().open(session);
   useShopStore.getState().setQuantity('11', 5, 'dog');
   mockShopSession.session = { sessionSeq: 3001 };
-  jest.mocked(purchaseSimulationItem).mockResolvedValue({
-    transactionSeq: 70001,
-    item: { itemSeq: 11, itemName: '건식 사료 1kg', category: 'FOOD' },
-    quantity: 5,
-    amount: 40000,
+  jest.mocked(purchaseSimulationItems).mockResolvedValue({
+    purchases: [
+      {
+        transactionSeq: 70001,
+        item: { itemSeq: 11, itemName: '건식 사료 1kg', category: 'FOOD' },
+        quantity: 5,
+        amount: 40000,
+        balanceAfter: 110000,
+        inventoryQuantity: 5,
+      },
+    ],
+    totalAmount: 40000,
     balanceAfter: 110000,
-    inventoryQuantity: 5,
   });
   let screen!: renderer.ReactTestRenderer;
   await act(async () => {
@@ -487,7 +493,7 @@ it('purchases a server item from the cart and keeps the cart when purchase fails
   await act(async () => {
     await screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress();
   });
-  expect(purchaseSimulationItem).toHaveBeenCalledWith(3001, { itemSeq: 11, quantity: 5 });
+  expect(purchaseSimulationItems).toHaveBeenCalledWith(3001, [{ itemSeq: 11, quantity: 5 }]);
   expect(useShopStore.getState().inventory['11']).toBe(5);
   expect(useShopStore.getState().spent).toBe(40000);
   expect(useShopStore.getState().cart).toEqual({});
@@ -497,7 +503,7 @@ it('purchases a server item from the cart and keeps the cart when purchase fails
     useShopStore.getState().setQuantity('11', 1, 'dog');
   });
   jest
-    .mocked(purchaseSimulationItem)
+    .mocked(purchaseSimulationItems)
     .mockRejectedValueOnce(
       new ApiClientError({ code: 'SIMULATION_EQUIPMENT_ALREADY_OWNED', message: 'owned' }),
     );
@@ -561,7 +567,7 @@ it('requires a single piece of equipment before purchasing', async () => {
   await act(async () => {
     await screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress();
   });
-  expect(purchaseSimulationItem).not.toHaveBeenCalled();
+  expect(purchaseSimulationItems).not.toHaveBeenCalled();
   expect(screen.root.findByProps({ children: '기구는 1개만 구매할 수 있어요.' })).toBeDefined();
   expect(popTo).not.toHaveBeenCalled();
   act(() => screen.unmount());

@@ -1,5 +1,5 @@
 import { ApiClientError } from '../api/errors';
-import { getPurchaseErrorMessage, purchaseSimulationItem } from './purchase';
+import { getPurchaseErrorMessage, purchaseSimulationItems } from './purchase';
 
 const purchased = {
   transactionSeq: 70001,
@@ -21,20 +21,37 @@ const envelope = (data: unknown) => ({
   },
 });
 
-test('purchases the selected quantity and keeps a negative balance', async () => {
-  const post = jest.fn().mockResolvedValue(envelope({ ...purchased, balanceAfter: -5000 }));
+test('purchases the cart in one request and keeps a negative balance', async () => {
+  const line = { ...purchased, balanceAfter: -5000 };
+  const post = jest
+    .fn()
+    .mockResolvedValue(
+      envelope({ purchases: [line], totalAmount: line.amount, balanceAfter: line.balanceAfter }),
+    );
 
   await expect(
-    purchaseSimulationItem(3001, { itemSeq: 11, quantity: 5 }, { post }),
-  ).resolves.toEqual({ ...purchased, balanceAfter: -5000 });
-  expect(post).toHaveBeenCalledWith('/simulations/3001/purchases', { itemSeq: 11, quantity: 5 });
+    purchaseSimulationItems(3001, [{ itemSeq: 11, quantity: 5 }], { post }),
+  ).resolves.toEqual({
+    purchases: [line],
+    totalAmount: line.amount,
+    balanceAfter: line.balanceAfter,
+  });
+  expect(post).toHaveBeenCalledWith('/simulations/3001/purchases', {
+    items: [{ itemSeq: 11, quantity: 5 }],
+  });
 });
 
 test('rejects a purchase response for a different item', async () => {
-  const post = jest.fn().mockResolvedValue(envelope(purchased));
+  const post = jest.fn().mockResolvedValue(
+    envelope({
+      purchases: [purchased],
+      totalAmount: purchased.amount,
+      balanceAfter: purchased.balanceAfter,
+    }),
+  );
 
   await expect(
-    purchaseSimulationItem(3001, { itemSeq: 12, quantity: 1 }, { post }),
+    purchaseSimulationItems(3001, [{ itemSeq: 12, quantity: 1 }], { post }),
   ).rejects.toMatchObject({ code: 'UNKNOWN_ERROR' });
 });
 
