@@ -387,7 +387,7 @@ export function ProfileEditScreen({ navigation }: Props) {
         </KeyboardAvoidingView>
       </KeyboardAwareInputProvider>
 
-      <View style={[styles.bottomArea, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+      <View style={[styles.bottomArea, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityState={{ disabled: !canSubmit }}

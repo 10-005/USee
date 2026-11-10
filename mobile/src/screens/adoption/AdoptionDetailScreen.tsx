@@ -1,4 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useEffect } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -6,26 +7,14 @@ import type { RootStackParamList } from '../../app/navigation/types';
 import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import RightArrowGreenIcon from '../../assets/icons/common/right-arrow-green.svg';
-import { AppHeader, Button } from '../../components/common';
-import { getAdoptionApplicationRecord } from '../../services/storage/adoptionApplicationStorage';
-import { getAdoptionApplicationDraft } from '../../services/storage/adoptionDraftStorage';
+import { AppHeader, Button, DetailScreenSkeleton } from '../../components/common';
+import { getMyAdoptionApplications } from '../../services/adoption';
 import { useChatStore } from '../../stores/chatStore';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
+import { useAdoptionAnimalStore } from '../../stores/adoptionAnimalStore';
 import { colors, radius, typography } from '../../theme';
-import { adoptionAnimals } from './data';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AdoptionDetail'>;
-
-const basicInfo = [
-  ['공고번호', '전북-익산-2026-01438'],
-  ['동물등록번호', '미등록'],
-  ['마이크로칩번호', '미등록'],
-  ['품종', '[개] 믹스견'],
-  ['성별', '암컷'],
-  ['중성화', '아니오'],
-  ['나이 / 체중', '2026년생 (60일 미만) / 3kg'],
-  ['색상', '갈색 & 흰색'],
-];
 
 function InfoRows({ rows }: { rows: string[][] }) {
   return (
@@ -42,17 +31,53 @@ function InfoRows({ rows }: { rows: string[][] }) {
 
 export function AdoptionDetailScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const animal =
-    adoptionAnimals.find(item => item.id === route.params.animalId) ?? adoptionAnimals[0];
-  const isClosed = animal.status === '종료';
-  const bookmarked = useAdoptionBookmarkStore(state => state.bookmarkedIds.includes(animal.id));
+  const apiAnimal = useAdoptionAnimalStore(state =>
+    state.animals.find(item => item.id === route.params.animalId),
+  );
+  const detail = useAdoptionAnimalStore(state => state.detailsById[route.params.animalId]);
+  const fetchAnimal = useAdoptionAnimalStore(state => state.fetchAnimal);
+  const isDetailLoading = useAdoptionAnimalStore(state => state.isDetailLoading);
+  const detailError = useAdoptionAnimalStore(state => state.error);
+
+  useEffect(() => {
+    fetchAnimal(route.params.animalId).catch(() => undefined);
+  }, [fetchAnimal, route.params.animalId]);
+
+  const isClosed = detail?.protectionStatus !== 'PROTECTING';
+  const canApply = !isClosed && detail?.adoptionStatus === 'AVAILABLE';
+  const bookmarked = useAdoptionBookmarkStore(state =>
+    state.bookmarkedIds.includes(route.params.animalId),
+  );
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
-  const shelterName = '익산유기동물보호소';
+  const shelterName = detail?.shelter?.shelterName ?? apiAnimal?.location ?? '보호소 정보 없음';
+  const gender = detail?.gender === 'MALE' ? '수컷' : detail?.gender === 'FEMALE' ? '암컷' : '모름';
+  const basicInfo = [
+    ['공고번호', String(detail?.animalSeq ?? route.params.animalId)],
+    ['동물등록번호', detail?.registrationNumber ?? '미등록'],
+    ['마이크로칩번호', detail?.microchipNumber ?? '미등록'],
+    [
+      '품종',
+      detail?.classification
+        ? `[${detail.classification.speciesName}] ${detail.classification.breedName}`
+        : '모름',
+    ],
+    ['성별', gender],
+    [
+      '중성화',
+      detail?.isNeutered === null || detail?.isNeutered === undefined
+        ? '모름'
+        : detail.isNeutered
+        ? '예'
+        : '아니오',
+    ],
+    ['나이 / 체중', `${detail?.age ?? '모름'} / ${detail?.weight ?? '모름'}`],
+    ['색상', detail?.classification?.colorName ?? '모름'],
+  ];
   const openChat = async () => {
     try {
       const params = await useChatStore
         .getState()
-        .openPostRoom('adoption', animal.id, shelterName, 'iksan-shelter');
+        .openPostRoom('adoption', route.params.animalId, shelterName, 'iksan-shelter');
       if (navigation.isFocused()) {
         navigation.navigate('ChatRoom', params);
       }
@@ -61,24 +86,50 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
     }
   };
   const openApplication = async () => {
-    const [record, draft] = await Promise.all([
-      getAdoptionApplicationRecord(),
-      getAdoptionApplicationDraft(),
-    ]);
-    if (draft || record?.status === 'DRAFT') {
-      navigation.navigate('AdoptionApplication', { animalId: animal.id });
-      return;
+    try {
+      const page = await getMyAdoptionApplications({
+        animalSeq: Number(route.params.animalId),
+      });
+      const activeApplication = page.content.find(application =>
+        ['DRAFT', 'SUBMITTED', 'APPROVED'].includes(application.status),
+      );
+      if (activeApplication?.status !== 'DRAFT') {
+        if (activeApplication) {
+          navigation.navigate('AdoptionApplicationHistory', {
+            animalId: route.params.animalId,
+            applicationSeq: activeApplication.applicationSeq,
+            applicationStatus: activeApplication.status,
+            source: 'record',
+          });
+          return;
+        }
+      }
+      navigation.navigate('AdoptionApplication', { animalId: route.params.animalId });
+    } catch {
+      Alert.alert('입양 신청', '신청 내역을 확인하지 못했어요. 다시 시도해 주세요.');
     }
-    if (record?.status === 'CANCELED' || record?.status === 'REJECTED') {
-      navigation.navigate('AdoptionApplication', { animalId: animal.id });
-      return;
-    }
-    if (record) {
-      navigation.navigate('AdoptionApplicationHistory', { animalId: animal.id });
-      return;
-    }
-    navigation.navigate('AdoptionApplication', { animalId: animal.id });
   };
+
+  if (!detail && (isDetailLoading || !detailError)) {
+    return (
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <AppHeader onBackPress={navigation.goBack} title="게시글" />
+        <DetailScreenSkeleton accessibilityLabel="보호동물 상세 불러오는 중" />
+      </SafeAreaView>
+    );
+  }
+
+  if (!detail && detailError) {
+    return (
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <AppHeader onBackPress={navigation.goBack} title="게시글" />
+        <View style={styles.errorState}>
+          <Text style={styles.errorText}>{detailError}</Text>
+          <Button onPress={() => fetchAnimal(route.params.animalId)}>다시 시도</Button>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -96,23 +147,30 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
             style={styles.profileImage}
           />
           <Text style={styles.shelterName}>{shelterName}</Text>
-          <Text style={styles.profileMeta}>26.10.26</Text>
+          <Text style={styles.profileMeta}>{detail?.regDttm?.slice(0, 10) ?? ''}</Text>
         </View>
         <Image
-          source={require('../../assets/images/adoption/animal-detail.jpg')}
+          source={
+            detail?.images[0]?.imageUrl
+              ? { uri: detail.images[0].imageUrl }
+              : require('../../assets/images/adoption/animal-dog-white.png')
+          }
           style={styles.heroImage}
         />
         <View style={styles.titleRow}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>보호중</Text>
+          <View style={[styles.badge, !canApply && styles.unavailableBadge]}>
+            <Text style={styles.badgeText}>{isClosed ? '보호종료' : '보호중'}</Text>
           </View>
-          <Text style={styles.title}>[{animal.species}] 믹스견</Text>
+          <Text style={styles.title}>
+            [{detail?.classification?.speciesName ?? '동물'}]{' '}
+            {detail?.classification?.breedName ?? '품종 정보 없음'}
+          </Text>
           <Pressable
             accessibilityLabel="북마크"
             accessibilityRole="button"
             accessibilityState={{ selected: bookmarked }}
             hitSlop={8}
-            onPress={() => toggleBookmark(animal.id)}
+            onPress={() => toggleBookmark(route.params.animalId)}
             style={({ pressed }) => [styles.bookmark, pressed && styles.pressed]}
           >
             {bookmarked ? (
@@ -129,19 +187,24 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>상세정보</Text>
           <Text style={[styles.detailLabel, styles.firstDetailLabel]}>특징</Text>
-          <Text style={styles.bodyText}>생후 3개월이며 경계심은 살짝 있지만 순한 편.</Text>
+          <Text style={styles.bodyText}>{detail?.description ?? '-'}</Text>
           <Text style={styles.detailLabel}>건강검진 특이사항</Text>
-          <Text style={styles.bodyText}>건강검진 X</Text>
+          <Text style={styles.bodyText}>{detail?.healthCheck ?? '-'}</Text>
           <Text style={styles.detailLabel}>예방접종 상태</Text>
-          <Text style={styles.bodyText}>광견병, 종합백신, 코로나 접종 완료</Text>
+          <Text style={styles.bodyText}>{detail?.vaccinationStatus ?? '-'}</Text>
         </View>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>구조정보</Text>
           <InfoRows
             rows={[
-              ['구조장소', '익산시 여산면 호산길 251-68'],
-              ['구조일시', '2026-10-20'],
-              ['특이사항', '없음'],
+              [
+                '구조장소',
+                [detail?.rescueInfo.rescueAddress, detail?.rescueInfo.rescueAddressDetail]
+                  .filter(Boolean)
+                  .join(' ') || '-',
+              ],
+              ['구조일시', detail?.rescueInfo.rescuedDttm?.slice(0, 10) ?? '-'],
+              ['특이사항', detail?.rescueInfo.rescueMemo ?? '-'],
             ]}
           />
         </View>
@@ -152,7 +215,13 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
               accessibilityLabel="보호센터 상세 보기"
               accessibilityRole="button"
               hitSlop={8}
-              onPress={() => navigation.navigate('ShelterDetail', { shelterId: 'iksan-shelter' })}
+              onPress={() =>
+                detail?.shelter?.shelterSeq
+                  ? navigation.navigate('ShelterDetail', {
+                      shelterId: String(detail.shelter.shelterSeq),
+                    })
+                  : undefined
+              }
               style={({ pressed }) => [styles.shelterLink, pressed && styles.pressed]}
             >
               <Text style={styles.shelterLinkText}>보호센터 보기</Text>
@@ -162,8 +231,8 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
           <InfoRows
             rows={[
               ['보호센터명', shelterName],
-              ['보호센터연락처', '063-855-1214'],
-              ['보호센터 주소', '전북특별자치도 익산시 삼기면 황금로 342-17'],
+              ['보호센터연락처', detail?.shelter?.phone ?? '-'],
+              ['보호센터 주소', detail?.shelter?.address ?? '-'],
             ]}
           />
         </View>
@@ -173,9 +242,11 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
           <Button onPress={openChat} style={styles.action}>
             채팅 보내기
           </Button>
-          <Button onPress={openApplication} style={[styles.action, styles.applyButton]}>
-            입양 신청하기
-          </Button>
+          {canApply ? (
+            <Button onPress={openApplication} style={[styles.action, styles.applyButton]}>
+              입양 신청하기
+            </Button>
+          ) : null}
         </View>
       ) : null}
     </SafeAreaView>
@@ -184,6 +255,8 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
+  errorState: { alignItems: 'center', flex: 1, gap: 16, justifyContent: 'center', padding: 24 },
+  errorText: { ...typography.bodyRegular14, color: colors.gray600, textAlign: 'center' },
   shelterProfile: { alignItems: 'center', flexDirection: 'row', height: 62, paddingHorizontal: 26 },
   profileImage: { borderRadius: 20, height: 40, width: 40 },
   shelterName: { ...typography.bodySemiBold16, color: colors.gray600, flex: 1, marginLeft: 12 },
@@ -197,11 +270,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   badge: {
-    backgroundColor: '#FA705B',
+    backgroundColor: colors.green100,
     borderRadius: radius.pill,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
+  unavailableBadge: { backgroundColor: colors.gray400 },
   badgeText: { ...typography.bodyRegular14, color: colors.white },
   title: { ...typography.titleSemiBold18, color: colors.black, flex: 1 },
   bookmark: {

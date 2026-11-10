@@ -50,35 +50,35 @@ describe('adoption application validation', () => {
   it('requires additional answers for conditional household questions', () => {
     const household = {
       housing: '아파트',
-      petAllowed: '가능',
+      housingOwnership: '자가',
+      petAllowed: '허용',
       cohabitant: '있음',
       cohabitantConsent: '',
       primaryCaretaker: '본인',
-      livingSpace: '실내',
-      aloneTime: '2시간 미만',
+      aloneTime: '4시간 미만',
       currentPets: '없음',
       pastExperience: '없음',
-      emergencyPlan: '있음',
+      allergy: '없음',
       alternativeCare: '가족에게 맡깁니다.',
     } as Parameters<typeof isAdoptionStepValid>[0];
 
     expect(isAdoptionStepValid(household, 2)).toBe(false);
-    household.cohabitantConsent = '전원 동의';
+    household.cohabitantConsent = '모두 동의';
     expect(isAdoptionStepValid(household, 2)).toBe(true);
   });
 
   it('accepts the current animal and integration preparation as one answer', () => {
     const household = {
       housing: '아파트',
-      petAllowed: '가능',
+      housingOwnership: '자가',
+      petAllowed: '허용',
       cohabitant: '없음',
       primaryCaretaker: '본인',
-      livingSpace: '실내',
-      aloneTime: '2시간 미만',
+      aloneTime: '4시간 미만',
       currentPets: '있음',
       currentPetDetails: '',
       pastExperience: '없음',
-      emergencyPlan: '있음',
+      allergy: '없음',
       alternativeCare: '가족에게 맡깁니다.',
     } as Parameters<typeof isAdoptionStepValid>[0];
 
@@ -90,9 +90,9 @@ describe('adoption application validation', () => {
   it('requires education details when education is completed', () => {
     const carePlan = {
       motivation: '입양 동기',
-      dailyPlan: '일상 돌봄 계획',
-      medicalPlan: '치료 계획',
+      monthlyBudget: '10~30만 원',
       changePlan: '환경 변화 계획',
+      medicalConsent: '동의',
       education: '이수',
       educationInstitution: '',
       educationCourse: '',

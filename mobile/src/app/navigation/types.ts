@@ -1,5 +1,5 @@
 import type { ChatPreview } from '../../stores/chatStore';
-import type { AdoptionApplicationStatus } from '../../services/storage/adoptionApplicationStorage';
+import type { AdoptionApplicationStatus as ApiAdoptionApplicationStatus } from '../../services/adoption';
 
 export type RootStackParamList = {
   PetShop: { petId: string };
@@ -12,12 +12,13 @@ export type RootStackParamList = {
   AdoptionApplication: { animalId: string };
   AdoptionApplicantEdit: undefined;
   AdoptionApplicationHistory: {
+    applicationSeq?: number;
+    applicationStatus?: ApiAdoptionApplicationStatus;
     animalId: string;
-    previewStatus?: AdoptionApplicationStatus;
     source?: 'draft' | 'record';
   };
   AdoptionApplicationList: undefined;
-  AdoptionApplicationReview: { animalId: string };
+  AdoptionApplicationReview: { animalId: string; applicationSeq: number };
   AdoptionDetail: { animalId: string };
   Home:
     | {
