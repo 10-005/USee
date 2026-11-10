@@ -1,35 +1,45 @@
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import ReportCloseIcon from '../../assets/icons/common/report-close.svg';
 import ReportPawIcon from '../../assets/icons/common/report-paw.svg';
-import type { ContentReportTargetType } from '../../stores/contentReportStore';
+import { ApiClientError, getApiErrorDisplayMessage } from '../../services/api';
+import {
+  createReport,
+  REPORT_REASON_CODE_BY_LABEL,
+  type ReportTargetType,
+} from '../../services/reports';
 import { colors, typography } from '../../theme';
 
 const POST_REASONS = ['허위 정보 / 잘못된 동물 정보', '스팸 / 광고', '욕설 / 불쾌한 내용', '기타'];
 
 const COMMENT_REASONS = ['욕설 / 비방 / 괴롭힘', '스팸 / 광고', '음란 / 부적절한 내용', '기타'];
 
+export type ContentReportTargetType = 'post' | 'comment' | 'reply' | 'user';
+
 export type ContentReportTarget = {
   excerpt?: string;
   id: string;
   nickname?: string;
+  targetSeq: number;
+  targetType: ReportTargetType;
   type: ContentReportTargetType;
 };
 
 type Props = {
-  alreadyReported?: boolean;
   onClose: () => void;
-  onSubmit: (reason: string) => void;
   target: ContentReportTarget | null;
 };
 
-export function ContentReportModal({ alreadyReported = false, onClose, onSubmit, target }: Props) {
+export function ContentReportModal({ onClose, target }: Props) {
   const [reason, setReason] = useState('');
+  const [alreadyReported, setAlreadyReported] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (target) {
       setReason('');
+      setAlreadyReported(false);
     }
   }, [target]);
 
@@ -42,6 +52,28 @@ export function ContentReportModal({ alreadyReported = false, onClose, onSubmit,
   ];
   const reasons = target.type === 'post' ? POST_REASONS : COMMENT_REASONS;
   const canSubmit = Boolean(reason);
+  const submit = async () => {
+    const reasonCode = REPORT_REASON_CODE_BY_LABEL[reason];
+    if (!reasonCode || submitting) {
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await createReport({ reasonCode, targetSeq: target.targetSeq, targetType: target.targetType });
+      onClose();
+    } catch (error) {
+      if (error instanceof ApiClientError && error.code === 'REPORT_ALREADY_EXISTS') {
+        setAlreadyReported(true);
+      } else {
+        Alert.alert(
+          '신고를 접수하지 못했어요',
+          getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'),
+        );
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <Modal animationType="fade" onRequestClose={onClose} transparent visible>
@@ -104,11 +136,15 @@ export function ContentReportModal({ alreadyReported = false, onClose, onSubmit,
                 })}
               </View>
               <Pressable
-                disabled={!canSubmit}
-                onPress={() => onSubmit(reason)}
-                style={[styles.submitButton, !canSubmit && styles.disabledButton]}
+                disabled={!canSubmit || submitting}
+                onPress={submit}
+                style={[styles.submitButton, (!canSubmit || submitting) && styles.disabledButton]}
               >
-                <Text style={styles.submitText}>신고하기</Text>
+                {submitting ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <Text style={styles.submitText}>신고하기</Text>
+                )}
               </Pressable>
             </>
           )}

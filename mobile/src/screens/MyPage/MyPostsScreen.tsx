@@ -2,6 +2,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -20,6 +22,7 @@ import DateIcon from '../../assets/icons/common/date.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
 import { AppHeader, SkeletonBlock, SkeletonGroup } from '../../components/common';
 import { getApiErrorDisplayMessage } from '../../services/api';
+import { bookmarkKey, type BookmarkTargetType } from '../../services/bookmarks';
 import {
   getMyFoundReports,
   type FoundReportSummary,
@@ -94,10 +97,17 @@ export function MyPostsScreen({ navigation }: Props) {
     found: [],
     lost: [],
   });
+  const [loadedTabs, setLoadedTabs] = useState<Record<MyPostTab, boolean>>({
+    found: false,
+    lost: false,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const bookmarkedIds = useAdoptionBookmarkStore(state => state.bookmarkedIds);
+  const bookmarkKeys = useAdoptionBookmarkStore(state => state.bookmarkKeys);
+  const loadBookmarks = useAdoptionBookmarkStore(state => state.loadBookmarks);
+  const pendingBookmarkKeys = useAdoptionBookmarkStore(state => state.pendingKeys);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
+  const bookmarkType: BookmarkTargetType = activeTab === 'found' ? 'FOUND' : 'MISSING';
   const posts = postsByTab[activeTab];
 
   const loadPosts = useCallback(async () => {
@@ -109,6 +119,7 @@ export function MyPostsScreen({ navigation }: Props) {
           ? (await getMyFoundReports()).map(mapMyFoundPost)
           : (await getMyMissingReports()).map(mapMyMissingPost);
       setPostsByTab(current => ({ ...current, [activeTab]: nextPosts }));
+      setLoadedTabs(current => ({ ...current, [activeTab]: true }));
     } catch (loadError) {
       setError(getApiErrorDisplayMessage(loadError, '내 게시글을 불러오지 못했어요.'));
     } finally {
@@ -122,8 +133,15 @@ export function MyPostsScreen({ navigation }: Props) {
     }, [loadPosts]),
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      loadBookmarks(bookmarkType).catch(() => undefined);
+    }, [bookmarkType, loadBookmarks]),
+  );
+
   const renderPost = ({ item }: { item: MyPost }) => {
-    const bookmarked = bookmarkedIds.includes(item.id);
+    const bookmarked = bookmarkKeys.includes(bookmarkKey(bookmarkType, item.id));
+    const bookmarkPending = pendingBookmarkKeys.includes(bookmarkKey(bookmarkType, item.id));
     return (
       <Pressable
         accessibilityLabel={`${item.name} 내 게시글 상세`}
@@ -143,15 +161,24 @@ export function MyPostsScreen({ navigation }: Props) {
         <Pressable
           accessibilityLabel={`${item.name} 북마크 ${bookmarked ? '해제' : '등록'}`}
           accessibilityRole="button"
-          accessibilityState={{ selected: bookmarked }}
+          accessibilityState={{ busy: bookmarkPending, disabled: bookmarkPending, selected: bookmarked }}
+          disabled={bookmarkPending}
           hitSlop={8}
           onPress={event => {
             event.stopPropagation();
-            toggleBookmark(item.id);
+            toggleBookmark(bookmarkType, item.id).catch(() =>
+              Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
+            );
           }}
           style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
         >
-          {bookmarked ? <BookmarkActiveIcon /> : <BookmarkIcon />}
+          {bookmarkPending ? (
+            <ActivityIndicator color={colors.green400} size="small" />
+          ) : bookmarked ? (
+            <BookmarkActiveIcon />
+          ) : (
+            <BookmarkIcon />
+          )}
         </Pressable>
         <View
           style={[
@@ -209,7 +236,7 @@ export function MyPostsScreen({ navigation }: Props) {
           );
         })}
       </View>
-      {loading ? (
+      {loading && !loadedTabs[activeTab] ? (
         <MyPostsSkeleton cardWidth={cardWidth} />
       ) : error ? (
         <View style={styles.empty}>

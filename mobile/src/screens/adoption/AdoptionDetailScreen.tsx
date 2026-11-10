@@ -1,6 +1,15 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
@@ -9,6 +18,7 @@ import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import RightArrowGreenIcon from '../../assets/icons/common/right-arrow-green.svg';
 import { AppHeader, Button, DetailScreenSkeleton } from '../../components/common';
 import { getMyAdoptionApplications } from '../../services/adoption';
+import { bookmarkKey } from '../../services/bookmarks';
 import { useChatStore } from '../../stores/chatStore';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { useAdoptionAnimalStore } from '../../stores/adoptionAnimalStore';
@@ -46,9 +56,16 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
   const isClosed = detail?.protectionStatus !== 'PROTECTING';
   const canApply = !isClosed && detail?.adoptionStatus === 'AVAILABLE';
   const bookmarked = useAdoptionBookmarkStore(state =>
-    state.bookmarkedIds.includes(route.params.animalId),
+    state.bookmarkKeys.includes(bookmarkKey('SHELTER_ANIMAL', route.params.animalId)),
+  );
+  const loadBookmarks = useAdoptionBookmarkStore(state => state.loadBookmarks);
+  const bookmarkPending = useAdoptionBookmarkStore(state =>
+    state.pendingKeys.includes(bookmarkKey('SHELTER_ANIMAL', route.params.animalId)),
   );
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
+  useEffect(() => {
+    loadBookmarks('SHELTER_ANIMAL').catch(() => undefined);
+  }, [loadBookmarks]);
   const shelterName = detail?.shelter?.shelterName ?? apiAnimal?.location ?? '보호소 정보 없음';
   const gender = detail?.gender === 'MALE' ? '수컷' : detail?.gender === 'FEMALE' ? '암컷' : '모름';
   const basicInfo = [
@@ -168,12 +185,19 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
           <Pressable
             accessibilityLabel="북마크"
             accessibilityRole="button"
-            accessibilityState={{ selected: bookmarked }}
+            accessibilityState={{ busy: bookmarkPending, disabled: bookmarkPending, selected: bookmarked }}
+            disabled={bookmarkPending}
             hitSlop={8}
-            onPress={() => toggleBookmark(route.params.animalId)}
+            onPress={() =>
+              toggleBookmark('SHELTER_ANIMAL', route.params.animalId).catch(() =>
+                Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
+              )
+            }
             style={({ pressed }) => [styles.bookmark, pressed && styles.pressed]}
           >
-            {bookmarked ? (
+            {bookmarkPending ? (
+              <ActivityIndicator color={colors.green400} size="small" />
+            ) : bookmarked ? (
               <BookmarkActiveIcon height={20} width={20} />
             ) : (
               <BookmarkIcon height={20} width={20} />

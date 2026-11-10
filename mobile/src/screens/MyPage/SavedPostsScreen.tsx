@@ -1,6 +1,9 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -16,15 +19,11 @@ import type { RootStackParamList } from '../../app/navigation/types';
 import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import DateIcon from '../../assets/icons/common/date.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
-import { AppHeader } from '../../components/common';
+import { AppHeader, SkeletonBlock, SkeletonGroup } from '../../components/common';
+import type { BookmarkItem, BookmarkTargetType } from '../../services/bookmarks';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
-import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
-import { useLostReportEditStore } from '../../stores/lostReportEditStore';
-import { useReportStatusStore } from '../../stores/reportStatusStore';
 import { colors, radius, typography } from '../../theme';
-import { adoptionAnimals } from '../adoption/data';
-import { foundReports } from '../found-report/data';
-import { lostReports } from '../lost-report/data';
+import { formatKoreanAddress } from '../../utils/address';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SavedPosts'>;
 type SavedPostTab = 'adoption' | 'found' | 'lost';
@@ -42,70 +41,72 @@ type SavedPost = {
 
 const tabs: Array<{ key: SavedPostTab; label: string }> = [
   { key: 'adoption', label: '입양' },
-  { key: 'found', label: '보호' },
+  { key: 'found', label: '제보' },
   { key: 'lost', label: '실종' },
 ];
+
+const targetTypeByTab: Record<SavedPostTab, BookmarkTargetType> = {
+  adoption: 'SHELTER_ANIMAL',
+  found: 'FOUND',
+  lost: 'MISSING',
+};
+
+const fallbackImage = require('../../assets/images/mypage/img_pet_card.png');
+
+const statusLabel = (item: BookmarkItem) => {
+  if (item.targetType === 'MISSING') {
+    return item.postSummary.status === 'CLOSED' ? '종료' : '실종';
+  }
+  if (item.targetType === 'FOUND') {
+    return item.postSummary.status === 'CLOSED' ? '종료' : '제보';
+  }
+  return item.postSummary.status === 'PROTECTING' ? '보호중' : '종료';
+};
+
+const mapSavedPost = (item: BookmarkItem): SavedPost => {
+  const summary = item.postSummary;
+  const gender =
+    summary.gender === 'MALE' ? '수컷' : summary.gender === 'FEMALE' ? '암컷' : '모름';
+  return {
+    date: summary.occurredDttm?.slice(0, 10) ?? '-',
+    description: '',
+    id: String(item.targetSeq),
+    image: summary.representativeImageUrl ? { uri: summary.representativeImageUrl } : fallbackImage,
+    location: formatKoreanAddress(summary.address),
+    name: summary.classification?.breedName ?? '동물 정보 없음',
+    status: statusLabel(item),
+    summary: [summary.age ?? '나이 모름', gender, summary.classification?.colorName ?? '털색 모름'].join(' | '),
+  };
+};
 
 export function SavedPostsScreen({ navigation }: Props) {
   const { width } = useWindowDimensions();
   const cardWidth = (width - 52) / 2;
   const [activeTab, setActiveTab] = useState<SavedPostTab>('adoption');
-  const bookmarkedIds = useAdoptionBookmarkStore(state => state.bookmarkedIds);
+  const [loadedTabs, setLoadedTabs] = useState<Record<SavedPostTab, boolean>>({
+    adoption: false,
+    found: false,
+    lost: false,
+  });
+  const items = useAdoptionBookmarkStore(state => state.items);
+  const loading = useAdoptionBookmarkStore(state => state.isLoading);
+  const error = useAdoptionBookmarkStore(state => state.error);
+  const loadBookmarks = useAdoptionBookmarkStore(state => state.loadBookmarks);
+  const pendingBookmarkKeys = useAdoptionBookmarkStore(state => state.pendingKeys);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
-  const deletedFoundIds = useFoundReportEditStore(state => state.deletedIds);
-  const foundEdits = useFoundReportEditStore(state => state.editsById);
-  const deletedLostIds = useLostReportEditStore(state => state.deletedIds);
-  const lostEdits = useLostReportEditStore(state => state.editsById);
-  const statusById = useReportStatusStore(state => state.statusById);
+  const targetType = targetTypeByTab[activeTab];
 
   const posts = useMemo<SavedPost[]>(() => {
-    if (activeTab === 'adoption') {
-      return adoptionAnimals
-        .filter(animal => bookmarkedIds.includes(animal.id))
-        .map(animal => ({
-          date: animal.date,
-          description: animal.description,
-          id: animal.id,
-          image: animal.image,
-          location: animal.location,
-          name: animal.name,
-          status: animal.status,
-          summary: animal.summary,
-        }));
-    }
+    return items.filter(item => item.targetType === targetType).map(mapSavedPost);
+  }, [items, targetType]);
 
-    const isFound = activeTab === 'found';
-    const source = isFound ? foundReports : lostReports;
-    const deletedIds = isFound ? deletedFoundIds : deletedLostIds;
-    const edits = isFound ? foundEdits : lostEdits;
-
-    return source
-      .filter(report => bookmarkedIds.includes(report.id) && !deletedIds.includes(report.id))
-      .map(report => {
-        const current = { ...report, ...edits[report.id] };
-        const completed =
-          statusById[report.id] === 'completed' ||
-          (!statusById[report.id] && (current.status === '완료' || current.status === '종료'));
-        return {
-          date: current.date,
-          description: current.description,
-          id: current.id,
-          image: current.images[0],
-          location: current.location,
-          name: current.name,
-          status: completed ? '종료' : isFound ? '보호' : '실종',
-          summary: `${current.age} | ${current.gender} | ${current.color} | ${current.weight}`,
-        };
-      });
-  }, [
-    activeTab,
-    bookmarkedIds,
-    deletedFoundIds,
-    deletedLostIds,
-    foundEdits,
-    lostEdits,
-    statusById,
-  ]);
+  useFocusEffect(
+    useCallback(() => {
+      loadBookmarks(targetType)
+        .then(() => setLoadedTabs(current => ({ ...current, [activeTab]: true })))
+        .catch(() => undefined);
+    }, [activeTab, loadBookmarks, targetType]),
+  );
 
   const openPost = (postId: string) => {
     if (activeTab === 'adoption') {
@@ -117,7 +118,9 @@ export function SavedPostsScreen({ navigation }: Props) {
     });
   };
 
-  const renderPost = ({ item }: { item: SavedPost }) => (
+  const renderPost = ({ item }: { item: SavedPost }) => {
+    const bookmarkPending = pendingBookmarkKeys.includes(`${targetType}:${item.id}`);
+    return (
     <Pressable
       accessibilityLabel={`${item.name} 저장한 게시글 상세`}
       accessibilityRole="button"
@@ -128,19 +131,26 @@ export function SavedPostsScreen({ navigation }: Props) {
         pressed && styles.pressed,
       ]}
     >
-      <Image source={item.image} style={[styles.cardImage, { height: cardWidth }]} />
+      <SavedPostImage size={cardWidth} source={item.image} />
       <Pressable
         accessibilityLabel={`${item.name} 북마크 해제`}
         accessibilityRole="button"
-        accessibilityState={{ selected: true }}
+        accessibilityState={{ busy: bookmarkPending, disabled: bookmarkPending, selected: true }}
+        disabled={bookmarkPending}
         hitSlop={8}
         onPress={event => {
           event.stopPropagation();
-          toggleBookmark(item.id);
+          toggleBookmark(targetType, item.id).catch(() =>
+            Alert.alert('북마크 해제 실패', '잠시 후 다시 시도해 주세요.'),
+          );
         }}
         style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
       >
-        <BookmarkActiveIcon />
+        {bookmarkPending ? (
+          <ActivityIndicator color={colors.green400} size="small" />
+        ) : (
+          <BookmarkActiveIcon />
+        )}
       </Pressable>
       <View
         style={[
@@ -171,7 +181,8 @@ export function SavedPostsScreen({ navigation }: Props) {
         {item.description}
       </Text>
     </Pressable>
-  );
+    );
+  };
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -193,7 +204,17 @@ export function SavedPostsScreen({ navigation }: Props) {
           );
         })}
       </View>
-      <FlatList
+      {loading && !loadedTabs[activeTab] ? (
+        <SavedPostsSkeleton cardWidth={cardWidth} />
+      ) : error ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyTitle}>{error}</Text>
+          <Pressable onPress={() => loadBookmarks(targetType)} style={styles.retryButton}>
+            <Text style={styles.retryText}>다시 시도</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <FlatList
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>저장한 게시글이 없어요</Text>
@@ -209,8 +230,44 @@ export function SavedPostsScreen({ navigation }: Props) {
         numColumns={2}
         renderItem={renderPost}
         showsVerticalScrollIndicator={false}
-      />
+        />
+      )}
     </SafeAreaView>
+  );
+}
+
+function SavedPostsSkeleton({ cardWidth }: { cardWidth: number }) {
+  return (
+    <SkeletonGroup accessibilityLabel="저장한 게시글 불러오는 중" style={styles.skeletonList}>
+      {[0, 1, 2, 3].map(index => (
+        <View key={index} style={[styles.skeletonCard, { width: cardWidth }]}>
+          <SkeletonBlock style={{ height: cardWidth, width: cardWidth }} />
+          <SkeletonBlock style={styles.skeletonTitle} />
+          <SkeletonBlock style={styles.skeletonLine} />
+          <SkeletonBlock style={styles.skeletonLine} />
+          <SkeletonBlock style={styles.skeletonShortLine} />
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
+}
+
+function SavedPostImage({ size, source }: { size: number; source: ImageSourcePropType }) {
+  const remote = typeof source === 'object' && source !== null && 'uri' in source;
+  const [loading, setLoading] = useState(remote);
+
+  return (
+    <View style={[styles.cardImage, { height: size }]}>
+      <Image
+        onError={() => setLoading(false)}
+        onLoadEnd={() => setLoading(false)}
+        onLoadStart={() => remote && setLoading(true)}
+        resizeMode="cover"
+        source={source}
+        style={styles.cardImageContent}
+      />
+      {loading ? <SkeletonBlock style={styles.cardImageSkeleton} /> : null}
+    </View>
   );
 }
 
@@ -225,7 +282,15 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 20, paddingTop: 27 },
   columns: { gap: 12 },
   card: { marginBottom: 18 },
-  cardImage: { borderRadius: radius.sm, width: '100%' },
+  cardImage: { borderRadius: radius.sm, overflow: 'hidden', width: '100%' },
+  cardImageContent: { height: '100%', width: '100%' },
+  cardImageSkeleton: {
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
   bookmarkButton: {
     alignItems: 'center',
     height: 24,
@@ -257,5 +322,18 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingBottom: 100 },
   emptyTitle: { ...typography.titleSemiBold18, color: colors.gray600 },
   emptyBody: { ...typography.bodyRegular14, color: colors.gray400, marginTop: 8 },
+  retryButton: { marginTop: 14, padding: 12 },
+  retryText: { ...typography.bodyRegular14, color: colors.green400 },
+  skeletonList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 27,
+  },
+  skeletonCard: { marginBottom: 18 },
+  skeletonTitle: { height: 20, marginTop: 8, width: '68%' },
+  skeletonLine: { height: 14, marginTop: 6, width: '100%' },
+  skeletonShortLine: { height: 14, marginTop: 6, width: '74%' },
   pressed: { opacity: 0.7 },
 });

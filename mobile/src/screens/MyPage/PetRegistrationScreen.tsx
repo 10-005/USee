@@ -1016,7 +1016,12 @@ function ChoiceField({
             onPress={() => onChange(option)}
             style={[styles.choice, value === option && styles.choiceSelected]}
           >
-            <Text style={[styles.choiceText, value === option && styles.choiceTextSelected]}>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              numberOfLines={1}
+              style={[styles.choiceText, value === option && styles.choiceTextSelected]}
+            >
               {option}
             </Text>
           </Pressable>
@@ -1169,9 +1174,15 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 46,
     justifyContent: 'center',
+    minWidth: 0,
   },
   choiceSelected: { backgroundColor: colors.green200, borderColor: colors.green200 },
-  choiceText: { ...typography.bodyRegular14, color: colors.gray300 },
+  choiceText: {
+    ...typography.bodyRegular14,
+    color: colors.gray300,
+    flexShrink: 1,
+    textAlign: 'center',
+  },
   choiceTextSelected: { color: colors.white, fontFamily: 'Pretendard-Medium' },
   row: { flexDirection: 'row', gap: 13 },
   half: { flex: 1 },

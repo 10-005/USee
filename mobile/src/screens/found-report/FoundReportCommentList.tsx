@@ -31,11 +31,11 @@ import {
   ContentReportModal,
   type ContentReportTarget,
 } from '../../components/report/ContentReportModal';
-import { useContentReportStore } from '../../stores/contentReportStore';
 import { useProfileStore } from '../../stores/profileStore';
 import {
   createComment,
   deleteComment,
+  getCommentType,
   getCommentThreads,
   updateComment,
   type CommentDetail,
@@ -649,8 +649,6 @@ export function FoundReportCommentList({
   const [submittingTarget, setSubmittingTarget] = useState<string | null>(null);
   const currentUserSeq = useProfileStore(state => state.profile.userSeq);
   const loadProfile = useProfileStore(state => state.loadProfile);
-  const contentReports = useContentReportStore(state => state.reports);
-  const addContentReport = useContentReportStore(state => state.addReport);
 
   useEffect(() => {
     onPhotoMenuVisibilityChange?.(photoMenuId !== null);
@@ -807,6 +805,8 @@ export function FoundReportCommentList({
       excerpt: getCommentContent(comment),
       id: `${reportId}:${isReply ? 'reply' : 'comment'}:${comment.id}`,
       nickname: comment.nickname,
+      targetSeq: comment.commentSeq ?? Number(comment.id),
+      targetType: comment.commentType ?? getCommentType(targetType),
       type: isReply ? 'reply' : 'comment',
     });
   };
@@ -912,19 +912,7 @@ export function FoundReportCommentList({
         />
       ))}
       <ContentReportModal
-        alreadyReported={contentReports.some(item => item.targetId === reportTarget?.id)}
         onClose={() => setReportTarget(null)}
-        onSubmit={reason => {
-          if (!reportTarget) {
-            return;
-          }
-          if (contentReports.some(item => item.targetId === reportTarget.id)) {
-            setReportTarget(null);
-            return;
-          }
-          addContentReport({ reason, targetId: reportTarget.id, targetType: reportTarget.type });
-          setReportTarget(null);
-        }}
         target={reportTarget}
       />
       <Modal
