@@ -7,6 +7,7 @@ import { MockAdoptionNameScreen } from '../../screens/MockAdoption/MockAdoptionN
 import { HomeScreen } from '../../screens/Home/HomeScreen';
 import { ChatRoomScreen } from '../../screens/chat/ChatRoomScreen';
 import { MockAdoptionActivityScreen } from '../../screens/MockAdoption/MockAdoptionActivityScreen';
+import { MockAdoptionOverviewScreen } from '../../screens/MockAdoption/MockAdoptionOverviewScreen';
 import { MockAdoptionBudgetScreen } from '../../screens/MockAdoption/MockAdoptionBudgetScreen';
 import { ArWalkScreen } from '../../screens/ArWalk/ArWalkScreen';
 import { AdoptionApplicationScreen } from '../../screens/adoption/AdoptionApplicationScreen';
@@ -91,6 +92,7 @@ export function RootNavigator() {
               />
               <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
               <Stack.Screen name="MockAdoptionActivity" component={MockAdoptionActivityScreen} />
+              <Stack.Screen name="MockAdoptionOverview" component={MockAdoptionOverviewScreen} />
               <Stack.Screen name="MockAdoptionSelection" component={MockAdoptionScreen} />
               <Stack.Screen name="MockAdoptionName" component={MockAdoptionNameScreen} />
               <Stack.Screen name="PetList" component={PetListScreen} />

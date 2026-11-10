@@ -171,14 +171,8 @@ test('mock adoption selects one pet across categories and preserves adoption fil
     await renderer.root.findAllByProps({ accessibilityLabel: '모의입양' })[0].props.onPress();
     await Promise.resolve();
   });
-  expect(renderer!.root.findAllByProps({ accessibilityLabel: '기간 필터' })).toHaveLength(0);
-  expect(renderer!.root.findAllByProps({ accessibilityRole: 'radio' })).toHaveLength(0);
-  expect(mockNavigate).not.toHaveBeenCalled();
-  expect(renderer!.root.findAllByProps({ children: '받은 레포트' }).length).toBeGreaterThan(0);
-  await ReactTestRenderer.act(async () => {
-    await renderer.root.findAllByType(Button)[0].props.onPress();
-  });
-  expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionSelection');
+  expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionOverview');
+  expect(renderer!.root.findAllByProps({ children: '받은 레포트' })).toHaveLength(0);
   await ReactTestRenderer.act(() => {
     renderer.root.findAllByProps({ accessibilityLabel: '입양' })[0].props.onPress();
   });
@@ -188,23 +182,7 @@ test('mock adoption selects one pet across categories and preserves adoption fil
   await ReactTestRenderer.act(() => renderer.unmount());
 }, 20000);
 
-test('opens the mock adoption overview from a home tab request', async () => {
-  const setParams = jest.fn();
-  const props = {
-    navigation: { navigate: mockNavigate, setParams },
-    route: { key: 'home', name: 'Home', params: { tab: 'mockAdoption' } },
-  } as unknown as NativeStackScreenProps<RootStackParamList, 'Home'>;
-  let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(<HomeScreen {...props} />);
-    await Promise.resolve();
-  });
-  expect(renderer.root.findAllByProps({ children: '받은 레포트' }).length).toBeGreaterThan(0);
-  expect(setParams).toHaveBeenCalledWith({ tab: undefined });
-  await ReactTestRenderer.act(() => renderer.unmount());
-});
-
-test('my page resumes an active adoption without asking for the budget again', async () => {
+test('my page opens mock adoption as its own screen', async () => {
   await startMockAdoption('dog-3', 35000, '초코');
   const props = {
     navigation: { navigate: mockNavigate },
@@ -217,16 +195,11 @@ test('my page resumes an active adoption without asking for the budget again', a
   await ReactTestRenderer.act(() => {
     renderer.root.findAllByProps({ accessibilityLabel: '마이페이지' })[0].props.onPress();
   });
-  await ReactTestRenderer.act(async () => {
-    await renderer.root.findAllByProps({ accessibilityLabel: '모의입양' })[0].props.onPress();
-    await Promise.resolve();
+  await ReactTestRenderer.act(() => {
+    renderer.root.findAllByProps({ accessibilityLabel: '모의입양' })[0].props.onPress();
   });
-  expect(mockNavigate).not.toHaveBeenCalled();
-  expect(renderer!.root.findAllByType(Button)[0].props.children).toBe('초코 보러가기');
-  await ReactTestRenderer.act(async () => {
-    await renderer.root.findAllByType(Button)[0].props.onPress();
-  });
-  expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionActivity', { petId: 'dog-3' });
+  expect(mockNavigate).toHaveBeenCalledWith('MockAdoptionOverview');
+  expect(renderer!.root.findAllByProps({ children: '마이페이지' }).length).toBeGreaterThan(0);
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 

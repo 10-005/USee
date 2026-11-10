@@ -254,6 +254,11 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   };
   const ending = useRef(false);
   const [busy, setBusy] = useState(false);
+  const showMockAdoptionOverview = () =>
+    navigation.reset({
+      index: 1,
+      routes: [{ name: 'Home' }, { name: 'MockAdoptionOverview' }],
+    });
   const quit = async () => {
     if (ending.current) {
       return;
@@ -274,7 +279,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         }
       }
       await endMockAdoption();
-      hideThenNavigate(() => navigation.navigate('Home', { tab: 'mockAdoption' }));
+      hideThenNavigate(showMockAdoptionOverview);
     } catch (caught) {
       Alert.alert(
         '모의입양',
@@ -506,7 +511,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                       return;
                     }
                     setStatsLoading(false);
-                    hideThenNavigate(() => navigation.navigate('Home', { tab: 'mockAdoption' }));
+                    hideThenNavigate(showMockAdoptionOverview);
                   })
                   .catch(() => {
                     if (statsRequest.current !== requestId) {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   ActivityIndicator,
   Alert,
@@ -11,8 +12,9 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { RootStackParamList } from '../../app/navigation/types';
 import { AppHeader, Button, ListScreenSkeleton } from '../../components/common';
 import {
   applyActiveSimulation,
@@ -62,13 +64,9 @@ function endedPetImage(active: ActiveSimulation): ImageSourcePropType {
   );
 }
 
-type Props = {
-  onBack: () => void;
-  onStart: () => void;
-  onResume: (petId: string) => void;
-};
+type Props = NativeStackScreenProps<RootStackParamList, 'MockAdoptionOverview'>;
 
-export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props) {
+export function MockAdoptionOverviewScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const [session, setSession] = useState<MockAdoptionSession | null>(null);
   const [loading, setLoading] = useState(true);
@@ -182,9 +180,9 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
       setSession(active);
       setFailed(false);
       if (active) {
-        onResume(active.petId);
+        navigation.navigate('MockAdoptionActivity', { petId: active.petId });
       } else {
-        onStart();
+        navigation.navigate('MockAdoptionSelection');
       }
     } catch {
       setFailed(true);
@@ -196,13 +194,13 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
   const petName = session?.petName ?? mockAdoptionPets.find(pet => pet.id === session?.petId)?.name;
 
   return (
-    <View style={styles.container}>
-      <AppHeader title="모의입양" onBackPress={onBack} />
+    <SafeAreaView edges={['top']} style={styles.container}>
+      <AppHeader title="모의입양" onBackPress={navigation.goBack} />
       {initialLoading ? (
         <ListScreenSkeleton accessibilityLabel="모의입양 정보 불러오는 중" />
       ) : (
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.intro}>
@@ -302,7 +300,7 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
           onClose={() => setEndedNotice(null)}
         />
       ) : null}
-    </View>
+    </SafeAreaView>
   );
 }
 

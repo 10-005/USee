@@ -218,9 +218,9 @@ test('activity screen has one action connected to the existing AR walk', async (
 test('quitting clears the session and replaces the main screen with fresh selection', async () => {
   await AsyncStorage.clear();
   await startMockAdoption('dog-1', 35000);
-  const navigate = jest.fn();
+  const reset = jest.fn();
   const props = {
-    navigation: { navigate },
+    navigation: { reset },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -232,7 +232,10 @@ test('quitting clears the session and replaces the main screen with fresh select
       .findAllByProps({ accessibilityLabel: '모의입양 그만두기' })[0]
       .props.onPress();
   });
-  expect(navigate).toHaveBeenCalledWith('Home', { tab: 'mockAdoption' });
+  expect(reset).toHaveBeenCalledWith({
+    index: 1,
+    routes: [{ name: 'Home' }, { name: 'MockAdoptionOverview' }],
+  });
   expect(abandonSimulation).not.toHaveBeenCalled();
   expect(invalidateSimulationReports).not.toHaveBeenCalled();
   await expect(getActiveMockAdoption()).resolves.toBeNull();
@@ -253,9 +256,9 @@ test('quitting abandons the server session before leaving the activity', async (
     report: { summary: null },
   });
   await startMockAdoption('dog-1', 35000, '초코', 3001);
-  const navigate = jest.fn();
+  const reset = jest.fn();
   const props = {
-    navigation: { navigate },
+    navigation: { reset },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -269,7 +272,10 @@ test('quitting abandons the server session before leaving the activity', async (
   });
   expect(abandonSimulation).toHaveBeenCalledWith(3001);
   expect(invalidateSimulationReports).toHaveBeenCalledTimes(1);
-  expect(navigate).toHaveBeenCalledWith('Home', { tab: 'mockAdoption' });
+  expect(reset).toHaveBeenCalledWith({
+    index: 1,
+    routes: [{ name: 'Home' }, { name: 'MockAdoptionOverview' }],
+  });
   await expect(getActiveMockAdoption()).resolves.toBeNull();
   await ReactTestRenderer.act(() => renderer.unmount());
   await AsyncStorage.clear();
@@ -283,9 +289,9 @@ test('quitting leaves when the server session is already closed', async () => {
       new ApiClientError({ code: 'SIMULATION_NOT_IN_PROGRESS', message: 'server' }),
     );
   await startMockAdoption('dog-1', 35000, '초코', 3001);
-  const navigate = jest.fn();
+  const reset = jest.fn();
   const props = {
-    navigation: { navigate },
+    navigation: { reset },
     route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -297,7 +303,10 @@ test('quitting leaves when the server session is already closed', async () => {
       .findAllByProps({ accessibilityLabel: '모의입양 그만두기' })[0]
       .props.onPress();
   });
-  expect(navigate).toHaveBeenCalledWith('Home', { tab: 'mockAdoption' });
+  expect(reset).toHaveBeenCalledWith({
+    index: 1,
+    routes: [{ name: 'Home' }, { name: 'MockAdoptionOverview' }],
+  });
   expect(invalidateSimulationReports).toHaveBeenCalledTimes(1);
   await expect(getActiveMockAdoption()).resolves.toBeNull();
   await ReactTestRenderer.act(() => renderer.unmount());
@@ -857,8 +866,9 @@ test('leaves the activity when the fetched session has already ended', async () 
     stats: fetchedStats,
   });
   const navigate = jest.fn();
+  const reset = jest.fn();
   const props = {
-    navigation: { navigate, goBack: jest.fn() },
+    navigation: { navigate, reset, goBack: jest.fn() },
     route: { key: 'ended-stats', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
   } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -882,7 +892,10 @@ test('leaves the activity when the fetched session has already ended', async () 
   expect(renderer.root.findByType(PetStatsDialog).props.visible).toBe(false);
   expect(navigate).not.toHaveBeenCalled();
   await ReactTestRenderer.act(() => renderer.root.findByType('RoomPet' as never).props.onHidden());
-  expect(navigate).toHaveBeenCalledWith('Home', { tab: 'mockAdoption' });
+  expect(reset).toHaveBeenCalledWith({
+    index: 1,
+    routes: [{ name: 'Home' }, { name: 'MockAdoptionOverview' }],
+  });
   expect(await getActiveMockAdoption()).toBeNull();
   await ReactTestRenderer.act(() => renderer.unmount());
 });

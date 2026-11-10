@@ -1,11 +1,21 @@
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import ReactTestRenderer from 'react-test-renderer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import type { RootStackParamList } from '../../app/navigation/types';
 import {
   getActiveSimulation,
   type ActiveSimulation,
 } from '../../services/simulation/activeSession';
 import { loadSimulationReports } from '../../services/simulation/reports';
+import { startMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { MockAdoptionOverviewScreen } from './MockAdoptionOverviewScreen';
+
+const navigation = { goBack: jest.fn(), navigate: jest.fn(), reset: jest.fn() };
+const screenProps = {
+  navigation,
+  route: { key: 'overview', name: 'MockAdoptionOverview' },
+} as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionOverview'>;
 
 jest.mock('../../services/simulation/activeSession', () => {
   const actual = jest.requireActual('../../services/simulation/activeSession');
@@ -32,6 +42,13 @@ jest.mock(
   () => require('react-native-safe-area-context/jest/mock').default,
 );
 
+beforeEach(async () => {
+  navigation.goBack.mockClear();
+  navigation.navigate.mockClear();
+  navigation.reset.mockClear();
+  await AsyncStorage.clear();
+});
+
 const report = {
   sessionSeq: 3002,
   animalName: '나비',
@@ -56,9 +73,7 @@ test('marks only reports that were not in the previous list', async () => {
   });
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(
-      <MockAdoptionOverviewScreen onBack={jest.fn()} onStart={jest.fn()} onResume={jest.fn()} />,
-    );
+    renderer = ReactTestRenderer.create(<MockAdoptionOverviewScreen {...screenProps} />);
     await Promise.resolve();
   });
 
@@ -83,9 +98,7 @@ test('announces a finished adoption with the sudden event dialog', async () => {
   } as ActiveSimulation);
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(
-      <MockAdoptionOverviewScreen onBack={jest.fn()} onStart={jest.fn()} onResume={jest.fn()} />,
-    );
+    renderer = ReactTestRenderer.create(<MockAdoptionOverviewScreen {...screenProps} />);
     await Promise.resolve();
   });
   expect(
@@ -102,5 +115,35 @@ test('announces a finished adoption with the sudden event dialog', async () => {
   expect(renderer.root.findAllByProps({ children: '7일간의 모의 입양이 끝났어요!' })).toHaveLength(
     0,
   );
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('opens selection when there is no active adoption', async () => {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionOverviewScreen {...screenProps} />);
+    await Promise.resolve();
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findAllByProps({ children: '모의입양 시작하기' })[0].props.onPress();
+  });
+  expect(navigation.navigate).toHaveBeenCalledWith('MockAdoptionSelection');
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('resumes the stored pet without asking for the budget again', async () => {
+  jest.mocked(getActiveSimulation).mockRejectedValueOnce(new Error('offline'));
+  await startMockAdoption('dog-3', 35000, '초코');
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionOverviewScreen {...screenProps} />);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  expect(renderer.root.findAllByProps({ children: '초코 보러가기' }).length).toBeGreaterThan(0);
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findAllByProps({ children: '초코 보러가기' })[0].props.onPress();
+  });
+  expect(navigation.navigate).toHaveBeenCalledWith('MockAdoptionActivity', { petId: 'dog-3' });
   await ReactTestRenderer.act(() => renderer.unmount());
 });
