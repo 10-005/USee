@@ -7,7 +7,7 @@
 > **백엔드 스택 [확정]:** JDK 21, Spring Boot 4.1.2, Kotlin 2.3.21, JPA + QueryDSL, PostgreSQL 17, Redis 7.4, RabbitMQ(STOMP relay + 서비스 간 이벤트), AWS S3(presigned PUT), 네이버 지도 역지오코딩. OpenSearch는 도입하지 않습니다(S7). 서비스 4개: core-api(8080) / chat(8081) / notification(8082) / simulation(8083).
 
 **표기 규칙**
-- **[확정 정책]**: DB v20에서 확인되는 기능·권한·상태·제약, 또는 Q406~Q503·S1~S8 질의응답으로 확정한 사항. **[가안]**: 추천안을 채택했고 수치는 코드 설정값으로 둔 사항(플레이 테스트·운영 후 조정). **[초안]**: DTO 필드 이름·예시 값·세부 검증 등 구현 중 조정 가능한 제안. 확정 정책과 초안이 충돌하면 DB v20과 1장 공통 규약이 우선합니다. **v14에는 [미정] 항목이 없습니다.** 팀 논의 대기 항목(11장 발생장소·공고번호 등)은 20.3에 따로 모았습니다.
+- **[확정 정책]**: DB v20에서 확인되는 기능·권한·상태·제약, 또는 Q406~Q504·S1~S8 질의응답으로 확정한 사항. **[가안]**: 추천안을 채택했고 수치는 코드 설정값으로 둔 사항(플레이 테스트·운영 후 조정). **[초안]**: DTO 필드 이름·예시 값·세부 검증 등 구현 중 조정 가능한 제안. 확정 정책과 초안이 충돌하면 DB v20과 1장 공통 규약이 우선합니다. **v14에는 [미정] 항목이 없습니다.** 팀 논의 대기 항목(11장 발생장소·공고번호 등)은 20.3에 따로 모았습니다.
 - 표의 `/...` 경로는 **해당 장의 서비스 접두어**를 앞에 붙인 상대 경로입니다. core-api `/api/core/v1`(2~13·15·16장), chat `/api/chat/v1`(14장), notification `/api/notification/v1`(17장), simulation `/api/simulation/v1`(18장). **[비인증]** 표시 외에는 로그인 필수입니다.
 - 이 문서는 **클라이언트·보호소 업무 API**를 다룹니다. **ADMIN API는 이번 프로젝트 구현 범위 외**(Q410·Q411)이며 별도 장을 두지 않습니다. 내부 AI 워커 및 공공데이터 ETL 전용 API는 다루지 않습니다.
 
@@ -31,6 +31,7 @@
 | Q501 | **산책 구현(252).** 산책 중 행동에 **`CLEAN_UP_POOP`(배변 치우기, 배변봉투 1개)** 을 새로 두고, 그 행동이 정답인 산책 시나리오 #16 "길에서 똥을 쌌어요"를 추가합니다(시나리오 WALK 정답 CHECK 확장). 배변 이벤트가 없을 때의 `CLEAN_UP_POOP`은 409 `SIMULATION_POOP_NOT_FOUND`(봉투를 쓰지 않음). **AGGRESSIVE 산책 가중치는 두지 않습니다**: 성격은 시간당 감소 배율에만 영향(Q490 정리). 수치 [가안]: 산책 효과는 종료 시 10분 단위(60분까지, 10분 미만 없음)로 10분마다 활력 +7·안정감 +4·친밀도 +1·포만감 -2·수분 -3·청결도 -2, 산책 중 물 주기 수분 +20, 산책 이벤트는 하트비트마다 8%·산책당 최대 3회·시한 5분(#13~#16 같은 가중치). 하트비트가 10분 넘게 끊기면 마지막 하트비트 시각으로 자동 종료(종료 API도 같은 시각으로 결과를 줌). **산책 중에는 집 이벤트를 만들지 않습니다.** 세션 상세 `equipment`에 `leash`(하네스와 리드줄) 추가(Q495의 남은 결정) | 18.0·18.2·18.12·18.14~18.17·19장·DB v20 39·41 |
 | Q502 | **12.15 신청자 모의 입양 리포트 목록 구현(2026-11-10).** 보류였던 12.15(= 18.21)를 구현합니다. 담당 SHELTER가 소속 보호소의 제출된 신청서(타 보호소·DRAFT·CANCELED는 404)로 신청자의 **종료 리포트 전체**를 동물·품종과 상관없이 최근 종료 순, 페이지 없는 배열로 받습니다. 항목은 **동물 정보(가상 이름·품종)·기간(시작·종료)·총지출만**이고 상세는 `sessionSeq`로 18.18을 부릅니다(요약·상태·예상 비용은 넣지 않음). core-api가 simulation 세션·리포트를 읽기 전용 JOIN하며, 그 SELECT 권한은 스키마 소유자인 simulation Flyway가 core_app에 줍니다(서버 DB 초기화는 core_app에 simulation 권한을 주지 않음) | 12.15·18.21 |
 | Q503 | **18.9 장바구니 일괄 구매(2026-11-10).** 앱의 장바구니에서 한 번에 사도록 18.9 요청을 `{ "items": [ { itemSeq, quantity } ] }`(1~50줄)로 바꾸고 단건 본문은 대체합니다. **전부 사거나 하나도 사지 않습니다**: 세션 잠금·지연 계산 뒤 모든 줄을 먼저 검증하고(앞 줄부터, 첫 오류 응답) 통과해야 쓰므로 한 줄이라도 오류면 잔액·보유·지출이 그대로입니다. 같은 `itemSeq` 두 줄은 400(합치지 않음), 줄 단위 400의 `field`는 `items[i].quantity` 형식. 지출 내역은 물품마다 1건씩 요청 순서대로(18.11 형식·리포트 집계 유지), 응답은 `purchases[]`(종전 단건 응답 형식, `balanceAfter`는 그 물품 직후 잔액) + `totalAmount` + 최종 `balanceAfter`. DB 변경 없음 | 18.9·21.5 |
+| Q504 | **18.22 세션 스탯 전용 조회 신설(2026-11-10).** `GET /simulations/{sessionSeq}/stats`가 `{ sessionSeq, status, stats }`만 돌려줍니다(메인 화면 게이지 갱신용, 18.4의 품종·기구·이벤트 조립 생략). 권한(본인만, 그 외 404)과 지연 계산·이벤트 만료·종료 판정 저장은 18.4와 같고, **끝난 세션도 200**으로 종료 시점 스탯과 상태를 줘 앱이 상태로 리포트에 갑니다. 경로는 다른 세션 API처럼 `{sessionSeq}` 기준(진행 중 세션 바로 찾기는 18.2). DB 변경 없음 | 18.22·22장 |
 
 ## v13 변경 요약 (v12 → v13)
 
@@ -2095,6 +2096,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | 18.19 | GET | `/simulations/reports` | USER | 내 리포트 목록 |
 | 18.20 | GET | `/simulations/reports/shelter` | SHELTER | 종료 리포트 전체 목록 `?userSeq=`(Q483) |
 | 18.21 | GET | `/adoption-applications/{applicationSeq}/simulation-reports` | 담당 SHELTER | 신청자의 종료 리포트 전체(=12.15) |
+| 18.22 | GET | `/simulations/{sessionSeq}/stats` | 본인 | 스탯 7종과 상태만(메인 화면 게이지 갱신, 지연 계산·종료 판정 반영, Q504) |
 
 > v1 이후 초안에 있던 `POST /simulations/{sessionSeq}/vet-visits`와 `/admin/simulations/*`(상점·시나리오·진단 관리)는 **삭제**했습니다(M15, ADMIN 범위 외). v11의 18.22 `GET /simulations/notifications`·18.23 `PATCH .../read`는 **Q481로 삭제**했습니다(푸시 저장 없음). v12의 18.13 `POST .../events/{occurrenceSeq}/answer`는 **Q486으로 삭제**했습니다(선택지 없음, 이벤트는 행동으로 해결).
 
@@ -2137,6 +2139,20 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 - `18.4` 본인만(Q483). 응답은 18.1 상세. 진행 중이면 18.2와 같이 지연 계산·종료 판정을 합니다(Q496). 보호소는 세션 상세를 보지 않고 18.18·18.20의 종료 리포트만 봅니다.
 - `18.2`·`18.4`의 `pendingEvent`는 해결 대기 중인 돌발 이벤트(18.12 `SimulationEvent` 형식, 없으면 `null`, Q498)이고, `equipment`는 수량 1 이상 보유한 기구(밥그릇·물그릇·화장실·장난감·하네스와 리드줄 `leash`, Q501)입니다. 앱은 `leash`로 산책 버튼을 켭니다.
 - **오류 [초안]** 404 `SIMULATION_NOT_FOUND`(타인 세션 포함).
+
+### 18.22 GET /simulations/{sessionSeq}/stats
+
+**성공 200 `data` [초안]** (Q504)
+```json
+{
+  "sessionSeq": 3001,
+  "status": "IN_PROGRESS",
+  "stats": { "satiety":64, "hydration":58, "cleanliness":77, "bond":31, "calmness":46, "health":90, "energy":55, "calculatedDttm":"2026-11-01T17:00:00+09:00" }
+}
+```
+- **[확정 정책]** 메인 화면 게이지를 자주 갱신하도록 18.4에서 **스탯 7종(`SimulationStats`)과 `status`만** 떼어 낸 가벼운 조회입니다(품종·기구·잔액·`pendingEvent` 없음, 필요하면 18.2·18.4). 본인만(Q483, 보호소 포함 그 외 404). 처리는 18.4와 같아 세션 잠금 → 지금 시각까지 스탯 지연 계산·PENDING 이벤트 만료 → 건강 0·예정 종료면 그 자리에서 FAILED·COMPLETED 종료(Q496)를 **저장**합니다(GET도 쓰기, M2).
+- **끝난 세션도 409가 아니라 200**으로 종료 시점 스탯과 `status`(`COMPLETED`·`FAILED`·`ABANDONED`)를 줍니다. 앱은 `status`가 `IN_PROGRESS`가 아니면 리포트(18.18)로 이동합니다. 끝난 세션의 스탯은 다시 계산하지 않습니다. `calculatedDttm`은 1시간 tick 경계라 1시간 안의 재호출은 같은 값입니다.
+- **오류 [초안]** 404 `SIMULATION_NOT_FOUND`(타인 세션 포함); 400 `COMMON_INVALID_INPUT`(세션 번호 타입 오류).
 
 ### 18.5 POST /simulations/{sessionSeq}/abandon
 
@@ -2636,6 +2652,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | Q501 산책 구현 규칙 (2026-11-09) | 산책 행동 `CLEAN_UP_POOP`(배변봉투) + 시나리오 #16, 배변 이벤트 없으면 409 `SIMULATION_POOP_NOT_FOUND`. 성격 가중치 없음(시간 감소 배율만). 효과 10분 단위 60분까지(활력 +7·안정감 +4·친밀도 +1·포만감 -2·수분 -3·청결도 -2), 물 +20, 이벤트 8%·산책당 3회·시한 5분. 10분 끊기면 마지막 하트비트 시각으로 종료. 산책 중 집 이벤트 없음. `equipment.leash` 추가. DB: 41번 CHECK 확장·#16 시드 | 18.0·18.2·18.12·18.14~18.17·19장 |
 | Q502 12.15 구현 (2026-11-10) | 담당 SHELTER, 제출된 신청서만(그 외 404), 신청자의 종료 리포트 전체를 최근 종료 순 배열로. 항목은 sessionSeq·animalName·breed·startedDttm·endedDttm·totalSpent. simulation Flyway가 core_app에 세션·리포트 SELECT 권한 부여 | 12.15·18.21 |
 | Q503 18.9 장바구니 구매 (2026-11-10) | 요청 `items[]`(1~50줄, 같은 물품 중복 400), 전부 또는 없음(모든 줄 검증 후 쓰기), 지출은 물품마다 1건씩 요청 순서, 응답 `purchases[]`·`totalAmount`·`balanceAfter`. DB 변경 없음 | 18.9·21.5 |
+| Q504 18.22 스탯 전용 조회 (2026-11-10) | `GET /simulations/{sessionSeq}/stats` → `{ sessionSeq, status, stats }`. 본인만(그 외 404), 18.4와 같은 지연 계산·종료 판정 저장, 끝난 세션도 200(종료 시점 스탯). DB 변경 없음 | 18.22·22장 |
 
 ### 20.2 미결 안건
 
@@ -2758,7 +2775,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `reports` | core / core-api | 15 | 대상 5종·`reason_code` 대상별 조합(Q449·Q477), PENDING만, 신고 심사 없음, 열람 주체·조회 API 없음(Q428) |
 | `bookmarks` | core / core-api(`user` 패키지) | 16 | 해제 물리 삭제, 중복 409. 경로 `/users/me/bookmarks`(Q452) |
 | `notifications`, `device_tokens` | core / **notification**(AI_MATCH 행만 core-api가 INSERT) | 17·18 | 9종(Q447), title 비저장·`message`=body, COMMENT 계열 `comment_seq`·`parent_comment_seq`(Q446), 삭제 댓글 body 갱신(Q448), AI 최초 1회/FCM 재시도 없음. 모의 입양 푸시도 notification이 같은 토큰으로 발송(`SimulationPushRequested`, 저장 없음 Q481). 디바이스 토큰 등록 upsert |
-| `simulation_sessions` | **simulation** / simulation | 18.1~18.5 | USER당 IN_PROGRESS 1건 부분 UNIQUE, `breed_seq` 논리 참조 + 종·성격 스냅샷(Q482), `animal_name`(Q484), 스탯 7개 `satiety/hydration/cleanliness/bond/calmness/health/energy` 0~100(모두 높을수록 좋음, Q485), 잔액 음수 허용. `user_seq`·`breed_seq`는 논리 참조. 보호동물·보호소 연결 없음 |
+| `simulation_sessions` | **simulation** / simulation | 18.1~18.5·18.22 | USER당 IN_PROGRESS 1건 부분 UNIQUE, `breed_seq` 논리 참조 + 종·성격 스냅샷(Q482), `animal_name`(Q484), 스탯 7개 `satiety/hydration/cleanliness/bond/calmness/health/energy` 0~100(모두 높을수록 좋음, Q485), 잔액 음수 허용. `user_seq`·`breed_seq`는 논리 참조. 보호동물·보호소 연결 없음 |
 | `simulation_shop_items` | simulation / simulation(시드만) | 18.8 | 9분류, 기구 `is_consumable=false`, 사진은 키 문자열(images FK 없음), 관리 API 없음 |
 | `simulation_inventory_items` | simulation / simulation | 18.6·18.9·18.10·18.16 | UNIQUE(session,item), 기구 수량 1, 소모품 0 유지 |
 | `simulation_transactions` | simulation / simulation | 18.9·18.11·18.6(`VET_VISIT`) | PURCHASE/EVENT(이벤트 해결 비용 `resolve_cost`, Q486), `balance_after`, 리포트 집계 근거 |
