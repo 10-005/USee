@@ -28,6 +28,6 @@ interface NotificationEventUseCase {
     /** 로그아웃 기기 토큰만 비활성화(Q419 A) */
     fun onDeviceTokenDeactivateRequested(event: DeviceTokenDeactivateRequested)
 
-    /** 수신자별 FCM 데이터 메시지만, 저장 없음(R9 C) */
+    /** 수신자별 FCM(title=보낸 사람, body=미리보기, data.notificationType=CHAT), 저장 없음(R9 C·Q516) */
     fun onChatMessageSent(event: ChatMessageSent)
 }

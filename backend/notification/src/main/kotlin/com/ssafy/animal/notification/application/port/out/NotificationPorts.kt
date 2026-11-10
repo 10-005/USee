@@ -69,11 +69,11 @@ interface FcmSender {
     fun send(message: FcmMessage)
 }
 
-/** title·body가 null이면 데이터 메시지(채팅) */
+/** 모든 푸시는 title·body를 실어 OS가 알림을 띄운다(채팅 포함, Q516) */
 data class FcmMessage(
     val token: String,
-    val title: String?,
-    val body: String?,
+    val title: String,
+    val body: String,
     val data: Map<String, String>,
 )
 

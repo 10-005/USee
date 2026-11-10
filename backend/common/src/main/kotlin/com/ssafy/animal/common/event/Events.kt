@@ -67,7 +67,7 @@ data class SimulationPushRequested(
     val body: String,
 )
 
-/** chat → notification. 보낸 사람을 뺀 참여자에게 FCM 데이터 메시지, 저장 없음(R9 C). 수신자는 chat이 계산(보호소는 담당 계정) */
+/** chat → notification. 보낸 사람을 뺀 참여자에게 FCM(title·body 포함, Q516), 저장 없음(R9 C). 수신자는 chat이 계산(보호소는 담당 계정) */
 data class ChatMessageSent(
     val chatRoomSeq: Long,
     val messageSeq: Long,

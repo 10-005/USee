@@ -25,6 +25,7 @@
 | Q513 | **USER만.** 17.9·17.10은 USER 전용(SHELTER 403 `AUTH_FORBIDDEN`). 보호소 계정은 행이 없어 항상 발송하며, 설정 대상이 아닌 `SHELTER`·`SYSTEM` 유형도 항상 발송합니다 | 17.8·17.9·17.10 |
 | Q514 | **방해금지는 모의 입양 알림에만, 걸리면 버림.** `quietEnabled`·`quietStart`·`quietEnd`(서울 `HH:mm`, 시작 포함·끝 제외, 시작이 끝보다 늦으면 자정을 넘김, 같으면 400)는 모의 입양 푸시에만 적용합니다. 그 시간에 생긴 푸시는 나중에 보내지 않고 버립니다. 돌발 이벤트 발생은 그대로라 방해금지 중 생긴 HOME 이벤트가 푸시 없이 시한을 넘길 수 있습니다(의도). 서버의 이벤트 미발생 시간(22~8시, 18.0)과는 별개입니다 | 17.10·18.0 |
 | Q515 | **앱 첫 설정은 OS 권한 결과로.** 앱은 설치 후 OS 알림 권한을 물은 직후 권한 결과에 맞춰 5종을 17.10 한 번으로 보냅니다. 재설치하면 다시 덮어쓰는 것이 의도이며 서버는 초기화 여부를 따로 저장하지 않습니다. OS 권한과 앱 설정은 별개(OS 권한이 꺼져 있으면 서버가 보내도 기기가 표시하지 않음) | 17.10 |
+| Q516 | **채팅 푸시에 title·body와 `CHAT` 구분값(2026-11-11, 모바일 연동).** data만 보내면 OS가 알림을 띄우지 않고 앱이 직접 로컬 알림을 만들어야 해서, 채팅 푸시도 notification 메시지 **title = `senderDisplayName`, body = `preview`**로 보냅니다. data에는 `notificationType: "CHAT"`을 더해 앱이 저장형 알림과 같은 키로 구분하게 합니다. `CHAT`은 저장 유형(17.1의 9종)에 넣지 않는 푸시 전용 값이라 알림함·`notificationType` 필터·DB CHECK는 그대로이고 `notificationSeq`는 없습니다. 앱이 포그라운드면 OS가 띄우지 않으므로 지금처럼 현재 방 기준으로 판단합니다. 모든 푸시는 Android high priority(절전 중 지연 방지) | 14장·17.8·17.10 |
 
 ## v14 변경 요약 (v13 → v14)
 
@@ -1750,7 +1751,7 @@ v8까지의 `GET /rescues/status-counts`는 **삭제**합니다. 목록 상단 �
 > - **SUBSCRIBE 인가:** 구독 목적지 `/topic/rooms/{chatRoomSeq}`. common의 `StompAuthChannelInterceptor`는 CONNECT 인증만 담당하고 DB에 접근하지 않으므로, **chat 모듈의 별도 `ChannelInterceptor`**가 SUBSCRIBE 프레임에서 요청자가 `chat_participants`에 있는지 확인하고 아니면 구독을 거부합니다(`CHAT_ROOM_NOT_PARTICIPANT`). `/user/queue/errors`와 `/user/queue/room-updates` 구독은 본인 큐이므로 검사 없이 허용합니다. 참여자가 아닌 방을 엿들을 수 없습니다.
 > - **전송(R16 B):** 클라이언트가 STOMP **SEND** 프레임으로 `/app/rooms/{chatRoomSeq}/messages`에 보냅니다(14.5). 서버 `@MessageMapping`이 참여자·조합·탈퇴 상대·첨부 검증 → `chat_messages` 저장·커밋 → `/topic/rooms/{chatRoomSeq}`로 저장된 메시지 DTO를 브로드캐스트합니다(RabbitMQ relay 경유). 쓰기 경로는 이 하나뿐이며 **REST 메시지 전송은 없습니다.** 방 목록·생성·상세·과거 메시지 조회·읽음·나가기만 REST입니다.
 > - **오류 응답(STOMP):** 검증 실패는 `@MessageExceptionHandler`가 송신자의 `/user/queue/errors`로 보냅니다. 본문은 HTTP와 **같은 `ApiResponse` 봉투**(`status`·`code`·`message`·`data:null`·`errors`·`traceId`)이고 코드도 19장과 같습니다(`CHAT_ROOM_NOT_PARTICIPANT`, `CHAT_INVALID_PAYLOAD`, `CHAT_COUNTERPART_DELETED`, `CHAT_SHARED_POST_NOT_FOUND`, `IMAGE_NOT_OWNED`, `IMAGE_NOT_FOUND`). 클라이언트는 연결 직후 `/user/queue/errors`를 구독합니다.
-> - **푸시(R9 C):** 서버는 구독 여부를 판단하지 않습니다. 저장·커밋 후 chat이 `ChatMessageSent` 이벤트를 내고, notification이 참여자 중 **보낸 사람을 제외한 전원**에게 FCM **데이터 메시지**(`roomSeq`, `messageSeq`, `senderDisplayName`, `preview`)를 보냅니다. 표시 여부는 앱이 "현재 열려 있는 방" 기준으로 판단합니다(같은 방이면 무시, 아니면 로컬 알림). DB 알림 기록은 없습니다(17장).
+> - **푸시(R9 C):** 서버는 구독 여부를 판단하지 않습니다. 저장·커밋 후 chat이 `ChatMessageSent` 이벤트를 내고, notification이 참여자 중 **보낸 사람을 제외한 전원**에게 FCM을 보냅니다. notification 메시지 **title = `senderDisplayName`, body = `preview`**, data = `notificationType: "CHAT"`, `roomSeq`, `messageSeq`, `senderDisplayName`, `preview`(Q516). 앱이 백그라운드면 OS가 알림을 띄우고, 포그라운드면 앱이 "현재 열려 있는 방" 기준으로 표시 여부를 판단합니다(같은 방이면 무시). DB 알림 기록은 없습니다(17장).
 > - **[확정 정책] 목록 실시간 갱신(Q454):** 채팅 목록 화면은 방마다 `/topic`을 구독하지 않고, 개인 채널 **`/user/queue/room-updates`** 하나로 내 모든 방의 변화를 받습니다(Spring user destination, 세션별 큐로 변환되어 본인만 수신, 같은 계정의 모든 기기로 배달). 서버는 `convertAndSendToUser(userSeq, "/queue/room-updates", payload)`로 보냅니다. 페이로드 **[초안]** `{ "type":"MESSAGE|READ|LEFT", "room":ChatRoomItem(14.1과 같은 형태), "totalUnreadMessageCount":123 }`. `MESSAGE`는 14.5 저장 후 **방의 참여자 각각**(보낸 사람 포함)에게, `READ`·`LEFT`는 14.6·14.7 후 **요청자 본인**에게 보냅니다. `unreadCount`·`totalUnreadMessageCount`는 **받는 사람 기준**으로 계산합니다. `LEFT`의 `room`은 `chatRoomSeq`만 있어도 됩니다. 앱은 받은 방을 목록 맨 위로 올리거나(없으면 새로 넣음) 갱신하고, `LEFT`면 목록에서 빼며, 자기가 가진 `lastMessageSeq`보다 오래된 갱신은 무시합니다. 인스턴스가 여러 개일 때를 대비해 `setUserDestinationBroadcast`·`setUserRegistryBroadcast`를 설정합니다.
 > - **[확정 정책] 연결 생명주기(Q454):** 앱은 로그인 후 **포그라운드에 있는 동안** STOMP 연결 하나를 유지하고 `/user/queue/errors`·`/user/queue/room-updates`를 구독합니다. **구독을 먼저 하고** 14.1 첫 페이지·14.8을 조회하며, 조회 응답 전 도착한 갱신은 모았다가 적용합니다. 채팅방 화면에 들어가면 `/topic/rooms/{id}`를 SUBSCRIBE, 나오면 UNSUBSCRIBE(연결은 유지). 백그라운드로 가면 **유예 시간 [가안 10~30초]** 뒤 DISCONNECT(갤러리 사진 선택처럼 잠깐 나갔다 오는 경우 재연결 방지)하고, 이후 알림은 FCM이 맡습니다. 로그아웃 시 즉시 DISCONNECT. STOMP heart-beat로 끊김을 감지해 지수 백오프로 자동 재연결하며, `/user/queue`는 놓친 갱신을 보존하지 않으므로 **재연결·포그라운드 복귀 시 14.1·14.8을 다시 조회**합니다.
 > - **[확정 정책] 토큰 만료(Q454):** STOMP는 CONNECT 때만 인증하므로 서버는 CONNECT 시 토큰 만료 시각을 세션에 저장하고, **SEND 때 만료됐으면 처리하지 않고** `/user/queue/errors`로 `AUTH_TOKEN_EXPIRED`를 보냅니다(Q433의 쓰기 재확인과 같은 위치). 앱은 2.3으로 토큰을 갱신하고 새 토큰으로 다시 CONNECT합니다. 구독(수신)만 하는 동안은 만료로 끊지 않습니다.
@@ -1850,7 +1851,7 @@ v8까지의 `GET /rescues/status-counts`는 **삭제**합니다. 목록 상단 �
 - **[확정 정책] 전송 확인·중복 제거:** 송신자는 브로드캐스트에서 자기가 보낸 `clientMessageId`를 받으면 "전송 완료"로 표시하고 `chatMessageSeq`를 붙입니다. `clientMessageId`는 클라이언트가 생성하는 임의 문자열(최대 64자)이며 서버는 저장하지 않고 **되돌려 주기만** 합니다. 재연결 후 재전송은 클라이언트 책임이며 서버 측 멱등 처리는 없습니다 **[가안]**.
 - **[확정 정책] 본문 규칙:** TEXT는 비공백 `content` 필수. IMAGE는 `imageSeq` **정확히 하나 필수**(송신자가 업로드한 이미지만, 아니면 `IMAGE_NOT_OWNED`), `content`는 선택. SHARED_POST는 `sharedTargetType/sharedTargetSeq` 필수이며 코드 `MISSING/FOUND/SHELTER_ANIMAL`만. 다형성 대상 존재·접근 권한은 BE 검증. `imageUrl`은 서버가 `images`를 읽어 채운 접근 URL입니다.
 - 상대가 탈퇴했다면 신규 메시지 거부. **차단 기능이 없으므로 차단 상태 검증은 작성하지 않습니다.** 메시지 개별 삭제·수정 기능 없음(Q423의 "수정·삭제"는 채팅에는 해당 없음).
-- DB `notifications`에 채팅 메시지 알림을 저장하지 않으며 FCM 데이터 메시지만 발송합니다(R9 C). 발송 실패 시 재시도 없음.
+- DB `notifications`에 채팅 메시지 알림을 저장하지 않으며 FCM만 발송합니다(R9 C, 페이로드는 Q516). 발송 실패 시 재시도 없음.
 - **오류(STOMP `/user/queue/errors`, 봉투는 HTTP와 동일):** `CHAT_INVALID_PAYLOAD`(400), `CHAT_ROOM_NOT_PARTICIPANT`(403), `IMAGE_NOT_OWNED`(403), `IMAGE_NOT_FOUND`(404), `CHAT_COUNTERPART_DELETED`(409), `CHAT_SHARED_POST_NOT_FOUND`(404). 오류 본문에 원래 `clientMessageId`를 `data`에 실어 어떤 전송이 실패했는지 알립니다 **[초안]**: `"data": { "clientMessageId": "c-20261102-0002" }`.
 
 ### 14.6 PATCH /chats/rooms/{id}/read · 14.7 POST /.../leave
@@ -2057,7 +2058,7 @@ v8까지의 `GET /rescues/status-counts`는 **삭제**합니다. 목록 상단 �
 | `ADOPTION_*` (4종) | 12.14 표의 전이 | 표 참조 | core-api |
 | `SHELTER` | 발견 신고 자동 배정(8.4) | 담당 보호소 SHELTER 계정 | core-api |
 | `SYSTEM` | 없음(유형만 예약) | — | — |
-| 채팅 수신 | **FCM 데이터 메시지만**, `notifications` DB 행 저장하지 않음. 표시 여부는 앱이 현재 방 기준으로 판단(R9 C) | 보낸 사람 외 참여자 | chat → `ChatMessageSent` → notification |
+| 채팅 수신 | **FCM만**(title=보낸 사람, body=미리보기, data `notificationType: "CHAT"`, Q516), `notifications` DB 행 저장하지 않음. 포그라운드 표시 여부는 앱이 현재 방 기준으로 판단(R9 C) | 보낸 사람 외 참여자 | chat → `ChatMessageSent` → notification |
 | 모의 입양 | **FCM만**, DB 저장 없음(`notifications`·별도 테이블 모두 없음, Q481). `EVENT`(HOME 이벤트 발생)·`SESSION_END`(세션 종료, **리포트 요약이 채워진 뒤** 발송 Q487) 2종, 앱을 모의 입양 화면으로 유도하는 용도만(18.0) | 세션 소유 USER | simulation → `SimulationPushRequested` → notification |
 
 **[확정 정책] 수신자 알림 설정(Q510~Q514):** notification은 위 이벤트를 받아 FCM을 보내기 직전에 수신자의 `user_notification_settings`(17.9)를 확인합니다. 행이 없으면 전부 켜짐입니다.
@@ -2075,7 +2076,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 
 **AI 중복 알림 필수 처리 순서 [확정 정책]**: ① 유효 동물/신고 상태 검사 → ② 해당 `missing_reports` 행에 `SELECT ... FOR UPDATE` 획득 → ③ `is_deleted=true` 알림까지 포함해 동일 쌍 `AI_MATCH` 중복 조회 → ④ 없으면 `message TEXT NOT NULL` 및 `targetType/targetSeq`로 한 행 INSERT(core-api 트랜잭션, 같은 `core` 스키마) → ⑤ 트랜잭션 커밋 → ⑥ `NotificationCreated` 이벤트(이미 저장됨, 발송만 요청)를 RabbitMQ로 발행하면 notification이 DB에 저장된 **똑같은 message 문자열**을 FCM body로 발송. 별도 전용 AI UNIQUE 인덱스는 **없습니다**. FCM 실패 시 DB 알림은 보존하고 재시도하지 않습니다. 그 외 유형은 발행 서비스가 `NotificationRequested` 이벤트(저장 + 발송 요청)에 수신자·유형·완성된 message(body)·target·`commentSeq`·`parentCommentSeq`를 실어 보내고 notification이 INSERT + FCM을 수행합니다. 두 이벤트는 이름으로 구분합니다(21.6).
 
-**[확정 정책] FCM 페이로드(Q446·Q447):** 저장형 알림(`NotificationRequested`·`NotificationCreated`)의 푸시는 notification 메시지의 **title = 유형별 서버 고정 문구**(17.1 표), **body = DB `message`**로 보내고, 앱이 푸시를 탭했을 때 17.1을 거치지 않고 바로 이동할 수 있도록 **data**에 `notificationSeq`, `notificationType`, `targetType`, `targetSeq`, `commentSeq`, `parentCommentSeq`를 싣습니다(값이 없는 필드는 생략). 채팅(`ChatMessageSent`)은 기존대로 data 메시지만 보냅니다(R9 C). 모의 입양(`SimulationPushRequested`)은 title·body를 이벤트 페이로드의 고정 문구로 보내고 data는 `{ "target": "SIMULATION" }`만 실어 앱이 모의 입양 화면으로 이동하게 합니다(Q481, 18.0).
+**[확정 정책] FCM 페이로드(Q446·Q447):** 저장형 알림(`NotificationRequested`·`NotificationCreated`)의 푸시는 notification 메시지의 **title = 유형별 서버 고정 문구**(17.1 표), **body = DB `message`**로 보내고, 앱이 푸시를 탭했을 때 17.1을 거치지 않고 바로 이동할 수 있도록 **data**에 `notificationSeq`, `notificationType`, `targetType`, `targetSeq`, `commentSeq`, `parentCommentSeq`를 싣습니다(값이 없는 필드는 생략). 채팅(`ChatMessageSent`)은 **title = `senderDisplayName`, body = `preview`**로 보내고 data에 `notificationType: "CHAT"`, `roomSeq`, `messageSeq`, `senderDisplayName`, `preview`를 싣습니다(Q516). `CHAT`은 저장 유형(17.1의 9종)이 아니라 푸시 구분값이며 `notificationSeq`는 없습니다. 모든 푸시는 Android high priority로 보냅니다. 모의 입양(`SimulationPushRequested`)은 title·body를 이벤트 페이로드의 고정 문구로 보내고 data는 `{ "target": "SIMULATION" }`만 실어 앱이 모의 입양 화면으로 이동하게 합니다(Q481, 18.0).
 
 **AI 워커 연동 [확정 정책, Q432]:** 매칭 요청과 결과 모두 RabbitMQ입니다. core-api는 실종·발견·보호동물의 등록·CLOSED→ACTIVE 재개·사진 배열 diff 때 `{ "sourceType": "MISSING|FOUND|SHELTER_ANIMAL", "sourceSeq": 101, "imageKeys": ["images/2026/11/a.jpg"], "speciesCode": "DOG", "occurredAt": "2026-11-02T17:50:00+09:00" }`를 발행합니다. 워커는 DB를 읽지 않고 페이로드와 S3 키만으로 동작하며, 유사하다고 판단한 쌍마다 `AiMatchFound { "missingReportSeq": 101, "targetType": "FOUND|SHELTER_ANIMAL", "targetSeq": 210, "score": 0.91, "modelVersion": "v1" }`를 발행합니다. `score`·`modelVersion`은 저장하지 않는 로그용 선택 필드이고 임계값 판단은 워커 몫입니다. core-api는 수신 시점에 위 ①(ACTIVE·PROTECTING·비삭제·비탈퇴) 재검사부터 ⑥까지 수행합니다. 워커의 임베딩 저장 위치는 POC 범위로 남깁니다.
 
@@ -2098,7 +2099,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | 필드 | 타입 | 의미 |
 |---|---|---|
 | `simulationEnabled` | boolean | 모의 입양 알림(`EVENT`·`SESSION_END`) |
-| `chatEnabled` | boolean | 채팅 알림(FCM 데이터 메시지) |
+| `chatEnabled` | boolean | 채팅 알림(FCM, Q516) |
 | `commentEnabled` | boolean | `COMMENT`·`COMMENT_REPLY` |
 | `aiMatchEnabled` | boolean | `AI_MATCH` |
 | `adoptionEnabled` | boolean | `ADOPTION_SUBMITTED`·`ADOPTION_APPROVED`·`ADOPTION_REJECTED`·`ADOPTION_COMPLETED` |
@@ -2656,7 +2657,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | R6 보호 종료 단독 처리 | **A** 반환·입양 없이 ENDED 허용, 사유 선택 → **Q479:** 11.6 `status=ENDED`로 이동, 사유 선택(기본 `OTHER`) 유지 | 11.6 |
 | R7 삭제된 댓글 | **A** "(삭제된 댓글)"로 자리 유지, 삭제된 루트에 새 답글 불가, 기존 답글 유지 | 13장 |
 | R8 채팅방 생성 주체 | **A** USER·SHELTER 모두 먼저 생성 가능 | 14.2 |
-| R9 채팅 푸시 | **C** 서버는 구독 여부를 판단하지 않고 보낸 사람 외 전원에게 FCM 데이터 메시지, 표시 여부는 앱이 현재 방 기준으로 판단. Redis 구독 상태 없음 | 14장·17.8·21.6 |
+| R9 채팅 푸시 | **C** 서버는 구독 여부를 판단하지 않고 보낸 사람 외 전원에게 FCM(Q516부터 title·body 포함), 포그라운드 표시 여부는 앱이 현재 방 기준으로 판단. Redis 구독 상태 없음 | 14장·17.8·21.6 |
 | R10 8.8 보조 필드 | **A** `hasRescue` 선택 필터·`activeRescueSeq` 응답 유지, 기본은 전량(**Q464에서 `hasRescue`를 `rescueStatus` 4값으로 대체**, 기본 전량은 유지) | 8.8 |
 | R11·R12 도메인 분류 | 기준정보+행정구역 → `catalog`(`CATALOG_`), 북마크 → `user`(`USER_BOOKMARK_*`), 보호동물은 `animal`(`ANIMAL_`) 단독. core-api 13개 패키지 | 19장 |
 | R13 배정 방식 필드 | **A** `assignmentMethod: DISTRICT|NEAREST` 응답 전용, DB 저장 없음 | 8.4 |
@@ -2750,6 +2751,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | Q513 USER 전용 (2026-11-10) | 17.9·17.10 SHELTER 403. 보호소 계정과 `SHELTER`·`SYSTEM` 유형은 항상 발송 | 17.8·17.9·17.10 |
 | Q514 방해금지는 모의 입양에만 (2026-11-10) | 서울 `HH:mm`, 시작 포함·끝 제외, 자정 넘김 허용, 같으면 400. 걸린 푸시는 버림. 이벤트 발생은 그대로(방해금지 중 HOME 이벤트가 푸시 없이 시한을 넘길 수 있음, 의도) | 17.10 |
 | Q515 앱 첫 설정 (2026-11-10) | 설치 후 OS 권한 결과로 5종을 17.10 한 번에. 재설치 시 덮어쓰기는 의도, 서버는 초기화 여부 미저장 | 17.10 |
+| Q516 채팅 푸시 title·body (2026-11-11) | title=`senderDisplayName`, body=`preview`, data에 `notificationType: "CHAT"` 추가(저장 유형 아님, `notificationSeq` 없음). 포그라운드 표시는 앱이 현재 방 기준. 모든 푸시 Android high priority | 14장·17.8 |
 
 ### 20.2 미결 안건
 
@@ -2843,7 +2845,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `DeviceTokenDeactivateRequested` | core-api(2.4 `fcmToken`) | notification | 로그아웃 기기 토큰 비활성화 |
 | 매칭 요청(`MissingReportRegistered`·`FoundReportRegistered`·`ShelterAnimalRegistered`·`ImagesChanged`) | core-api | AI 워커 | 페이로드 `{sourceType, sourceSeq, imageKeys[], speciesCode, occurredAt}`(Q432). 워커는 DB 미접근 |
 | `AiMatchFound` | AI 워커 | core-api | 페이로드 `{missingReportSeq, targetType, targetSeq, score, modelVersion}`(Q432). core-api가 자격 재검사 후 17.8 순서로 처리 |
-| `ChatMessageSent` | chat | notification | 보낸 사람과 **채팅 알림을 끈 수신자(Q510)**를 제외한 참여자에게 FCM **데이터 메시지**(`roomSeq, messageSeq, senderDisplayName, preview`). 표시 여부는 앱이 판단, DB 저장 없음(R9 C) |
+| `ChatMessageSent` | chat | notification | 보낸 사람과 **채팅 알림을 끈 수신자(Q510)**를 제외한 참여자에게 FCM(title=`senderDisplayName`, body=`preview`, data `notificationType: "CHAT", roomSeq, messageSeq, senderDisplayName, preview`, Q516). 포그라운드 표시 여부는 앱이 판단, DB 저장 없음(R9 C) |
 
 notification은 위 이벤트로 FCM을 보내기 직전에 수신자 알림 설정(17.8 표, Q510~Q514)을 확인합니다. 발행 서비스는 설정을 읽지 않습니다.
 
