@@ -1,7 +1,7 @@
 import type { AdoptionFilters } from '../../Home/AdoptionFilterSheet';
 import { foundReports, getFoundReport } from '../data';
 import { getContactDisplayValue } from '../FoundReportDetailScreen';
-import { filterFoundReports } from '../FoundReportListContent';
+import { filterFoundReports, filterReports } from '../FoundReportListContent';
 
 const filters: AdoptionFilters = {
   gender: '전체',
@@ -26,6 +26,14 @@ describe('found report data', () => {
 
     expect(result[0].date).toBe('2026-10-10');
     expect(result.at(-1)?.date).toBe('2026-10-19');
+  });
+
+  it('대한민국 접두어가 있는 주소도 시도 필터에 포함한다', () => {
+    const report = { ...foundReports[0], location: '대한민국 경상북도 구미시 인동동' };
+
+    const result = filterReports([report], '', { ...filters, region: '경상북도' });
+
+    expect(result).toEqual([report]);
   });
 
   it('상세 조회 시 여러 이미지와 연락처 공개 여부를 유지한다', () => {

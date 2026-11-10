@@ -1,4 +1,6 @@
-import { foundReports, type FoundReport } from '../../screens/found-report/data';
+import type { FoundReport } from '../../screens/found-report/data';
+import { mapFoundDetail } from '../../stores/foundReportStore';
+import { getFoundReport, searchFoundReports } from './foundReportApi';
 
 export type MapBounds = {
   maxLatitude: number;
@@ -12,24 +14,26 @@ export type MapReportQuery = {
   keyword?: string;
 };
 
-/**
- * 지도 조회 API의 프론트엔드 경계다. 서버 엔드포인트가 확정되면
- * 이 함수 내부만 API client 호출로 교체하고 화면은 그대로 유지한다.
- */
 export async function getMapFoundReports(query: MapReportQuery = {}): Promise<FoundReport[]> {
+  const page = await searchFoundReports({ size: 100 });
+  const details = await Promise.all(
+    page.content.map(report => getFoundReport(report.foundReportSeq)),
+  );
   const keyword = query.keyword?.trim().toLowerCase() ?? '';
 
-  return foundReports.filter(report => {
-    const matchesKeyword =
-      !keyword ||
-      `${report.location} ${report.name} ${report.description}`.toLowerCase().includes(keyword);
-    const matchesBounds =
-      !query.bounds ||
-      (report.latitude >= query.bounds.minLatitude &&
-        report.latitude <= query.bounds.maxLatitude &&
-        report.longitude >= query.bounds.minLongitude &&
-        report.longitude <= query.bounds.maxLongitude);
+  return details
+    .map(report => mapFoundDetail(report, false))
+    .filter(report => {
+      const matchesKeyword =
+        !keyword ||
+        `${report.location} ${report.name} ${report.description}`.toLowerCase().includes(keyword);
+      const matchesBounds =
+        !query.bounds ||
+        (report.latitude >= query.bounds.minLatitude &&
+          report.latitude <= query.bounds.maxLatitude &&
+          report.longitude >= query.bounds.minLongitude &&
+          report.longitude <= query.bounds.maxLongitude);
 
-    return matchesKeyword && matchesBounds;
-  });
+      return matchesKeyword && matchesBounds;
+    });
 }

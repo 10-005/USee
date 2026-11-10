@@ -5,6 +5,7 @@ export type FoundReportDraft = {
   age: string;
   breed: string;
   color: string;
+  combinationSeq: number | null;
   contact: string;
   description: string;
   exposeContact: boolean;
@@ -12,6 +13,7 @@ export type FoundReportDraft = {
   foundSituation: string;
   gender: 'female' | 'male' | 'unknown' | null;
   images: Asset[];
+  imageSeqs: number[];
   latitude: number | null;
   location: string;
   longitude: number | null;
@@ -27,13 +29,15 @@ const createDraft = (): FoundReportDraft => ({
   age: '',
   breed: '',
   color: '',
-  contact: '010-1234-5678',
+  combinationSeq: null,
+  contact: '',
   description: '',
   exposeContact: false,
   foundAt: '',
   foundSituation: '',
   gender: null,
   images: [],
+  imageSeqs: [],
   latitude: null,
   location: '',
   longitude: null,

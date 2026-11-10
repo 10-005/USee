@@ -14,7 +14,7 @@ export type FoundReport = {
   latitude: number;
   longitude: number;
   name: string;
-  neutered: boolean;
+  neutered: boolean | null;
   species: '개' | '고양이' | '기타';
   status: '진행 중' | '완료';
   weight: string;

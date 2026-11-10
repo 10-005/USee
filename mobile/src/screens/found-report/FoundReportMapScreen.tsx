@@ -5,32 +5,15 @@ import {
 } from '@mj-studio/react-native-naver-map';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Keyboard,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import DateIcon from '../../assets/icons/common/date.svg';
-import LocationIcon from '../../assets/icons/common/location.svg';
 import MapLocationIcon from '../../assets/icons/common/map-location.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
 import RightArrowGreenIcon from '../../assets/icons/common/right-arrow-green.svg';
-import SearchIcon from '../../assets/icons/common/search.svg';
 import { AppHeader, SkeletonBlock, SkeletonGroup } from '../../components/common';
-import {
-  getCandidateAddress,
-  searchGeocodeCandidates,
-  type GeocodeCandidate,
-} from '../../services/geocode/geocode';
 import { getMapFoundReports } from '../../services/foundReports/mapReports';
 import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
 import { colors, radius, typography } from '../../theme';
@@ -45,13 +28,9 @@ export function FoundReportMapScreen({ navigation }: Props) {
   const mapRef = useRef<NaverMapViewRef>(null);
   const deletedReportIds = useFoundReportEditStore(state => state.deletedIds);
   const reportEdits = useFoundReportEditStore(state => state.editsById);
-  const [query, setQuery] = useState('');
   const [reports, setReports] = useState<FoundReport[]>([]);
   const [selectedReport, setSelectedReport] = useState<FoundReport | null>(null);
-  const [candidates, setCandidates] = useState<GeocodeCandidate[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchedArea, setSearchedArea] = useState('');
 
   const applyReportState = useCallback(
     (nextReports: FoundReport[]) =>
@@ -67,52 +46,8 @@ export function FoundReportMapScreen({ navigation }: Props) {
       .finally(() => setIsLoading(false));
   }, [applyReportState]);
 
-  const searchArea = async () => {
-    const keyword = query.trim();
-    Keyboard.dismiss();
-    setSelectedReport(null);
-    if (!keyword) {
-      setSearchedArea('');
-      setCandidates(null);
-      setReports(applyReportState(await getMapFoundReports()));
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const nextCandidates = await searchGeocodeCandidates(keyword);
-      setCandidates(nextCandidates);
-      if (!nextCandidates.length) {
-        setSearchedArea(keyword);
-        setReports([]);
-      }
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const chooseArea = async (candidate: GeocodeCandidate) => {
-    const address = getCandidateAddress(candidate);
-    setQuery(address);
-    setSearchedArea(address);
-    setCandidates(null);
-    setSelectedReport(null);
-    mapRef.current?.animateCameraTo({
-      duration: 500,
-      latitude: candidate.latitude,
-      longitude: candidate.longitude,
-      zoom: 14,
-    });
-
-    const regionKeyword =
-      [...address.split(' ')].reverse().find(part => /(시|군|구|읍|면|동)$/.test(part)) ?? address;
-    setReports(applyReportState(await getMapFoundReports({ keyword: regionKeyword })));
-  };
-
   const selectReport = (report: FoundReport) => {
     setSelectedReport(report);
-    setCandidates(null);
-    Keyboard.dismiss();
     mapRef.current?.animateCameraTo({
       duration: 350,
       latitude: report.latitude,
@@ -123,37 +58,7 @@ export function FoundReportMapScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <AppHeader onBackPress={navigation.goBack} title="발견 신고 지도" />
-      <View style={styles.searchRow}>
-        <View style={styles.searchField}>
-          <SearchIcon height={20} width={20} />
-          <TextInput
-            maxLength={100}
-            onChangeText={value => {
-              setQuery(value);
-              setCandidates(null);
-            }}
-            onSubmitEditing={searchArea}
-            placeholder="지역, 동네, 주소로 검색"
-            placeholderTextColor={colors.gray400}
-            returnKeyType="search"
-            style={styles.searchInput}
-            value={query}
-          />
-        </View>
-        <Pressable
-          accessibilityLabel="지역 검색"
-          accessibilityRole="button"
-          onPress={searchArea}
-          style={({ pressed }) => [styles.searchButton, pressed && styles.pressed]}
-        >
-          {isSearching ? (
-            <ActivityIndicator color={colors.white} size="small" />
-          ) : (
-            <Text style={styles.searchButtonText}>검색</Text>
-          )}
-        </Pressable>
-      </View>
+      <AppHeader onBackPress={navigation.goBack} title="제보신고 지도" />
       <View style={styles.mapContainer}>
         <NaverMapView
           initialCamera={DEFAULT_CAMERA}
@@ -164,7 +69,6 @@ export function FoundReportMapScreen({ navigation }: Props) {
           isShowZoomControls={false}
           onTapMap={() => {
             setSelectedReport(null);
-            setCandidates(null);
           }}
           ref={mapRef}
           style={styles.map}
@@ -190,43 +94,9 @@ export function FoundReportMapScreen({ navigation }: Props) {
           <Text style={styles.countText}>신고 {reports.length}건</Text>
         </View>
 
-        {candidates ? (
-          <View style={styles.resultsPanel}>
-            {candidates.length ? (
-              <ScrollView
-                decelerationRate="fast"
-                keyboardShouldPersistTaps="handled"
-                style={styles.resultsScroll}
-              >
-                {candidates.map(candidate => (
-                  <Pressable
-                    key={`${candidate.latitude}-${candidate.longitude}`}
-                    onPress={() => chooseArea(candidate)}
-                    style={({ pressed }) => [styles.resultItem, pressed && styles.resultPressed]}
-                  >
-                    <LocationIcon height={20} width={20} />
-                    <View style={styles.resultTextWrap}>
-                      <Text numberOfLines={1} style={styles.resultAddress}>
-                        {getCandidateAddress(candidate)}
-                      </Text>
-                      {candidate.jibunAddress ? (
-                        <Text numberOfLines={1} style={styles.resultSubAddress}>
-                          {candidate.jibunAddress}
-                        </Text>
-                      ) : null}
-                    </View>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            ) : (
-              <EmptyState area={query.trim()} />
-            )}
-          </View>
-        ) : null}
-
-        {!isLoading && !candidates && reports.length === 0 ? (
+        {!isLoading && reports.length === 0 ? (
           <View style={styles.emptyCard}>
-            <EmptyState area={searchedArea} />
+            <EmptyState />
           </View>
         ) : null}
 
@@ -296,45 +166,17 @@ function MapSkeleton() {
   );
 }
 
-function EmptyState({ area }: { area: string }) {
+function EmptyState() {
   return (
     <View style={styles.emptyContent}>
-      <Text style={styles.emptyTitle}>{area ? `'${area}' 주변에` : '이 지역에'} 신고가 없어요</Text>
-      <Text style={styles.emptyDescription}>다른 지역이나 주소로 검색해 보세요.</Text>
+      <Text style={styles.emptyTitle}>등록된 제보가 없어요</Text>
+      <Text style={styles.emptyDescription}>새로운 제보가 등록되면 지도에 표시됩니다.</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
-  searchRow: {
-    backgroundColor: colors.white,
-    flexDirection: 'row',
-    gap: 8,
-    paddingBottom: 12,
-    paddingHorizontal: 20,
-  },
-  searchField: {
-    alignItems: 'center',
-    borderColor: colors.gray200,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flex: 1,
-    flexDirection: 'row',
-    gap: 8,
-    height: 46,
-    paddingHorizontal: 12,
-  },
-  searchInput: { ...typography.bodyRegular14, color: colors.gray700, flex: 1, padding: 0 },
-  searchButton: {
-    alignItems: 'center',
-    backgroundColor: colors.green400,
-    borderRadius: radius.md,
-    height: 46,
-    justifyContent: 'center',
-    width: 62,
-  },
-  searchButtonText: { ...typography.bodySemiBold16, color: colors.white },
   mapContainer: { flex: 1 },
   map: { flex: 1 },
   loadingOverlay: {
@@ -366,33 +208,6 @@ const styles = StyleSheet.create({
   skeletonReportLine: { height: 14, width: '88%' },
   skeletonReportLineShort: { height: 14, width: '62%' },
   skeletonReportTitle: { height: 20, width: '72%' },
-  resultsPanel: {
-    backgroundColor: colors.white,
-    borderBottomLeftRadius: radius.md,
-    borderBottomRightRadius: radius.md,
-    elevation: 6,
-    left: 20,
-    maxHeight: 230,
-    position: 'absolute',
-    right: 20,
-    top: -8,
-    zIndex: 2,
-  },
-  resultsScroll: { maxHeight: 230 },
-  resultItem: {
-    alignItems: 'center',
-    borderBottomColor: colors.gray200,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    gap: 10,
-    minHeight: 68,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  resultPressed: { backgroundColor: colors.gray10 },
-  resultTextWrap: { flex: 1, gap: 3 },
-  resultAddress: { ...typography.bodyRegular14, color: colors.gray800 },
-  resultSubAddress: { ...typography.captionSemiBold12, color: colors.gray400 },
   countBadge: {
     backgroundColor: colors.white,
     borderRadius: radius.pill,

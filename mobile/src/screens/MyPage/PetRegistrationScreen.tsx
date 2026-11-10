@@ -27,6 +27,7 @@ import PlusIcon from '../../assets/icons/common/plus.svg';
 import XCircleIcon from '../../assets/icons/common/x-circle.svg';
 import CameraIcon from '../../assets/icons/common/photo-camera.svg';
 import LibraryIcon from '../../assets/icons/common/photo-library.svg';
+import AiIcon from '../../assets/icons/navigation/ai-icon.svg';
 import {
   KeyboardAwareInputProvider,
   KeyboardAwareTextInput,
@@ -82,7 +83,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   const fetchPet = usePetStore(state => state.fetchPet);
   const upsertPet = usePetStore(state => state.upsertPet);
   const isEditing = !isReportFlow && Boolean(editingPet);
-  const usesPetApi = !isFoundReportFlow;
+  const usesPetApi = true;
   const initialAnimal = isLostReportFlow ? lostReportAnimal : editingPet;
   const [photos, setPhotos] = useState<Asset[]>(() =>
     isFoundReportFlow
@@ -179,14 +180,30 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   const existingImageSeqs = useMemo(
     () =>
       Object.fromEntries(
-        ((isLostReportFlow ? lostReportAnimal.images : editingPet?.images) ?? []).map(
-          (image, index) => [
-            Image.resolveAssetSource(image)?.uri ?? '',
-            (isLostReportFlow ? lostReportAnimal.imageSeqs : editingPet?.imageSeqs)?.[index],
-          ],
-        ),
+        (
+          (isLostReportFlow
+            ? lostReportAnimal.images
+            : isFoundReportFlow
+            ? foundReportDraft.images
+            : editingPet?.images) ?? []
+        ).map((image, index) => [
+          Image.resolveAssetSource(image)?.uri ?? '',
+          (isLostReportFlow
+            ? lostReportAnimal.imageSeqs
+            : isFoundReportFlow
+            ? foundReportDraft.imageSeqs
+            : editingPet?.imageSeqs)?.[index],
+        ]),
       ) as Record<string, number>,
-    [editingPet, isLostReportFlow, lostReportAnimal.imageSeqs, lostReportAnimal.images],
+    [
+      editingPet,
+      foundReportDraft.imageSeqs,
+      foundReportDraft.images,
+      isFoundReportFlow,
+      isLostReportFlow,
+      lostReportAnimal.imageSeqs,
+      lostReportAnimal.images,
+    ],
   );
 
   const loadSpecies = useCallback(async () => {
@@ -517,21 +534,51 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       return;
     }
     if (isFoundReportFlow) {
-      updateFoundReportDraft({
-        age,
-        breed,
-        color,
-        description: description.trim(),
-        gender: gender === '수컷' ? 'male' : gender === '암컷' ? 'female' : 'unknown',
-        images: photos,
-        microchipNumber: microchip === '완료' ? microchipNumber.trim() : '',
-        microchipStatus:
-          microchip === '완료' ? 'done' : microchip === '미완료' ? 'not-done' : 'unknown',
-        neutered: neutered === '완료' ? 'done' : neutered === '미완료' ? 'not-done' : 'unknown',
-        species,
-        weight,
-      });
-      navigation.navigate('FoundReportForm', { reportId: route.params?.reportId });
+      const combinationSeq =
+        catalogCombinations.find(item => item.colorName === color)?.combinationSeq ??
+        foundReportDraft.combinationSeq;
+      if (!combinationSeq) {
+        Alert.alert('입력 확인', '종·품종·색상 조합을 다시 선택해 주세요.');
+        return;
+      }
+      setIsSubmitting(true);
+      try {
+        const nextConfirmed = { ...existingImageSeqs, ...confirmedImageSeqs };
+        for (const photo of photos) {
+          const uri = photo.uri!;
+          if (!nextConfirmed[uri]) {
+            const imageKey = uploadedImageKeys[uri];
+            if (!imageKey) {
+              throw new Error('사진 업로드 정보가 없어요. 사진을 다시 선택해 주세요.');
+            }
+            nextConfirmed[uri] = (await confirmImage(imageKey)).imageSeq;
+          }
+        }
+        updateFoundReportDraft({
+          age,
+          breed,
+          color,
+          combinationSeq,
+          description: description.trim(),
+          gender: gender === '수컷' ? 'male' : gender === '암컷' ? 'female' : 'unknown',
+          images: photos,
+          imageSeqs: photos.map(photo => nextConfirmed[photo.uri!]),
+          microchipNumber: microchip === '완료' ? microchipNumber.trim() : '',
+          microchipStatus:
+            microchip === '완료' ? 'done' : microchip === '미완료' ? 'not-done' : 'unknown',
+          neutered: neutered === '완료' ? 'done' : neutered === '미완료' ? 'not-done' : 'unknown',
+          species,
+          weight,
+        });
+        navigation.navigate('FoundReportForm', { reportId: route.params?.reportId });
+      } catch (error) {
+        Alert.alert(
+          '사진 등록 실패',
+          getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'),
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
     const combination = catalogCombinations.find(item => item.colorName === color);
@@ -607,6 +654,18 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
             ? '반려동물 수정하기'
             : '반려동물 등록하기'}
         </Text>
+        {isFoundReportFlow && photos.length > 0 ? (
+          <Pressable
+            accessibilityLabel="AI 작성 도우미"
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={() => Alert.alert('AI 작성 도우미', '사진 분석 기능은 준비 중이에요.')}
+            style={({ pressed }) => [styles.aiAssistantButton, pressed && styles.pressed]}
+          >
+            <AiIcon height={14} width={12} />
+            <Text style={styles.aiAssistantText}>AI 작성 도우미</Text>
+          </Pressable>
+        ) : null}
       </View>
       {isReportFlow ? (
         <View style={styles.lostReportIndicator}>
@@ -968,6 +1027,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 40,
   },
+  aiAssistantButton: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 4,
+    minHeight: 40,
+    position: 'absolute',
+    right: 16,
+  },
+  aiAssistantText: {
+    ...typography.bodyRegular14,
+    color: colors.green200,
+  },
+  pressed: { opacity: 0.6 },
   headerTitle: { ...typography.titleSemiBold18, color: colors.black },
   lostReportIndicator: { alignItems: 'center', height: 28, paddingTop: 2 },
   content: { paddingBottom: 30, paddingHorizontal: 26, paddingTop: 17 },
