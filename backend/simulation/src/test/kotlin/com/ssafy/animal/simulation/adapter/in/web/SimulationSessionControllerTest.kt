@@ -267,6 +267,52 @@ class SimulationSessionControllerTest {
     }
 
     @Test
+    fun `18_22는 세션 번호·상태·스탯만 명세 필드대로 돌려준다`() {
+        given(sessionQueryUseCase.getStats(17, 3001L)).willReturn(session())
+
+        mockMvc.get("/api/simulation/v1/simulations/3001/stats") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
+            status { isOk() }
+            jsonPath("$.data.sessionSeq") { value(3001) }
+            jsonPath("$.data.status") { value("IN_PROGRESS") }
+            jsonPath("$.data.stats.satiety") { value(70) }
+            jsonPath("$.data.stats.hydration") { value(70) }
+            jsonPath("$.data.stats.cleanliness") { value(80) }
+            jsonPath("$.data.stats.bond") { value(30) }
+            jsonPath("$.data.stats.calmness") { value(50) }
+            jsonPath("$.data.stats.health") { value(90) }
+            jsonPath("$.data.stats.energy") { value(60) }
+            jsonPath("$.data.stats.calculatedDttm") { value("2026-11-01T14:00:00+09:00") }
+            jsonPath("$.data.breed") { doesNotExist() }
+            jsonPath("$.data.equipment") { doesNotExist() }
+        }
+    }
+
+    @Test
+    fun `18_22는 끝난 세션도 200으로 상태와 함께 돌려준다`() {
+        val ended = session().also { ReflectionTestUtils.setField(it, "status", SessionStatus.FAILED) }
+        given(sessionQueryUseCase.getStats(17, 3001L)).willReturn(ended)
+
+        mockMvc.get("/api/simulation/v1/simulations/3001/stats") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
+            status { isOk() }
+            jsonPath("$.data.status") { value("FAILED") }
+        }
+    }
+
+    @Test
+    fun `18_22는 SHELTER도 역할로 막지 않고 서비스의 404로 존재를 감추며 세션 번호 타입 오류는 400`() {
+        given(sessionQueryUseCase.getStats(77, 3001L)).willThrow(BusinessException(SimulationErrorCode.SIMULATION_NOT_FOUND))
+
+        mockMvc.get("/api/simulation/v1/simulations/3001/stats") { header(HttpHeaders.AUTHORIZATION, SHELTER_TOKEN) }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("SIMULATION_NOT_FOUND") }
+        }
+        mockMvc.get("/api/simulation/v1/simulations/abc/stats") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("COMMON_INVALID_INPUT") }
+        }
+    }
+
+    @Test
     fun `18_5는 포기한 세션과 리포트를 명세 필드대로 돌려준다`() {
         val session = session()
         val endedAt = startedAt.plusDays(1)
