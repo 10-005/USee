@@ -97,6 +97,8 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [commentPhotoMenuVisible, setCommentPhotoMenuVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [viewerMenuVisible, setViewerMenuVisible] = useState(false);
@@ -153,8 +155,9 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   };
 
   useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', event => {
       setKeyboardVisible(true);
+      setKeyboardHeight(event.endCoordinates.height);
       const inputHandle = focusedCommentInputRef.current;
       if (inputHandle !== null) {
         setTimeout(() => {
@@ -166,6 +169,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     });
     const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
       setKeyboardVisible(false);
+      setKeyboardHeight(0);
       focusedCommentInputRef.current = null;
     });
 
@@ -263,7 +267,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
         title="게시글"
       />
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
+        contentContainerStyle={{ paddingBottom: 120 + insets.bottom + keyboardHeight }}
         decelerationRate="fast"
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
@@ -353,11 +357,13 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           }}
           onChat={openChat}
           onEditFocus={revealCommentInput}
+          onPhotoMenuVisibilityChange={setCommentPhotoMenuVisible}
           reportId={report.id}
+          targetType={isLostReport ? 'MISSING' : 'FOUND'}
           targetCommentId={highlightCommentId}
         />
       </ScrollView>
-      {!keyboardVisible && !isCompleted ? (
+      {!keyboardVisible && !commentPhotoMenuVisible && !isCompleted ? (
         <View style={[styles.buttonWrap, { bottom: Math.max(insets.bottom, 12) }]}>
           <Button
             onPress={() => openChat(reporterName, report.isMine ? 'self' : 'sisha')}
