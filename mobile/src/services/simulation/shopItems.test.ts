@@ -22,6 +22,7 @@ const bowl: ShopItem = {
   imageUrl: 'https://example.com/simulation/items/food-bowl.png',
   speciesScope: 'ALL',
   effects: null,
+  usesPerPurchase: 1,
 };
 
 const food: ShopItem = {
@@ -34,6 +35,7 @@ const food: ShopItem = {
   imageUrl: null,
   speciesScope: 'DOG',
   effects: { satiety: 30, bond: 1 },
+  usesPerPurchase: 12,
 };
 
 const envelope = (data: unknown) => ({
@@ -67,6 +69,39 @@ test('rejects an item outside the requested species', async () => {
   await expect(listShopItems('DOG', { get })).rejects.toMatchObject({ code: 'UNKNOWN_ERROR' });
 });
 
+test('reads the current shop categories and a missing description', async () => {
+  const furniture = {
+    itemSeq: 22,
+    itemName: '스크래처',
+    category: 'FURNITURE',
+    isConsumable: false,
+    price: 24000,
+    description: null,
+    imageUrl: null,
+    speciesScope: 'CAT',
+    effects: null,
+    usesPerPurchase: 1,
+  };
+  const bags = {
+    itemSeq: 31,
+    itemName: '배변봉투',
+    category: 'POOP_BAG',
+    isConsumable: true,
+    price: 3000,
+    description: '10장',
+    imageUrl: null,
+    speciesScope: 'ALL',
+    effects: null,
+    usesPerPurchase: 10,
+  };
+  const get = jest.fn().mockResolvedValue(envelope([furniture, bags]));
+
+  await expect(listShopItems(undefined, { get })).resolves.toEqual([
+    { ...furniture, description: '' },
+    bags,
+  ]);
+});
+
 test('rejects equipment that is marked consumable', async () => {
   const get = jest.fn().mockResolvedValue(envelope([{ ...bowl, isConsumable: true }]));
 
@@ -90,6 +125,8 @@ test('saves the catalog once for an adoption and reuses it', async () => {
     species: 'dog',
     kind: 'consumable',
     imageUrl: null,
+    qty: 12,
+    unit: '끼',
   });
   replaceSessionShopCatalog('dog-1:replaced', 'CAT', []);
   expect(readSessionShopCatalog(sessionKey)).toBeNull();

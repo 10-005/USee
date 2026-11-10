@@ -28,8 +28,24 @@ export type SimulationInventory = {
   items: InventoryItem[];
 };
 
-const EQUIPMENT = new Set<ShopItemCategory>(['FOOD_BOWL', 'WATER_BOWL', 'LITTER_BOX', 'TOY']);
-const CONSUMABLES = new Set<ShopItemCategory>(['FOOD', 'SNACK', 'LITTER', 'SHAMPOO', 'MEDICINE']);
+const EQUIPMENT = new Set<ShopItemCategory>([
+  'FOOD_BOWL',
+  'WATER_BOWL',
+  'LITTER_BOX',
+  'TOY',
+  'FURNITURE',
+  'LEASH',
+  'GROOMING_KIT',
+]);
+const CONSUMABLES = new Set<ShopItemCategory>([
+  'FOOD',
+  'SNACK',
+  'LITTER',
+  'SHAMPOO',
+  'MEDICINE',
+  'POOP_BAG',
+  'CATNIP',
+]);
 
 const EQUIPMENT_LABEL: Record<string, string> = {
   FOOD_BOWL: '밥그릇',
@@ -40,6 +56,12 @@ const EQUIPMENT_LABEL: Record<string, string> = {
   litterBox: '화장실',
   TOY: '장난감',
   toy: '장난감',
+  FURNITURE: '가구',
+  furniture: '가구',
+  LEASH: '리드줄',
+  leash: '리드줄',
+  GROOMING_KIT: '위생 키트',
+  groomingKit: '위생 키트',
 };
 
 const INVENTORY_ERROR_MESSAGES: Record<string, string> = {

@@ -27,12 +27,17 @@ const ITEM_CATEGORIES = new Set<ShopItemCategory>([
   'FOOD_BOWL',
   'WATER_BOWL',
   'LITTER_BOX',
+  'TOY',
+  'FURNITURE',
+  'LEASH',
+  'GROOMING_KIT',
   'FOOD',
   'SNACK',
-  'TOY',
   'LITTER',
   'SHAMPOO',
   'MEDICINE',
+  'POOP_BAG',
+  'CATNIP',
 ]);
 
 const PURCHASE_ERROR_MESSAGES: Record<string, string> = {

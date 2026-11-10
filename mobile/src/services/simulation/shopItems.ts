@@ -5,7 +5,6 @@ import { ApiClientError } from '../api/errors';
 import { readApiData } from '../api/response';
 import type { Product } from '../shop/catalog';
 import { hasSessionShopCatalog, replaceSessionShopCatalog } from '../shop/shopDatabase';
-import { CARE_STAT_KEYS, type CareStatKey } from './care';
 
 export type ShopSpeciesType = 'DOG' | 'CAT';
 
@@ -13,12 +12,17 @@ export type ShopItemCategory =
   | 'FOOD_BOWL'
   | 'WATER_BOWL'
   | 'LITTER_BOX'
+  | 'TOY'
+  | 'FURNITURE'
+  | 'LEASH'
+  | 'GROOMING_KIT'
   | 'FOOD'
   | 'SNACK'
-  | 'TOY'
   | 'LITTER'
   | 'SHAMPOO'
-  | 'MEDICINE';
+  | 'MEDICINE'
+  | 'POOP_BAG'
+  | 'CATNIP';
 
 export type ShopItem = {
   itemSeq: number;
@@ -29,23 +33,57 @@ export type ShopItem = {
   description: string;
   imageUrl: string | null;
   speciesScope: 'ALL' | ShopSpeciesType;
-  effects: Partial<Record<CareStatKey, number>> | null;
+  effects: Partial<Record<string, number>> | null;
+  usesPerPurchase: number;
 };
 
-const EQUIPMENT = new Set<ShopItemCategory>(['FOOD_BOWL', 'WATER_BOWL', 'LITTER_BOX', 'TOY']);
-const CONSUMABLES = new Set<ShopItemCategory>(['FOOD', 'SNACK', 'LITTER', 'SHAMPOO', 'MEDICINE']);
+const EQUIPMENT = new Set<ShopItemCategory>([
+  'FOOD_BOWL',
+  'WATER_BOWL',
+  'LITTER_BOX',
+  'TOY',
+  'FURNITURE',
+  'LEASH',
+  'GROOMING_KIT',
+]);
+const CONSUMABLES = new Set<ShopItemCategory>([
+  'FOOD',
+  'SNACK',
+  'LITTER',
+  'SHAMPOO',
+  'MEDICINE',
+  'POOP_BAG',
+  'CATNIP',
+]);
 const CATEGORY_LABEL: Record<ShopItemCategory, string> = {
   FOOD_BOWL: '식사',
   WATER_BOWL: '식사',
   FOOD: '식사',
   SNACK: '간식',
   TOY: '놀이',
+  CATNIP: '놀이',
   LITTER_BOX: '위생',
   LITTER: '위생',
   SHAMPOO: '위생',
+  GROOMING_KIT: '위생',
+  POOP_BAG: '위생',
   MEDICINE: '생활',
+  FURNITURE: '가구',
+  LEASH: '생활',
 };
-const ROOM_ITEMS = new Set<ShopItemCategory>(['FOOD_BOWL', 'WATER_BOWL', 'LITTER_BOX', 'TOY']);
+const UNIT_LABEL: Partial<Record<ShopItemCategory, string>> = {
+  FOOD: '끼',
+  POOP_BAG: '장',
+  MEDICINE: '회',
+  SHAMPOO: '회',
+};
+const ROOM_ITEMS = new Set<ShopItemCategory>([
+  'FOOD_BOWL',
+  'WATER_BOWL',
+  'LITTER_BOX',
+  'TOY',
+  'FURNITURE',
+]);
 
 const SHOP_ITEMS_FAILURE = '상점 물품을 불러오지 못했어요. 다시 시도해주세요.';
 
@@ -63,24 +101,30 @@ function isShopCategory(value: unknown): value is ShopItemCategory {
 }
 
 function readEffects(value: unknown): ShopItem['effects'] {
-  if (value === null) {
+  if (value == null) {
     return null;
   }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (typeof value !== 'object' || Array.isArray(value)) {
     throw invalidShopItems();
   }
   const effects: ShopItem['effects'] = {};
   for (const [key, amount] of Object.entries(value)) {
-    if (
-      !CARE_STAT_KEYS.includes(key as CareStatKey) ||
-      typeof amount !== 'number' ||
-      !Number.isFinite(amount)
-    ) {
+    if (typeof amount !== 'number' || !Number.isInteger(amount)) {
       throw invalidShopItems();
     }
-    effects[key as CareStatKey] = amount;
+    effects[key] = amount;
   }
   return effects;
+}
+
+function readUses(value: unknown): number {
+  if (value == null) {
+    return 1;
+  }
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw invalidShopItems();
+  }
+  return value;
 }
 
 function readShopItem(value: unknown, speciesType?: ShopSpeciesType): ShopItem {
@@ -105,11 +149,10 @@ function readShopItem(value: unknown, speciesType?: ShopSpeciesType): ShopItem {
     typeof item.price !== 'number' ||
     !Number.isInteger(item.price) ||
     item.price <= 0 ||
-    typeof item.description !== 'string' ||
-    (item.imageUrl !== null && (typeof item.imageUrl !== 'string' || item.imageUrl.length === 0)) ||
+    (item.description != null && typeof item.description !== 'string') ||
+    (item.imageUrl != null && typeof item.imageUrl !== 'string') ||
     (speciesScope !== 'ALL' && speciesScope !== 'DOG' && speciesScope !== 'CAT') ||
-    (speciesType !== undefined && speciesScope !== 'ALL' && speciesScope !== speciesType) ||
-    !('effects' in item)
+    (speciesType !== undefined && speciesScope !== 'ALL' && speciesScope !== speciesType)
   ) {
     throw invalidShopItems();
   }
@@ -119,10 +162,11 @@ function readShopItem(value: unknown, speciesType?: ShopSpeciesType): ShopItem {
     category,
     isConsumable: item.isConsumable === true,
     price: item.price,
-    description: item.description,
-    imageUrl: item.imageUrl ?? null,
+    description: item.description ?? '',
+    imageUrl: typeof item.imageUrl === 'string' && item.imageUrl.length > 0 ? item.imageUrl : null,
     speciesScope,
     effects: readEffects(item.effects),
+    usesPerPurchase: readUses(item.usesPerPurchase),
   };
 }
 
@@ -142,8 +186,8 @@ export function toShopProduct(item: ShopItem): Product {
   return {
     id: String(item.itemSeq),
     name: item.itemName,
-    qty: 1,
-    unit: '개',
+    qty: item.usesPerPurchase,
+    unit: UNIT_LABEL[item.category] ?? '개',
     species,
     kind: item.isConsumable ? 'consumable' : 'durable',
     category: CATEGORY_LABEL[item.category],
