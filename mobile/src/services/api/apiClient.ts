@@ -28,13 +28,17 @@ export function createApiClient({
       config.headers.set('Authorization', `Bearer ${accessToken}`);
     }
 
+    logApiCall(config);
     return config;
   });
 
   let refreshPromise: Promise<AuthTokens> | null = null;
 
   client.interceptors.response.use(
-    response => response,
+    response => {
+      logApiCall(response.config, response.status);
+      return response;
+    },
     async error => {
       const request = error.config as
         | (InternalAxiosRequestConfig & { _authRetry?: boolean })
@@ -59,7 +63,7 @@ export function createApiClient({
           if (apiError.status === 401 || apiError.status === 403) {
             await refresh.onAuthenticationFailure();
           }
-          logApiError(apiError);
+          logApiError(apiError, request);
           return Promise.reject(apiError);
         } finally {
           refreshPromise = null;
@@ -74,7 +78,7 @@ export function createApiClient({
       }
 
       const apiError = toApiClientError(error);
-      logApiError(apiError);
+      logApiError(apiError, request);
       return Promise.reject(apiError);
     },
   );
@@ -127,13 +131,37 @@ function toApiClientError(error: unknown): ApiClientError {
   });
 }
 
-function logApiError(error: ApiClientError): void {
+function describeApiCall(config?: InternalAxiosRequestConfig): string {
+  if (!config) {
+    return '';
+  }
+  const method = (config.method ?? 'get').toUpperCase();
+  const base = (config.baseURL ?? '').replace(/\/$/, '');
+  const path = config.url ?? '';
+  const url = /^https?:\/\//.test(path)
+    ? path
+    : `${base}${path.startsWith('/') || path.length === 0 ? path : `/${path}`}`;
+  const params =
+    config.params && typeof config.params === 'object' ? ` ${JSON.stringify(config.params)}` : '';
+  return `${method} ${url}${params}`;
+}
+
+function logApiCall(config: InternalAxiosRequestConfig | undefined, status?: number): void {
+  if (!__DEV__) {
+    return;
+  }
+  // Tokens and request bodies are intentionally excluded from diagnostics.
+  // eslint-disable-next-line no-console
+  console.log(`[API] ${status ?? '->'} ${describeApiCall(config)}`);
+}
+
+function logApiError(error: ApiClientError, config?: InternalAxiosRequestConfig): void {
   if (!__DEV__) {
     return;
   }
 
-  // Tokens and request bodies are intentionally excluded from diagnostics.
   console.warn('[API_ERROR]', {
+    call: describeApiCall(config),
     code: error.code,
     details: error.details,
     message: error.message,
