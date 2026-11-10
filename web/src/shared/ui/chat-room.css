@@ -398,3 +398,21 @@
   font-size: 13px;
   color: var(--ui-muted);
 }
+
+.chat-report-card {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.chat-report-detail {
+  margin-top: 16px;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+.chat-report-detail img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin-block: 8px;
+}
