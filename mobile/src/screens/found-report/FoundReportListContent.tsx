@@ -24,7 +24,9 @@ import MapButtonIcon from '../../assets/icons/common/map-2.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
 import { FilterChip, SearchBar, SkeletonBlock, SkeletonGroup } from '../../components/common';
 import { colors, radius, typography } from '../../theme';
+import { formatKoreanAddress } from '../../utils/address';
 import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
+import { useFoundReportStore } from '../../stores/foundReportStore';
 import { useLostReportEditStore } from '../../stores/lostReportEditStore';
 import { useMissingReportStore } from '../../stores/missingReportStore';
 import { useCatalogStore } from '../../stores/catalogStore';
@@ -76,6 +78,14 @@ const HIDE_CONTROLS_OFFSET = 120;
 const HIDE_DIRECTION_DISTANCE = 40;
 const SHOW_DIRECTION_DISTANCE = 16;
 
+const matchesSidoName = (address: string, sidoName: string) => {
+  const normalizedAddress = formatKoreanAddress(address);
+  return (
+    normalizedAddress.startsWith(sidoName) ||
+    normalizedAddress.startsWith(sidoName.replace(/(특별시|광역시)$/, '시'))
+  );
+};
+
 export const filterFoundReports = (query: string, filters: AdoptionFilters) => {
   return filterReports(foundReports, query, filters);
 };
@@ -98,7 +108,7 @@ export const filterReports = <T extends Report>(
       searchable.toLowerCase().includes(query.trim().toLowerCase()) &&
       (start === '전체' || report.date >= startDate) &&
       (!endDate || report.date <= endDate) &&
-      (region === '전체' || report.location.startsWith(region.replace(/(특별시|광역시)$/, '시'))) &&
+      (region === '전체' || matchesSidoName(report.location, region)) &&
       (filters.species === '전체' || report.species === filters.species.split(' > ')[0]) &&
       (filters.status === '전체' || report.status === filters.status) &&
       (filters.gender === '전체' || report.gender === filters.gender || report.gender === '모름') &&
@@ -142,6 +152,10 @@ export function FoundReportListContent({
   const fetchLostReports = useMissingReportStore(state => state.fetchReports);
   const lostReportsLoading = useMissingReportStore(state => state.isLoading);
   const lostReportsError = useMissingReportStore(state => state.error);
+  const apiFoundReports = useFoundReportStore(state => state.reports);
+  const fetchFoundReports = useFoundReportStore(state => state.fetchReports);
+  const foundReportsLoading = useFoundReportStore(state => state.isLoading);
+  const foundReportsError = useFoundReportStore(state => state.error);
   const districts = useCatalogStore(state => state.districts);
   const speciesCatalog = useCatalogStore(state => state.species);
   const breedsBySpecies = useCatalogStore(state => state.breedsBySpecies);
@@ -150,14 +164,12 @@ export function FoundReportListContent({
   const loadBreeds = useCatalogStore(state => state.loadBreeds);
 
   useEffect(() => {
-    if (activeTab === 'lost') {
-      loadDistricts().catch(() => undefined);
-      loadSpecies().catch(() => undefined);
-    }
+    loadDistricts().catch(() => undefined);
+    loadSpecies().catch(() => undefined);
   }, [activeTab, loadDistricts, loadSpecies]);
 
   useEffect(() => {
-    if (activeTab === 'lost' && speciesCatalog.length > 0) {
+    if (speciesCatalog.length > 0) {
       Promise.all(speciesCatalog.map(item => loadBreeds(item.speciesSeq))).catch(() => undefined);
     }
   }, [activeTab, loadBreeds, speciesCatalog]);
@@ -184,7 +196,7 @@ export function FoundReportListContent({
     return options;
   }, [breedsBySpecies, speciesCatalog]);
 
-  const missingSearchParams = useMemo(() => {
+  const reportSearchParams = useMemo(() => {
     const [periodStart = '전체', periodEnd = ''] = filters.period.split('|');
     const [sidoName, sigunguName] = filters.region.split(' > ');
     const speciesName = filters.species.split(' > ')[0];
@@ -194,32 +206,41 @@ export function FoundReportListContent({
     const selectedSpecies = speciesCatalog.find(item => item.speciesName === speciesName);
     return {
       districtCode: district?.districtCode,
+      gender:
+        filters.gender === '수컷'
+          ? ('MALE' as const)
+          : filters.gender === '암컷'
+          ? ('FEMALE' as const)
+          : undefined,
+      isNeutered:
+        filters.neutered === '중성화 O'
+          ? true
+          : filters.neutered === '중성화 X'
+          ? false
+          : undefined,
       keyword: query.trim() || undefined,
       occurredFrom: periodStart === '전체' ? undefined : periodStart.replaceAll('.', '-'),
       occurredTo: periodEnd ? periodEnd.replaceAll('.', '-') : undefined,
       sort: filters.sort === '오래된 순' ? 'regDttm,asc' : 'regDttm,desc',
       speciesSeq: selectedSpecies?.speciesSeq,
-      status:
-        filters.status === '실종'
-          ? ('ACTIVE' as const)
-          : filters.status === '종료'
-          ? ('CLOSED' as const)
-          : undefined,
+      status: ['실종', '진행 중', '제보'].includes(filters.status)
+        ? ('ACTIVE' as const)
+        : ['종료', '완료'].includes(filters.status)
+        ? ('CLOSED' as const)
+        : undefined,
     };
   }, [districts, filters, query, speciesCatalog]);
 
   useEffect(() => {
-    if (activeTab !== 'lost') {
-      return;
-    }
     const timer = setTimeout(() => {
-      fetchLostReports(missingSearchParams).catch(() => undefined);
+      const fetchReports = activeTab === 'found' ? fetchFoundReports : fetchLostReports;
+      fetchReports(reportSearchParams).catch(() => undefined);
     }, 250);
     return () => clearTimeout(timer);
-  }, [activeTab, fetchLostReports, missingSearchParams]);
+  }, [activeTab, fetchFoundReports, fetchLostReports, reportSearchParams]);
 
   const reports = useMemo(() => {
-    const source = (activeTab === 'found' ? foundReports : apiLostReports)
+    const source = (activeTab === 'found' ? apiFoundReports : apiLostReports)
       .filter(report =>
         activeTab === 'found'
           ? !deletedFoundReportIds.includes(report.id)
@@ -245,17 +266,13 @@ export function FoundReportListContent({
               : '종료',
         } as Report;
       });
-    if (activeTab === 'found') {
-      return filterReports(source, query, filters);
-    }
     const [selectedSido, selectedSigungu] = filters.region.split(' > ');
     const selectedBreed = filters.species.split(' > ')[1];
     return source.filter(report => {
       const matchesSido =
         selectedSido === '전체' ||
         Boolean(selectedSigungu) ||
-        report.location.startsWith(selectedSido) ||
-        report.location.startsWith(selectedSido.replace(/(특별시|광역시)$/, '시'));
+        matchesSidoName(report.location, selectedSido);
       const matchesBreed =
         !selectedBreed || selectedBreed === '전체' || report.name === selectedBreed;
       const matchesGender =
@@ -268,13 +285,13 @@ export function FoundReportListContent({
     });
   }, [
     activeTab,
+    apiFoundReports,
     apiLostReports,
     deletedFoundReportIds,
     deletedLostReportIds,
     filters,
     foundReportEdits,
     lostReportEdits,
-    query,
     statusById,
   ]);
 
@@ -431,12 +448,13 @@ export function FoundReportListContent({
         style={[
           styles.badge,
           { top: cardWidth - 24 },
-          (item.status === '완료' || item.status === '종료') && styles.completedBadge,
+          (item.status === '완료' || item.status === '종료') && styles.closedBadge,
           activeTab === 'lost' && item.status === '실종' && styles.lostBadge,
-          activeTab === 'lost' && item.status === '종료' && styles.closedBadge,
         ]}
       >
-        <Text style={styles.badgeText}>{activeTab === 'found' ? '제보' : item.status}</Text>
+        <Text style={styles.badgeText}>
+          {activeTab === 'found' ? (item.status === '완료' ? '종료' : '제보') : item.status}
+        </Text>
       </View>
       <Text numberOfLines={1} style={styles.cardTitle}>
         {item.name}
@@ -487,8 +505,17 @@ export function FoundReportListContent({
         <FlatList
           ListEmptyComponent={
             <View style={styles.empty}>
-              {activeTab === 'lost' && lostReportsLoading ? (
-                <LostReportListSkeleton />
+              {activeTab === 'found' && foundReportsLoading ? (
+                <ReportListSkeleton label="발견 신고 목록 불러오는 중" />
+              ) : activeTab === 'lost' && lostReportsLoading ? (
+                <ReportListSkeleton label="실종 신고 목록 불러오는 중" />
+              ) : activeTab === 'found' && foundReportsError ? (
+                <>
+                  <Text style={styles.emptyTitle}>{foundReportsError}</Text>
+                  <Pressable accessibilityRole="button" onPress={() => fetchFoundReports()}>
+                    <Text style={styles.retryText}>다시 시도</Text>
+                  </Pressable>
+                </>
               ) : activeTab === 'lost' && lostReportsError ? (
                 <>
                   <Text style={styles.emptyTitle}>{lostReportsError}</Text>
@@ -587,19 +614,17 @@ export function FoundReportListContent({
         filters={filters}
         onChange={(key, value) => setFilters(current => ({ ...current, [key]: value }))}
         onClose={() => setActiveFilter(null)}
-        regionOptions={activeTab === 'lost' ? regionOptions : undefined}
-        speciesOptions={activeTab === 'lost' ? speciesOptions : undefined}
-        statusOptions={
-          activeTab === 'found' ? ['전체', '진행 중', '완료'] : ['전체', '실종', '종료']
-        }
+        regionOptions={regionOptions}
+        speciesOptions={speciesOptions}
+        statusOptions={activeTab === 'found' ? ['전체', '제보', '종료'] : ['전체', '실종', '종료']}
       />
     </View>
   );
 }
 
-function LostReportListSkeleton() {
+function ReportListSkeleton({ label }: { label: string }) {
   return (
-    <SkeletonGroup accessibilityLabel="실종 신고 목록 불러오는 중" style={styles.gridSkeleton}>
+    <SkeletonGroup accessibilityLabel={label} style={styles.gridSkeleton}>
       {[0, 1, 2, 3].map(index => (
         <View key={index} style={styles.gridSkeletonCard}>
           <SkeletonBlock style={styles.gridSkeletonImage} />
@@ -671,7 +696,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     position: 'absolute',
   },
-  completedBadge: { opacity: 0.85 },
   lostBadge: { backgroundColor: '#FA705B' },
   closedBadge: { backgroundColor: colors.gray400, opacity: 1 },
   badgeText: { ...typography.captionSemiBold12, color: colors.white },
