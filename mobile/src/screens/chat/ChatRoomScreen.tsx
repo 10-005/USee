@@ -89,7 +89,7 @@ function PostCard({
           detail.weight ?? '몸무게 모름',
         ].join(' | '),
         title: classification
-          ? `[${classification.speciesName}]${classification.breedName}`
+          ? `[${classification.speciesName}] ${classification.breedName}`
           : '동물 정보 없음',
       });
     };
