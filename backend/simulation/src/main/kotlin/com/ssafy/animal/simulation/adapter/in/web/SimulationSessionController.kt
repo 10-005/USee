@@ -38,7 +38,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
-/** 18.1~18.5 모의 입양 세션. 시작·목록·진행 중은 USER, 상세·포기는 본인만(그 외 404, Q483) */
+/** 18.1~18.5·18.22 모의 입양 세션. 시작·목록·진행 중은 USER, 상세·스탯·포기는 본인만(그 외 404, Q483) */
 @Tag(
     name = "모의 입양 세션",
     description = "품종을 골라 7일 동안 돌보는 모의 입양 세션의 시작·진행 중 조회·내 목록·상세·포기. 회원당 진행 중 세션은 1개. " +
@@ -348,6 +348,75 @@ class SimulationSessionController(
         @Parameter(description = "세션 번호", example = "3001") @PathVariable sessionSeq: Long,
     ) = SimulationSessionResponse.from(sessionQueryUseCase.getDetail(user.userSeq, sessionSeq))
 
+    /** 18.22 세션 스탯만 조회(Q504). 18.4와 같이 본인만 보며 그 외(보호소 포함)는 404로 감춘다 */
+    @Operation(
+        summary = "모의 입양 스탯 조회",
+        description = "- 메인 화면 게이지 갱신용으로 스탯 7종과 상태만 돌려준다(품종·기구·이벤트는 상세 조회에서).\n" +
+            "- 본인 세션만. 남의 세션·없는 세션은 보호소를 포함해 404 `SIMULATION_NOT_FOUND`(존재를 감춤)\n" +
+            "- 진행 중이면 상세 조회와 같이 지금 시각까지 스탯을 계산해 저장하고(미해결 돌발 이벤트 만료 포함), " +
+            "건강 0·예정 종료 경과면 그 자리에서 FAILED·COMPLETED로 끝낸다.\n" +
+            "- 끝난 세션도 409가 아니라 200으로 종료 시점 스탯과 `status`를 준다. `status`가 IN_PROGRESS가 아니면 앱은 리포트로 이동한다.\n" +
+            "- `stats.calculatedDttm`은 마지막으로 반영한 시각(1시간 단위). 1시간 안에 다시 불러도 값은 같다.",
+    )
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "200",
+            description = "조회 성공(끝난 세션 포함)",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = SimulationSessionStatsSuccessSchema::class),
+                    examples = [
+                        ExampleObject(name = "진행 중", value = STATS_SUCCESS),
+                        ExampleObject(name = "이번 조회에서 돌봄 부족으로 종료", value = STATS_FAILED_SUCCESS),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "400",
+            description = "세션 번호가 숫자가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [ExampleObject(name = "세션 번호 타입 오류", value = SESSION_SEQ_TYPE_MISMATCH)],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "401",
+            description = "access 토큰 없음·만료·무효. 만료면 토큰 갱신 후 재시도",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [
+                        ExampleObject(name = "AUTH_UNAUTHORIZED", value = FailExamples.AUTH_UNAUTHORIZED),
+                        ExampleObject(name = "AUTH_TOKEN_EXPIRED", value = FailExamples.AUTH_TOKEN_EXPIRED),
+                        ExampleObject(name = "AUTH_TOKEN_INVALID", value = FailExamples.AUTH_TOKEN_INVALID),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "없는 세션·남의 세션(보호소 포함)",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [ExampleObject(name = "SIMULATION_NOT_FOUND", value = SIMULATION_NOT_FOUND)],
+                ),
+            ],
+        ),
+    )
+    @GetMapping("/{sessionSeq}/stats")
+    fun getStats(
+        @Parameter(hidden = true) @AuthenticationPrincipal user: AuthUser,
+        @Parameter(description = "세션 번호", example = "3001") @PathVariable sessionSeq: Long,
+    ) = SimulationSessionStatsResponse.from(sessionQueryUseCase.getStats(user.userSeq, sessionSeq))
+
     /** 18.5 중도 포기. 본인만 하며 그 외(보호소 포함)는 404로 존재를 감추므로 역할 제한을 두지 않는다(Q483) */
     @Operation(
         summary = "모의 입양 포기",
@@ -440,6 +509,14 @@ class SimulationSessionController(
         const val DETAIL_SUCCESS =
             """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":""" + SESSION_DETAIL_JSON +
                 ""","errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+        const val STATS_SUCCESS =
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"sessionSeq":3001,"status":"IN_PROGRESS",""" +
+                """"stats":{"satiety":64,"hydration":58,"cleanliness":77,"bond":31,"calmness":46,"health":90,"energy":55,"calculatedDttm":"2026-11-01T17:00:00+09:00"}},""" +
+                """"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+        const val STATS_FAILED_SUCCESS =
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"sessionSeq":3001,"status":"FAILED",""" +
+                """"stats":{"satiety":0,"hydration":0,"cleanliness":12,"bond":8,"calmness":10,"health":0,"energy":5,"calculatedDttm":"2026-11-04T09:00:00+09:00"}},""" +
+                """"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val NO_ACTIVE_SUCCESS =
             """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val PAGE_SUCCESS =

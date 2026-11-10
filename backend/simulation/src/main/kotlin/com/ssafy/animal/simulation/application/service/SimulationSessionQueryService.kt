@@ -9,6 +9,7 @@ import com.ssafy.animal.simulation.application.port.out.SessionDetailReader
 import com.ssafy.animal.simulation.application.port.out.SimulationSessionRepository
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationErrorCode
+import com.ssafy.animal.simulation.domain.SimulationSession
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
@@ -35,12 +36,19 @@ class SimulationSessionQueryService(
     }
 
     @Transactional
-    override fun getDetail(userSeq: Long, sessionSeq: Long): SimulationSessionDetail {
+    override fun getDetail(userSeq: Long, sessionSeq: Long): SimulationSessionDetail =
+        detailAssembler.assemble(lockOwnedAndCatchUp(userSeq, sessionSeq))
+
+    @Transactional
+    override fun getStats(userSeq: Long, sessionSeq: Long): SimulationSession = lockOwnedAndCatchUp(userSeq, sessionSeq)
+
+    /** 본인 세션을 잠그고 지금 시각까지 진행시킨다(지연 계산·이벤트 만료·종료 판정 저장). 그 외는 404로 감춘다 */
+    private fun lockOwnedAndCatchUp(userSeq: Long, sessionSeq: Long): SimulationSession {
         val session = sessionRepository.findByIdForUpdate(sessionSeq)
             ?.takeIf { it.userSeq.toLong() == userSeq }
             ?: throw BusinessException(SimulationErrorCode.SIMULATION_NOT_FOUND)
         progress.catchUp(session)
-        return detailAssembler.assemble(session)
+        return session
     }
 
     @Transactional(readOnly = true)

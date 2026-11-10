@@ -192,6 +192,28 @@ data class StatsResponse(
     }
 }
 
+/** 18.22 세션 스탯만(Q504). 상태로 종료를 알 수 있게 함께 준다 */
+data class SimulationSessionStatsResponse(
+    @field:Schema(description = "세션 번호", example = "3001")
+    val sessionSeq: Long,
+    @field:Schema(
+        description = "세션 상태. IN_PROGRESS: 진행 중, COMPLETED: 7일 완료, ABANDONED: 포기, FAILED: 돌봄 부족. 진행 중이 아니면 리포트(18.18)로 이동",
+        example = "IN_PROGRESS",
+    )
+    val status: SessionStatus,
+    @field:Schema(description = "스탯 7종. 끝난 세션은 종료 시점 값")
+    val stats: StatsResponse,
+) {
+    companion object {
+        fun from(session: SimulationSession) = SimulationSessionStatsResponse(
+            sessionSeq = checkNotNull(session.sessionSeq),
+            status = session.status,
+            stats = StatsResponse.of(session.stats(), session.statsCalculatedDttm),
+        )
+    }
+}
+
 // Swagger 문서 전용 성공 응답 미러(런타임 미사용)
+abstract class SimulationSessionStatsSuccessSchema : SuccessResponseSchema<SimulationSessionStatsResponse>()
 abstract class SimulationSessionSuccessSchema : SuccessResponseSchema<SimulationSessionResponse>()
 abstract class SimulationSessionSummaryPageSuccessSchema : SuccessResponseSchema<PageResponse<SimulationSessionSummaryResponse>>()

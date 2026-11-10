@@ -19,6 +19,12 @@ interface SimulationSessionQueryUseCase {
      */
     fun getDetail(userSeq: Long, sessionSeq: Long): SimulationSessionDetail
 
+    /**
+     * 18.22 세션 스탯만 조회(본인 전용, Q504). 권한·지연 계산·종료 판정은 18.4와 같고, 상세 조립(품종·기구·이벤트)은 하지 않는다.
+     * 끝난 세션도 409 없이 종료 시점 스탯과 상태를 돌려준다(앱이 상태로 리포트 화면에 간다).
+     */
+    fun getStats(userSeq: Long, sessionSeq: Long): SimulationSession
+
     /** 18.3 내 세션 목록(종료 포함). status가 null이면 전체. 목록에는 스탯이 없어 지연 계산을 하지 않는다 */
     fun getMySessions(userSeq: Long, status: SessionStatus?, pageable: Pageable): Page<SimulationSessionSummary>
 }

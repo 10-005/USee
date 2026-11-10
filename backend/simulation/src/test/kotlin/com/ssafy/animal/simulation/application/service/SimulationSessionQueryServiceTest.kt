@@ -193,4 +193,48 @@ class SimulationSessionQueryServiceTest {
         assertEquals(SessionStatus.COMPLETED, detail.session.status)
         assertEquals(1, store.reports.size)
     }
+
+    @Test
+    fun `18_22는 본인 세션의 스탯을 지금 시각까지 계산해 저장하고 세션을 돌려준다`() {
+        val session = startSession()
+
+        val result = serviceAt(start.plusHours(3)).getStats(17, session.sessionSeq!!)
+
+        assertEquals(session, result)
+        assertEquals(SessionStatus.IN_PROGRESS, result.status)
+        assertEquals(start.plusHours(3), session.statsCalculatedDttm)
+        assertTrue(session.stats() != calculator.initialStats())
+    }
+
+    @Test
+    fun `18_22는 남의 세션이나 없는 세션이면 404 SIMULATION_NOT_FOUND`() {
+        val session = startSession(userSeq = 18)
+
+        assertNotFound { serviceAt(start).getStats(17, session.sessionSeq!!) }
+        assertNotFound { serviceAt(start).getStats(17, 9999L) }
+    }
+
+    @Test
+    fun `18_22는 조회 시 종료 조건이면 끝내고 끝난 상태로 돌려준다`() {
+        val session = startSession(endsAt = start.plusHours(5))
+
+        val result = serviceAt(start.plusHours(6)).getStats(17, session.sessionSeq!!)
+
+        assertEquals(SessionStatus.COMPLETED, result.status)
+        assertEquals(start.plusHours(5), result.statsCalculatedDttm)
+        assertEquals(1, store.reports.size)
+    }
+
+    @Test
+    fun `18_22는 이미 끝난 세션이면 다시 계산하지 않고 종료 시점 스탯을 돌려준다`() {
+        val session = startSession()
+        ReflectionTestUtils.setField(session, "status", SessionStatus.ABANDONED)
+        ReflectionTestUtils.setField(session, "endedDttm", start.plusHours(1))
+
+        val result = serviceAt(start.plusDays(3)).getStats(17, session.sessionSeq!!)
+
+        assertEquals(SessionStatus.ABANDONED, result.status)
+        assertEquals(calculator.initialStats(), result.stats())
+        assertEquals(start, result.statsCalculatedDttm)
+    }
 }
