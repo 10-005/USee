@@ -129,6 +129,15 @@ describe('active simulation', () => {
     expect(invalidateSimulationReports).toHaveBeenCalledTimes(1);
   });
 
+  test('does not refresh reports when an already ended session is read again', async () => {
+    await expect(
+      applyActiveSimulation(
+        session({ status: 'COMPLETED', endedDttm: '2026-11-08T14:00:00+09:00' }),
+      ),
+    ).resolves.toBeNull();
+    expect(invalidateSimulationReports).not.toHaveBeenCalled();
+  });
+
   test('clears the device session when the server session has ended', async () => {
     await startMockAdoption('dog-1', 35000, '초코', 3001);
     await expect(

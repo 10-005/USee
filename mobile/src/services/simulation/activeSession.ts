@@ -304,12 +304,13 @@ export async function applyActiveSimulation(
   active: ActiveSimulation | null,
 ): Promise<MockAdoptionSession | null> {
   if (!active || active.status !== 'IN_PROGRESS') {
+    const wasInProgress = currentActiveSimulation?.status === 'IN_PROGRESS';
     currentActiveSimulation = null;
     const local = await getActiveMockAdoption();
     if (local) {
       await endMockAdoption();
     }
-    if (active || local) {
+    if (local || wasInProgress) {
       invalidateSimulationReports();
     }
     return null;

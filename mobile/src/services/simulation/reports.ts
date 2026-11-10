@@ -3,6 +3,12 @@ import type { AxiosInstance } from 'axios';
 import { simulationClient } from '../api/client';
 import { ApiClientError } from '../api/errors';
 import { readApiData } from '../api/response';
+import {
+  clearSimulationReportRow,
+  markSimulationReportRowStale,
+  readSimulationReportRow,
+  writeSimulationReportRow,
+} from '../shop/shopDatabase';
 
 export type SimulationReportBreed = {
   breedSeq: string;
@@ -32,12 +38,10 @@ const REPORT_FAILURE = '리포트를 불러오지 못했어요. 다시 시도해
 const PAGE_SIZE = 20;
 
 type SimulationClient = Pick<AxiosInstance, 'get'>;
-type ReportCache = SimulationReportList & {
-  loaded: boolean;
+type StoredReports = {
+  list: SimulationReportList;
   stale: boolean;
 };
-
-let cache: ReportCache = { reports: [], freshSessionSeqs: [], loaded: false, stale: true };
 
 function invalidReports(): ApiClientError {
   return new ApiClientError({ code: 'UNKNOWN_ERROR', message: REPORT_FAILURE });
@@ -169,25 +173,62 @@ export async function listSimulationReports(
   return reports;
 }
 
+function parseStoredReports(payload: string): SimulationReportList | null {
+  try {
+    const value = JSON.parse(payload) as Partial<SimulationReportList>;
+    if (!Array.isArray(value.reports) || !Array.isArray(value.freshSessionSeqs)) {
+      return null;
+    }
+    const reports = value.reports.map(report => readReport(report));
+    if (new Set(reports.map(report => report.sessionSeq)).size !== reports.length) {
+      return null;
+    }
+    const freshSessionSeqs = value.freshSessionSeqs.filter(isPositiveId);
+    if (
+      freshSessionSeqs.length !== value.freshSessionSeqs.length ||
+      new Set(freshSessionSeqs).size !== freshSessionSeqs.length
+    ) {
+      return null;
+    }
+    return { reports, freshSessionSeqs };
+  } catch {
+    return null;
+  }
+}
+
+function readStoredReports(): StoredReports | null {
+  const row = readSimulationReportRow();
+  if (!row) {
+    return null;
+  }
+  const list = parseStoredReports(row.payload);
+  if (!list) {
+    return null;
+  }
+  return { list, stale: row.stale };
+}
+
 export function invalidateSimulationReports(): void {
-  cache = { ...cache, stale: true };
+  markSimulationReportRowStale();
 }
 
 export function clearSimulationReports(): void {
-  cache = { reports: [], freshSessionSeqs: [], loaded: false, stale: true };
+  clearSimulationReportRow();
 }
 
 export async function loadSimulationReports(
   client: SimulationClient = simulationClient,
 ): Promise<SimulationReportList> {
-  if (cache.loaded && !cache.stale) {
-    return { reports: cache.reports, freshSessionSeqs: cache.freshSessionSeqs };
+  const stored = readStoredReports();
+  if (stored && !stored.stale) {
+    return stored.list;
   }
   const reports = await listSimulationReports(client);
-  const previous = new Set(cache.loaded ? cache.reports.map(report => report.sessionSeq) : []);
-  const freshSessionSeqs = cache.loaded
+  const previous = new Set(stored?.list.reports.map(report => report.sessionSeq) ?? []);
+  const freshSessionSeqs = stored
     ? reports.filter(report => !previous.has(report.sessionSeq)).map(report => report.sessionSeq)
     : [];
-  cache = { reports, freshSessionSeqs, loaded: true, stale: false };
-  return { reports, freshSessionSeqs };
+  const list = { reports, freshSessionSeqs };
+  writeSimulationReportRow(JSON.stringify(list), false);
+  return list;
 }

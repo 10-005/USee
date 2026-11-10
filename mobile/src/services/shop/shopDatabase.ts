@@ -171,7 +171,7 @@ export function getShopDatabase(): DB {
     db.executeSync(`CREATE TABLE IF NOT EXISTS shop_expenses (
       session_id TEXT PRIMARY KEY REFERENCES shop_sessions(id) ON DELETE CASCADE,
       entries TEXT NOT NULL)`);
-    ensureSimulationTransactionTable(db);
+    ensureSimulationCacheTables(db);
     database = db;
     return db;
   } catch (error) {
@@ -352,9 +352,17 @@ function readExpenses(value: unknown): ShopExpense[] {
   }
 }
 
-function ensureSimulationTransactionTable(db: DB): void {
+function ensureSimulationCacheTables(db: DB): void {
   db.executeSync(`CREATE TABLE IF NOT EXISTS simulation_transactions (
     session_seq INTEGER PRIMARY KEY,
+    payload TEXT NOT NULL,
+    stale INTEGER NOT NULL CHECK(stale IN (0, 1)))`);
+  db.executeSync(`CREATE TABLE IF NOT EXISTS simulation_inventories (
+    session_seq INTEGER PRIMARY KEY,
+    payload TEXT NOT NULL,
+    stale INTEGER NOT NULL CHECK(stale IN (0, 1)))`);
+  db.executeSync(`CREATE TABLE IF NOT EXISTS simulation_reports (
+    id INTEGER PRIMARY KEY CHECK(id = 1),
     payload TEXT NOT NULL,
     stale INTEGER NOT NULL CHECK(stale IN (0, 1)))`);
 }
@@ -397,8 +405,76 @@ export function clearSimulationTransactionRows(): void {
 
 function ensureSimulationTransactionDb(): DB {
   const db = getShopDatabase();
-  ensureSimulationTransactionTable(db);
+  ensureSimulationCacheTables(db);
   return db;
+}
+
+export function readSimulationInventoryRow(
+  sessionSeq: number,
+): { payload: string; stale: boolean } | null {
+  const row = ensureSimulationTransactionDb().executeSync(
+    'SELECT payload, stale FROM simulation_inventories WHERE session_seq = ?',
+    [sessionSeq],
+  ).rows[0];
+  if (!row || typeof row.payload !== 'string') {
+    return null;
+  }
+  return { payload: row.payload, stale: Number(row.stale) === 1 };
+}
+
+export function writeSimulationInventoryRow(
+  sessionSeq: number,
+  payload: string,
+  stale: boolean,
+): void {
+  ensureSimulationTransactionDb().executeSync(
+    `INSERT INTO simulation_inventories VALUES (?, ?, ?)
+    ON CONFLICT(session_seq) DO UPDATE SET payload=excluded.payload, stale=excluded.stale`,
+    [sessionSeq, payload, stale ? 1 : 0],
+  );
+}
+
+export function markSimulationInventoryRowStale(sessionSeq: number): void {
+  ensureSimulationTransactionDb().executeSync(
+    'UPDATE simulation_inventories SET stale = 1 WHERE session_seq = ?',
+    [sessionSeq],
+  );
+}
+
+export function clearSimulationInventoryRows(): void {
+  ensureSimulationTransactionDb().executeSync('DELETE FROM simulation_inventories');
+}
+
+const REPORT_ROW_ID = 1;
+
+export function readSimulationReportRow(): { payload: string; stale: boolean } | null {
+  const row = ensureSimulationTransactionDb().executeSync(
+    'SELECT payload, stale FROM simulation_reports WHERE id = ?',
+    [REPORT_ROW_ID],
+  ).rows[0];
+  if (!row || typeof row.payload !== 'string') {
+    return null;
+  }
+  return { payload: row.payload, stale: Number(row.stale) === 1 };
+}
+
+export function writeSimulationReportRow(payload: string, stale: boolean): void {
+  ensureSimulationTransactionDb().executeSync(
+    `INSERT INTO simulation_reports VALUES (?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET payload=excluded.payload, stale=excluded.stale`,
+    [REPORT_ROW_ID, payload, stale ? 1 : 0],
+  );
+}
+
+export function markSimulationReportRowStale(): void {
+  ensureSimulationTransactionDb().executeSync(
+    'UPDATE simulation_reports SET stale = 1 WHERE id = ?',
+    [REPORT_ROW_ID],
+  );
+}
+
+export function clearSimulationReportRow(): void {
+  ensureSimulationTransactionDb().executeSync('DELETE FROM simulation_reports');
 }
 
 // Commit budget, basket, selection and inventory together before updating the UI.

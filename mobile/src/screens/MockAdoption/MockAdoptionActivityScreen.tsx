@@ -35,6 +35,7 @@ import {
   refreshActiveSimulationAfterPurchase,
 } from '../../services/simulation/activeSession';
 import { invalidateSimulationReports } from '../../services/simulation/reports';
+import { invalidateSimulationInventory } from '../../services/simulation/inventory';
 import { invalidateSimulationTransactions } from '../../services/simulation/transactions';
 import {
   getSimulationStats,
@@ -345,6 +346,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
       }
       if (activeAdoption?.sessionSeq) {
         invalidateSimulationTransactions(activeAdoption.sessionSeq);
+        invalidateSimulationInventory(activeAdoption.sessionSeq);
       }
     }
     const paidOnServer = pay && Boolean((await getActiveMockAdoption())?.sessionSeq);

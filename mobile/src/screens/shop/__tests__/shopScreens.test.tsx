@@ -10,7 +10,7 @@ import { getShopDatabase, replaceSessionShopCatalog } from '../../../services/sh
 import { findProduct } from '../../../services/shop/catalog';
 import { ApiClientError } from '../../../services/api';
 import { purchaseSimulationItems } from '../../../services/simulation/purchase';
-import { getSimulationInventory } from '../../../services/simulation/inventory';
+import { loadInventoryOnEntry } from '../../../services/simulation/inventory';
 import { loadTransactionsOnEntry } from '../../../services/simulation/transactions';
 import {
   clearActiveSimulationRefresh,
@@ -37,7 +37,7 @@ jest.mock('../../../services/simulation/inventory', () => {
   const actual = jest.requireActual('../../../services/simulation/inventory');
   return {
     ...actual,
-    getSimulationInventory: jest.fn(),
+    loadInventoryOnEntry: jest.fn(async () => null),
   };
 });
 
@@ -218,7 +218,7 @@ it('supports multiple category buttons', () => {
 
 it('shows the server inventory, balance and a used-up consumable', async () => {
   mockShopSession.session = { sessionSeq: 3001 };
-  jest.mocked(getSimulationInventory).mockResolvedValue({
+  jest.mocked(loadInventoryOnEntry).mockResolvedValue({
     balance: 110000,
     expectedCost: 150000,
     equipment: [
@@ -271,7 +271,7 @@ it('shows the server inventory, balance and a used-up consumable', async () => {
       ),
     );
   });
-  expect(getSimulationInventory).toHaveBeenCalledWith(3001);
+  expect(loadInventoryOnEntry).toHaveBeenCalledWith(3001);
   expect(screen.root.findByProps({ accessibilityLabel: '남은 예산 110,000원' })).toBeDefined();
   expect(screen.root.findByProps({ children: '110,000원' })).toBeDefined();
   const detailButtons = (name: string) =>

@@ -11,7 +11,7 @@ import { ApiClientError } from '../../services/api';
 import { products, money, type Product } from '../../services/shop/catalog';
 import {
   getInventoryErrorMessage,
-  getSimulationInventory,
+  loadInventoryOnEntry,
   type InventoryItem,
   type SimulationInventory,
 } from '../../services/simulation/inventory';
@@ -82,9 +82,8 @@ export function InventoryScreen({ navigation, route }: Props) {
       return undefined;
     }
     let active = true;
-    setRemoteInventory(null);
     setRemoteError(undefined);
-    getSimulationInventory(session.sessionSeq)
+    loadInventoryOnEntry(session.sessionSeq)
       .then(inventory => {
         if (active) {
           setRemoteInventory(inventory);
