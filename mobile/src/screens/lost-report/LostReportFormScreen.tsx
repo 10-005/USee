@@ -285,6 +285,7 @@ export function LostReportFormScreen({ navigation, route }: Props) {
         )}
       </Pressable>
       <DatePickerModal
+        hasValue={Boolean(details.lostAt)}
         maximumDate={new Date()}
         onClose={() => setDatePickerOpen(false)}
         onConfirm={selectLostDate}

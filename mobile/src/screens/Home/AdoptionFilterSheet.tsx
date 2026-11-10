@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
-import LeftArrowIcon from '../../assets/icons/common/left-arrow.svg';
-import RightArrowIcon from '../../assets/icons/common/right-arrow.svg';
+import { CalendarDialog } from '../../components/common/CalendarDialog';
+import { CalendarMonthFields, CalendarMonthGrid } from '../../components/common/CalendarMonthGrid';
 import SelectedIcon from '../../assets/icons/navigation/adoption-active.svg';
+import PeriodArrowIcon from '../../assets/icons/common/period-arrow-down.svg';
 import { colors, radius, typography } from '../../theme';
 
 export type FilterKey = 'period' | 'region' | 'species' | 'status' | 'gender' | 'neutered' | 'sort';
@@ -23,7 +23,7 @@ type Props = {
 };
 
 const titles: Record<FilterKey, string> = {
-  period: '기간설정',
+  period: '기간 설정',
   region: '지역 설정',
   species: '축종',
   status: '상태',
@@ -167,9 +167,20 @@ const formatDate = (date: Date) =>
   ).padStart(2, '0')}`;
 
 const parsePeriod = (value: string) => {
-  const [start = '전체', end = formatDate(new Date())] = value.split('|');
+  const [start = '전체', end = '전체'] = value.split('|');
   return { start, end };
 };
+
+function previousMonth(date: Date) {
+  const lastDay = new Date(date.getFullYear(), date.getMonth(), 0);
+  lastDay.setDate(Math.min(date.getDate(), lastDay.getDate()));
+  return lastDay;
+}
+
+function periodDate(value: string, fallback: Date) {
+  const [year, month, day] = value.split('.').map(Number);
+  return year && month && day ? new Date(year, month - 1, day) : fallback;
+}
 
 function CalendarFilter({
   value,
@@ -185,57 +196,71 @@ function CalendarFilter({
   const initialPeriod = parsePeriod(value);
   const [draftPeriod, setDraftPeriod] = useState(initialPeriod);
   const [activeBoundary, setActiveBoundary] = useState<'start' | 'end'>('start');
-  const [visibleDate, setVisibleDate] = useState(today);
-  const year = visibleDate.getFullYear();
-  const month = visibleDate.getMonth() + 1;
-  const firstDay = new Date(year, month - 1, 1).getDay();
-  const lastDate = new Date(year, month, 0).getDate();
-  const cellCount = Math.ceil((firstDay + lastDate) / 7) * 7;
-  const days = useMemo(
-    () => [
-      ...Array.from({ length: firstDay }, () => 0),
-      ...Array.from({ length: lastDate }, (_, index) => index + 1),
-    ],
-    [firstDay, lastDate],
-  );
-  const activeValue = draftPeriod[activeBoundary];
-  const selectedDay = activeValue.startsWith(`${year}.${String(month).padStart(2, '0')}.`)
-    ? Number(activeValue.split('.')[2])
-    : 0;
+  const endDate = periodDate(draftPeriod.end, today);
+  const startDate = periodDate(draftPeriod.start, endDate);
+  const visibleDate = activeBoundary === 'start' ? startDate : endDate;
 
-  const selectDate = (day: number) => {
-    const selected = `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}`;
-    if (activeBoundary === 'start') {
-      setDraftPeriod(current => ({
-        end: selected > current.end ? selected : current.end,
-        start: selected,
-      }));
-      setActiveBoundary('end');
-      return;
-    }
-    setDraftPeriod(current =>
-      current.start !== '전체' && selected < current.start
-        ? { start: selected, end: current.start }
-        : { ...current, end: selected },
-    );
+  const updateBoundary = (boundary: 'start' | 'end', date: Date) => {
+    const selected = formatDate(date);
+    setDraftPeriod(current => {
+      if (current.end === '전체') {
+        return { start: selected, end: selected };
+      }
+      return boundary === 'start'
+        ? {
+            start: selected,
+            end: current.start === '전체' || selected > current.end ? selected : current.end,
+          }
+        : { ...current, end: selected };
+    });
   };
 
-  const moveMonth = (offset: number) => {
-    setVisibleDate(current => new Date(current.getFullYear(), current.getMonth() + offset, 1));
+  const selectDate = (date: Date) => {
+    const selected = formatDate(date);
+    const { start, end } = draftPeriod;
+    if (selected === start && selected === end) {
+      setDraftPeriod({ start: '전체', end: '전체' });
+    } else if (end === '전체') {
+      setDraftPeriod({ start: selected, end: selected });
+    } else if (selected === start) {
+      setDraftPeriod({ start: end, end });
+    } else if (selected === end && start !== '전체') {
+      setDraftPeriod({ start, end: start });
+    } else if (selected < start || start === '전체') {
+      setDraftPeriod({ start: selected, end: selected > end ? selected : end });
+      setActiveBoundary('start');
+    } else {
+      setDraftPeriod({ start, end: selected });
+      setActiveBoundary('end');
+    }
+  };
+
+  const selectMonth = (boundary: 'start' | 'end', month: Date) => {
+    const year = month.getFullYear();
+    const index = month.getMonth();
+    const lastDay = new Date(year, index + 1, 0).getDate();
+    const day =
+      boundary === 'start' && draftPeriod.start === '전체'
+        ? 1
+        : (boundary === 'start' ? startDate : endDate).getDate();
+    const date = new Date(year, index, Math.min(day, lastDay));
+    const minimum =
+      boundary === 'end' && draftPeriod.start !== '전체' ? startDate.getTime() : -Infinity;
+    updateBoundary(
+      boundary,
+      new Date(Math.max(minimum, Math.min(today.getTime(), date.getTime()))),
+    );
   };
 
   const chooseQuickPeriod = (kind: 'all' | 'today' | 'week' | 'month') => {
     if (kind === 'all') {
-      setDraftPeriod({ start: '전체', end: todayText });
+      setDraftPeriod({ start: '전체', end: '전체' });
       setActiveBoundary('start');
       return;
     }
-    const start = new Date(today);
+    const start = kind === 'month' ? previousMonth(today) : new Date(today);
     if (kind === 'week') {
       start.setDate(start.getDate() - 6);
-    }
-    if (kind === 'month') {
-      start.setMonth(start.getMonth() - 1);
     }
     setDraftPeriod({ start: formatDate(start), end: todayText });
     setActiveBoundary('end');
@@ -243,10 +268,9 @@ function CalendarFilter({
 
   const weekStart = new Date(today);
   weekStart.setDate(weekStart.getDate() - 6);
-  const monthStart = new Date(today);
-  monthStart.setMonth(monthStart.getMonth() - 1);
+  const monthStart = previousMonth(today);
   const quickPeriod =
-    draftPeriod.start === '전체' && draftPeriod.end === todayText
+    draftPeriod.end === '전체'
       ? 'all'
       : draftPeriod.start === todayText && draftPeriod.end === todayText
       ? 'today'
@@ -281,105 +305,77 @@ function CalendarFilter({
           </Pressable>
         ))}
       </View>
-      <View style={styles.dateLabels}>
-        <Text style={styles.dateLabel}>시작일</Text>
-        <Text style={styles.dateLabel}>종료일</Text>
-      </View>
-      <View style={styles.periodFields}>
-        <Pressable
-          onPress={() => setActiveBoundary('start')}
-          style={[styles.dateField, activeBoundary === 'start' && styles.dateFieldSelected]}
-        >
-          <Text style={[styles.dateFieldText, activeBoundary === 'start' && styles.selectedText]}>
-            {draftPeriod.start}
-          </Text>
-          <FilterArrowIcon height={20} width={20} />
-        </Pressable>
-        <Text style={styles.rangeText}>→</Text>
-        <Pressable
-          onPress={() => setActiveBoundary('end')}
-          style={[styles.dateField, activeBoundary === 'end' && styles.dateFieldSelected]}
-        >
-          <Text style={[styles.dateFieldText, activeBoundary === 'end' && styles.selectedText]}>
-            {draftPeriod.end}
-          </Text>
-          <FilterArrowIcon height={20} width={20} />
-        </Pressable>
-      </View>
-      <View style={styles.calendarHeader}>
-        <Pressable
-          accessibilityLabel="이전 달"
-          onPress={() => moveMonth(-1)}
-          style={styles.monthMove}
-        >
-          <LeftArrowIcon />
-        </Pressable>
-        <Text style={styles.calendarMonth}>{`${year}년 ${month}월`}</Text>
-        <Pressable
-          accessibilityLabel="다음 달"
-          onPress={() => moveMonth(1)}
-          style={styles.monthMove}
-        >
-          <RightArrowIcon />
-        </Pressable>
-      </View>
-      <View style={styles.weekRow}>
-        {['일', '월', '화', '수', '목', '금', '토'].map(day => (
-          <Text key={day} style={styles.weekText}>
-            {day}
-          </Text>
-        ))}
-      </View>
-      <View style={styles.calendarGrid}>
-        {Array.from({ length: cellCount / 7 }, (_unusedWeek, weekIndex) => (
-          <View key={weekIndex} style={styles.calendarWeek}>
-            {Array.from({ length: 7 }, (_unusedDay, dayIndex) => {
-              const index = weekIndex * 7 + dayIndex;
-              const day = days[index] ?? 0;
-              const date = day
-                ? `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}`
-                : '';
-              const inRange =
-                day > 0 &&
-                draftPeriod.start !== '전체' &&
-                date >= draftPeriod.start &&
-                date <= draftPeriod.end;
-              const endpoint = day > 0 && (date === draftPeriod.start || date === draftPeriod.end);
-              return (
-                <Pressable
-                  key={`${day}-${index}`}
-                  disabled={!day}
-                  onPress={() => selectDate(day)}
-                  style={[
-                    styles.day,
-                    inRange && styles.rangeDay,
-                    (endpoint || (day > 0 && day === selectedDay)) && styles.selectedDay,
-                  ]}
-                >
-                  {day ? (
-                    <Text style={[styles.dayText, endpoint && styles.selectedDayText]}>{day}</Text>
-                  ) : null}
-                </Pressable>
-              );
-            })}
+      {(['start', 'end'] as const).map(boundary => {
+        const label = boundary === 'start' ? '시작일' : '종료일';
+        const active = activeBoundary === boundary;
+        return (
+          <View key={boundary} style={boundary === 'end' && styles.endBoundary}>
+            {boundary === 'end' && (
+              <View style={styles.downArrow} importantForAccessibility="no-hide-descendants">
+                <PeriodArrowIcon width={24} height={24} color={colors.gray600} />
+              </View>
+            )}
+            <View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={label + ' 날짜 선택'}
+                accessibilityValue={{ text: draftPeriod[boundary] }}
+                accessibilityState={{ selected: active }}
+                onPress={() => setActiveBoundary(boundary)}
+                style={styles.boundaryLabel}
+              >
+                <Text style={styles.dateLabel}>{label}</Text>
+                <Text style={styles.dateValue}>{draftPeriod[boundary]}</Text>
+              </Pressable>
+              <CalendarMonthFields
+                label={label}
+                month={boundary === 'start' ? startDate : endDate}
+                onOpen={() => setActiveBoundary(boundary)}
+                onMonthChange={month => selectMonth(boundary, month)}
+                maximumDate={today}
+                minimumDate={
+                  boundary === 'end' && draftPeriod.start !== '전체' ? startDate : undefined
+                }
+              />
+            </View>
           </View>
-        ))}
-      </View>
+        );
+      })}
+      <CalendarMonthGrid
+        showHeader={false}
+        month={visibleDate}
+        onMonthChange={month => selectMonth(activeBoundary, month)}
+        maximumDate={today}
+        onDayPress={selectDate}
+        dayState={date => {
+          const label = formatDate(date);
+          if (label === draftPeriod.start || label === draftPeriod.end) {
+            return 'selected';
+          }
+          if (
+            draftPeriod.start !== '전체' &&
+            label > draftPeriod.start &&
+            label < draftPeriod.end
+          ) {
+            return 'range';
+          }
+          return undefined;
+        }}
+      />
       <View style={styles.periodActions}>
         <Pressable
-          onPress={() => {
-            setDraftPeriod({ start: '전체', end: todayText });
-            setActiveBoundary('start');
-          }}
+          onPress={() => chooseQuickPeriod('all')}
           style={styles.resetButton}
         >
           <Text style={styles.resetButtonText}>초기화</Text>
         </Pressable>
         <Pressable
           onPress={() => {
-            onApply(`${draftPeriod.start}|${draftPeriod.end}`);
+            onApply(draftPeriod.end === '전체' ? '전체' : `${draftPeriod.start}|${draftPeriod.end}`);
             onClose();
           }}
+          accessibilityRole="button"
+          accessibilityLabel="기간 적용"
           style={styles.applyButton}
         >
           <Text style={styles.applyButtonText}>적용하기</Text>
@@ -413,6 +409,17 @@ export function AdoptionFilterSheet({
   if (!activeFilter) {
     return null;
   }
+  if (activeFilter === 'period') {
+    return (
+      <CalendarDialog visible title={titles.period} onClose={onClose}>
+        <CalendarFilter
+          value={filters.period}
+          onApply={value => onChange('period', value)}
+          onClose={onClose}
+        />
+      </CalendarDialog>
+    );
+  }
   return (
     <View style={styles.overlay}>
       <Pressable
@@ -424,7 +431,7 @@ export function AdoptionFilterSheet({
       <View
         style={[
           styles.sheet,
-          { paddingBottom: (activeFilter === 'period' ? 16 : 28) + insets.bottom },
+          { paddingBottom: 28 + insets.bottom },
           (activeFilter === 'region' || activeFilter === 'species') && [
             styles.twoColumnSheet,
             { height: 333 + insets.bottom },
@@ -433,13 +440,6 @@ export function AdoptionFilterSheet({
       >
         <Text style={styles.title}>{titles[activeFilter]}</Text>
         <View style={styles.divider} />
-        {activeFilter === 'period' ? (
-          <CalendarFilter
-            onApply={value => onChange('period', value)}
-            onClose={onClose}
-            value={filters.period}
-          />
-        ) : null}
         {activeFilter === 'region' || activeFilter === 'species' ? (
           <TwoColumnFilter
             kind={activeFilter}
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
   columnOptionSelected: { backgroundColor: '#EBEAE5' },
   columnOptionText: { ...typography.bodyRegular16, color: colors.gray700 },
   calendarContent: {},
-  quickPeriods: { flexDirection: 'row', gap: 6, marginTop: 16 },
+  quickPeriods: { flexDirection: 'row', gap: 6, marginBottom: 10 },
   quickPeriod: {
     alignItems: 'center',
     borderColor: colors.gray200,
@@ -531,60 +531,16 @@ const styles = StyleSheet.create({
   quickPeriodSelected: { backgroundColor: '#ECFDF3', borderColor: colors.green400 },
   quickPeriodText: { ...typography.captionSemiBold12, color: colors.gray500 },
   quickPeriodTextSelected: { color: colors.green400 },
-  dateLabels: { flexDirection: 'row', gap: 28, marginTop: 12 },
-  dateLabel: { ...typography.captionSemiBold12, color: colors.gray500, flex: 1 },
-  periodFields: { alignItems: 'center', flexDirection: 'row', gap: 8, marginTop: 6 },
-  dateField: {
-    alignItems: 'center',
-    borderColor: colors.gray200,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flex: 1,
+  endBoundary: { marginBottom: 16 },
+  boundaryLabel: {
+    minHeight: 32,
     flexDirection: 'row',
-    height: 46,
+    alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 10,
   },
-  dateFieldSelected: { borderColor: colors.green400 },
-  dateFieldText: { ...typography.bodyRegular14, color: colors.gray600 },
-  rangeText: { ...typography.bodySemiBold16, color: colors.gray600 },
-  calendarHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-  },
-  calendarMonth: { ...typography.bodySemiBold16, color: colors.gray800 },
-  monthMove: { alignItems: 'center', height: 40, justifyContent: 'center', width: 40 },
-  weekRow: {
-    flexDirection: 'row',
-    gap: 5,
-    justifyContent: 'center',
-    marginTop: 4,
-  },
-  weekText: {
-    ...typography.captionSemiBold12,
-    color: colors.black,
-    textAlign: 'center',
-    width: 40,
-  },
-  calendarGrid: {
-    gap: 4,
-    marginTop: 6,
-  },
-  calendarWeek: { flexDirection: 'row', gap: 5, justifyContent: 'center' },
-  day: {
-    alignItems: 'center',
-    backgroundColor: '#F7F6F2',
-    borderRadius: radius.md,
-    height: 40,
-    justifyContent: 'center',
-    width: 40,
-  },
-  rangeDay: { backgroundColor: '#DCFCE7' },
-  selectedDay: { backgroundColor: colors.green400 },
-  selectedDayText: { color: colors.white },
-  dayText: { ...typography.captionSemiBold12, color: colors.black },
+  dateLabel: { ...typography.bodySemiBold16, color: colors.gray800 },
+  dateValue: { ...typography.captionSemiBold12, color: colors.gray600 },
+  downArrow: { alignItems: 'center', marginVertical: 2 },
   periodActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   resetButton: {
     alignItems: 'center',
