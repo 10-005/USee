@@ -59,6 +59,10 @@ spec:
             - name: RABBITMQ_PASSWORD
               valueFrom:
                 secretKeyRef: { name: rabbitmq-app, key: RABBITMQ_PASSWORD }
+            # 리포트 LLM 요약(S15P31D106-254). 없으면 규칙 문구로 동작하므로 optional
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef: { name: simulation-secrets, key: OPENAI_API_KEY, optional: true }
           startupProbe:
             httpGet: { path: /actuator/health/liveness, port: http }
             periodSeconds: 5

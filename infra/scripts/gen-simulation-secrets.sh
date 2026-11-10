@@ -3,6 +3,7 @@
 #   DB_PASSWORD    : data/postgres-credentials SIMULATION_APP_PASSWORD
 #   JWT_PUBLIC_KEY : app/chat-secrets 의 JWT_PUBLIC_KEY(core-api 와 같은 공개 키). 개인 키 없이 만들 수 있다
 # RabbitMQ 계정은 기존 공용 rabbitmq-app 을 그대로 쓴다
+# 주의: 이 스크립트는 파일을 새로 만들어 OPENAI_API_KEY 가 빠진다. 다시 만든 뒤 add-openai-key.sh 를 실행한다
 # 사용법: infra 작업 폴더 최상위에서  PEM=<노드1 pem 경로> bash infra/scripts/gen-simulation-secrets.sh
 set -euo pipefail
 
