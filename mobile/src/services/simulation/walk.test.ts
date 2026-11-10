@@ -71,6 +71,13 @@ test('ends the walk and reads the summary', async () => {
   expect(post).toHaveBeenCalledWith('/simulations/3001/walks/8001/end');
 });
 
+test('ends a short walk when the effect delta is empty', async () => {
+  const shortWalk = { ...endedWalk, durationMinutes: 3, statDelta: {} };
+  const post = jest.fn().mockResolvedValue(envelope(shortWalk));
+
+  await expect(endSimulationWalk(3001, 8001, { post })).resolves.toEqual(shortWalk);
+});
+
 test('rejects a success body that is not an ended walk', async () => {
   const post = jest.fn().mockResolvedValue(envelope({ walkSeq: 8001, status: 'IN_PROGRESS' }));
 

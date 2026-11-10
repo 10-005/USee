@@ -11,13 +11,7 @@ import {
   type SimulationEvent,
 } from './events';
 
-export type SimulationStatDelta = {
-  energy: number;
-  calmness: number;
-  bond: number;
-  satiety: number;
-  hydration: number;
-};
+export type SimulationStatDelta = Record<string, number>;
 
 export type EndedSimulationWalk = {
   walkSeq: number;
@@ -44,8 +38,6 @@ const FINISHED_WALK_CODES = new Set([
   'SIMULATION_WALK_NOT_FOUND',
   'SIMULATION_NOT_IN_PROGRESS',
 ]);
-
-const STAT_DELTA_KEYS = ['energy', 'calmness', 'bond', 'satiety', 'hydration'] as const;
 
 const WALK_END_FAILURE = '산책을 종료하지 못했어요. 다시 시도해주세요.';
 
@@ -79,10 +71,10 @@ function isPositiveId(value: unknown): value is number {
 }
 
 function isStatDelta(value: unknown): value is SimulationStatDelta {
-  if (!value || typeof value !== 'object') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return false;
   }
-  return STAT_DELTA_KEYS.every(key => Number.isFinite((value as SimulationStatDelta)[key]));
+  return Object.values(value).every(item => typeof item === 'number' && Number.isInteger(item));
 }
 
 function invalidWalk(message = WALK_END_FAILURE): ApiClientError {
