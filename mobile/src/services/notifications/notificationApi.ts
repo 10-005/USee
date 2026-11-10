@@ -1,5 +1,6 @@
 import type { ApiResponse } from '../api';
 import { notificationClient } from '../api/client';
+import { isListedNotification } from './notificationListItem';
 
 export const NOTIFICATION_LIST_TYPES = [
   'COMMENT',
@@ -77,6 +78,11 @@ export async function deleteNotification(notificationSeq: number): Promise<void>
 
 export async function deleteAllNotifications(): Promise<void> {
   await notificationClient.delete('/notifications');
+}
+
+export async function hasUnreadListNotification(): Promise<boolean> {
+  const page = await getMyNotifications({ isRead: false, size: 20 });
+  return page.content.some(item => isListedNotification(item));
 }
 
 export async function getMyNotifications(

@@ -7,6 +7,7 @@ import {
   deleteAllNotifications,
   deleteNotification,
   getMyNotifications,
+  hasUnreadListNotification,
   markNotificationAsRead,
 } from '../notificationApi';
 
@@ -58,6 +59,36 @@ describe('deleteNotification', () => {
 
     await expect(deleteAllNotifications()).resolves.toBeUndefined();
     expect(mockDelete).toHaveBeenCalledWith('/notifications');
+  });
+});
+
+describe('hasUnreadListNotification', () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+  });
+
+  it('목록에 보이는 안 읽은 알림이 있으면 참이다', async () => {
+    mockGet.mockResolvedValue({
+      data: {
+        data: {
+          ...page,
+          content: [{ notificationType: 'CHAT' }, { notificationType: 'COMMENT' }],
+        },
+      },
+    });
+
+    await expect(hasUnreadListNotification()).resolves.toBe(true);
+    expect(mockGet).toHaveBeenCalledWith('/notifications', {
+      params: { isRead: false, page: 0, size: 20, sort: 'regDttm,desc' },
+    });
+  });
+
+  it('채팅 알림만 있으면 거짓이다', async () => {
+    mockGet.mockResolvedValue({
+      data: { data: { ...page, content: [{ notificationType: 'CHAT' }] } },
+    });
+
+    await expect(hasUnreadListNotification()).resolves.toBe(false);
   });
 });
 

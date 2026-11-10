@@ -9,6 +9,7 @@ import {
 import { startMockAdoption } from '../../services/storage/mockAdoptionStorage';
 
 import type { RootStackParamList } from '../../app/navigation/types';
+import { hasUnreadListNotification } from '../../services/notifications/notificationApi';
 import { HomeScreen } from './HomeScreen';
 import { MockAdoptionScreen } from '../MockAdoption/MockAdoptionScreen';
 import { Button } from '../../components/common';
@@ -17,6 +18,8 @@ const mockNavigate = jest.fn();
 
 beforeEach(async () => {
   mockNavigate.mockClear();
+  jest.mocked(hasUnreadListNotification).mockReset();
+  jest.mocked(hasUnreadListNotification).mockResolvedValue(false);
   jest.mocked(getActiveSimulation).mockReset();
   jest.mocked(getActiveSimulation).mockRejectedValue(new Error('offline'));
   await AsyncStorage.clear();
@@ -29,6 +32,10 @@ jest.mock('../../services/simulation/activeSession', () => {
     getActiveSimulation: jest.fn().mockRejectedValue(new Error('offline')),
   };
 });
+
+jest.mock('../../services/notifications/notificationApi', () => ({
+  hasUnreadListNotification: jest.fn().mockResolvedValue(false),
+}));
 
 jest.mock('../../services/simulation/reports', () => ({
   loadSimulationReports: jest.fn().mockResolvedValue({ reports: [], freshSessionSeqs: [] }),
@@ -74,6 +81,24 @@ test.each(['입양', '찾아요', '채팅', '마이페이지'])(
     await ReactTestRenderer.act(() => renderer.unmount());
   },
 );
+
+test('shows a red dot when an unread notification exists', async () => {
+  jest.mocked(hasUnreadListNotification).mockResolvedValue(true);
+  const props = {
+    navigation: { navigate: mockNavigate },
+    route: { key: 'home', name: 'Home' },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'Home'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<HomeScreen {...props} />);
+    await Promise.resolve();
+  });
+
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: '읽지 않은 알림' }).length,
+  ).toBeGreaterThan(0);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
 
 test('hides the shortcut when the server has no active adoption', async () => {
   await startMockAdoption('dog-5', 35000, '코코');
