@@ -13,7 +13,7 @@ export function useChatSocket() {
     const address = new URL(env.apiBaseUrl + '/chat/v1/ws', window.location.origin);
     address.protocol = address.protocol === 'https:' ? 'wss:' : 'ws:';
     const client = new Client({
-      brokerURL: address.href,
+      brokerURL: import.meta.env.VITE_CHAT_WS_URL || address.href,
       reconnectDelay: 3000,
       connectionTimeout: 10000,
       beforeConnect: async () => {
