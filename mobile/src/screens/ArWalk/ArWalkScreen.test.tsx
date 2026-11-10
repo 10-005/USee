@@ -7,9 +7,18 @@ import {
 } from 'react-native';
 
 import { ApiClientError } from '../../services/api';
+import {
+  SimulationEventStatus,
+  SimulationTriggerContext,
+  SimulationTriggerType,
+} from '../../services/simulation/events';
 import { purchaseSimulationItems } from '../../services/simulation/purchase';
+import {
+  cleanUpSimulationWalkPoop,
+  sendSimulationWalkHeartbeat,
+  startSimulationWalk,
+} from '../../services/simulation/walk';
 import { replaceSessionShopCatalog } from '../../services/shop/shopDatabase';
-import { startSimulationWalk } from '../../services/simulation/walk';
 import { endActiveSimulationWalk } from '../../services/simulation/walkLifecycle';
 import {
   getActiveMockAdoption,
@@ -66,6 +75,14 @@ jest.mock('../../services/simulation/walkLifecycle', () => ({
 jest.mock('../../services/simulation/walk', () => ({
   ...jest.requireActual('../../services/simulation/walk'),
   startSimulationWalk: jest.fn(),
+  sendSimulationWalkHeartbeat: jest.fn().mockResolvedValue({
+    walkSeq: 8001,
+    elapsedMinutes: 1,
+    stats: {},
+    newEvent: null,
+    pendingEvent: null,
+  }),
+  cleanUpSimulationWalkPoop: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../../services/simulation/purchase', () => ({
   ...jest.requireActual('../../services/simulation/purchase'),
@@ -91,7 +108,26 @@ beforeEach(() => {
   jest.mocked(getActiveMockAdoption).mockReset();
   jest.mocked(getActiveMockAdoption).mockResolvedValue(null);
   jest.mocked(startSimulationWalk).mockReset();
+  jest.mocked(sendSimulationWalkHeartbeat).mockReset();
+  jest.mocked(sendSimulationWalkHeartbeat).mockResolvedValue({
+    walkSeq: 8001,
+    elapsedMinutes: 1,
+    stats: {
+      satiety: 0,
+      hydration: 0,
+      cleanliness: 0,
+      bond: 0,
+      calmness: 0,
+      health: 0,
+      energy: 0,
+      calculatedDttm: '2026-11-09T10:00:00+09:00',
+    },
+    newEvent: null,
+    pendingEvent: null,
+  });
   jest.mocked(purchaseSimulationItems).mockReset();
+  jest.mocked(cleanUpSimulationWalkPoop).mockReset();
+  jest.mocked(cleanUpSimulationWalkPoop).mockResolvedValue(undefined);
   jest.mocked(saveMockAdoptionWalk).mockReset();
   jest.mocked(endActiveSimulationWalk).mockReset();
   jest.mocked(endActiveSimulationWalk).mockResolvedValue(undefined);
@@ -385,6 +421,79 @@ test('starts one server walk when the recognized dog starts the timer', async ()
   await ReactTestRenderer.act(() => recognize());
   expect(startSimulationWalk).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('shows a heartbeat event and starts poop only when the event is poop', async () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date('2026-11-09T10:00:00+09:00'));
+  jest.mocked(getActiveMockAdoption).mockResolvedValue(activeSession);
+  jest.mocked(startSimulationWalk).mockResolvedValue({
+    walkSeq: 8001,
+    status: 'IN_PROGRESS',
+    startedDttm: '2026-11-09T10:00:00',
+    heartbeatIntervalSeconds: 60,
+    stats: { energy: 80 },
+  });
+  const poop = {
+    occurrenceSeq: 90010,
+    scenario: {
+      scenarioSeq: 16,
+      title: '길에서 똥을 쌌어요',
+      description: '산책하다 길 한가운데서 볼일을 봤어요.',
+      triggerContext: SimulationTriggerContext.Walk,
+      triggerType: SimulationTriggerType.Random,
+    },
+    vetVisit: null,
+    walkSeq: 8001,
+    status: SimulationEventStatus.Pending,
+    occurredDttm: '2026-11-09T10:01:00+09:00',
+    expiresDttm: '2026-11-09T10:06:00+09:00',
+    resolvedDttm: null,
+    resolvedActionCode: null,
+    resultText: null,
+  };
+  jest.mocked(sendSimulationWalkHeartbeat).mockResolvedValue({
+    walkSeq: 8001,
+    elapsedMinutes: 1,
+    stats: {
+      satiety: 64,
+      hydration: 58,
+      cleanliness: 77,
+      bond: 31,
+      calmness: 46,
+      health: 90,
+      energy: 55,
+      calculatedDttm: '2026-11-09T10:01:00+09:00',
+    },
+    newEvent: poop,
+    pendingEvent: null,
+  });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  try {
+    await ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(<ArWalkScreen />);
+    });
+    await ReactTestRenderer.act(async () => {
+      renderer.root.findByType(ArFloorView).props.onTracking({
+        nativeEvent: { status: 'anchored', visible: true, onScreen: true },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(renderer.root.findByType(ArFloorView).props.poopRequest).toBe(0);
+    await ReactTestRenderer.act(async () => {
+      jest.advanceTimersByTime(60000);
+      await Promise.resolve();
+    });
+    expect(sendSimulationWalkHeartbeat).toHaveBeenCalledWith(3001, 8001);
+    expect(renderer.root.findAllByProps({ children: '길에서 똥을 쌌어요' }).length).toBeGreaterThan(
+      0,
+    );
+    expect(renderer.root.findByType(ArFloorView).props.poopRequest).toBe(1);
+  } finally {
+    await ReactTestRenderer.act(() => renderer?.unmount());
+    jest.useRealTimers();
+  }
 });
 
 test('keeps the timer when the walk is already recorded for this adoption', async () => {
