@@ -1,6 +1,7 @@
 import { ApiClientError } from '../api/errors';
 import {
   clearSimulationReports,
+  getSimulationReport,
   getSimulationReportErrorMessage,
   invalidateSimulationReports,
   loadSimulationReports,
@@ -105,4 +106,130 @@ test('uses a generic message when reports cannot be loaded', () => {
   expect(getSimulationReportErrorMessage(new Error('offline'))).toBe(
     '리포트를 불러오지 못했어요. 다시 시도해주세요.',
   );
+});
+
+const detail = {
+  sessionSeq: 3001,
+  status: 'ABANDONED',
+  isFinal: true,
+  animalName: '초코',
+  breed: {
+    breedSeq: 21,
+    breedName: '말티즈',
+    speciesType: 'DOG',
+    representativeImageUrl: 'https://storage.example.com/simulation/breeds/maltese.png',
+  },
+  speciesType: 'DOG',
+  personality: 'FRIENDLY',
+  startedDttm: '2026-11-01T14:00:00+09:00',
+  endedDttm: '2026-11-03T10:20:00+09:00',
+  expectedCost: 150000,
+  totalSpent: 52800,
+  difference: 97200,
+  spentByCategory: {
+    FOOD_BOWL: 10000,
+    WATER_BOWL: 10000,
+    LITTER_BOX: 0,
+    TOY: 0,
+    FURNITURE: 0,
+    LEASH: 0,
+    GROOMING_KIT: 0,
+    FOOD: 21200,
+    SNACK: 0,
+    LITTER: 0,
+    SHAMPOO: 0,
+    MEDICINE: 0,
+    POOP_BAG: 0,
+    CATNIP: 0,
+    EVENT: 11600,
+  },
+  dailySpent: { 1: 31200, 2: 21600, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 },
+  finalStats: {
+    satiety: 55,
+    hydration: 60,
+    cleanliness: 70,
+    bond: 42,
+    calmness: 52,
+    health: 84,
+    energy: 58,
+  },
+  actionCount: 12,
+  eventCount: 1,
+  eventResolvedCount: 1,
+  walkCount: 2,
+  summary: '  2일째에 돌봄을 그만뒀어요.  ',
+};
+
+const detailEnvelope = (data: unknown) => ({
+  data: {
+    status: 200,
+    code: 'SUCCESS',
+    message: '요청이 성공했습니다.',
+    data,
+    errors: [],
+    traceId: '4f2c9e1a7b3d4c5e',
+  },
+});
+
+test('reads one finished report for the selected session', async () => {
+  const get = jest.fn().mockResolvedValue(detailEnvelope(detail));
+
+  await expect(getSimulationReport(3001, { get })).resolves.toMatchObject({
+    sessionSeq: 3001,
+    status: 'ABANDONED',
+    isFinal: true,
+    animalName: '초코',
+    breed: { breedSeq: '21', breedName: '말티즈', speciesType: 'DOG' },
+    personality: 'FRIENDLY',
+    endedDttm: '2026-11-03T10:20:00+09:00',
+    totalSpent: 52800,
+    difference: 97200,
+    finalStats: { health: 84, bond: 42 },
+    summary: '2일째에 돌봄을 그만뒀어요.',
+  });
+  expect(get).toHaveBeenCalledWith('/simulations/3001/report');
+});
+
+test('treats a blank summary as not ready yet', async () => {
+  const get = jest.fn().mockResolvedValue(detailEnvelope({ ...detail, summary: '   ' }));
+
+  await expect(getSimulationReport(3001, { get })).resolves.toMatchObject({ summary: null });
+});
+
+test('accepts an in-progress report that has not ended', async () => {
+  const get = jest.fn().mockResolvedValue(
+    detailEnvelope({
+      ...detail,
+      status: 'IN_PROGRESS',
+      isFinal: false,
+      endedDttm: null,
+      summary: null,
+    }),
+  );
+
+  await expect(getSimulationReport(3001, { get })).resolves.toMatchObject({
+    status: 'IN_PROGRESS',
+    isFinal: false,
+    endedDttm: null,
+    summary: null,
+  });
+});
+
+test('rejects a report whose spending does not match the total', async () => {
+  const get = jest.fn().mockResolvedValue(detailEnvelope({ ...detail, totalSpent: 1000 }));
+
+  await expect(getSimulationReport(3001, { get })).rejects.toBeInstanceOf(ApiClientError);
+});
+
+test('rejects a report for a different session than requested', async () => {
+  const get = jest.fn().mockResolvedValue(detailEnvelope(detail));
+
+  await expect(getSimulationReport(3002, { get })).rejects.toBeInstanceOf(ApiClientError);
+});
+
+test('does not request a report when the session id is invalid', async () => {
+  const get = jest.fn();
+
+  await expect(getSimulationReport(0, { get })).rejects.toBeInstanceOf(ApiClientError);
+  expect(get).not.toHaveBeenCalled();
 });

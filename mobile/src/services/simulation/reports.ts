@@ -34,6 +34,64 @@ export type SimulationReportList = {
   freshSessionSeqs: number[];
 };
 
+const REPORT_STATUSES = ['IN_PROGRESS', 'COMPLETED', 'ABANDONED', 'FAILED'] as const;
+const REPORT_PERSONALITIES = ['ACTIVE', 'TIMID', 'AGGRESSIVE', 'FRIENDLY'] as const;
+const REPORT_SPECIES = ['DOG', 'CAT'] as const;
+const REPORT_CATEGORIES = [
+  'FOOD_BOWL',
+  'WATER_BOWL',
+  'LITTER_BOX',
+  'TOY',
+  'FURNITURE',
+  'LEASH',
+  'GROOMING_KIT',
+  'FOOD',
+  'SNACK',
+  'LITTER',
+  'SHAMPOO',
+  'MEDICINE',
+  'POOP_BAG',
+  'CATNIP',
+  'EVENT',
+] as const;
+const REPORT_STAT_KEYS = [
+  'satiety',
+  'hydration',
+  'cleanliness',
+  'bond',
+  'calmness',
+  'health',
+  'energy',
+] as const;
+const REPORT_DAYS = ['1', '2', '3', '4', '5', '6', '7'] as const;
+
+export type SimulationReportStatus = (typeof REPORT_STATUSES)[number];
+export type SimulationReportPersonality = (typeof REPORT_PERSONALITIES)[number];
+export type SimulationReportStat = (typeof REPORT_STAT_KEYS)[number];
+
+export type SimulationReportDetail = {
+  sessionSeq: number;
+  status: SimulationReportStatus;
+  isFinal: boolean;
+  animalName: string;
+  breed: SimulationReportBreed;
+  speciesType: 'DOG' | 'CAT';
+  personality: SimulationReportPersonality;
+  startedDttm: string;
+  endedDttm: string | null;
+  expectedCost: number;
+  totalSpent: number;
+  difference: number;
+  spentByCategory: Record<string, number>;
+  dailySpent: Record<string, number>;
+  finalStats: Record<SimulationReportStat, number>;
+  actionCount: number;
+  eventCount: number;
+  eventResolvedCount: number;
+  walkCount: number;
+  summary: string | null;
+};
+
 const REPORT_FAILURE = '리포트를 불러오지 못했어요. 다시 시도해주세요.';
 const PAGE_SIZE = 20;
 
@@ -49,6 +107,21 @@ function invalidReports(): ApiClientError {
 
 function isPositiveId(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value > 0;
+}
+
+function isInt(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value);
+}
+
+function isNonNegativeInt(value: unknown): value is number {
+  return isInt(value) && value >= 0;
+}
+
+function readEnum<T extends string>(value: unknown, allowed: readonly T[]): T {
+  if (typeof value === 'string' && (allowed as readonly string[]).includes(value)) {
+    return value as T;
+  }
+  throw invalidReports();
 }
 
 function readBreedSeq(value: unknown): string {
@@ -171,6 +244,158 @@ export async function listSimulationReports(
     }
   }
   return reports;
+}
+
+function readEndedDttm(value: unknown): string | null {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value !== 'string' || value.length === 0) {
+    throw invalidReports();
+  }
+  return value;
+}
+
+function readSummary(value: unknown): string | null {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value !== 'string') {
+    throw invalidReports();
+  }
+  const summary = value.trim();
+  return summary.length > 0 ? summary : null;
+}
+
+function readAmountRecord(value: unknown, required: readonly string[]): Record<string, number> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw invalidReports();
+  }
+  const amounts: Record<string, number> = {};
+  for (const [key, amount] of Object.entries(value as Record<string, unknown>)) {
+    if (key.length === 0 || !isNonNegativeInt(amount)) {
+      throw invalidReports();
+    }
+    amounts[key] = amount;
+  }
+  if (required.some(key => amounts[key] === undefined)) {
+    throw invalidReports();
+  }
+  return amounts;
+}
+
+function readFinalStats(value: unknown): Record<SimulationReportStat, number> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw invalidReports();
+  }
+  const stats = value as Record<string, unknown>;
+  const keys = Object.keys(stats);
+  if (
+    keys.length !== REPORT_STAT_KEYS.length ||
+    REPORT_STAT_KEYS.some(key => stats[key] === undefined)
+  ) {
+    throw invalidReports();
+  }
+  const result = {} as Record<SimulationReportStat, number>;
+  for (const key of REPORT_STAT_KEYS) {
+    const amount = stats[key];
+    if (!isInt(amount) || amount < 0 || amount > 100) {
+      throw invalidReports();
+    }
+    result[key] = amount;
+  }
+  return result;
+}
+
+function amountTotal(amounts: Record<string, number>): number {
+  return Object.values(amounts).reduce((sum, amount) => sum + amount, 0);
+}
+
+function readReportDetail(value: unknown): SimulationReportDetail {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw invalidReports();
+  }
+  const report = value as Record<string, unknown>;
+  const breed = readBreed(report.breed);
+  const speciesType = readEnum(report.speciesType, REPORT_SPECIES);
+  const sessionSeq = report.sessionSeq;
+  const animalName = report.animalName;
+  const isFinal = report.isFinal;
+  const startedDttm = report.startedDttm;
+  const expectedCost = report.expectedCost;
+  const totalSpent = report.totalSpent;
+  const difference = report.difference;
+  const actionCount = report.actionCount;
+  const eventCount = report.eventCount;
+  const eventResolvedCount = report.eventResolvedCount;
+  const walkCount = report.walkCount;
+  if (breed.speciesType !== speciesType) {
+    throw invalidReports();
+  }
+  if (
+    !isPositiveId(sessionSeq) ||
+    typeof animalName !== 'string' ||
+    animalName.trim().length === 0 ||
+    typeof isFinal !== 'boolean' ||
+    typeof startedDttm !== 'string' ||
+    startedDttm.length === 0 ||
+    !isNonNegativeInt(expectedCost) ||
+    !isNonNegativeInt(totalSpent) ||
+    !isInt(difference) ||
+    !isNonNegativeInt(actionCount) ||
+    !isNonNegativeInt(eventCount) ||
+    !isNonNegativeInt(eventResolvedCount) ||
+    !isNonNegativeInt(walkCount) ||
+    eventResolvedCount > eventCount
+  ) {
+    throw invalidReports();
+  }
+  const spentByCategory = readAmountRecord(report.spentByCategory, REPORT_CATEGORIES);
+  const dailySpent = readAmountRecord(report.dailySpent, REPORT_DAYS);
+  if (
+    amountTotal(spentByCategory) !== totalSpent ||
+    amountTotal(dailySpent) !== totalSpent ||
+    difference !== expectedCost - totalSpent
+  ) {
+    throw invalidReports();
+  }
+  return {
+    sessionSeq,
+    status: readEnum(report.status, REPORT_STATUSES),
+    isFinal,
+    animalName,
+    breed,
+    speciesType,
+    personality: readEnum(report.personality, REPORT_PERSONALITIES),
+    startedDttm,
+    endedDttm: readEndedDttm(report.endedDttm),
+    expectedCost,
+    totalSpent,
+    difference,
+    spentByCategory,
+    dailySpent,
+    finalStats: readFinalStats(report.finalStats),
+    actionCount,
+    eventCount,
+    eventResolvedCount,
+    walkCount,
+    summary: readSummary(report.summary),
+  };
+}
+
+export async function getSimulationReport(
+  sessionSeq: number,
+  client: SimulationClient = simulationClient,
+): Promise<SimulationReportDetail> {
+  if (!isPositiveId(sessionSeq)) {
+    throw invalidReports();
+  }
+  const response = await client.get(`/simulations/${sessionSeq}/report`);
+  const report = readReportDetail(readApiData(response.data));
+  if (report.sessionSeq !== sessionSeq) {
+    throw invalidReports();
+  }
+  return report;
 }
 
 function parseStoredReports(payload: string): SimulationReportList | null {
