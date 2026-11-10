@@ -1,10 +1,13 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import PetChevronLeftIcon from '../../assets/icons/mypage/pet-chevron-left.svg';
 import PetChevronRightIcon from '../../assets/icons/mypage/pet-chevron-right.svg';
+import { SkeletonBlock, SkeletonGroup } from '../../components/common';
 import { usePetStore, type Pet } from '../../stores/petStore';
 import { colors, radius, typography } from '../../theme';
 
@@ -12,6 +15,15 @@ type Props = NativeStackScreenProps<RootStackParamList, 'PetList'>;
 
 export function PetListScreen({ navigation }: Props) {
   const pets = usePetStore(state => state.pets);
+  const error = usePetStore(state => state.error);
+  const fetchPets = usePetStore(state => state.fetchPets);
+  const isLoading = usePetStore(state => state.isLoading);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPets().catch(() => undefined);
+    }, [fetchPets]),
+  );
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -27,19 +39,30 @@ export function PetListScreen({ navigation }: Props) {
         </Pressable>
         <Text style={styles.headerTitle}>반려동물 등록</Text>
       </View>
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content}>
         <Text accessibilityLabel={`등록된 반려동물 ${pets.length}마리`} style={styles.count}>
           등록된 반려동물 {pets.length}마리
         </Text>
-        <View style={styles.petList}>
-          {pets.map(pet => (
-            <PetListItem
-              key={pet.id}
-              onPress={() => navigation.navigate('PetDetail', { petId: pet.id })}
-              pet={pet}
-            />
-          ))}
-        </View>
+        {isLoading && pets.length === 0 ? (
+          <PetListSkeleton />
+        ) : error && pets.length === 0 ? (
+          <StateView>
+            <Text style={styles.stateText}>{error}</Text>
+            <Pressable onPress={() => fetchPets()}>
+              <Text style={styles.retryText}>다시 시도</Text>
+            </Pressable>
+          </StateView>
+        ) : pets.length > 0 ? (
+          <View style={styles.petList}>
+            {pets.map(pet => (
+              <PetListItem
+                key={pet.id}
+                onPress={() => navigation.navigate('PetDetail', { petId: pet.id })}
+                pet={pet}
+              />
+            ))}
+          </View>
+        ) : null}
         <Pressable
           accessibilityLabel="반려동물 추가 등록"
           accessibilityRole="button"
@@ -49,9 +72,29 @@ export function PetListScreen({ navigation }: Props) {
           <Text style={styles.plus}>+</Text>
           <Text style={styles.addLabel}>반려동물 추가 등록</Text>
         </Pressable>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
+}
+
+function PetListSkeleton() {
+  return (
+    <SkeletonGroup accessibilityLabel="반려동물 목록 불러오는 중" style={styles.skeletonList}>
+      {[0, 1, 2].map(index => (
+        <View key={index} style={styles.skeletonRow}>
+          <SkeletonBlock style={styles.skeletonImage} />
+          <View style={styles.skeletonText}>
+            <SkeletonBlock style={styles.skeletonName} />
+            <SkeletonBlock style={styles.skeletonMeta} />
+          </View>
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
+}
+
+function StateView({ children }: { children: React.ReactNode }) {
+  return <View style={styles.state}>{children}</View>;
 }
 
 function PetListItem({ onPress, pet }: { onPress: () => void; pet: Pet }) {
@@ -128,4 +171,13 @@ const styles = StyleSheet.create({
     marginTop: -5,
   },
   pressed: { opacity: 0.65 },
+  state: { alignItems: 'center', gap: 8, justifyContent: 'center', minHeight: 180 },
+  stateText: { ...typography.bodyRegular14, color: colors.gray500, textAlign: 'center' },
+  retryText: { ...typography.bodySemiBold16, color: colors.green400, marginTop: 4 },
+  skeletonList: { marginTop: 8 },
+  skeletonRow: { alignItems: 'center', flexDirection: 'row', height: 83 },
+  skeletonImage: { borderRadius: 10, height: 67, width: 67 },
+  skeletonText: { flex: 1, gap: 9, marginLeft: 20 },
+  skeletonName: { height: 16, width: '38%' },
+  skeletonMeta: { height: 12, width: '66%' },
 });

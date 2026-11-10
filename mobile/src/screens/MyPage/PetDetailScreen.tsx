@@ -1,6 +1,8 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Image,
@@ -18,6 +20,7 @@ import PetChevronLeftIcon from '../../assets/icons/mypage/pet-chevron-left.svg';
 import PetEditIcon from '../../assets/icons/mypage/pet-edit.svg';
 import PetMoreIcon from '../../assets/icons/mypage/pet-more.svg';
 import PetTrashIcon from '../../assets/icons/mypage/pet-trash.svg';
+import { getApiErrorDisplayMessage } from '../../services/api';
 import { usePetStore } from '../../stores/petStore';
 import { colors, radius, typography } from '../../theme';
 
@@ -29,9 +32,19 @@ export function PetDetailScreen({ navigation, route }: Props) {
   const imageWidth = screenWidth - 52;
   const pet = usePetStore(state => state.pets.find(item => item.id === route.params.petId));
   const deletePet = usePetStore(state => state.deletePet);
+  const error = usePetStore(state => state.error);
+  const fetchPet = usePetStore(state => state.fetchPet);
+  const isDetailLoading = usePetStore(state => state.isDetailLoading);
   const [menuVisible, setMenuVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [imageIndex, setImageIndex] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPet(route.params.petId).catch(() => undefined);
+    }, [fetchPet, route.params.petId]),
+  );
   const details = useMemo(
     () =>
       pet
@@ -50,21 +63,54 @@ export function PetDetailScreen({ navigation, route }: Props) {
     [pet],
   );
 
-  if (!pet) {
+  if (isDetailLoading && (!pet || !pet.imageSeqs?.length)) {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <PetHeader onBack={navigation.goBack} onMenu={() => undefined} />
         <View style={styles.notFound}>
-          <Text style={styles.notFoundText}>삭제되었거나 존재하지 않는 반려동물입니다.</Text>
+          <ActivityIndicator color={colors.green400} />
+          <Text style={styles.notFoundText}>반려동물 정보를 불러오는 중...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  const confirmDelete = () => {
-    deletePet(pet.id);
-    setDeleteVisible(false);
-    navigation.goBack();
+  if (!pet || (error && !pet.imageSeqs?.length)) {
+    return (
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <PetHeader onBack={navigation.goBack} onMenu={() => undefined} />
+        <View style={styles.notFound}>
+          <Text style={styles.notFoundText}>
+            {error ?? '삭제되었거나 존재하지 않는 반려동물입니다.'}
+          </Text>
+          {error ? (
+            <Pressable onPress={() => fetchPet(route.params.petId)}>
+              <Text style={styles.retryText}>다시 시도</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const confirmDelete = async () => {
+    if (isDeleting) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await deletePet(pet.id);
+      setDeleteVisible(false);
+      navigation.goBack();
+    } catch (deleteError) {
+      Alert.alert(
+        '반려동물 삭제 실패',
+        getApiErrorDisplayMessage(deleteError, '잠시 후 다시 시도해 주세요.'),
+      );
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -128,6 +174,13 @@ export function PetDetailScreen({ navigation, route }: Props) {
         <Text style={styles.reportText}>실종 신고하기</Text>
       </Pressable>
       {menuVisible ? (
+        <Pressable
+          accessibilityLabel="반려동물 메뉴 닫기"
+          onPress={() => setMenuVisible(false)}
+          style={styles.menuBackdrop}
+        />
+      ) : null}
+      {menuVisible ? (
         <View style={[styles.menu, { top: insets.top + 44 }]}>
           <Pressable
             accessibilityLabel="반려동물 수정"
@@ -157,7 +210,11 @@ export function PetDetailScreen({ navigation, route }: Props) {
       ) : null}
       <Modal
         animationType="fade"
-        onRequestClose={() => setDeleteVisible(false)}
+        onRequestClose={() => {
+          if (!isDeleting) {
+            setDeleteVisible(false);
+          }
+        }}
         transparent
         visible={deleteVisible}
       >
@@ -167,17 +224,24 @@ export function PetDetailScreen({ navigation, route }: Props) {
             <Text style={styles.modalDescription}>삭제 후에는 해당 정보를 복구할 수 없습니다.</Text>
             <View style={styles.modalActions}>
               <Pressable
+                accessibilityRole="button"
+                disabled={isDeleting}
                 onPress={() => setDeleteVisible(false)}
-                style={[styles.modalButton, styles.cancelButton]}
+                style={[styles.modalButton, styles.cancelButton, isDeleting && styles.disabled]}
               >
                 <Text style={styles.modalButtonText}>취소</Text>
               </Pressable>
               <Pressable
-                accessibilityLabel="반려동물 삭제 확인"
+                accessibilityLabel={isDeleting ? '반려동물 삭제 중' : '반려동물 삭제 확인'}
+                disabled={isDeleting}
                 onPress={confirmDelete}
-                style={[styles.modalButton, styles.deleteButton]}
+                style={[styles.modalButton, styles.deleteButton, isDeleting && styles.disabled]}
               >
-                <Text style={styles.modalButtonText}>삭제하기</Text>
+                {isDeleting ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <Text style={styles.modalButtonText}>삭제하기</Text>
+                )}
               </Pressable>
             </View>
           </View>
@@ -274,6 +338,7 @@ const styles = StyleSheet.create({
     width: 160,
     zIndex: 2,
   },
+  menuBackdrop: { bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, zIndex: 1 },
   menuItem: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -313,7 +378,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22.5,
   },
-  notFound: { alignItems: 'center', flex: 1, justifyContent: 'center' },
+  notFound: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+    justifyContent: 'center',
+    paddingHorizontal: 26,
+  },
   notFoundText: { ...typography.bodyRegular16, color: colors.gray500 },
+  retryText: { ...typography.bodySemiBold16, color: colors.green400 },
+  disabled: { opacity: 0.65 },
   pressed: { opacity: 0.65 },
 });
