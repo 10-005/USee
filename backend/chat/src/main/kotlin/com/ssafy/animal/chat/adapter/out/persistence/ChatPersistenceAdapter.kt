@@ -1,5 +1,6 @@
 package com.ssafy.animal.chat.adapter.out.persistence
 
+import com.ssafy.animal.chat.application.port.out.ApplicationRow
 import com.ssafy.animal.chat.application.port.out.ChatRepository
 import com.ssafy.animal.chat.application.port.out.ImageRow
 import com.ssafy.animal.chat.application.port.out.RoomSummaryRow
@@ -146,6 +147,26 @@ interface ChatRoomJpaRepository : JpaRepository<ChatRoom, Long> {
         value = "SELECT CAST(a.animal_seq AS BIGINT) FROM shelter_animals a WHERE a.animal_seq IN (:seqs) AND a.is_deleted = FALSE",
     )
     fun findVisibleShelterAnimals(@Param("seqs") seqs: Collection<Long>): List<Long>
+
+    @Query(
+        nativeQuery = true,
+        value = """
+        SELECT a.application_seq AS applicationSeq, sp.species_name AS speciesName, b.breed_name AS breedName,
+               a.status AS status, a.submitted_dttm AS submittedDttm
+        FROM adoption_applications a
+        JOIN shelter_animals sa ON sa.animal_seq = a.animal_seq
+        JOIN animal_combinations c ON c.combination_seq = sa.combination_seq
+        JOIN animal_breeds b ON b.breed_seq = c.breed_seq
+        JOIN animal_species sp ON sp.species_seq = b.species_seq
+        WHERE a.user_seq = :userSeq AND a.shelter_seq = :shelterSeq AND a.is_deleted = FALSE
+          AND a.status NOT IN ('DRAFT', 'CANCELED')
+        ORDER BY a.submitted_dttm DESC, a.application_seq DESC
+        """,
+    )
+    fun findShelterApplications(@Param("userSeq") userSeq: Int, @Param("shelterSeq") shelterSeq: Int): List<ApplicationRow>
+
+    @Query(nativeQuery = true, value = "SELECT name FROM users WHERE user_seq = :userSeq")
+    fun findUserRealName(@Param("userSeq") userSeq: Int): String?
 }
 
 interface ChatParticipantJpaRepository : JpaRepository<ChatParticipant, Long> {
@@ -247,6 +268,10 @@ class ChatPersistenceAdapter(
             SharedTargetType.SHELTER_ANIMAL -> roomJpaRepository.findVisibleShelterAnimals(seqs)
         }.toSet()
     }
+
+    override fun findShelterApplications(userSeq: Int, shelterSeq: Int) = roomJpaRepository.findShelterApplications(userSeq, shelterSeq)
+
+    override fun findUserRealName(userSeq: Int) = roomJpaRepository.findUserRealName(userSeq)
 
     // SHELTER 계정은 보호소로, USER는 회원으로 참여한다. 해당 없는 쪽은 어떤 seq와도 같지 않은 -1
     private fun AuthUser.userKey() = if (shelterSeq == null) userSeq else -1L

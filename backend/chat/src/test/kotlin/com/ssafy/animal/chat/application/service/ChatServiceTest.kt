@@ -7,6 +7,7 @@ import com.ssafy.animal.chat.application.port.`in`.RoomRef
 import com.ssafy.animal.chat.application.port.`in`.RoomUpdate
 import com.ssafy.animal.chat.application.port.`in`.RoomUpdateType
 import com.ssafy.animal.chat.application.port.`in`.SendMessageCommand
+import com.ssafy.animal.chat.application.port.out.ApplicationRow
 import com.ssafy.animal.chat.application.port.out.ChatPushPort
 import com.ssafy.animal.chat.application.port.out.ChatRepository
 import com.ssafy.animal.chat.application.port.out.ImageRow
@@ -29,6 +30,7 @@ import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.common.exception.CommonErrorCode
 import com.ssafy.animal.common.exception.ErrorCode
 import org.springframework.test.util.ReflectionTestUtils
+import java.time.Instant
 import java.time.OffsetDateTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -348,6 +350,60 @@ class ChatServiceTest {
         assertEquals(1, service.getUnreadCount(alice).totalUnreadMessageCount)
     }
 
+    private fun shelterRoom(): Long = service.createRoom(alice, CreateRoomCommand(ParticipantType.SHELTER, null, 7)).chatRoomSeq
+
+    @Test
+    fun `14_9 신청 내역이 있으면 본명과 신청서를 KST 시각으로 준다`() {
+        val roomSeq = shelterRoom()
+        repo.realNames[20] = "김앨리스"
+        repo.applications[20 to 7] = listOf(
+            App(9, "개", "말티즈", "SUBMITTED", Instant.parse("2026-11-06T16:59:35Z")),
+            App(10, "고양이", "믹스묘", "APPROVED", Instant.parse("2026-11-03T16:59:35Z")),
+        )
+
+        val profile = service.getCounterpartProfile(shelterAccount, roomSeq)
+
+        assertEquals(20, profile.userSeq)
+        assertEquals("앨리스", profile.nickname)
+        assertEquals("김앨리스", profile.realName)
+        assertEquals("https://cdn/images/a.jpg", profile.profileImage?.imageUrl)
+        assertEquals(listOf(9L, 10L), profile.applications.map { it.applicationSeq })
+        assertEquals(OffsetDateTime.parse("2026-11-07T01:59:35+09:00"), profile.applications.first().submittedDttm)
+    }
+
+    @Test
+    fun `14_9 신청 내역이 없으면 본명은 null이고 빈 배열`() {
+        val roomSeq = shelterRoom()
+        repo.realNames[20] = "김앨리스"
+
+        val profile = service.getCounterpartProfile(shelterAccount, roomSeq)
+
+        assertNull(profile.realName)
+        assertTrue(profile.applications.isEmpty())
+    }
+
+    @Test
+    fun `14_9 탈퇴한 회원은 표시 이름만 바꾸고 신청 내역은 그대로`() {
+        val roomSeq = shelterRoom()
+        repo.user(20, "앨리스", deleted = true, profileImageSeq = 900)
+        repo.realNames[20] = "김앨리스"
+        repo.applications[20 to 7] = listOf(App(9, "개", "말티즈", "REJECTED", null))
+
+        val profile = service.getCounterpartProfile(shelterAccount, roomSeq)
+
+        assertEquals(ChatService.WITHDRAWN, profile.nickname)
+        assertNull(profile.realName)
+        assertNull(profile.profileImage)
+        assertEquals(1, profile.applications.size)
+    }
+
+    @Test
+    fun `14_9 USER는 403, 참여하지 않은 보호소는 404`() {
+        val roomSeq = shelterRoom()
+        assertCode(CommonErrorCode.AUTH_FORBIDDEN) { service.getCounterpartProfile(alice, roomSeq) }
+        assertCode(ChatErrorCode.CHAT_ROOM_NOT_FOUND) { service.getCounterpartProfile(AuthUser(2, Role.SHELTER, 8), roomSeq) }
+    }
+
     @Test
     fun `isParticipant는 SUBSCRIBE 인가에 쓴다`() {
         val roomSeq = userRoom()
@@ -375,6 +431,14 @@ data class Shelter(
 
 data class Image(override val imageSeq: Long, override val imageKey: String, override val regUsrSeq: Int?) : ImageRow
 
+data class App(
+    override val applicationSeq: Long,
+    override val speciesName: String,
+    override val breedName: String,
+    override val status: String,
+    override val submittedDttm: Instant?,
+) : ApplicationRow
+
 data class Summary(override val chatRoomSeq: Long, override val lastMessageSeq: Long, override val unreadCount: Long) : RoomSummaryRow
 
 /** 저장소 native 쿼리와 같은 규칙을 메모리에서 계산한다 */
@@ -386,6 +450,10 @@ class FakeChatRepository : ChatRepository {
     val shelters = mutableMapOf<Int, ShelterRow>()
     val images = mutableMapOf<Long, ImageRow>()
     val visiblePosts = mutableMapOf<SharedTargetType, MutableSet<Long>>()
+
+    /** (회원, 보호소) → native 쿼리가 거른 뒤의 결과(DRAFT·CANCELED 제외·최신순) */
+    val applications = mutableMapOf<Pair<Int, Int>, List<ApplicationRow>>()
+    val realNames = mutableMapOf<Int, String>()
     private var seq = 0L
 
     fun user(seq: Int, name: String, role: String = "USER", status: String = "ACTIVE", deleted: Boolean = false, profileImageSeq: Long? = null) {
@@ -449,4 +517,6 @@ class FakeChatRepository : ChatRepository {
     override fun findImages(imageSeqs: Collection<Long>) = imageSeqs.mapNotNull { images[it] }
     override fun findVisibleSharedPosts(type: SharedTargetType, seqs: Collection<Long>) =
         seqs.filter { it in visiblePosts[type].orEmpty() }.toSet()
+    override fun findShelterApplications(userSeq: Int, shelterSeq: Int) = applications[userSeq to shelterSeq].orEmpty()
+    override fun findUserRealName(userSeq: Int) = realNames[userSeq]
 }

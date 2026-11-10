@@ -7,7 +7,7 @@
 > **백엔드 스택 [확정]:** JDK 21, Spring Boot 4.1.2, Kotlin 2.3.21, JPA + QueryDSL, PostgreSQL 17, Redis 7.4, RabbitMQ(STOMP relay + 서비스 간 이벤트), AWS S3(presigned PUT), 네이버 지도 역지오코딩. OpenSearch는 도입하지 않습니다(S7). 서비스 4개: core-api(8080) / chat(8081) / notification(8082) / simulation(8083).
 
 **표기 규칙**
-- **[확정 정책]**: DB v20에서 확인되는 기능·권한·상태·제약, 또는 Q406~Q505·S1~S8 질의응답으로 확정한 사항. **[가안]**: 추천안을 채택했고 수치는 코드 설정값으로 둔 사항(플레이 테스트·운영 후 조정). **[초안]**: DTO 필드 이름·예시 값·세부 검증 등 구현 중 조정 가능한 제안. 확정 정책과 초안이 충돌하면 DB v20과 1장 공통 규약이 우선합니다. **v14에는 [미정] 항목이 없습니다.** 팀 논의 대기 항목(11장 발생장소·공고번호 등)은 20.3에 따로 모았습니다.
+- **[확정 정책]**: DB v20에서 확인되는 기능·권한·상태·제약, 또는 Q406~Q506·S1~S8 질의응답으로 확정한 사항. **[가안]**: 추천안을 채택했고 수치는 코드 설정값으로 둔 사항(플레이 테스트·운영 후 조정). **[초안]**: DTO 필드 이름·예시 값·세부 검증 등 구현 중 조정 가능한 제안. 확정 정책과 초안이 충돌하면 DB v20과 1장 공통 규약이 우선합니다. **v14에는 [미정] 항목이 없습니다.** 팀 논의 대기 항목(11장 발생장소·공고번호 등)은 20.3에 따로 모았습니다.
 - 표의 `/...` 경로는 **해당 장의 서비스 접두어**를 앞에 붙인 상대 경로입니다. core-api `/api/core/v1`(2~13·15·16장), chat `/api/chat/v1`(14장), notification `/api/notification/v1`(17장), simulation `/api/simulation/v1`(18장). **[비인증]** 표시 외에는 로그인 필수입니다.
 - 이 문서는 **클라이언트·보호소 업무 API**를 다룹니다. **ADMIN API는 이번 프로젝트 구현 범위 외**(Q410·Q411)이며 별도 장을 두지 않습니다. 내부 AI 워커 및 공공데이터 ETL 전용 API는 다루지 않습니다.
 
@@ -33,6 +33,7 @@
 | Q503 | **18.9 장바구니 일괄 구매(2026-11-10).** 앱의 장바구니에서 한 번에 사도록 18.9 요청을 `{ "items": [ { itemSeq, quantity } ] }`(1~50줄)로 바꾸고 단건 본문은 대체합니다. **전부 사거나 하나도 사지 않습니다**: 세션 잠금·지연 계산 뒤 모든 줄을 먼저 검증하고(앞 줄부터, 첫 오류 응답) 통과해야 쓰므로 한 줄이라도 오류면 잔액·보유·지출이 그대로입니다. 같은 `itemSeq` 두 줄은 400(합치지 않음), 줄 단위 400의 `field`는 `items[i].quantity` 형식. 지출 내역은 물품마다 1건씩 요청 순서대로(18.11 형식·리포트 집계 유지), 응답은 `purchases[]`(종전 단건 응답 형식, `balanceAfter`는 그 물품 직후 잔액) + `totalAmount` + 최종 `balanceAfter`. DB 변경 없음 | 18.9·21.5 |
 | Q504 | **18.22 세션 스탯 전용 조회 신설(2026-11-10).** `GET /simulations/{sessionSeq}/stats`가 `{ sessionSeq, status, stats }`만 돌려줍니다(메인 화면 게이지 갱신용, 18.4의 품종·기구·이벤트 조립 생략). 권한(본인만, 그 외 404)과 지연 계산·이벤트 만료·종료 판정 저장은 18.4와 같고, **끝난 세션도 200**으로 종료 시점 스탯과 상태를 줘 앱이 상태로 리포트에 갑니다. 경로는 다른 세션 API처럼 `{sessionSeq}` 기준(진행 중 세션 바로 찾기는 18.2). DB 변경 없음 | 18.22·22장 |
 | Q505 | **회원당 ACTIVE 실종 신고 1건 제한 폐지(2026-11-10).** 한 회원이 진행 중(ACTIVE) 실종 신고를 여러 건 둘 수 있습니다(여러 마리를 잃어버린 경우 등). 7.4 등록·7.6 재개에서 다른 ACTIVE 신고를 검사하지 않고, 오류 코드 `MISSING_ACTIVE_ALREADY_EXISTS`(409)를 **삭제**합니다. AI 매칭은 종전대로 신고마다 따로 요청합니다. 7.3 내 신고 목록은 계속 페이지 없는 배열. DB: `missing_reports`의 부분 UNIQUE `uq_missing_user_active`를 Flyway로 삭제(회원별 조회는 `ix_missing_user`가 유지). Q399 선행 확인(회원당 ACTIVE 최대 1건) 대체 | 1.2·7.3·7.4·7.6·19장·22장 |
+| Q506 | **14.9 채팅 상대 회원 정보 신설(2026-11-10, 보호소 웹 요청).** `GET /chats/rooms/{chatRoomSeq}/counterpart`(SHELTER 전용, USER는 403 `AUTH_FORBIDDEN`, 참여하지 않은 방은 404 `CHAT_ROOM_NOT_FOUND`)가 상대 회원의 `nickname`·`realName`·`profileImage`와 그 회원이 **내 보호소에 낸 입양 신청 목록**(`applicationSeq`·`speciesName`·`breedName`·`status`·`submittedDttm`, 12.9와 같이 DRAFT·CANCELED 제외, 제출일 최신순, 페이지 없는 배열)을 줍니다. **`realName`은 그 목록이 1건 이상일 때만** 주고 없으면 null(입양 신청으로 엮이지 않은 회원의 실명 비노출, Q470과 같은 업무 관계 기준). 탈퇴 회원은 `nickname` "(탈퇴한 사용자)", `realName`·`profileImage` null, 신청 내역은 유지. chat이 `adoption_applications`·`shelter_animals`·품종 테이블을 읽기 전용으로 JOIN(기존 권한). DB 변경 없음 | 14장·14.9·22장 |
 
 ## v13 변경 요약 (v12 → v13)
 
@@ -1749,6 +1750,7 @@ v8까지의 `GET /rescues/status-counts`는 **삭제**합니다. 목록 상단 �
 | 14.6 | PATCH | `/chats/rooms/{chatRoomSeq}/read` | 참여자 | 마지막 읽은 메시지 갱신 |
 | 14.7 | POST | `/chats/rooms/{chatRoomSeq}/leave` | 참여자 | 대화방 나가기/기존 기록 숨김 |
 | 14.8 | GET | `/chats/unread-count` | USER/SHELTER | 전체 미읽음 메시지 수(탭 배지, Q454) |
+| 14.9 | GET | `/chats/rooms/{chatRoomSeq}/counterpart` | 참여 SHELTER | 상대 회원 정보 + 내 보호소에 낸 입양 신청(보호소 웹 정보 카드, Q506) |
 
 ### 14.1 GET /chats/rooms
 
@@ -1846,6 +1848,29 @@ v8까지의 `GET /rescues/status-counts`는 **삭제**합니다. 목록 상단 �
 **성공 200 `data` [초안]** `{ "totalUnreadMessageCount": 123 }`.
 
 - **[확정 정책] (Q454)** 내 모든 방의 미읽음 메시지 합계(방별 `unreadCount`를 더한 값과 같음, 14.1과 같은 정의로 조회 시 계산). 채팅 목록의 "안 읽음 123" 탭 배지와, 이후 하단 탭바 배지용입니다. 화면 진입·재연결·포그라운드 복귀 시 14.1 첫 페이지와 함께 조회하고, 그 사이는 `room-updates`의 `totalUnreadMessageCount`로 갱신합니다.
+
+### 14.9 GET /chats/rooms/{id}/counterpart
+
+보호소 웹 채팅창에서 상대의 사진·닉네임을 누르면 여는 정보 카드용입니다(Q506).
+
+**성공 200 `data` [초안]**
+```json
+{
+  "userSeq": 1,
+  "nickname": "justin",
+  "realName": "신지환",
+  "profileImage": { "imageSeq": 19, "imageUrl": "https://...", "displayOrder": 1 },
+  "applications": [
+    { "applicationSeq": 9, "speciesName": "개", "breedName": "말티즈", "status": "SUBMITTED", "submittedDttm": "2026-11-07T01:59:35+09:00" },
+    { "applicationSeq": 10, "speciesName": "고양이", "breedName": "믹스묘", "status": "APPROVED", "submittedDttm": "2026-11-04T01:59:35+09:00" }
+  ]
+}
+```
+- **[확정 정책] 권한(Q506):** SHELTER만 호출합니다(USER는 403 `AUTH_FORBIDDEN`). 토큰 `shelterSeq`가 참여한 방이어야 하며, 없는 방이거나 참여하지 않은 방은 404 `CHAT_ROOM_NOT_FOUND`(Q434). 보호소가 참여한 방은 SHELTER 방이므로 상대는 항상 회원입니다.
+- **[확정 정책] 입양 신청(Q506):** 이 회원이 **토큰 `shelterSeq` 보호소에** 낸 신청만, 12.9와 같이 **DRAFT·CANCELED·삭제 제외**, 제출일(`submittedDttm`) 최신순, 페이지 없는 배열. 없으면 `[]`(200). `status`는 `SUBMITTED/APPROVED/ADOPTED/REJECTED`이며 화면 라벨은 12.9와 같습니다(심사 대기·서류 승인·최종 승인·거절). 축종·품종 표시 형식(예: "[개] 말티즈")은 웹이 정합니다. 상세는 `applicationSeq`로 12.3.
+- **[확정 정책] 본명(Q506):** `realName`은 회원 계정의 `users.name`이며 **`applications`가 1건 이상일 때만** 줍니다. 신청 없이 채팅만 한 회원은 null(실명은 입양 신청 같은 업무 관계가 있을 때만 보호소에 보임, Q470과 같은 기준).
+- **탈퇴한 회원:** 14.3과 같이 `nickname` "(탈퇴한 사용자)", `realName`·`profileImage` null. 신청 내역은 남은 대로 줍니다.
+- **오류 [초안]** 403 `AUTH_FORBIDDEN`(SHELTER 아님), 404 `CHAT_ROOM_NOT_FOUND`.
 
 ---
 
@@ -2655,6 +2680,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | Q503 18.9 장바구니 구매 (2026-11-10) | 요청 `items[]`(1~50줄, 같은 물품 중복 400), 전부 또는 없음(모든 줄 검증 후 쓰기), 지출은 물품마다 1건씩 요청 순서, 응답 `purchases[]`·`totalAmount`·`balanceAfter`. DB 변경 없음 | 18.9·21.5 |
 | Q504 18.22 스탯 전용 조회 (2026-11-10) | `GET /simulations/{sessionSeq}/stats` → `{ sessionSeq, status, stats }`. 본인만(그 외 404), 18.4와 같은 지연 계산·종료 판정 저장, 끝난 세션도 200(종료 시점 스탯). DB 변경 없음 | 18.22·22장 |
 | Q505 회원당 ACTIVE 실종 신고 제한 폐지 (2026-11-10) | 7.4 등록·7.6 재개에서 다른 ACTIVE 신고 검사 삭제, `MISSING_ACTIVE_ALREADY_EXISTS` 삭제. DB `uq_missing_user_active` 삭제(`V20261110_1700`). Q399 선행 확인 대체 | 7.4·7.6·19장 |
+| Q506 14.9 채팅 상대 회원 정보 (2026-11-10) | SHELTER 전용, 상대 회원 `nickname`·`realName`·`profileImage` + 내 보호소 입양 신청(12.9 규칙: DRAFT·CANCELED 제외, 제출일 최신순, 페이지 없음). `realName`은 신청 1건 이상일 때만. USER 403, 비참여 404. chat 읽기 전용 JOIN, DB 변경 없음 | 14.9·22장 |
 
 ### 20.2 미결 안건
 
@@ -2771,7 +2797,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `shelter_animals`, `shelter_animal_images` | core / core-api | 11·12·18 | 최초 PROTECTING(입양 가능 여부·공고기간은 등록 시 선택, Q479), 이름 없음. `weight`(Q458 신설, Q469로 자유 텍스트)·`registration_number`(Q458)·`adoption_reason`·`adoption_memo`(Q479). 상태·공고기간은 11.6 관리 API, 어느 상태에서든 전환. 모의 입양과 연결 없음(Q482, simulation이 읽지 않음) |
 | `animal_returns` | core / core-api | 11 | 반환 시점=`reg_dttm`(재지정 시 `mod_dttm`), 보호동물당 1건·덮어쓰기(Q479), 소유권 검증 아님 |
 | `adoption_form_questions` | core / core-api(시드만) | 12 | 현재 20문항(`question_seq` 1~20 고정, `DATE` 유형), 문항 이력/버전 없음, 관리 API 없음 |
-| `adoption_applications` | core / core-api | 12 | JSONB questionSeq 키 + 고정 필드 4개(Q458), 6상태, 별도 프로세스 없음. DRAFT·CANCELED는 보호소 비노출(Q422·Q460). 수료증 컬럼 삭제(Q462). 12.15 리포트 파생 조회(신청서 `user_seq` 기준, Q483) |
+| `adoption_applications` | core / core-api | 12 | JSONB questionSeq 키 + 고정 필드 4개(Q458), 6상태, 별도 프로세스 없음. DRAFT·CANCELED는 보호소 비노출(Q422·Q460). 수료증 컬럼 삭제(Q462). 12.15 리포트 파생 조회(신청서 `user_seq` 기준, Q483). chat 14.9가 보호소별 신청 목록을 읽기 전용 조회(Q506) |
 | `chat_rooms`, `chat_participants`, `chat_messages` | core / **chat** | 14 | 마지막 읽음/나가기 포인터, 직접 imageSeq, 미읽음 조회 시 계산·참여자 인덱스(Q454). STOMP SUBSCRIBE·SEND 인가 근거, 메시지 쓰기는 SEND 핸들러만(R16 B) |
 | `missing_report_comments`, `found_report_comments` | core / core-api | 13·15 | 각각 imageSeq 직접 FK, 삭제 루트의 답글 유지. `shelter_animal_comments`는 Q477로 삭제 |
 | `reports` | core / core-api | 15 | 대상 5종·`reason_code` 대상별 조합(Q449·Q477), PENDING만, 신고 심사 없음, 열람 주체·조회 API 없음(Q428) |

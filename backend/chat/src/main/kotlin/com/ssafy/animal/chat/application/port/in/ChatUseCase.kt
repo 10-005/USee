@@ -39,7 +39,43 @@ interface ChatUseCase {
 
     /** 14.8 */
     fun getUnreadCount(actor: AuthUser): UnreadCount
+
+    /** 14.9 보호소 전용. 상대 회원 정보 + 이 보호소에 낸 입양 신청 */
+    fun getCounterpartProfile(actor: AuthUser, chatRoomSeq: Long): CounterpartProfile
 }
+
+data class CounterpartProfile(
+    @field:Schema(description = "상대 회원 번호", example = "1")
+    val userSeq: Long,
+    @field:Schema(description = "회원 닉네임. 탈퇴한 회원은 \"(탈퇴한 사용자)\"", example = "justin")
+    val nickname: String,
+    @field:Schema(
+        description = "회원 계정의 본명. 이 보호소에 낸 입양 신청(applications)이 1건 이상일 때만 주고, 없거나 탈퇴했거나 본명이 없으면 null",
+        nullable = true,
+        example = "신지환",
+    )
+    val realName: String?,
+    @field:Schema(description = "프로필 이미지. 없거나 탈퇴한 회원이면 null(기본 아바타)", nullable = true)
+    val profileImage: ImageRef?,
+    @field:Schema(description = "이 회원이 로그인한 보호소에 낸 입양 신청. 제출일 최신순, 없으면 빈 배열")
+    val applications: List<CounterpartApplication>,
+)
+
+data class CounterpartApplication(
+    @field:Schema(description = "신청서 번호. 상세는 GET /api/core/v1/adoption-applications/{applicationSeq}", example = "9")
+    val applicationSeq: Long,
+    @field:Schema(description = "축종 이름", example = "개")
+    val speciesName: String,
+    @field:Schema(description = "품종 이름", example = "말티즈")
+    val breedName: String,
+    @field:Schema(
+        description = "신청 상태. SUBMITTED=심사 대기, APPROVED=서류 승인, ADOPTED=최종 승인, REJECTED=거절(DRAFT·CANCELED는 나오지 않음)",
+        example = "SUBMITTED",
+    )
+    val status: String,
+    @field:Schema(description = "제출 시각", nullable = true, example = "2026-11-07T01:59:35+09:00")
+    val submittedDttm: OffsetDateTime?,
+)
 
 data class CreateRoomCommand(
     val targetType: ParticipantType,
