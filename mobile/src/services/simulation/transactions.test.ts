@@ -56,7 +56,7 @@ beforeEach(() => {
   clearSimulationTransactions();
 });
 
-test('loads the first page once after a purchase and keeps it on the next visit', async () => {
+test('saves the first visit and reads it again without another request', async () => {
   const get = jest
     .fn()
     .mockResolvedValueOnce(page([event, purchase], 0, true, 3))
@@ -75,10 +75,6 @@ test('loads the first page once after a purchase and keeps it on the next visit'
       ),
     );
 
-  await expect(loadTransactionsOnEntry(3001, { get })).resolves.toBeNull();
-  expect(get).not.toHaveBeenCalled();
-
-  invalidateSimulationTransactions(3001);
   await expect(loadTransactionsOnEntry(3001, { get })).resolves.toMatchObject({
     page: 0,
     hasNext: true,
@@ -90,7 +86,10 @@ test('loads the first page once after a purchase and keeps it on the next visit'
     params: { page: 0, size: 20, sort: 'regDttm,desc' },
   });
 
-  await expect(loadTransactionsOnEntry(3001, { get })).resolves.toMatchObject({ page: 0 });
+  await expect(loadTransactionsOnEntry(3001, { get })).resolves.toMatchObject({
+    page: 0,
+    items: [event, purchase],
+  });
   expect(get).toHaveBeenCalledTimes(1);
 
   await expect(loadMoreSimulationTransactions(3001, { get })).resolves.toMatchObject({
@@ -101,15 +100,19 @@ test('loads the first page once after a purchase and keeps it on the next visit'
   expect(get).toHaveBeenLastCalledWith('/simulations/3001/transactions', {
     params: { page: 1, size: 20, sort: 'regDttm,desc' },
   });
+  await expect(loadTransactionsOnEntry(3001, { get })).resolves.toMatchObject({
+    page: 1,
+    items: [event, purchase, expect.objectContaining({ transactionSeq: 70000 })],
+  });
+  expect(get).toHaveBeenCalledTimes(2);
 });
 
-test('a later purchase replaces the cached page on the next visit', async () => {
+test('refetches after a purchase or hospital payment and keeps the new list', async () => {
   const get = jest
     .fn()
     .mockResolvedValueOnce(page([purchase], 0, false, 1))
     .mockResolvedValueOnce(page([event, purchase], 0, false, 2));
 
-  invalidateSimulationTransactions(3001);
   await loadTransactionsOnEntry(3001, { get });
   invalidateSimulationTransactions(3001);
   await expect(loadTransactionsOnEntry(3001, { get })).resolves.toMatchObject({
@@ -117,22 +120,42 @@ test('a later purchase replaces the cached page on the next visit', async () => 
     items: [event, purchase],
   });
   expect(get).toHaveBeenCalledTimes(2);
+  await expect(loadTransactionsOnEntry(3001, { get })).resolves.toMatchObject({
+    items: [event, purchase],
+  });
+  expect(get).toHaveBeenCalledTimes(2);
 });
 
-test('does not keep another session cache when spending starts', async () => {
+test('keeps a saved session when another session is refreshed', async () => {
   const get = jest.fn().mockResolvedValue(page([purchase], 0, false, 1));
-  invalidateSimulationTransactions(3001);
   await loadTransactionsOnEntry(3001, { get });
   invalidateSimulationTransactions(3002);
-  await expect(loadTransactionsOnEntry(3001, { get })).resolves.toBeNull();
+  await expect(loadTransactionsOnEntry(3001, { get })).resolves.toMatchObject({
+    items: [purchase],
+  });
+  expect(get).toHaveBeenCalledTimes(1);
   await expect(loadTransactionsOnEntry(3002, { get })).resolves.toMatchObject({
     items: [purchase],
   });
+  expect(get).toHaveBeenCalledTimes(2);
+});
+
+test('does not store a failed lookup', async () => {
+  const get = jest
+    .fn()
+    .mockRejectedValueOnce(new ApiClientError({ code: 'SIMULATION_NOT_FOUND', message: '없음' }))
+    .mockResolvedValueOnce(page([purchase], 0, false, 1));
+  await expect(loadTransactionsOnEntry(3001, { get })).rejects.toMatchObject({
+    code: 'SIMULATION_NOT_FOUND',
+  });
+  await expect(loadTransactionsOnEntry(3001, { get })).resolves.toMatchObject({
+    items: [purchase],
+  });
+  expect(get).toHaveBeenCalledTimes(2);
 });
 
 test('rejects a page whose transactions repeat', async () => {
   const get = jest.fn().mockResolvedValue(page([purchase, purchase], 0, false, 2));
-  invalidateSimulationTransactions(3001);
   await expect(loadTransactionsOnEntry(3001, { get })).rejects.toMatchObject({
     code: 'UNKNOWN_ERROR',
   });
@@ -140,7 +163,6 @@ test('rejects a page whose transactions repeat', async () => {
 
 test('keeps a negative balance after an event charge', async () => {
   const get = jest.fn().mockResolvedValue(page([{ ...event, balanceAfter: -5000 }], 0, false, 1));
-  invalidateSimulationTransactions(3001);
   await expect(loadTransactionsOnEntry(3001, { get })).resolves.toMatchObject({
     items: [expect.objectContaining({ balanceAfter: -5000 })],
   });

@@ -3,6 +3,12 @@ import type { AxiosInstance } from 'axios';
 import { simulationClient } from '../api/client';
 import { ApiClientError } from '../api/errors';
 import { readApiData } from '../api/response';
+import {
+  clearSimulationTransactionRows,
+  markSimulationTransactionRowStale,
+  readSimulationTransactionRow,
+  writeSimulationTransactionRow,
+} from '../shop/shopDatabase';
 import type { ShopItemCategory } from './shopItems';
 
 export type SimulationTransactionType = 'PURCHASE' | 'EVENT';
@@ -61,10 +67,8 @@ const TRANSACTION_FAILURE = '지출 내역을 불러오지 못했어요. 다시 
 
 type SimulationClient = Pick<AxiosInstance, 'get'>;
 type TransactionQuery = { page: number };
-
-type TransactionCache = SimulationTransactionList & {
-  sessionSeq: number | null;
-  loaded: boolean;
+type StoredTransactions = {
+  list: SimulationTransactionList;
   stale: boolean;
 };
 
@@ -74,13 +78,6 @@ const emptyList = (): SimulationTransactionList => ({
   hasNext: false,
   totalElements: 0,
 });
-
-let cache: TransactionCache = {
-  ...emptyList(),
-  sessionSeq: null,
-  loaded: false,
-  stale: false,
-};
 
 function isPositiveId(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value > 0;
@@ -182,41 +179,76 @@ export function readSimulationTransactionPage(
   };
 }
 
-function toList(state: TransactionCache): SimulationTransactionList {
-  return {
-    items: state.items,
-    page: state.page,
-    hasNext: state.hasNext,
-    totalElements: state.totalElements,
-  };
+function parseStoredList(payload: string): SimulationTransactionList | null {
+  try {
+    const value = JSON.parse(payload) as Partial<SimulationTransactionList>;
+    if (
+      !Array.isArray(value.items) ||
+      typeof value.page !== 'number' ||
+      !Number.isInteger(value.page) ||
+      value.page < 0 ||
+      typeof value.hasNext !== 'boolean' ||
+      typeof value.totalElements !== 'number' ||
+      !Number.isInteger(value.totalElements) ||
+      value.totalElements < 0
+    ) {
+      return null;
+    }
+    const items = value.items.map(item => readTransaction(item));
+    if (new Set(items.map(item => item.transactionSeq)).size !== items.length) {
+      return null;
+    }
+    return {
+      items,
+      page: value.page,
+      hasNext: value.hasNext,
+      totalElements: value.totalElements,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readStoredTransactions(sessionSeq: number): StoredTransactions | null {
+  const row = readSimulationTransactionRow(sessionSeq);
+  if (!row) {
+    return null;
+  }
+  const list = parseStoredList(row.payload);
+  if (!list) {
+    return null;
+  }
+  return { list, stale: row.stale };
+}
+
+function writeStoredTransactions(sessionSeq: number, list: SimulationTransactionList): void {
+  writeSimulationTransactionRow(sessionSeq, JSON.stringify(list), false);
 }
 
 export function clearSimulationTransactions(): void {
-  cache = { ...emptyList(), sessionSeq: null, loaded: false, stale: false };
+  clearSimulationTransactionRows();
 }
 
 export function invalidateSimulationTransactions(sessionSeq: number): void {
   if (!isPositiveId(sessionSeq)) {
     return;
   }
-  if (cache.sessionSeq !== sessionSeq) {
-    cache = { ...emptyList(), sessionSeq, loaded: false, stale: true };
-    return;
-  }
-  cache = { ...cache, stale: true };
+  markSimulationTransactionRowStale(sessionSeq);
 }
 
 export function isSimulationTransactionsStale(sessionSeq: number): boolean {
-  return cache.stale && cache.sessionSeq === sessionSeq;
+  const stored = readStoredTransactions(sessionSeq);
+  return !stored || stored.stale;
 }
 
 export function readSimulationTransactionCache(
   sessionSeq: number,
 ): SimulationTransactionList | null {
-  if (cache.sessionSeq !== sessionSeq || !cache.loaded) {
+  const stored = readStoredTransactions(sessionSeq);
+  if (!stored || stored.stale) {
     return null;
   }
-  return toList(cache);
+  return stored.list;
 }
 
 export function getTransactionErrorMessage(error: unknown): string {
@@ -245,7 +277,7 @@ async function refreshSimulationTransactions(
   client: SimulationClient,
 ): Promise<SimulationTransactionList> {
   const first = await getSimulationTransactions(sessionSeq, { page: 0 }, client);
-  cache = { ...first, sessionSeq, loaded: true, stale: false };
+  writeStoredTransactions(sessionSeq, first);
   return first;
 }
 
@@ -253,8 +285,12 @@ export async function loadTransactionsOnEntry(
   sessionSeq: number,
   client: SimulationClient = simulationClient,
 ): Promise<SimulationTransactionList | null> {
-  if (!isSimulationTransactionsStale(sessionSeq)) {
-    return readSimulationTransactionCache(sessionSeq);
+  const stored = readStoredTransactions(sessionSeq);
+  if (stored && !stored.stale) {
+    return stored.list;
+  }
+  if (!isPositiveId(sessionSeq)) {
+    return null;
   }
   return refreshSimulationTransactions(sessionSeq, client);
 }
@@ -263,20 +299,18 @@ export async function loadMoreSimulationTransactions(
   sessionSeq: number,
   client: SimulationClient = simulationClient,
 ): Promise<SimulationTransactionList> {
-  if (cache.sessionSeq !== sessionSeq || !cache.loaded || cache.stale || !cache.hasNext) {
-    return readSimulationTransactionCache(sessionSeq) ?? emptyList();
+  const stored = readStoredTransactions(sessionSeq);
+  if (!stored || stored.stale || !stored.list.hasNext) {
+    return stored?.list ?? emptyList();
   }
-  const next = await getSimulationTransactions(sessionSeq, { page: cache.page + 1 }, client);
-  const seen = new Set(cache.items.map(item => item.transactionSeq));
-  const items = [...cache.items, ...next.items.filter(item => !seen.has(item.transactionSeq))];
-  cache = {
-    items,
+  const next = await getSimulationTransactions(sessionSeq, { page: stored.list.page + 1 }, client);
+  const seen = new Set(stored.list.items.map(item => item.transactionSeq));
+  const list = {
+    items: [...stored.list.items, ...next.items.filter(item => !seen.has(item.transactionSeq))],
     page: next.page,
     hasNext: next.hasNext,
     totalElements: next.totalElements,
-    sessionSeq,
-    loaded: true,
-    stale: false,
   };
-  return toList(cache);
+  writeStoredTransactions(sessionSeq, list);
+  return list;
 }

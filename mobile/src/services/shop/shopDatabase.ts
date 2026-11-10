@@ -171,6 +171,7 @@ export function getShopDatabase(): DB {
     db.executeSync(`CREATE TABLE IF NOT EXISTS shop_expenses (
       session_id TEXT PRIMARY KEY REFERENCES shop_sessions(id) ON DELETE CASCADE,
       entries TEXT NOT NULL)`);
+    ensureSimulationTransactionTable(db);
     database = db;
     return db;
   } catch (error) {
@@ -349,6 +350,55 @@ function readExpenses(value: unknown): ShopExpense[] {
   } catch {
     return [];
   }
+}
+
+function ensureSimulationTransactionTable(db: DB): void {
+  db.executeSync(`CREATE TABLE IF NOT EXISTS simulation_transactions (
+    session_seq INTEGER PRIMARY KEY,
+    payload TEXT NOT NULL,
+    stale INTEGER NOT NULL CHECK(stale IN (0, 1)))`);
+}
+
+export function readSimulationTransactionRow(
+  sessionSeq: number,
+): { payload: string; stale: boolean } | null {
+  const row = ensureSimulationTransactionDb().executeSync(
+    'SELECT payload, stale FROM simulation_transactions WHERE session_seq = ?',
+    [sessionSeq],
+  ).rows[0];
+  if (!row || typeof row.payload !== 'string') {
+    return null;
+  }
+  return { payload: row.payload, stale: Number(row.stale) === 1 };
+}
+
+export function writeSimulationTransactionRow(
+  sessionSeq: number,
+  payload: string,
+  stale: boolean,
+): void {
+  ensureSimulationTransactionDb().executeSync(
+    `INSERT INTO simulation_transactions VALUES (?, ?, ?)
+    ON CONFLICT(session_seq) DO UPDATE SET payload=excluded.payload, stale=excluded.stale`,
+    [sessionSeq, payload, stale ? 1 : 0],
+  );
+}
+
+export function markSimulationTransactionRowStale(sessionSeq: number): void {
+  ensureSimulationTransactionDb().executeSync(
+    'UPDATE simulation_transactions SET stale = 1 WHERE session_seq = ?',
+    [sessionSeq],
+  );
+}
+
+export function clearSimulationTransactionRows(): void {
+  ensureSimulationTransactionDb().executeSync('DELETE FROM simulation_transactions');
+}
+
+function ensureSimulationTransactionDb(): DB {
+  const db = getShopDatabase();
+  ensureSimulationTransactionTable(db);
+  return db;
 }
 
 // Commit budget, basket, selection and inventory together before updating the UI.
