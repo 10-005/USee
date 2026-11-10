@@ -3,8 +3,8 @@
 -- 사진: S3 images/seed/dev/{shelter-1-*.png, animal-NN.jpg, found-NN.jpg}(2026-11-10 업로드)
 -- 보호소 운영 시간은 국가동물보호정보시스템 보호센터 안내 기준. 상주·성주 전화는 공개 정보가 없어 그대로 둔다
 
--- 품종·색 이름으로 조합을 찾는다. 카탈로그에 없으면 실패시켜 잘못된 품종이 들어가지 않게 한다
-CREATE FUNCTION pg_temp.seed_combo(p_breed TEXT, p_color TEXT) RETURNS INTEGER LANGUAGE plpgsql AS $f$
+-- 시드 전용 함수(끝에서 지움). 품종·색 이름으로 조합을 찾는다. 카탈로그에 없으면 실패시켜 잘못된 품종이 들어가지 않게 한다
+CREATE FUNCTION dev_seed_combo(p_breed TEXT, p_color TEXT) RETURNS INTEGER LANGUAGE plpgsql AS $f$
 DECLARE v INTEGER;
 BEGIN
     SELECT c.combination_seq INTO v
@@ -21,7 +21,7 @@ END
 $f$;
 
 -- 같은 키가 이미 있으면 그 행을 쓴다
-CREATE FUNCTION pg_temp.seed_image(p_key TEXT, p_mime TEXT, p_usr INTEGER) RETURNS BIGINT LANGUAGE plpgsql AS $f$
+CREATE FUNCTION dev_seed_image(p_key TEXT, p_mime TEXT, p_usr INTEGER) RETURNS BIGINT LANGUAGE plpgsql AS $f$
 DECLARE v BIGINT;
 BEGIN
     SELECT image_seq INTO v FROM images WHERE image_key = p_key;
@@ -33,7 +33,7 @@ END
 $f$;
 
 -- 입양 신청 답변(문항 1~20, V20261109_0004). 조건부 문항(5·7·18~20)은 앞 문항에 맞을 때만 넣는다
-CREATE FUNCTION pg_temp.seed_answers(p INTEGER) RETURNS JSONB LANGUAGE sql AS $f$
+CREATE FUNCTION dev_seed_answers(p INTEGER) RETURNS JSONB LANGUAGE sql AS $f$
     SELECT CASE p
     WHEN 1 THEN '{"1": "아파트", "2": "자가", "3": "허용", "4": "있음", "5": "모두 동의", "6": "없음", "8": "있음",
         "9": "4~8시간", "10": "본인과 배우자", "11": "없음", "12": "장기 출장 시 근처에 사는 부모님이 돌봐 주시기로 했습니다.",
@@ -132,14 +132,11 @@ BEGIN
     END LOOP;
 
     v_member := (SELECT user_seq FROM shelter_members WHERE shelter_seq = 1);
-    UPDATE shelters SET profile_image_seq    = pg_temp.seed_image('images/seed/dev/shelter-1-profile.png', 'image/png', v_member),
-                        background_image_seq = pg_temp.seed_image('images/seed/dev/shelter-1-bg.png', 'image/png', v_member)
+    UPDATE shelters SET profile_image_seq    = dev_seed_image('images/seed/dev/shelter-1-profile.png', 'image/png', v_member),
+                        background_image_seq = dev_seed_image('images/seed/dev/shelter-1-bg.png', 'image/png', v_member)
     WHERE shelter_seq = 1;
 
-    -- 보호소 계정: 담당자 이름·전화(보호소 번호). 닉네임은 보호소 이름
-    UPDATE users u SET name = s.shelter_name || ' 담당자', nickname = s.shelter_name, phone = s.phone
-    FROM shelter_members m JOIN shelters s ON s.shelter_seq = m.shelter_seq
-    WHERE u.user_seq = m.user_seq AND u.role = 'SHELTER';
+    -- 보호소 계정(users)의 이름·닉네임·전화는 비워 둔다. 명세상 SHELTER는 보호소명·보호소 프로필 사진으로 표시된다
 
     -- ===== 2. 보호동물 =====
     -- n 1~16: 기존 행(보호소 + 앞선 시드 문구로 찾음), 17~30: 새 행. 사진은 animal-NN.jpg
@@ -242,7 +239,7 @@ BEGIN
         v_id := NULL;
         IF r.old_desc IS NOT NULL THEN
             UPDATE shelter_animals
-            SET combination_seq = pg_temp.seed_combo(r.breed, r.color), gender = r.gender, age = r.age, weight = r.weight,
+            SET combination_seq = dev_seed_combo(r.breed, r.color), gender = r.gender, age = r.age, weight = r.weight,
                 is_neutered = r.neutered, description = r.descr, health_check = r.health, vaccination_status = r.vaccine,
                 microchip_number = '410100000' || lpad(r.n::text, 6, '0'),
                 registration_number = '410190000' || lpad(r.n::text, 6, '0'), adoption_memo = r.memo
@@ -254,7 +251,7 @@ BEGIN
                                          health_check, vaccination_status, microchip_number, registration_number,
                                          notice_start_date, notice_end_date, protection_status, adoption_status,
                                          end_reason, protection_ended_dttm, adoption_memo, reg_usr_seq, reg_dttm)
-            VALUES (r.shelter, pg_temp.seed_combo(r.breed, r.color), r.gender, r.age, r.neutered, r.weight, r.descr,
+            VALUES (r.shelter, dev_seed_combo(r.breed, r.color), r.gender, r.age, r.neutered, r.weight, r.descr,
                     r.health, r.vaccine, '410100000' || lpad(r.n::text, 6, '0'), '410190000' || lpad(r.n::text, 6, '0'),
                     (now() - make_interval(days => r.days_ago))::date, (now() - make_interval(days => r.days_ago))::date + 10,
                     r.pstatus, r.astatus, r.end_reason,
@@ -265,7 +262,7 @@ BEGIN
 
         v_animals := v_animals || v_id;   -- v_animals[n]. 못 찾은 기존 행은 NULL
         CONTINUE WHEN v_id IS NULL OR EXISTS (SELECT 1 FROM shelter_animal_images WHERE animal_seq = v_id);
-        v_img := pg_temp.seed_image('images/seed/dev/animal-' || lpad(r.n::text, 2, '0') || '.jpg', 'image/jpeg', v_member);
+        v_img := dev_seed_image('images/seed/dev/animal-' || lpad(r.n::text, 2, '0') || '.jpg', 'image/jpeg', v_member);
         INSERT INTO shelter_animal_images (animal_seq, image_seq, display_order) VALUES (v_id, v_img, 1);
     END LOOP;
 
@@ -327,7 +324,7 @@ BEGIN
         (5, 114, 'REJECTED', 3), (6, 110, 'CANCELED', 2), (7, 111, 'ADOPTED', 11), (8, 112, 'REJECTED', 11)
     ) AS t(k, usr, status, animal_n)
     LOOP
-        UPDATE adoption_applications SET answers_jsonb = pg_temp.seed_answers(r.k)
+        UPDATE adoption_applications SET answers_jsonb = dev_seed_answers(r.k)
         WHERE user_seq = r.usr AND status = r.status AND animal_seq = v_animals[r.animal_n];
     END LOOP;
 
@@ -346,7 +343,7 @@ BEGIN
         INSERT INTO adoption_applications (user_seq, animal_seq, shelter_seq, answers_jsonb, care_address, care_address_detail,
                                            email, visit_hope_date, applicant_name, applicant_birth_date, applicant_phone,
                                            status, submitted_dttm, reviewed_dttm, reviewed_usr_seq, rejection_reason, reg_dttm)
-        SELECT r.usr, a.animal_seq, a.shelter_seq, pg_temp.seed_answers(r.k),
+        SELECT r.usr, a.animal_seq, a.shelter_seq, dev_seed_answers(r.k),
                '경상북도 ' || CASE a.shelter_seq WHEN 3 THEN '칠곡군 왜관읍 중앙로 ' WHEN 4 THEN '상주시 무양동 ' ELSE '성주군 성주읍 경산리 ' END
                    || (200 + r.k),
                (r.k % 5 + 1) || '0' || r.k || '호', 'dummy' || r.usr || '@example.com',
@@ -385,7 +382,7 @@ BEGIN
     ) AS t(n, old_desc, breed, color, gender, age, weight, neutered, new_desc, chip, landmark)
     LOOP
         UPDATE found_reports
-        SET combination_seq = pg_temp.seed_combo(r.breed, r.color), gender = r.gender, age = r.age, weight = r.weight,
+        SET combination_seq = dev_seed_combo(r.breed, r.color), gender = r.gender, age = r.age, weight = r.weight,
             is_neutered = r.neutered, description = coalesce(r.new_desc, description), microchip_number = r.chip,
             landmark_description = coalesce(landmark_description, r.landmark, '신고 위치 주변')
         WHERE found_report_seq = (SELECT found_report_seq FROM found_reports WHERE description = r.old_desc
@@ -393,9 +390,14 @@ BEGIN
         RETURNING found_report_seq INTO v_id;
 
         CONTINUE WHEN v_id IS NULL OR EXISTS (SELECT 1 FROM found_report_images WHERE found_report_seq = v_id);
-        v_img := pg_temp.seed_image('images/seed/dev/found-' || lpad(r.n::text, 2, '0') || '.jpg', 'image/jpeg',
+        v_img := dev_seed_image('images/seed/dev/found-' || lpad(r.n::text, 2, '0') || '.jpg', 'image/jpeg',
                                     (SELECT user_seq FROM found_reports WHERE found_report_seq = v_id));
         INSERT INTO found_report_images (found_report_seq, image_seq, display_order) VALUES (v_id, v_img, 1);
     END LOOP;
 END
 $dev$;
+
+-- 시드 전용 함수는 남기지 않는다(core_app에 TEMP 권한이 없어 pg_temp 대신 core에 잠시 만든다)
+DROP FUNCTION dev_seed_combo(TEXT, TEXT);
+DROP FUNCTION dev_seed_image(TEXT, TEXT, INTEGER);
+DROP FUNCTION dev_seed_answers(INTEGER);
