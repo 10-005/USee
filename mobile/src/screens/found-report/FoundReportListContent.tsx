@@ -61,15 +61,10 @@ const filterItems: Array<{ key: FilterKey; label: string }> = [
   { key: 'sort', label: '최신순' },
 ];
 
-const formatDate = (date: Date) =>
-  `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(
-    date.getDate(),
-  ).padStart(2, '0')}`;
-
 const initialFilters: AdoptionFilters = {
   gender: '전체',
   neutered: '전체',
-  period: `전체|${formatDate(new Date())}`,
+  period: '전체',
   region: '전체',
   sort: '최신순',
   species: '전체',
