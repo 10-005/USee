@@ -17,7 +17,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCameraPermission } from 'react-native-vision-camera';
 import { useShopStore } from '../../stores/shopStore';
 import { AppDialog } from '../../components/common/AppDialog';
-import { findProduct, money } from '../../services/shop/catalog';
+import { availableProducts, findProduct, money } from '../../services/shop/catalog';
+import { ApiClientError } from '../../services/api';
+import {
+  getPurchaseErrorMessage,
+  purchaseSimulationItems,
+} from '../../services/simulation/purchase';
 import {
   getSimulationWalkEndErrorMessage,
   getSimulationWalkStartErrorMessage,
@@ -52,6 +57,13 @@ const STARTUP_ERRORS: Partial<Record<FloorTrackingStatus, string>> = {
 
 const waterBowl = require('../../assets/images/mock-adoption/img_full_water_bowl.png');
 const dogTreat = require('../../assets/images/mock-adoption/img_dog_treats.png');
+
+function walkBagProduct() {
+  return (
+    availableProducts('dog').find(product => product.serverCategory === 'POOP_BAG') ??
+    findProduct('bags')
+  );
+}
 
 function WalkTreat({ onThrow }: { onThrow: (dx: number, dy: number) => void }) {
   const offset = useRef(new Animated.ValueXY()).current;
@@ -100,7 +112,7 @@ export function ArWalkScreen({
   const [bagPurchaseVisible, setBagPurchaseVisible] = useState(false);
   const [bagPurchaseError, setBagPurchaseError] = useState('');
   const purchasingBags = useRef(false);
-  const bagProduct = findProduct('bags');
+  const bagProduct = walkBagProduct();
   const openBagPurchase = () => {
     purchasingBags.current = false;
     setBagPurchaseError('');
@@ -111,13 +123,60 @@ export function ArWalkScreen({
       return;
     }
     purchasingBags.current = true;
-    const error = useShopStore.getState().buyWalkBags();
-    if (error) {
-      purchasingBags.current = false;
-      setBagPurchaseError(error);
-    } else {
+    const finish = (error: string | null) => {
+      if (error) {
+        purchasingBags.current = false;
+        setBagPurchaseError(error);
+        return;
+      }
       setBagPurchaseVisible(false);
+    };
+    const product = walkBagProduct();
+    const state = useShopStore.getState();
+    if (!state.ready) {
+      finish('쇼핑 정보를 불러오는 중이에요.');
+      return;
     }
+    if (Date.now() >= state.expiresAt) {
+      finish('모의 입양 기간이 종료되었어요.');
+      return;
+    }
+    if (!product) {
+      finish('배변봉투 상품 정보를 불러오지 못했어요.');
+      return;
+    }
+    if (state.budget - state.spent < product.price) {
+      finish('남은 예산이 부족해요.');
+      return;
+    }
+    getActiveMockAdoption()
+      .then(active => {
+        if (!active?.sessionSeq || !product.itemSeq) {
+          finish(useShopStore.getState().buyWalkBags());
+          return undefined;
+        }
+        return purchaseSimulationItems(active.sessionSeq, [
+          { itemSeq: product.itemSeq, quantity: 1 },
+        ]).then(result => {
+          const line = result.purchases[0];
+          finish(
+            line
+              ? useShopStore.getState().applyServerPurchase(product.id, line)
+              : '구매하지 못했어요. 다시 시도해주세요.',
+          );
+        });
+      })
+      .catch(error => {
+        finish(
+          error instanceof ApiClientError
+            ? getPurchaseErrorMessage(error)
+            : '구매하지 못했어요. 다시 시도해주세요.',
+        );
+      });
+  };
+  const consumeWalkBag = () => {
+    const product = walkBagProduct();
+    return product ? useShopStore.getState().consume({ [product.id]: 1 }) : false;
   };
   const [cleanupResponse, setCleanupResponse] = useState('');
   const lastCleanupRequest = useRef(0);
@@ -244,7 +303,7 @@ export function ArWalkScreen({
     setCanGiveCare(isFocused && next.status === 'anchored' && next.canGiveCare === true);
     if (next.cleanupRequestId && next.cleanupRequestId !== lastCleanupRequest.current) {
       lastCleanupRequest.current = next.cleanupRequestId;
-      const consumed = useShopStore.getState().consume({ bags: 1 });
+      const consumed = consumeWalkBag();
       setCleanupResponse(`${next.cleanupRequestId}:${consumed ? 1 : 0}`);
     }
     if (next.visible && next.onScreen) {
@@ -288,7 +347,12 @@ export function ArWalkScreen({
                 )},${walkRoute.mapPosition.longitude.toFixed(1)}`
               : undefined
           }
-          bagAvailable={shop.ready && Date.now() < shop.expiresAt && (shop.inventory.bags ?? 0) > 0}
+          bagAvailable={
+            shop.ready &&
+            Date.now() < shop.expiresAt &&
+            !!bagProduct &&
+            (shop.inventory[bagProduct.id] ?? 0) > 0
+          }
           cleanupResponse={cleanupResponse}
           onBagPurchase={openBagPurchase}
           actionRequest={voice.actionRequest}

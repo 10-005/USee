@@ -7,6 +7,8 @@ import {
 } from 'react-native';
 
 import { ApiClientError } from '../../services/api';
+import { purchaseSimulationItems } from '../../services/simulation/purchase';
+import { replaceSessionShopCatalog } from '../../services/shop/shopDatabase';
 import { startSimulationWalk } from '../../services/simulation/walk';
 import { endActiveSimulationWalk } from '../../services/simulation/walkLifecycle';
 import {
@@ -65,6 +67,10 @@ jest.mock('../../services/simulation/walk', () => ({
   ...jest.requireActual('../../services/simulation/walk'),
   startSimulationWalk: jest.fn(),
 }));
+jest.mock('../../services/simulation/purchase', () => ({
+  ...jest.requireActual('../../services/simulation/purchase'),
+  purchaseSimulationItems: jest.fn(),
+}));
 jest.mock('../../services/storage/mockAdoptionStorage', () => ({
   getActiveMockAdoption: jest.fn().mockResolvedValue(null),
   saveMockAdoptionWalk: jest.fn(),
@@ -85,6 +91,7 @@ beforeEach(() => {
   jest.mocked(getActiveMockAdoption).mockReset();
   jest.mocked(getActiveMockAdoption).mockResolvedValue(null);
   jest.mocked(startSimulationWalk).mockReset();
+  jest.mocked(purchaseSimulationItems).mockReset();
   jest.mocked(saveMockAdoptionWalk).mockReset();
   jest.mocked(endActiveSimulationWalk).mockReset();
   jest.mocked(endActiveSimulationWalk).mockResolvedValue(undefined);
@@ -187,9 +194,11 @@ test('empty-bag dialog buys only bags, debits the budget once and enables the na
   const dialog = renderer.root.findByType(AppDialog);
   expect(dialog.props.message).toContain('10장');
   const confirm = dialog.props.onConfirm;
-  await ReactTestRenderer.act(() => {
+  await ReactTestRenderer.act(async () => {
     confirm();
     confirm();
+    await Promise.resolve();
+    await Promise.resolve();
   });
   expect(renderer.root.findAllByType(AppDialog)).toHaveLength(0);
   expect(native().props.bagAvailable).toBe(true);
@@ -216,6 +225,70 @@ test('insufficient budget keeps bag purchase dialog open without granting bags',
   expect(renderer.root.findByType(ArFloorView).props.bagAvailable).toBe(false);
   expect(useShopStore.getState().spent).toBe(0);
   await ReactTestRenderer.act(() => renderer.root.findByType(AppDialog).props.onClose());
+  expect(renderer.root.findAllByType(AppDialog)).toHaveLength(0);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('buys server poop bags through the cart purchase api', async () => {
+  const product = {
+    id: '31',
+    name: '배변봉투',
+    qty: 10,
+    unit: '장',
+    species: 'dog' as const,
+    kind: 'consumable' as const,
+    category: '위생',
+    description: '산책할 때 1장씩 사용해요.',
+    sprite: 0,
+    price: 500,
+    placement: 'inventory',
+    itemSeq: 31,
+    serverCategory: 'POOP_BAG',
+    imageUrl: null,
+    market: { gamePrice: 500, basis: '', sources: [] },
+  };
+  const session = {
+    petId: 'dog-1',
+    startedAt: 31,
+    expiresAt: Date.now() + 86400000,
+    weeklyBudget: 50000,
+  };
+  replaceSessionShopCatalog(`${session.petId}:${session.startedAt}`, 'DOG', [
+    { displayOrder: 0, product },
+  ]);
+  useShopStore.getState().open(session);
+  jest
+    .mocked(getActiveMockAdoption)
+    .mockResolvedValue({ version: 1, ...session, sessionSeq: 3001 });
+  jest.mocked(purchaseSimulationItems).mockResolvedValue({
+    purchases: [
+      {
+        transactionSeq: 70003,
+        item: { itemSeq: 31, itemName: '배변봉투', category: 'POOP_BAG' },
+        quantity: 1,
+        amount: 500,
+        balanceAfter: 49500,
+        inventoryQuantity: 10,
+      },
+    ],
+    totalAmount: 500,
+    balanceAfter: 49500,
+  });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<ArWalkScreen />);
+  });
+  await ReactTestRenderer.act(() => renderer.root.findByType(ArFloorView).props.onBagPurchase());
+  expect(renderer.root.findByType(AppDialog).props.message).toContain('배변봉투');
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(AppDialog).props.onConfirm();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  expect(purchaseSimulationItems).toHaveBeenCalledWith(3001, [{ itemSeq: 31, quantity: 1 }]);
+  expect(useShopStore.getState().inventory['31']).toBe(10);
+  expect(useShopStore.getState().spent).toBe(500);
+  expect(renderer.root.findByType(ArFloorView).props.bagAvailable).toBe(true);
   expect(renderer.root.findAllByType(AppDialog)).toHaveLength(0);
   await ReactTestRenderer.act(() => renderer.unmount());
 });

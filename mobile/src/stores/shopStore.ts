@@ -259,6 +259,7 @@ export const useShopStore = create<ShopState>((set, get) => {
       }
       if (
         !product ||
+        product.qty < 1 ||
         !Number.isInteger(purchase.amount) ||
         purchase.amount < 0 ||
         !Number.isInteger(purchase.inventoryQuantity) ||
@@ -268,19 +269,24 @@ export const useShopStore = create<ShopState>((set, get) => {
         return '구매 결과를 저장하지 못했어요. 다시 시도해주세요.';
       }
       const ownedItems = state.ownedItems.filter(item => item.productId !== productId);
-      for (let index = 1; index <= purchase.inventoryQuantity; index += 1) {
+      let remainingUses = purchase.inventoryQuantity;
+      let index = 1;
+      while (remainingUses > 0) {
+        const chunk = Math.min(product.qty, remainingUses);
         ownedItems.push({
           id: `${state.sessionKey}:${productId}:${index}`,
           productId,
           capacity: product.qty,
-          remaining: product.qty,
+          remaining: chunk,
         });
+        remainingUses -= chunk;
+        index += 1;
       }
       return commit({
         spent: state.spent + purchase.amount,
         inventory: {
           ...state.inventory,
-          [productId]: purchase.inventoryQuantity * product.qty,
+          [productId]: purchase.inventoryQuantity,
         },
         ownedItems,
         cart: Object.fromEntries(Object.entries(state.cart).filter(([id]) => id !== productId)),
@@ -297,7 +303,9 @@ export const useShopStore = create<ShopState>((set, get) => {
       if (Date.now() >= state.expiresAt) {
         return '모의 입양 기간이 종료되었어요.';
       }
-      const product = availableProducts('dog').find(item => item.id === 'bags');
+      const product =
+        availableProducts('dog').find(item => item.serverCategory === 'POOP_BAG') ??
+        availableProducts('dog').find(item => item.id === 'bags');
       if (!product) {
         return '배변봉투 상품 정보를 불러오지 못했어요.';
       }
@@ -307,12 +315,15 @@ export const useShopStore = create<ShopState>((set, get) => {
       const count = state.ownedItems.filter(item => item.productId === product.id).length;
       return commit({
         spent: state.spent + product.price,
-        inventory: { ...state.inventory, bags: (state.inventory.bags ?? 0) + product.qty },
+        inventory: {
+          ...state.inventory,
+          [product.id]: (state.inventory[product.id] ?? 0) + product.qty,
+        },
         ownedItems: [
           ...state.ownedItems,
           {
-            id: `${state.sessionKey}:bags:${count + 1}`,
-            productId: 'bags',
+            id: `${state.sessionKey}:${product.id}:${count + 1}`,
+            productId: product.id,
             capacity: product.qty,
             remaining: product.qty,
           },
