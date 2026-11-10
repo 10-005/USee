@@ -1,3 +1,10 @@
+import { shelterAnimalLabel } from '@/entities/shelter/animal-label';
+import { AnimalPhoto } from '@/shared/ui/AnimalPhoto';
+import { useQuery } from '@tanstack/react-query';
+import { demoMode } from '@/shared/config/demo';
+import { animalDetailOptions, detailRecord } from '@/entities/shelter/data/animals';
+import type { ShelterAnimalRecord, Rescue } from '@/entities/shelter/model';
+import { LoadStateMessage } from '@/shared/ui/LoadState';
 import { LinkButton } from '@/shared/ui/LinkButton';
 import { useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
@@ -10,13 +17,69 @@ import pencil from '@/shared/assets/icons/edit-pencil.svg';
 import { animalStatuses } from './animal-statuses';
 export function AnimalDetailPage() {
   const { id } = useParams();
-  const { search } = useLocation();
-  const listUrl = '/animals' + search;
+  return demoMode ? <DemoDetail id={id!} /> : <LiveDetail key={id} id={id!} />;
+}
+function DemoDetail({ id }: { id: string }) {
   const animal = useAnimal(id);
   const rescue = useRescue(animal?.rescueId);
   const applications = useAdoptions();
+  const { search } = useLocation();
+  if (!animal) return <MissingRecord back={'/animals' + search} />;
+  return (
+    <AnimalDetail
+      animal={animal}
+      rescue={rescue}
+      pending={applications.filter((a) => a.animalId === id && a.status === '심사 대기').length}
+      approved={applications.filter((a) => a.animalId === id && a.status === '서류 승인').length}
+    />
+  );
+}
+function LiveDetail({ id }: { id: string }) {
+  const { search } = useLocation();
+  const query = useQuery(animalDetailOptions(id));
+  if (query.error || !query.data)
+    return (
+      <WorkPage title="보호동물 상세" back={'/animals' + search}>
+        <LoadStateMessage
+          state={
+            query.error
+              ? { status: 'error', message: query.error.message, retry: () => void query.refetch() }
+              : { status: 'loading' }
+          }
+        >
+          {null}
+        </LoadStateMessage>
+      </WorkPage>
+    );
+  const data = query.data;
+  return (
+    <AnimalDetail
+      animal={detailRecord(data)}
+      rescuedAt={data.rescueInfo.rescuedDttm ?? undefined}
+      rescueMemo={data.rescueInfo.rescueMemo ?? undefined}
+      pending={data.applicationCounts.SUBMITTED}
+      approved={data.applicationCounts.APPROVED}
+    />
+  );
+}
+function AnimalDetail({
+  animal,
+  rescue,
+  pending,
+  approved,
+  rescuedAt,
+  rescueMemo,
+}: {
+  animal: ShelterAnimalRecord;
+  rescue?: Rescue;
+  pending: number;
+  approved: number;
+  rescuedAt?: string;
+  rescueMemo?: string;
+}) {
+  const { search } = useLocation();
+  const listUrl = '/animals' + search;
   const [photo, setPhoto] = useState(0);
-  if (!animal) return <MissingRecord back={listUrl} />;
   const images = animal.images?.length ? animal.images : [animal.imageSrc];
   const current = Math.min(photo, images.length - 1);
   return (
@@ -31,7 +94,10 @@ export function AnimalDetailPage() {
       }
     >
       <div className="animal-gallery">
-        <img src={images[current]} alt={`${animal.name} 사진 ${current + 1}`} />
+        <AnimalPhoto
+          src={images[current]}
+          alt={`${shelterAnimalLabel(animal)} 사진 ${current + 1}`}
+        />
         {images.length > 1 && (
           <>
             <Button
@@ -57,9 +123,12 @@ export function AnimalDetailPage() {
       <section className="detail-box animal-summary">
         <div>
           <h2>
-            <RecordBadge status={animalStatuses[animal.status]} /> {animal.name}
+            <RecordBadge status={animalStatuses[animal.status]} /> {shelterAnimalLabel(animal)}
           </h2>
-          <p>공고번호 {animal.noticeNumber || '미등록'}</p>
+          <p>
+            {demoMode ? '공고번호' : '보호동물 번호'}{' '}
+            {demoMode ? animal.noticeNumber || '미등록' : animal.id}
+          </p>
         </div>
         {(animal.status === 'closed' || animal.status === 'returned') && (
           <div className="animal-summary__outcome">
@@ -85,16 +154,16 @@ export function AnimalDetailPage() {
               rows={[
                 ['동물등록번호', animal.registration],
                 ['마이크로칩번호', animal.chip],
-                ['품종', animal.name],
+                ['품종', shelterAnimalLabel(animal)],
                 ['성별', { female: '암컷', male: '수컷', unknown: '모름' }[animal.sex]],
                 ['중성화', { yes: '완료', no: '미완료', unknown: '모름' }[animal.neutered]],
                 [
                   '나이 / 체중',
                   animal.birth || animal.weight
-                    ? `${animal.birth || '미상'} / ${animal.weight || '미상'}kg`
+                    ? `${animal.birth || '미상'} / ${animal.weight || '미상'}${demoMode ? 'kg' : ''}`
                     : animal.summary,
                 ],
-                ['색상', animal.color ?? '흰색'],
+                ['색상', animal.color],
               ]}
             />
           </section>
@@ -103,8 +172,8 @@ export function AnimalDetailPage() {
             <InfoRows
               rows={[
                 ['구조장소', rescue?.location ?? animal.location],
-                ['구조일시', rescue?.date.replace('T', ' ')],
-                ['특이사항', rescue?.memo],
+                ['구조일시', (rescuedAt ?? rescue?.date)?.replace('T', ' ')],
+                ['특이사항', rescueMemo ?? rescue?.memo],
                 ...(animal.status === 'returned' && animal.closingReason
                   ? [['기타사항', animal.closingReason] as [string, string]]
                   : []),
@@ -144,14 +213,8 @@ export function AnimalDetailPage() {
             </div>
             <InfoRows
               rows={[
-                [
-                  '심사 대기',
-                  `${applications.filter((a) => a.animalId === id && a.status === '심사 대기').length}건`,
-                ],
-                [
-                  '서류 승인',
-                  `${applications.filter((a) => a.animalId === id && a.status === '서류 승인').length}건`,
-                ],
+                ['심사 대기', `${pending}건`],
+                ['서류 승인', `${approved}건`],
               ]}
             />
           </section>

@@ -11,6 +11,7 @@ export type ShelterAnimal = {
   summary: string;
   description: string;
   species: 'dog' | 'cat' | 'other';
+  speciesName?: string;
   sex: 'female' | 'male' | 'unknown';
   neutered: 'yes' | 'no' | 'unknown';
 };
@@ -30,6 +31,7 @@ export type Adoption = {
   reason?: string;
 };
 export type Rescue = {
+  animalSummary?: string;
   reportId?: string;
   id: string;
   name: string;

@@ -53,7 +53,7 @@ describe('예시 업무 흐름', () => {
     expect(screen.getByRole('heading', { name: '정보를 찾을 수 없습니다' })).toBeVisible();
     fireEvent.click(screen.getByRole('link', { name: '이전' }));
     expect(screen.getByText('아직 완료된 모의 입양 리포트가 없습니다')).toBeVisible();
-    expect(screen.queryByText('초코 (말티즈)')).not.toBeInTheDocument();
+    expect(screen.queryByText('[개] 말티즈 · 초코')).not.toBeInTheDocument();
   });
   it('수정 화면에서 삭제를 취소하거나 확인할 수 있다', async () => {
     const original = useShelterDemo.getState().animals[1]!;
@@ -338,7 +338,7 @@ describe('예시 업무 흐름', () => {
       target: { value: '구미 공원' },
     });
     fireEvent.click(screen.getByRole('button', { name: '접수하기' }));
-    expect(await screen.findByRole('heading', { name: /R-demo-/ })).toBeInTheDocument();
+    expect(await screen.findByText(/^등록번호 R-demo-/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: '완료' }));
     fireEvent.click(screen.getByRole('button', { name: '상태 저장' }));
     expect(useShelterDemo.getState().rescues[0]?.status).toBe('진행 중');

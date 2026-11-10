@@ -1,4 +1,21 @@
-import { useState, type FormEvent } from 'react';
+import { DeleteButton } from '@/shared/ui/DeleteButton';
+import { AnimalPhoto } from '@/shared/ui/AnimalPhoto';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { demoMode } from '@/shared/config/demo';
+import {
+  animalDetailOptions,
+  detailRecord,
+  combinationsOptions,
+  linkedRescueOptions,
+  removeAnimal,
+  speciesKey,
+  type AnimalDetail,
+  type Combination,
+} from '@/entities/shelter/data/animals';
+import { createImageUploader } from '@/shared/api/image-upload';
+import { saveLiveAnimal } from '@/entities/shelter/data/animal-save';
+import { LoadStateMessage } from '@/shared/ui/LoadState';
+import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { WorkPage, MissingRecord } from '@/shared/ui/WorkPage';
 import { useAnimal, useRescue, useSaveAnimal, useDeleteAnimal } from '@/entities/shelter/data';
@@ -27,6 +44,9 @@ function optionsWithOtherLast(names: string[]) {
 
 export function AnimalFormPage() {
   const { id } = useParams();
+  return demoMode ? <DemoForm id={id} /> : <LiveForm key={id ?? 'new'} id={id} />;
+}
+function DemoForm({ id }: { id?: string }) {
   const animal = useAnimal(id);
   const [params] = useSearchParams();
   const rescueId = id ? animal?.rescueId : params.get('rescueId');
@@ -35,7 +55,144 @@ export function AnimalFormPage() {
   if (!id && rescueId && rescue?.status !== '완료') return <MissingRecord back="/rescues" />;
   return <AnimalForm key={id ?? rescueId ?? 'new'} animal={animal} rescue={rescue} />;
 }
-function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?: Rescue }) {
+function LiveForm({ id }: { id?: string }) {
+  const [params] = useSearchParams();
+  const rescueId = id ? '' : (params.get('rescueId') ?? '');
+  const catalog = useQuery(combinationsOptions);
+  const detail = useQuery({ ...animalDetailOptions(id ?? ''), enabled: !!id });
+  const rescue = useQuery({ ...linkedRescueOptions(rescueId), enabled: !!rescueId });
+  const error = catalog.error || detail.error || rescue.error;
+  if (error || !catalog.data || (id && !detail.data) || (rescueId && !rescue.data))
+    return (
+      <WorkPage title={id ? '보호동물 수정' : '보호동물 등록'} back="/animals">
+        <LoadStateMessage
+          state={
+            error
+              ? {
+                  status: 'error',
+                  message: error.message,
+                  retry: () => {
+                    void catalog.refetch();
+                    if (id) void detail.refetch();
+                    if (rescueId) void rescue.refetch();
+                  },
+                }
+              : { status: 'loading' }
+          }
+        >
+          {null}
+        </LoadStateMessage>
+      </WorkPage>
+    );
+  if (rescue.data && rescue.data.status !== 'DONE')
+    return (
+      <WorkPage title="보호동물 등록" back="/animals">
+        <p>구조가 완료된 기록만 연결할 수 있습니다.</p>
+      </WorkPage>
+    );
+  return (
+    <LiveEditor
+      key={id ?? rescueId}
+      detail={detail.data}
+      catalog={catalog.data}
+      rescueId={rescueId}
+      rescueAddress={rescue.data?.rescueAddress}
+    />
+  );
+}
+function LiveEditor({
+  detail,
+  catalog,
+  rescueId,
+  rescueAddress,
+}: {
+  detail?: AnimalDetail;
+  catalog: Combination[];
+  rescueId: string;
+  rescueAddress?: string;
+}) {
+  const cache = useQueryClient();
+  const [initial] = useState(detail);
+  const baseline = useRef(initial);
+  const [photos] = useState(createImageUploader);
+  async function invalidate() {
+    await Promise.all([
+      cache.invalidateQueries({ queryKey: ['animals'], refetchType: 'none' }),
+      cache.invalidateQueries({ queryKey: ['rescues'] }),
+      cache.invalidateQueries({ queryKey: ['adoptions'], refetchType: 'none' }),
+    ]);
+  }
+  return (
+    <AnimalForm
+      animal={initial ? detailRecord(initial) : undefined}
+      live={{
+        catalog,
+        classification: initial?.classification,
+        rescueId,
+        rescueAddress,
+        photos,
+        save: async (next, combination, existing, files) => {
+          const retained = existing.map((url) => {
+            const image = initial?.images.find((i) => i.imageUrl === url);
+            if (!image) throw new Error('기존 사진을 찾을 수 없습니다.');
+            return image.imageSeq;
+          });
+          const ids = [...retained];
+          for (const file of files) ids.push(await photos.confirm(file));
+          const previous = baseline.current;
+          try {
+            return await saveLiveAnimal(
+              next,
+              combination,
+              ids,
+              previous ? { animal: detailRecord(previous), detail: previous } : undefined,
+              (updated) => {
+                baseline.current = updated;
+              },
+            );
+          } finally {
+            await invalidate();
+          }
+        },
+        remove: async (id) => {
+          await removeAnimal(id);
+          await cache.invalidateQueries({
+            queryKey: ['animals', 'detail', id],
+            refetchType: 'none',
+          });
+          await Promise.all([
+            cache.invalidateQueries({ queryKey: ['animals', 'list'] }),
+            cache.invalidateQueries({ queryKey: ['rescues'] }),
+            cache.invalidateQueries({ queryKey: ['adoptions'] }),
+          ]);
+        },
+      }}
+    />
+  );
+}
+type LiveFormData = {
+  catalog: Combination[];
+  classification?: Combination | null;
+  rescueId: string;
+  rescueAddress?: string;
+  photos: ReturnType<typeof createImageUploader>;
+  save: (
+    animal: ShelterAnimalRecord,
+    combination: number,
+    existing: string[],
+    files: File[],
+  ) => Promise<string>;
+  remove: (id: string) => Promise<void>;
+};
+function AnimalForm({
+  animal,
+  rescue,
+  live,
+}: {
+  animal?: ShelterAnimalRecord;
+  rescue?: Rescue;
+  live?: LiveFormData;
+}) {
   const navigate = useNavigate();
   const back = animal ? `/animals/${animal.id}` : rescue ? `/rescues/${rescue.id}` : '/animals';
   const save = useSaveAnimal();
@@ -47,14 +204,23 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
   const [species, setSpecies] = useState<ShelterAnimalRecord['species'] | ''>(
     animal?.species ?? '',
   );
-  const [breed, setBreed] = useState(animal?.name ?? '');
+  const [breed, setBreed] = useState(
+    live ? String(live.classification?.breedSeq ?? '') : (animal?.name ?? ''),
+  );
   const [color, setColor] = useState(animal?.color ?? '');
-  const breeds = breedsFor(species);
+  const breeds = live ? [] : breedsFor(species);
   const breedNames = optionsWithOtherLast(breeds.map((item) => item.name));
   const matchingBreeds = breeds.filter((item) => item.name === breed);
   const colorNames = matchingBreeds.flatMap((item) => item.colors.map((c) => c.name));
   if (color && animal?.color === color && !colorNames.includes(color)) colorNames.unshift(color);
-  const colors = optionsWithOtherLast(colorNames);
+  const liveOptions = live?.catalog.filter((c) => speciesKey(c.speciesName) === species);
+  const liveBreeds = new Map(liveOptions?.map((c) => [String(c.breedSeq), c.breedName]));
+  const liveColors = liveOptions?.filter((c) => String(c.breedSeq) === breed);
+  const colors = optionsWithOtherLast(liveColors ? liveColors.map((c) => c.colorName) : colorNames);
+  const combination =
+    liveColors?.find(
+      (c) => c.colorName === color && c.combinationSeq === live?.classification?.combinationSeq,
+    ) ?? liveColors?.find((c) => c.colorName === color);
   const [sex, setSex] = useState<ShelterAnimalRecord['sex'] | ''>(animal?.sex ?? '');
   const [neutered, setNeutered] = useState<ShelterAnimalRecord['neutered'] | ''>(
     animal?.neutered ?? '',
@@ -66,7 +232,7 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
   const [start, setStart] = useState(animal?.period.split(' ~ ')[0] ?? '');
   const savedReason = animal?.status === 'closed' ? animal.closingReason : '';
   const [reasonType, setReasonType] = useState<ShelterAnimalRecord['closingReasonType']>(
-    animal?.closingReasonType ??
+    (live && savedReason === '기타' ? '직접 입력' : animal?.closingReasonType) ??
       (savedReason === '자연사' || savedReason === '안락사'
         ? savedReason
         : savedReason
@@ -93,10 +259,13 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
     adoptable: closed || adoptable ? '' : '입양 가능 여부를 선택해 주세요.',
     reasonType: status === 'closed' && !reasonType ? '보호 종료 사유를 선택해 주세요.' : '',
     customReason:
-      status === 'closed' && reasonType === '직접 입력' && !customReason.trim()
+      !live && status === 'closed' && reasonType === '직접 입력' && !customReason.trim()
         ? '보호 종료 사유를 입력해 주세요.'
         : '',
-    adoptionNote: status === 'adopted' && !adoptionNote.trim() ? '처리 사유를 입력해 주세요.' : '',
+    adoptionNote:
+      status === 'adopted' && (!live || animal?.status !== 'adopted') && !adoptionNote.trim()
+        ? '처리 사유를 입력해 주세요.'
+        : '',
     guardianName:
       status === 'returned' && !guardianName.trim() ? '보호자 이름을 입력해 주세요.' : '',
     guardianPhone:
@@ -110,6 +279,7 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
   const [deleteError, setDeleteError] = useState('');
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (busy) return;
     const data = new FormData(e.currentTarget);
     const value = (key: string) => String(data.get(key) ?? '').trim();
     setSubmitted(true);
@@ -130,7 +300,9 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
     setBusy(true);
     setError('');
     try {
-      const images = [...existing, ...(await Promise.all(files.map(readImageDataUrl)))];
+      const images = live
+        ? existing
+        : [...existing, ...(await Promise.all(files.map(readImageDataUrl)))];
       const colorMatches = matchingBreeds.filter((item) =>
         item.colors.some((c) => c.name === color),
       );
@@ -141,17 +313,17 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
           : (colorMatches[0] ?? matchingBreeds[0]);
       const next: ShelterAnimalRecord = {
         ...animal,
-        rescueId: rescue?.id ?? animal?.rescueId,
+        rescueId: rescue?.id ?? animal?.rescueId ?? (live?.rescueId || undefined),
         id: animal?.id ?? `animal-${crypto.randomUUID().slice(0, 8)}`,
         registeredAt: animal?.registeredAt ?? localDate(),
-        name: breed,
+        name: combination?.breedName ?? breed,
         breedCode: sourceBreed?.code,
         species,
         sex,
         neutered,
         status,
         adoptable: status === 'protected' && adoptable === 'yes',
-        imageSrc: images[0]!,
+        imageSrc: images[0] ?? '',
         images,
         imageAlt: '보호동물 예시 사진',
         registration: value('registration'),
@@ -169,16 +341,25 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
         closingReason:
           status === 'closed'
             ? reasonType === '직접 입력'
-              ? customReason.trim()
+              ? live
+                ? '기타'
+                : customReason.trim()
               : reasonType
             : value('closingReason'),
         guardianName: status === 'returned' ? guardianName.trim() : undefined,
         guardianPhone: status === 'returned' ? guardianPhone.trim() : undefined,
       };
-      const saved = await save(next);
-      navigate(`/animals/${saved.id}`);
-    } catch {
-      setError('저장하지 못했습니다. 사진과 입력 내용을 확인한 후 다시 시도해 주세요.');
+      if (live && !combination) throw new Error('종·품종·색상 조합을 다시 선택해 주세요.');
+      const savedId = live
+        ? await live.save(next, combination!.combinationSeq, existing, files)
+        : (await save(next)).id;
+      navigate(`/animals/${savedId}`);
+    } catch (cause) {
+      setError(
+        live && cause instanceof Error
+          ? cause.message
+          : '저장하지 못했습니다. 사진과 입력 내용을 확인한 후 다시 시도해 주세요.',
+      );
     } finally {
       setBusy(false);
     }
@@ -186,6 +367,11 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
   return (
     <WorkPage title={animal ? '보호동물 수정' : '보호동물 등록'} narrow back={back}>
       <form className="work-form animal-form" noValidate onSubmit={submit}>
+        {live?.rescueAddress && (
+          <FormSection title="연결된 구조 신고">
+            <p>{live.rescueAddress}</p>
+          </FormSection>
+        )}
         {rescue && (
           <FormSection title="연결된 구조 신고">
             <LinkedRescueCard rescue={rescue} />
@@ -199,12 +385,17 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
             requiredError={fieldError('photos')}
             hideLabel
             files={files}
-            onChange={setFiles}
+            onChange={(selected) => {
+              setFiles(selected);
+              if (live)
+                for (const file of selected.filter((f) => !files.includes(f)))
+                  void live.photos.prepare(file).catch(() => {});
+            }}
             existingCount={existing.length}
           >
             {existing.map((src, i) => (
               <div className="image-upload__preview" key={src}>
-                <img src={src} alt={`기존 사진 ${i + 1}`} />
+                <AnimalPhoto src={src} alt={`기존 사진 ${i + 1}`} />
                 {i === 0 && <span className="animal-form__cover">대표</span>}
                 <button
                   type="button"
@@ -221,12 +412,14 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
           <TextField
             label="동물등록번호"
             name="registration"
+            maxLength={live ? 20 : undefined}
             defaultValue={animal?.registration}
             placeholder="동물등록번호를 입력해 주세요."
           />
           <TextField
             label="마이크로칩번호"
             name="chip"
+            maxLength={live ? 30 : undefined}
             defaultValue={animal?.chip}
             placeholder="마이크로칩 번호를 입력해 주세요."
           />
@@ -265,12 +458,20 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
             <option value="" disabled>
               {species ? '품종 선택' : '동물 종류를 먼저 선택해 주세요'}
             </option>
-            {breed && !breedNames.includes(breed) && <option value={breed}>{breed}</option>}
-            {breedNames.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
+            {!live && breed && !breedNames.includes(breed) && (
+              <option value={breed}>{breed}</option>
+            )}
+            {live
+              ? Array.from(liveBreeds, ([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))
+              : breedNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
           </SelectField>
           <SelectField
             className="shelter-filter--menu"
@@ -293,13 +494,15 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
             <TextField
               label="나이"
               name="birth"
+              maxLength={live ? 30 : undefined}
               defaultValue={animal?.birth}
               placeholder="예: 2살 또는 생후 3개월"
             />
             <TextField
-              label="체중 (kg)"
+              label={live ? '체중' : '체중 (kg)'}
               name="weight"
-              type="number"
+              maxLength={live ? 30 : undefined}
+              type={live ? 'text' : 'number'}
               min="0.1"
               step="0.1"
               placeholder="예: 3kg"
@@ -386,10 +589,10 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
                 onChange={(v) => setReasonType(v as ShelterAnimalRecord['closingReasonType'])}
                 options={['자연사', '안락사', '직접 입력'].map((value) => ({
                   value,
-                  label: value,
+                  label: live && value === '직접 입력' ? '기타' : value,
                 }))}
               />
-              {reasonType === '직접 입력' && (
+              {!live && reasonType === '직접 입력' && (
                 <TextAreaField
                   label="보호 종료 사유 직접 입력"
                   required
@@ -434,8 +637,9 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
               label="처리 사유 및 비고"
               error={fieldError('adoptionNote')}
               name="closingReason"
+              maxLength={live ? 200 : undefined}
               placeholder="상태를 변경한 사유와 참고할 내용을 입력해 주세요."
-              required
+              required={!live || animal?.status !== 'adopted' || !!animal.closingReason}
               value={adoptionNote}
               onChange={(e) => setAdoptionNote(e.target.value)}
             />
@@ -460,29 +664,13 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
         )}
         <div className="page-actions">
           {animal && (
-            <Button
-              className="animal-form__delete"
+            <DeleteButton
               disabled={busy}
               onClick={() => {
                 setDeleteError('');
                 setConfirmDelete(true);
               }}
-            >
-              <svg
-                aria-hidden="true"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M4 7h16M10 11v6m4-6v6M5 7l1 13h12l1-13M9 7V4h6v3" />
-              </svg>
-              삭제하기
-            </Button>
+            />
           )}
           <Button variant="secondary" disabled={busy} onClick={() => setCancel(true)}>
             취소
@@ -506,17 +694,22 @@ function AnimalForm({ animal, rescue }: { animal?: ShelterAnimalRecord; rescue?:
               취소
             </Button>
             <Button
-              className="animal-form__delete-confirm"
+              className="work-delete-confirm"
               disabled={busy}
               onClick={async () => {
                 if (!animal || busy) return;
                 setBusy(true);
                 setDeleteError('');
                 try {
-                  await deleteAnimal(animal.id);
+                  if (live) await live.remove(animal.id);
+                  else await deleteAnimal(animal.id);
                   navigate('/animals', { replace: true });
-                } catch {
-                  setDeleteError('삭제하지 못했습니다. 다시 시도해 주세요.');
+                } catch (cause) {
+                  setDeleteError(
+                    live && cause instanceof Error
+                      ? cause.message
+                      : '삭제하지 못했습니다. 다시 시도해 주세요.',
+                  );
                   setBusy(false);
                 }
               }}

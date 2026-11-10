@@ -5,10 +5,10 @@ export interface ApiResponse<T> {
   message: string;
   data: T;
   errors: FieldError[];
-  traceId: string;
+  traceId: string | null;
 }
 export interface FieldError {
-  field: string;
+  field: string | null;
   reason: string;
 }
 export type ApiSuccess<T> = ApiResponse<T>;

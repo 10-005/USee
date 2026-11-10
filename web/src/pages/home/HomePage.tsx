@@ -1,5 +1,10 @@
+import { assignedOptions, rescueListOptions } from '@/entities/shelter/data/rescues';
+import { animalListOptions } from '@/entities/shelter/data/animals';
+import { readAnimalFilters } from '@/pages/animals/model';
+import { useQuery } from '@tanstack/react-query';
+import { receivedOptions } from '@/entities/shelter/data/applications';
+import { demoMode } from '@/shared/config/demo';
 import { Link, useNavigate } from 'react-router';
-import { ShelterPageLayout } from '@/app/layouts/ShelterPageLayout';
 import { ActivityCard } from '@/shared/ui/ActivityCard';
 import { StatCard } from '@/shared/ui/StatCard';
 import { RecordBadge } from '@/shared/ui/WorkPage';
@@ -9,16 +14,36 @@ import './home.css';
 
 export function HomePage() {
   const navigate = useNavigate();
-  const reports = useReports();
-  const protectedAnimalCount = useAnimals().filter(
-    (animal) => animal.status === 'protected',
-  ).length;
-  const adoptions = useAdoptions();
+  const demoReports = useReports();
+  const assigned = useQuery({ ...assignedOptions(new URLSearchParams()), enabled: !demoMode });
+  const processing = useQuery({
+    ...rescueListOptions(new URLSearchParams({ status: '진행 중' })),
+    enabled: !demoMode,
+  });
+  const reports = demoMode ? demoReports : (assigned.data?.content ?? []);
+  const animalList = useQuery({
+    ...animalListOptions(readAnimalFilters(new URLSearchParams()), 1, false),
+    enabled: !demoMode,
+  });
+  const demoProtectedCount = useAnimals().filter((animal) => animal.status === 'protected').length;
+  const protectedAnimalCount = demoMode
+    ? demoProtectedCount
+    : (animalList.data?.counts.protected ?? '—');
+  const demoAdoptions = useAdoptions();
+  const received = useQuery({ ...receivedOptions(new URLSearchParams()), enabled: !demoMode });
+  const adoptions = demoMode ? demoAdoptions : (received.data?.content ?? []);
+  const adoptionCount = demoMode ? adoptions.length : (received.data?.totalElements ?? '—');
   const rescues = useRescues();
-  const activeRescues = rescues.filter((r) => r.status === '진행 중');
+  const activeRescues = demoMode
+    ? rescues.filter((r) => r.status === '진행 중')
+    : (processing.data?.page.content ?? []);
+  const activeCount = demoMode ? activeRescues.length : (processing.data?.counts.PROCESSING ?? '—');
   const sections = [
     {
       title: '입양 신청 내역',
+      query: received,
+      emptyTitle: '아직 접수된 입양 신청이 없어요.',
+      emptyHint: '입양 신청이 들어오면 여기에서 확인할 수 있어요.',
       href: '/adoptions',
       items: [...adoptions]
         .sort((a, b) => {
@@ -35,12 +60,15 @@ export function HomePage() {
     },
     {
       title: '진행 중인 구조',
+      query: processing,
+      emptyTitle: '현재 진행 중인 구조가 없어요.',
+      emptyHint: '구조를 접수하면 진행 상황이 여기에 표시돼요.',
       href: '/rescues?status=진행+중',
       items: [...activeRescues]
         .sort((a, b) => b.date.localeCompare(a.date))
         .slice(0, 3)
         .map((r) => ({
-          title: r.location,
+          title: r.location || r.name,
           description: `구조 일시 ${r.date.replace('T', ' ')} · ${r.source.replace(/^신고 #/, '발견 신고 #')}`,
           badge: <RecordBadge status={r.status} />,
           href: `/rescues/${r.id}`,
@@ -48,6 +76,9 @@ export function HomePage() {
     },
     {
       title: '발견 신고',
+      query: assigned,
+      emptyTitle: '아직 배정된 발견 신고가 없어요.',
+      emptyHint: '보호소에 새 신고가 배정되면 여기에 표시돼요.',
       href: '/reports',
       items: [...reports]
         .sort((a, b) => b.foundAt.localeCompare(a.foundAt))
@@ -62,60 +93,69 @@ export function HomePage() {
   ];
   return (
     <div className="home-page">
-      <ShelterPageLayout>
-        <div className="home-page__dashboard">
-          <h1 className="shelter-sr-only">보호소 홈</h1>
-          <div className="home-page__stats">
-            <Link
-              className="home-stat--adoption"
-              to="/adoptions"
-              aria-label={`입양 신청 ${adoptions.length}건 목록 보기`}
-            >
-              <StatCard label="입양 신청" value={`${adoptions.length}건`} />
-            </Link>
-            <Link
-              className="home-stat--animals"
-              to="/animals?status=protected"
-              aria-label={`보호동물 ${protectedAnimalCount}마리 목록 보기`}
-            >
-              <StatCard label="보호동물" value={`${protectedAnimalCount}마리`} tone="green" />
-            </Link>
-            <Link
-              className="home-stat--rescue"
-              to="/rescues?status=진행+중"
-              aria-label={`진행 중인 구조 ${activeRescues.length}건 목록 보기`}
-            >
-              <StatCard label="진행 중인 구조" value={`${activeRescues.length}건`} tone="orange" />
-            </Link>
-          </div>
-          <div className="home-page__sections">
-            {sections.map((section) => (
-              <section
-                key={section.title}
-                className="home-page__section"
-                aria-label={section.title}
-              >
-                <div className="home-page__section-heading">
-                  <h2>{section.title}</h2>
-                  <button
-                    type="button"
-                    aria-label={`${section.title} 더보기`}
-                    onClick={() => navigate(section.href)}
-                  >
-                    <span aria-hidden="true">+</span>
-                    더보기
-                  </button>
-                </div>
-                <div className="home-page__activities">
-                  {section.items.map((item, index) => (
-                    <ActivityCard key={index} {...item} onClick={() => navigate(item.href)} />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
+      <div className="home-page__dashboard">
+        <h1 className="shelter-sr-only">보호소 홈</h1>
+        <div className="home-page__stats">
+          <Link
+            className="home-stat--adoption"
+            to="/adoptions"
+            aria-label={`입양 신청 ${adoptionCount}건 목록 보기`}
+          >
+            <StatCard label="입양 신청" value={`${adoptionCount}건`} />
+          </Link>
+          <Link
+            className="home-stat--animals"
+            to="/animals?status=protected"
+            aria-label={`보호동물 ${protectedAnimalCount}마리 목록 보기`}
+          >
+            <StatCard label="보호동물" value={`${protectedAnimalCount}마리`} tone="green" />
+          </Link>
+          <Link
+            className="home-stat--rescue"
+            to="/rescues?status=진행+중"
+            aria-label={`진행 중인 구조 ${activeCount}건 목록 보기`}
+          >
+            <StatCard label="진행 중인 구조" value={`${activeCount}건`} tone="orange" />
+          </Link>
         </div>
-      </ShelterPageLayout>
+        <div className="home-page__sections">
+          {sections.map((section) => (
+            <section key={section.title} className="home-page__section" aria-label={section.title}>
+              <div className="home-page__section-heading">
+                <h2>{section.title}</h2>
+                <button
+                  type="button"
+                  aria-label={`${section.title} 더보기`}
+                  onClick={() => navigate(section.href)}
+                >
+                  <span aria-hidden="true">+</span>
+                  더보기
+                </button>
+              </div>
+              <div className="home-page__activities">
+                {!demoMode && !section.query.data ? (
+                  <p role="status">{section.query.error?.message ?? '불러오는 중입니다.'}</p>
+                ) : section.items.length === 0 ? (
+                  <div
+                    className={
+                      section.query === processing
+                        ? 'home-page__empty home-page__empty--rescue'
+                        : 'home-page__empty'
+                    }
+                    role="status"
+                  >
+                    <strong>{section.emptyTitle}</strong>
+                    <p>{section.emptyHint}</p>
+                  </div>
+                ) : null}
+                {section.items.map((item, index) => (
+                  <ActivityCard key={index} {...item} onClick={() => navigate(item.href)} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

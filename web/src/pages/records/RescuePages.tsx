@@ -1,3 +1,18 @@
+import { DeleteButton } from '@/shared/ui/DeleteButton';
+import { AnimalPhoto } from '@/shared/ui/AnimalPhoto';
+import { shelterRequest } from '@/shared/api/session';
+import { ApiError } from '@/shared/api/client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { demoMode } from '@/shared/config/demo';
+import {
+  foundOptions,
+  rescueOptions,
+  rescueSummaryOptions,
+  refreshRescues,
+  saveRescue,
+  finishRescue,
+} from '@/entities/shelter/data/rescues';
+import { RecordQueries } from './RecordQueries';
 import { LinkButton } from '@/shared/ui/LinkButton';
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
@@ -60,6 +75,66 @@ export function RescueDetailPage() {
   const { id } = useParams();
   const { search } = useLocation();
   const listUrl = useReportListUrl() ?? '/rescues' + search;
+  if (!demoMode) return <LiveRescue id={id!} listUrl={listUrl} />;
+  return <DemoDetail id={id} listUrl={listUrl} />;
+}
+function LiveRescue({ id, listUrl }: { id: string; listUrl: string }) {
+  const query = useQuery(rescueOptions(id));
+  const serverError = query.error instanceof ApiError && query.error.status >= 500;
+  const summary = useQuery({ ...rescueSummaryOptions(id), enabled: serverError });
+  if (serverError && summary.isPending)
+    return (
+      <RecordQueries title="구조 상세" back={listUrl} queries={[summary]}>
+        {null}
+      </RecordQueries>
+    );
+  if (serverError && summary.data && !summary.error) {
+    const record = summary.data;
+    return (
+      <WorkPage
+        title={record.name}
+        back={listUrl}
+        titleDescription={<RescueMetadata record={record} />}
+      >
+        <section className="detail-box">
+          <div className="detail-box__heading">
+            <h2>구조 정보</h2>
+            <RecordBadge status={record.status} />
+          </div>
+          <p role="status">상세 정보를 불러올 수 없어 구조일지 목록에 있는 내용만 표시합니다.</p>
+          <InfoRows
+            rows={[
+              ['접수 경로', record.source],
+              ['구조 일시', record.date.replace('T', ' ')],
+              ['구조 사유', record.reason],
+              ['구조 메모', record.memo],
+            ]}
+          />
+          <Button
+            variant="secondary"
+            disabled={query.isFetching}
+            onClick={() => void query.refetch()}
+          >
+            상세 다시 불러오기
+          </Button>
+        </section>
+      </WorkPage>
+    );
+  }
+  return (
+    <RecordQueries title="구조 상세" back={listUrl} queries={[query]}>
+      {query.data && (
+        <RescueDetail
+          key={id + query.data.record.status}
+          record={query.data.record}
+          listUrl={listUrl}
+          live={query.data}
+        />
+      )}
+    </RecordQueries>
+  );
+}
+function DemoDetail({ id, listUrl }: { id?: string; listUrl: string }) {
   const record = useRescue(id);
   return record ? (
     <RescueDetail key={record.id} record={record} listUrl={listUrl} />
@@ -67,12 +142,39 @@ export function RescueDetailPage() {
     <MissingRecord back={listUrl} />
   );
 }
-function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) {
-  const registeredAnimal = useAnimalByRescue(record.id);
-  const reports = useReports();
-  const report = reports.find(
-    (r) => r.id === (record.reportId ?? record.source.replace(/^신고 #/, '')),
+function RescueMetadata({ record }: { record: Rescue }) {
+  return (
+    <p className="rescue-detail-date">
+      <span>등록번호 {record.id}</span>
+      <span aria-hidden="true">|</span>
+      <span>
+        접수 일시{' '}
+        {record.receivedAt ? (
+          <time dateTime={record.receivedAt}>{record.receivedAt.replace('T', ' ')}</time>
+        ) : (
+          '미등록'
+        )}
+      </span>
+    </p>
   );
+}
+function RescueDetail({
+  record,
+  listUrl,
+  live,
+}: {
+  record: Rescue;
+  listUrl: string;
+  live?: { report?: Report; addressDetail: string; count: number };
+}) {
+  const statusLocked = !!live && record.status !== '진행 중';
+  const demoAnimal = useAnimalByRescue(record.id);
+  const registeredAnimal = live ? undefined : demoAnimal;
+  const cache = useQueryClient();
+  const reports = useReports();
+  const report = live
+    ? live.report
+    : reports.find((r) => r.id === (record.reportId ?? record.source.replace(/^신고 #/, '')));
   const save = useSaveRescue();
   const draft = useRescueStatus(record);
   const { status, statusReason } = draft;
@@ -84,21 +186,12 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
     <WorkPage
       title={
         <span className="rescue-detail-title">
-          {record.id}
+          {record.name === '—' ? (report?.name ?? '미확인 동물') : record.name}
           <RecordBadge status={record.status} />
         </span>
       }
       back={listUrl}
-      titleDescription={
-        <p className="rescue-detail-date">
-          접수 일시{' '}
-          {record.receivedAt ? (
-            <time dateTime={record.receivedAt}>{record.receivedAt.replace('T', ' ')}</time>
-          ) : (
-            '미등록'
-          )}
-        </p>
-      }
+      titleDescription={<RescueMetadata record={record} />}
       titleAction={
         (registeredAnimal || record.status === '완료') && (
           <LinkButton
@@ -124,7 +217,7 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
             <InfoRows
               rows={[
                 ['구조 사유', record.reason],
-                ['구조 장소', record.location],
+                ['구조 장소', [record.location, live?.addressDetail].filter(Boolean).join(' ')],
                 ['구조 일시', record.date.replace('T', ' ')],
                 ['구조 메모', record.memo],
               ]}
@@ -136,8 +229,8 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
               <>
                 <article className="linked-report">
                   <div className="linked-report__photo">
-                    <img src={report.image} alt={report.name} />
-                    <span>{report.animalStatus}</span>
+                    <AnimalPhoto src={report.image} alt={report.name} />
+                    {report.animalStatus && <span>{report.animalStatus}</span>}
                   </div>
                   <div>
                     <h3>{report.name}</h3>
@@ -174,13 +267,18 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
             label="구조 상태"
             hideLabel
             value={status}
+            disabled={statusLocked}
             onChange={draft.changeStatus}
             options={rescueStates.map((value) => ({ value, label: value }))}
           />
-          <StatusReasonField draft={draft} submitted={submitted} />
+          {statusLocked && record.statusReason && (
+            <InfoRows rows={[[`구조 ${record.status} 사유`, record.statusReason]]} />
+          )}
+          {!statusLocked && <StatusReasonField draft={draft} submitted={submitted} />}
           <div className="page-actions">
             <Button
               variant="approval"
+              disabled={statusLocked || (!!live && status === record.status)}
               fullWidth
               onClick={() => {
                 setSubmitted(true);
@@ -215,11 +313,16 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
                 setStatusSaving(true);
                 setStatusError('');
                 try {
-                  await save({ ...record, status, statusReason });
+                  if (live) {
+                    await finishRescue(record.id, status, statusReason);
+                    await refreshRescues(cache);
+                  } else await save({ ...record, status, statusReason });
                   setSubmitted(false);
                   setConfirmStatus(false);
-                } catch {
-                  setStatusError('저장하지 못했습니다. 다시 시도해 주세요.');
+                } catch (e) {
+                  setStatusError(
+                    e instanceof Error ? e.message : '저장하지 못했습니다. 다시 시도해 주세요.',
+                  );
                 } finally {
                   setStatusSaving(false);
                 }
@@ -237,6 +340,31 @@ function RescueDetail({ record, listUrl }: { record: Rescue; listUrl: string }) 
 }
 
 export function RescueFormPage() {
+  return demoMode ? <DemoRescueForm /> : <LiveRescueForm />;
+}
+function LiveRescueForm() {
+  const { id } = useParams();
+  const [params] = useSearchParams();
+  const reportId = params.get('report') ?? '';
+  const record = useQuery({ ...rescueOptions(id ?? ''), enabled: !!id });
+  const report = useQuery({ ...foundOptions(reportId), enabled: !id && !!reportId });
+  return (
+    <RecordQueries
+      title={id ? '구조 정보 수정' : '구조 접수'}
+      back={id ? '/rescues/' + id : reportId ? '/reports' : '/rescues'}
+      queries={id ? [record] : reportId ? [report] : []}
+    >
+      <RescueForm
+        key={id ?? reportId}
+        record={record.data?.record}
+        report={id ? record.data?.report : report.data}
+        linkedAnimalCount={record.data?.count}
+        addressDetail={record.data?.addressDetail}
+      />
+    </RecordQueries>
+  );
+}
+function DemoRescueForm() {
   const { id } = useParams();
   const record = useRescue(id);
   const [params] = useSearchParams();
@@ -249,12 +377,27 @@ export function RescueFormPage() {
   if (!record && reportId && !report) return <MissingRecord back="/reports" />;
   return <RescueForm key={id ?? params.get('report') ?? 'new'} record={record} report={report} />;
 }
-function RescueForm({ record, report }: { record?: Rescue; report?: Report }) {
+function RescueForm({
+  record,
+  report,
+  addressDetail,
+  linkedAnimalCount,
+}: {
+  record?: Rescue;
+  report?: Report;
+  addressDetail?: string;
+  linkedAnimalCount?: number;
+}) {
   const navigate = useNavigate();
   const reportListUrl = useReportListUrl();
   const { state } = useLocation();
+  const cache = useQueryClient();
+  const locked = !demoMode && !!record && record.status !== '진행 중';
   const back = reportListUrl ?? '/rescues';
   const save = useSaveRescue();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [cancel, setCancel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -265,7 +408,7 @@ function RescueForm({ record, report }: { record?: Rescue; report?: Report }) {
   const [submitted, setSubmitted] = useState(false);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (saving) return;
+    if (saving || deleting) return;
     setSubmitted(true);
     if (!reason || !location.trim() || !date || draft.missingReason) {
       const form = e.currentTarget;
@@ -279,14 +422,14 @@ function RescueForm({ record, report }: { record?: Rescue; report?: Report }) {
     const data = new FormData(e.currentTarget);
     const value = (key: string) => String(data.get(key) ?? '').trim();
     const next: Rescue = {
-      id: record?.id ?? `R-demo-${crypto.randomUUID().slice(0, 8)}`,
+      id: record?.id ?? (demoMode ? `R-demo-${crypto.randomUUID().slice(0, 8)}` : ''),
       name: record?.name ?? report?.name ?? '미확인 동물',
-      image: record?.image ?? report?.image ?? cat,
+      image: record?.image ?? report?.image ?? (demoMode ? cat : ''),
       source: record?.source ?? (report ? `신고 #${report.id}` : '직접 접수'),
       reportId: record?.reportId ?? report?.id,
-      reason: value('reason'),
-      location: `${value('location')} ${value('detail')}`.trim(),
-      date: value('date'),
+      reason,
+      location: demoMode ? `${location} ${value('detail')}`.trim() : location.trim(),
+      date,
       receivedAt: record
         ? record.receivedAt
         : new Date().toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16),
@@ -297,10 +440,13 @@ function RescueForm({ record, report }: { record?: Rescue; report?: Report }) {
     setSaving(true);
     setSaveError('');
     try {
-      const saved = await save(next);
-      navigate(`/rescues/${saved.id}`, { state });
-    } catch {
-      setSaveError('저장하지 못했습니다. 다시 시도해 주세요.');
+      const savedId = demoMode
+        ? (await save(next)).id
+        : await saveRescue(next, value('detail'), record, addressDetail);
+      if (!demoMode) await refreshRescues(cache);
+      navigate(`/rescues/${savedId}`, { state });
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : '저장하지 못했습니다. 다시 시도해 주세요.');
     } finally {
       setSaving(false);
     }
@@ -320,7 +466,7 @@ function RescueForm({ record, report }: { record?: Rescue; report?: Report }) {
           />
           {report && (
             <div className="rescue-report">
-              <img src={report.image} alt="" />
+              <AnimalPhoto src={report.image} alt="" />
               <div>
                 <small>연결된 발견 신고 · {report.id}</small>
                 <strong>{report.name}</strong>
@@ -342,39 +488,46 @@ function RescueForm({ record, report }: { record?: Rescue; report?: Report }) {
           )}
         </FormSection>
         <FormSection title="구조 정보">
-          <SelectField
-            className="shelter-filter--menu"
-            label="구조 사유"
-            name="reason"
-            required
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            error={submitted && !reason ? '구조 사유를 선택해 주세요.' : undefined}
-          >
-            <option value="">선택</option>
-            {['배회·유기 의심', '부상·질병', '위험 장소', '기타'].map((v) => (
-              <option key={v}>{v}</option>
-            ))}
-          </SelectField>
-          <TextField
-            label="구조 장소 *"
-            name="location"
-            required
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            error={submitted && !location.trim() ? '구조 장소를 입력해 주세요.' : undefined}
-            placeholder="주소를 입력해 주세요"
-          />
-          <TextField label="상세 장소" name="detail" placeholder="건물명 또는 주변 지형" />
-          <CalendarField
-            label="구조 일시"
-            name="date"
-            withTime
-            initialValue={record?.date ?? ''}
-            onConfirm={setDate}
-            placeholder="구조 일시를 선택해 주세요"
-            error={submitted && !date ? '구조 일시를 선택해 주세요.' : undefined}
-          />
+          <fieldset className="rescue-edit-fields" disabled={locked}>
+            <SelectField
+              className="shelter-filter--menu"
+              label="구조 사유"
+              name="reason"
+              required
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              error={submitted && !reason ? '구조 사유를 선택해 주세요.' : undefined}
+            >
+              <option value="">선택</option>
+              {['배회·유기 의심', '부상·질병', '위험 장소', '기타'].map((v) => (
+                <option key={v}>{v}</option>
+              ))}
+            </SelectField>
+            <TextField
+              label="구조 장소 *"
+              name="location"
+              required
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              error={submitted && !location.trim() ? '구조 장소를 입력해 주세요.' : undefined}
+              placeholder="주소를 입력해 주세요"
+            />
+            <TextField
+              label="상세 장소"
+              name="detail"
+              defaultValue={addressDetail}
+              placeholder="건물명 또는 주변 지형"
+            />
+            <CalendarField
+              label="구조 일시"
+              name="date"
+              withTime
+              initialValue={record?.date ?? ''}
+              onConfirm={setDate}
+              placeholder="구조 일시를 선택해 주세요"
+              error={submitted && !date ? '구조 일시를 선택해 주세요.' : undefined}
+            />
+          </fieldset>
           <TextAreaField
             label="구조 관련 메모"
             name="memo"
@@ -383,41 +536,99 @@ function RescueForm({ record, report }: { record?: Rescue; report?: Report }) {
             maxLength={2000}
           />
         </FormSection>
-        <FormSection title="진행 상태">
-          {record ? (
-            <ChoiceGroup
-              label="구조 상태"
-              hideLabel
-              value={draft.status}
-              onChange={draft.changeStatus}
-              options={rescueStates.map((value) => ({ value, label: value }))}
-            />
-          ) : (
-            <ul className="rescue-status-summary" aria-label="구조 상태">
-              {rescueStates.map((state) => (
-                <li key={state} aria-current={state === '진행 중' ? 'true' : undefined}>
-                  {state}
-                </li>
-              ))}
-            </ul>
-          )}
-          <StatusReasonField draft={draft} submitted={submitted} />
-        </FormSection>
+        {(!record || demoMode) && (
+          <FormSection title="진행 상태">
+            {record ? (
+              <ChoiceGroup
+                label="구조 상태"
+                hideLabel
+                value={draft.status}
+                onChange={draft.changeStatus}
+                options={rescueStates.map((value) => ({ value, label: value }))}
+              />
+            ) : (
+              <ul className="rescue-status-summary" aria-label="구조 상태">
+                {rescueStates.map((state) => (
+                  <li key={state} aria-current={state === '진행 중' ? 'true' : undefined}>
+                    {state}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <StatusReasonField draft={draft} submitted={submitted} />
+          </FormSection>
+        )}
         {saveError && (
           <p role="alert" className="form-error">
             {saveError}
           </p>
         )}
         <div className="page-actions">
-          <Button variant="secondary" disabled={saving} onClick={() => setCancel(true)}>
+          {record && linkedAnimalCount !== undefined && (
+            <DeleteButton
+              aria-label="구조일지 삭제"
+              disabled={saving || deleting || linkedAnimalCount > 0}
+              title={
+                linkedAnimalCount > 0 ? '연결된 보호동물이 있어 삭제할 수 없습니다.' : undefined
+              }
+              onClick={() => {
+                setDeleteError('');
+                setConfirmDelete(true);
+              }}
+            />
+          )}
+          <Button variant="secondary" disabled={saving || deleting} onClick={() => setCancel(true)}>
             취소
           </Button>
-          <Button type="submit" variant="approval" disabled={saving}>
+          <Button type="submit" variant="approval" disabled={saving || deleting}>
             <img src={pencil} alt="" />
             {record ? '저장하기' : '접수하기'}
           </Button>
         </div>
       </form>
+      {record && linkedAnimalCount !== undefined && (
+        <Modal
+          open={confirmDelete}
+          title="구조일지를 삭제할까요?"
+          description="삭제한 구조일지는 목록에서 사라집니다."
+          onClose={() => {
+            if (!deleting) setConfirmDelete(false);
+          }}
+          actions={
+            <>
+              <Button
+                disabled={deleting}
+                variant="secondary"
+                onClick={() => setConfirmDelete(false)}
+              >
+                취소
+              </Button>
+              <Button
+                className="work-delete-confirm"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    await shelterRequest('/rescues/' + encodeURIComponent(record.id), {
+                      method: 'DELETE',
+                    });
+                    navigate(back, { replace: true });
+                    await refreshRescues(cache);
+                  } catch (e) {
+                    setDeleteError(e instanceof Error ? e.message : '삭제하지 못했습니다.');
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+              >
+                {deleting ? '삭제 중…' : '삭제하기'}
+              </Button>
+            </>
+          }
+        >
+          {deleteError && <p role="alert">{deleteError}</p>}
+        </Modal>
+      )}
       <Modal
         open={cancel}
         title="작성을 취소할까요?"

@@ -26,6 +26,9 @@ describe('앱 탐색', () => {
     sessionStorage.removeItem('usee-demo-login');
     renderApp('/animals');
     expect(screen.getByRole('heading', { name: '보호소 로그인' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '로그인' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('아이디'), { target: { value: 'demo' } });
+    fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'demo' } });
     fireEvent.click(screen.getByRole('button', { name: '로그인' }));
     expect(screen.getByRole('heading', { name: '보호소 홈' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: '마이페이지' }));

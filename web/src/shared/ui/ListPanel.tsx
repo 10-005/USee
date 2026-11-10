@@ -36,6 +36,14 @@ export function FilterSelect({
     </div>
   );
 }
+export function FilteredListEmpty({ title }: { title: string }) {
+  return (
+    <p className="shelter-empty filtered-list-empty" role="status">
+      <strong>{title}</strong>
+      <span>필터 조건을 변경하거나 초기화해 주세요.</span>
+    </p>
+  );
+}
 export function ListPanel({
   header,
   filters,
@@ -44,7 +52,7 @@ export function ListPanel({
   unit = '개',
   sort,
   children,
-  emptyMessage = '검색 결과가 없습니다.',
+  emptyState,
   loadState = { status: 'ready' },
 }: {
   header?: ReactNode;
@@ -54,7 +62,7 @@ export function ListPanel({
   unit?: string;
   sort?: ReactNode;
   children: ReactNode;
-  emptyMessage?: ReactNode;
+  emptyState?: ReactNode;
   loadState?: LoadState;
 }) {
   return (
@@ -75,9 +83,11 @@ export function ListPanel({
       )}
       <LoadStateMessage state={loadState}>
         {total === 0 ? (
-          <p className="shelter-empty" role="status">
-            {emptyMessage}
-          </p>
+          (emptyState ?? (
+            <p className="shelter-empty" role="status">
+              검색 결과가 없습니다.
+            </p>
+          ))
         ) : (
           <div className="shelter-list__grid">{children}</div>
         )}

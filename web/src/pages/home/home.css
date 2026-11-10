@@ -126,6 +126,28 @@
   display: grid;
   gap: 12px;
 }
+.home-page__empty {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  min-height: 120px;
+  padding: 20px;
+  border: 1px dashed #cbd8d0;
+  border-radius: 14px;
+  background: #f8fbf9;
+  color: #34493d;
+  text-align: center;
+  word-break: keep-all;
+  font: 400 15px/1.5 var(--ui-font);
+}
+.home-page__empty--rescue {
+  background: transparent;
+}
+.home-page__empty p {
+  margin: 0;
+  color: #53665a;
+  font-size: 14px;
+}
 .home-page__activities .ui-status-badge {
   padding: 3px 9px;
   font-size: 13px;

@@ -1,16 +1,14 @@
-.application-question__content .simulation-entry {
-  float: right;
-  margin: 24px 0 8px 12px;
+.page-actions .simulation-entry {
   background: #eaf3ff;
   color: #115bcc;
   border-color: transparent;
 }
-.application-question__content .simulation-entry:hover {
+.page-actions .simulation-entry:hover {
   background-color: #d8eaff;
   border-color: var(--ui-blue);
   color: #104ca6;
 }
-.application-question__content .simulation-entry:focus-visible {
+.page-actions .simulation-entry:focus-visible {
   outline: var(--focus-width) solid #115bcc;
   outline-offset: -2px;
 }
@@ -467,5 +465,25 @@
   }
   .sim-bars li > span {
     font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .application-questions[data-slide='next'],
+  .application-questions[data-slide='previous'] {
+    animation: application-slide-in 200ms ease-out;
+    --slide-offset: 16px;
+  }
+  .application-questions[data-slide='previous'] {
+    --slide-offset: -16px;
+  }
+  @keyframes application-slide-in {
+    from {
+      opacity: 0.65;
+      transform: translateX(var(--slide-offset));
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 }

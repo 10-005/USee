@@ -1,3 +1,8 @@
+import { useQuery } from '@tanstack/react-query';
+import { demoMode } from '@/shared/config/demo';
+import { detailOptions } from '@/entities/shelter/data/applications';
+import { reportListOptions, reportDetailOptions } from '@/entities/shelter/data/simulation-reports';
+import { LoadStateMessage } from '@/shared/ui/LoadState';
 import { useId, useState } from 'react';
 import { useLocation, useParams } from 'react-router';
 import { getSimulationReports, useAdoption } from '@/entities/shelter/data';
@@ -5,7 +10,17 @@ import { WorkPage, MissingRecord, RecordBadge } from '@/shared/ui/WorkPage';
 import { LinkButton } from '@/shared/ui/LinkButton';
 import './simulation-reports.css';
 
-type Report = ReturnType<typeof getSimulationReports>[number];
+type DemoReport = ReturnType<typeof getSimulationReports>[number];
+type Report = Omit<DemoReport, 'applicationId' | 'summary'> & {
+  summary: string | null;
+  status?: string;
+  total?: number;
+};
+type Entry = Pick<Report, 'id' | 'animal' | 'start' | 'end'> & {
+  total: number;
+  temperament?: string;
+  days?: number;
+};
 const expensePalette = [
   '#99e2b4',
   '#88d4ab',
@@ -122,7 +137,7 @@ function CategorySpending({ report, total }: { report: Report; total: number }) 
 }
 
 function Spending({ report }: { report: Report }) {
-  const total = totalSpent(report);
+  const total = report.total ?? totalSpent(report);
   const difference = total - report.budget;
   const peak = Math.max(0, ...report.daily);
   const step = Math.max(1000, Math.ceil(peak / 4 / 5000) * 5000);
@@ -282,12 +297,12 @@ function ReportDetails({ report }: { report: Report }) {
       <section className="sim-card sim-summary">
         <small>모의 입양 동물</small>
         <h2>
-          {report.animal} <RecordBadge status="완료" />
+          {report.animal} <RecordBadge status={report.status ?? '완료'} />
         </h2>
         <p>
           {report.temperament} · {report.start} ~ {report.end}
         </p>
-        <p>{report.summary}</p>
+        <p>{report.summary ?? '요약 준비 중'}</p>
       </section>
       <Spending report={report} />
       <div className="sim-bottom">
@@ -332,15 +347,86 @@ function ReportDetails({ report }: { report: Report }) {
 }
 
 export function SimulationReportsPage() {
-  const { id, reportId } = useParams();
+  const { id = '', reportId } = useParams();
+  return demoMode ? (
+    <DemoReports id={id} reportId={reportId} />
+  ) : (
+    <LiveReports id={id} reportId={reportId} />
+  );
+}
+type RouteProps = { id: string; reportId?: string };
+function DemoReports({ id, reportId }: RouteProps) {
   const { search } = useLocation();
   const application = useAdoption(id);
   if (!application) return <MissingRecord back={'/adoptions' + search} />;
+  const reports = getSimulationReports(id);
+  const selected = reports.find((item) => item.id === reportId);
+  if (reportId && !selected)
+    return <MissingRecord back={'/adoptions/' + id + '/simulation-reports' + search} />;
+  return (
+    <ReportView
+      application={application}
+      reports={reports.map((item) => ({
+        ...item,
+        total: totalSpent(item),
+        days: item.daily.length,
+      }))}
+      selected={selected}
+    />
+  );
+}
+function LiveReports({ id, reportId }: RouteProps) {
+  const { search } = useLocation();
+  const application = useQuery(detailOptions(id));
+  const list = useQuery(reportListOptions(id));
+  const belongs = !!reportId && !!list.data?.some((item) => item.id === reportId);
+  const detail = useQuery({
+    ...reportDetailOptions(id, reportId ?? ''),
+    enabled: belongs,
+    refetchInterval: (query) =>
+      query.state.data?.summary === null && !query.state.error ? 10000 : false,
+  });
+  const back = '/adoptions/' + id + (reportId ? '/simulation-reports' : '') + search;
+  const failed = [application, list, ...(belongs ? [detail] : [])].find((q) => q.error);
+  if (failed || !application.data || !list.data || (belongs && !detail.data))
+    return (
+      <WorkPage title="모의 입양 리포트" back={back}>
+        <LoadStateMessage
+          state={
+            failed
+              ? {
+                  status: 'error',
+                  message: failed.error?.message,
+                  retry: () => void failed.refetch(),
+                }
+              : { status: 'loading' }
+          }
+        >
+          {null}
+        </LoadStateMessage>
+      </WorkPage>
+    );
+  if (reportId && !belongs) return <MissingRecord back={back} />;
+  return (
+    <ReportView
+      application={application.data.record}
+      reports={list.data}
+      selected={belongs ? detail.data : undefined}
+    />
+  );
+}
+function ReportView({
+  application,
+  reports,
+  selected,
+}: {
+  application: { id: string; applicant: string };
+  reports: Entry[];
+  selected?: Report;
+}) {
+  const { search } = useLocation();
   const applicationUrl = '/adoptions/' + application.id;
   const listUrl = applicationUrl + '/simulation-reports';
-  const reports = getSimulationReports(application.id);
-  const selected = reports.find((item) => item.id === reportId);
-  if (reportId && !selected) return <MissingRecord back={listUrl + search} />;
   return (
     <WorkPage
       title={selected ? '모의 입양 리포트 상세' : '신청자 모의 입양 리포트'}
@@ -358,7 +444,7 @@ export function SimulationReportsPage() {
         ) : (
           <section className="sim-card">
             <h2>
-              완료된 리포트 <small>{reports.length}건</small>
+              {demoMode ? '완료된 리포트' : '종료된 리포트'} <small>{reports.length}건</small>
             </h2>
             {reports.length === 0 ? (
               <div className="sim-empty">
@@ -371,18 +457,18 @@ export function SimulationReportsPage() {
                   <div>
                     <small>모의 입양 동물</small>
                     <h3>{item.animal}</h3>
-                    <span>{item.temperament}</span>
+                    {item.temperament && <span>{item.temperament}</span>}
                   </div>
                   <div>
                     <small>체험 기간</small>
                     <strong>
                       {item.start.split(' ')[0]} ~ {item.end.split(' ')[0]}
                     </strong>
-                    <span>{item.daily.length}일 체험</span>
+                    {item.days && <span>{item.days}일 체험</span>}
                   </div>
                   <div>
                     <small>총 지출</small>
-                    <strong>{won(totalSpent(item))}</strong>
+                    <strong>{won(item.total)}</strong>
                   </div>
                   <LinkButton to={listUrl + '/' + item.id + search}>상세 보기</LinkButton>
                 </article>

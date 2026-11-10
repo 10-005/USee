@@ -1,28 +1,74 @@
+import { AnimalPhoto } from '@/shared/ui/AnimalPhoto';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { detailOptions, siblingOptions, submitReview } from '@/entities/shelter/data/applications';
+import { demoMode } from '@/shared/config/demo';
+import { LoadStateMessage } from '@/shared/ui/LoadState';
+import type { Adoption } from '@/entities/shelter/model';
 import { LinkButton } from '@/shared/ui/LinkButton';
 import { useState } from 'react';
-import { useLocation, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { WorkPage, InfoRows, MissingRecord, RecordBadge } from '@/shared/ui/WorkPage';
-import { useAnimal, useAdoption, useReviewAdoption } from '@/entities/shelter/data';
+import { useAnimal, useAdoption, useAdoptions, useReviewAdoption } from '@/entities/shelter/data';
 import type { AdoptionStatus } from '@/entities/shelter/model';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
 import clock from '@/shared/assets/icons/review-clock.svg';
+import chevron from '@/shared/assets/icons/chat-back.svg';
 import './simulation-reports.css';
 
 export function AdoptionDetailPage() {
   const { id } = useParams();
+  return demoMode ? <DemoDetail key={id} id={id} /> : <LiveDetail key={id} id={id!} />;
+}
+function LiveDetail({ id }: { id: string }) {
+  const { search } = useLocation();
+  const query = useQuery(detailOptions(id));
+  const siblings = useQuery(siblingOptions(query.data?.record.animalId));
+  const cache = useQueryClient();
+  if (query.error || !query.data)
+    return (
+      <WorkPage title="입양 신청 상세" back={'/adoptions' + search}>
+        <LoadStateMessage
+          state={
+            query.error
+              ? { status: 'error', message: query.error.message, retry: () => void query.refetch() }
+              : { status: 'loading' }
+          }
+        >
+          {null}
+        </LoadStateMessage>
+      </WorkPage>
+    );
+  const data = query.data;
+  return (
+    <DetailView
+      key={data.record.status}
+      {...data}
+      siblingIds={(siblings.data ?? [])
+        .filter((item) => item.name === data.record.name)
+        .map((item) => item.id)}
+      review={async (id, action, reason) => {
+        try {
+          await submitReview(id, data.record.status, action, reason);
+        } finally {
+          await Promise.all([
+            cache.invalidateQueries({ queryKey: ['adoptions'] }),
+            cache.invalidateQueries({ queryKey: ['animals'] }),
+          ]);
+        }
+      }}
+    />
+  );
+}
+function DemoDetail({ id }: { id?: string }) {
   const { search } = useLocation();
   const listUrl = '/adoptions' + search;
   const record = useAdoption(id);
+  const applications = useAdoptions();
   const animal = useAnimal(record?.animalId);
   const review = useReviewAdoption();
-  const [action, setAction] = useState<AdoptionStatus>();
-  const [reason, setReason] = useState('');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [openSections, setOpenSections] = useState<number[]>([0]);
+
   if (!record) return <MissingRecord back={listUrl} />;
   const questions: { title: string; rows: [string, string][] }[] = [
     {
@@ -92,8 +138,58 @@ export function AdoptionDetailPage() {
       ],
     },
   ];
+  const siblingIds = applications
+    .filter((item) => record.animalId && item.animalId === record.animalId)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+    .map((item) => item.id);
+  return (
+    <DetailView
+      record={record}
+      siblingIds={siblingIds}
+      animal={animal}
+      questions={questions}
+      review={review}
+    />
+  );
+}
+function DetailView({
+  record,
+  siblingIds,
+  animal,
+  questions,
+  review,
+}: {
+  record: Adoption;
+  siblingIds: string[];
+  animal?: {
+    summary: string;
+    neutered: string;
+    registration?: string | null;
+    chip?: string | null;
+  };
+  questions: { title: string; rows: [string, string][] }[];
+  review: (id: string, status: AdoptionStatus, reason?: string) => Promise<void>;
+}) {
+  const { search, state } = useLocation();
+  const navigate = useNavigate();
+  const index = siblingIds.indexOf(record.id);
+  const move = (offset: number) => {
+    const target = siblingIds[index + offset];
+    if (target)
+      void navigate('/adoptions/' + encodeURIComponent(target) + search, {
+        state: { slide: offset > 0 ? 'next' : 'previous' },
+      });
+  };
+  const listUrl = '/adoptions' + search;
+  const [action, setAction] = useState<AdoptionStatus>();
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [openSections, setOpenSections] = useState<number[]>([0]);
   const openReview = (next: AdoptionStatus) => {
     setAction(next);
+    setSaveError('');
     setError('');
     setReason('');
   };
@@ -102,11 +198,24 @@ export function AdoptionDetailPage() {
       title="입양 신청 상세"
       narrow
       back={listUrl}
-      titleAction={<LinkButton to={`/animals/${record.animalId}`}>보호동물 정보 보기</LinkButton>}
+      titleAction={
+        <div className="page-actions">
+          <LinkButton
+            className="simulation-entry"
+            variant="soft"
+            to={`/adoptions/${record.id}/simulation-reports${search}`}
+          >
+            모의 입양 리포트 보기
+          </LinkButton>
+          {record.animalId && (
+            <LinkButton to={`/animals/${record.animalId}`}>보호동물 정보 보기</LinkButton>
+          )}
+        </div>
+      }
     >
       <section className="detail-box application-overview">
         <div className="application-animal">
-          <img src={record.image} alt={record.name} />
+          <AnimalPhoto src={record.image} alt={record.name} />
           <div>
             <h2>{record.name}</h2>
             <p>{animal?.summary}</p>
@@ -129,7 +238,37 @@ export function AdoptionDetailPage() {
           ]}
         />
       </section>
-      <section className="detail-box application-questions" aria-label="입양 신청서">
+      {index >= 0 && siblingIds.length > 1 && (
+        <nav
+          className="ui-pagination application-switcher"
+          aria-label="같은 보호동물의 입양 신청서"
+        >
+          <Button aria-label="이전 신청서" disabled={index === 0} onClick={() => move(-1)}>
+            <img src={chevron} alt="" width="18" height="18" />
+          </Button>
+          <span>
+            같은 동물의 신청서 {index + 1} / {siblingIds.length}
+          </span>
+          <Button
+            aria-label="다음 신청서"
+            disabled={index === siblingIds.length - 1}
+            onClick={() => move(1)}
+          >
+            <img
+              className="application-switcher__next"
+              src={chevron}
+              alt=""
+              width="18"
+              height="18"
+            />
+          </Button>
+        </nav>
+      )}
+      <section
+        className="detail-box application-questions"
+        data-slide={state?.slide}
+        aria-label="입양 신청서"
+      >
         {questions.map((question, i) => (
           <div className="application-question" key={question.title}>
             <button
@@ -157,16 +296,11 @@ export function AdoptionDetailPage() {
               inert={!openSections.includes(i)}
             >
               <div>
-                {i === 0 && (
-                  <LinkButton
-                    className="simulation-entry"
-                    variant="soft"
-                    to={`/adoptions/${record.id}/simulation-reports${search}`}
-                  >
-                    모의 입양 리포트 보기
-                  </LinkButton>
+                {question.rows.length ? (
+                  <InfoRows rows={question.rows} />
+                ) : (
+                  <p className="application-question__empty">제출된 답변이 없습니다.</p>
                 )}
-                <InfoRows rows={question.rows} />
               </div>
             </div>
           </div>
@@ -231,8 +365,12 @@ export function AdoptionDetailPage() {
                   if (action === '거절') await review(record.id, action, reason.trim());
                   else await review(record.id, action);
                   setAction(undefined);
-                } catch {
-                  setSaveError('저장하지 못했습니다. 다시 시도해 주세요.');
+                } catch (error) {
+                  setSaveError(
+                    error instanceof Error
+                      ? error.message
+                      : '저장하지 못했습니다. 다시 시도해 주세요.',
+                  );
                 } finally {
                   setSaving(false);
                 }

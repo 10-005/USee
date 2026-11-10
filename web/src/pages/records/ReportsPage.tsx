@@ -1,9 +1,17 @@
+import { AnimalPhoto } from '@/shared/ui/AnimalPhoto';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { demoMode } from '@/shared/config/demo';
+import { assignedOptions, speciesOptions, districtOptions } from '@/entities/shelter/data/rescues';
+import type { Report } from '@/entities/shelter/report';
+import type { PageData } from '@/shared/api/contracts';
+import { RecordQueries } from './RecordQueries';
+import { Navigate } from 'react-router';
 import { LinkButton } from '@/shared/ui/LinkButton';
 import { useSearchParams, Link } from 'react-router';
 import { WorkPage, RecordBadge } from '@/shared/ui/WorkPage';
 import { useRescues } from '@/entities/shelter/data';
 import { Pagination } from '@/shared/ui/DataTable';
-import { FilterSelect } from '@/shared/ui/ListPanel';
+import { FilteredListEmpty, FilterSelect } from '@/shared/ui/ListPanel';
 import { Button } from '@/shared/ui/Button';
 import { useReports } from '@/entities/shelter/data';
 import { referenceDate } from '@/entities/shelter/data';
@@ -19,6 +27,65 @@ const reportTabs = [
 ] as const;
 
 export function ReportsPage() {
+  return demoMode ? <ReportList /> : <LiveReports />;
+}
+function LiveReports() {
+  const [params] = useSearchParams();
+  const list = useQuery(assignedOptions(params)),
+    species = useQuery(speciesOptions),
+    regions = useQuery(districtOptions);
+  const selectedKind = reportTabs.find(([kind]) => kind === params.get('kind'))?.[0] ?? '';
+  const otherTabs = reportTabs.filter(([kind]) => kind !== selectedKind);
+  const countQueries = useQueries({
+    queries: otherTabs.map(([kind]) => {
+      const filters = new URLSearchParams(params);
+      filters.set('kind', kind);
+      filters.delete('page');
+      filters.delete('sort');
+      return assignedOptions(filters, 1);
+    }),
+  });
+  const counts: Record<string, number | undefined> = { [selectedKind]: list.data?.totalElements };
+  otherTabs.forEach(([kind], index) => {
+    counts[kind] = countQueries[index]?.data?.totalElements;
+  });
+  return (
+    <RecordQueries title="발견 신고 목록" queries={[list, species, regions]}>
+      {list.data &&
+        (list.data.page >= Math.max(1, list.data.totalPages) ? (
+          <Navigate
+            replace
+            to={
+              '/reports?' +
+              new URLSearchParams({
+                ...Object.fromEntries(params),
+                page: String(Math.max(1, list.data.totalPages)),
+              })
+            }
+          />
+        ) : (
+          <ReportList
+            counts={counts}
+            live={list.data}
+            species={species.data}
+            districts={regions.data}
+          />
+        ))}
+    </RecordQueries>
+  );
+}
+function ReportList({
+  counts,
+  live,
+  species,
+  districts,
+}: {
+  counts?: Record<string, number | undefined>;
+  live?: PageData<Report & { rescue?: { id: string; status: string } }>;
+  species?: { speciesSeq: number; speciesName: string }[];
+  districts?: { districtCode: string; sidoName: string; sigunguName: string }[];
+}) {
+  const cache = useQueryClient();
   const [params, setParams] = useSearchParams();
   const rescues = useRescues();
   const reportRecords = useReports();
@@ -58,7 +125,7 @@ export function ReportsPage() {
         ? a.createdAt.localeCompare(b.createdAt)
         : b.createdAt.localeCompare(a.createdAt),
     );
-  const pageCount = Math.max(1, Math.ceil(rows.length / 8));
+  const pageCount = Math.max(1, live?.totalPages ?? Math.ceil(rows.length / 8));
   const page = Math.min(pageCount, Math.max(1, Math.floor(Number(params.get('page'))) || 1));
   const change = (key: string, value: string) =>
     setParams((old) => {
@@ -80,7 +147,9 @@ export function ReportsPage() {
           >
             {label}{' '}
             <RecordBadge status={badgeStatus}>
-              {reports.filter((report) => !value || reportKind(report) === value).length}
+              {counts
+                ? (counts[value] ?? '—')
+                : reports.filter((report) => !value || reportKind(report) === value).length}
             </RecordBadge>
           </button>
         ))}
@@ -119,11 +188,17 @@ export function ReportsPage() {
             value={params.get('region') ?? ''}
             onChange={(e) => change('region', e.target.value)}
           >
-            {regions.map((region) => (
-              <option key={region} value={region}>
-                {region}
-              </option>
-            ))}
+            {districts
+              ? districts.map((d) => (
+                  <option key={d.districtCode} value={d.districtCode}>
+                    {d.sidoName} {d.sigunguName}
+                  </option>
+                ))
+              : regions.map((region) => (
+                  <option key={region} value={region}>
+                    {region}
+                  </option>
+                ))}
           </FilterSelect>
           <FilterSelect
             variant="filter"
@@ -131,8 +206,18 @@ export function ReportsPage() {
             value={params.get('species') ?? ''}
             onChange={(e) => change('species', e.target.value)}
           >
-            <option value="dog">개</option>
-            <option value="cat">고양이</option>
+            {species ? (
+              species.map((s) => (
+                <option key={s.speciesSeq} value={s.speciesSeq}>
+                  {s.speciesName}
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="dog">개</option>
+                <option value="cat">고양이</option>
+              </>
+            )}
           </FilterSelect>
         </div>
         <Button
@@ -164,7 +249,7 @@ export function ReportsPage() {
       </div>
       <div className="record-toolbar">
         <p role="status">
-          총 <strong>{rows.length}</strong>건
+          총 <strong>{live?.totalElements ?? rows.length}</strong>건
         </p>
         <FilterSelect
           variant="sort"
@@ -177,9 +262,9 @@ export function ReportsPage() {
         </FilterSelect>
       </div>
       <div className="reports-grid">
-        {rows.slice((page - 1) * 8, page * 8).map((r) => (
+        {(live?.content ?? rows.slice((page - 1) * 8, page * 8)).map((r) => (
           <article className="report-card" key={r.id}>
-            {r.rescue && (
+            {r.rescue?.id && (
               <Link
                 className="report-card__detail"
                 state={reportState}
@@ -188,7 +273,7 @@ export function ReportsPage() {
               />
             )}
             <div className="report-card__photo">
-              <img src={r.image} alt={r.name} />
+              <AnimalPhoto src={r.image} alt={r.name} />
               <span
                 className={`animal-card__status report-card__status animal-card__status--${r.reportStatus === '신고 종료' ? 'closed' : 'protected'}`}
               >
@@ -205,6 +290,10 @@ export function ReportsPage() {
                 <LinkButton
                   className={`report-card__action ${r.rescue ? 'report-card__action--retry' : ''}`}
                   state={reportState}
+                  onClick={() => {
+                    if (live && r.reporter === '(탈퇴한 사용자)')
+                      cache.setQueryData(['found-report', r.id], r);
+                  }}
                   to={`/rescues/new?report=${r.id}`}
                 >
                   {r.rescue ? '재구조 접수' : '구조 접수'}
@@ -220,7 +309,9 @@ export function ReportsPage() {
           </article>
         ))}
       </div>
-      {!rows.length && <p className="detail-box">조건에 맞는 발견 신고가 없습니다.</p>}
+      {!(live?.totalElements ?? rows.length) && (
+        <FilteredListEmpty title="조건에 맞는 발견 신고가 없어요." />
+      )}
       <Pagination
         page={page}
         pageCount={pageCount}
