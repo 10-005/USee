@@ -142,6 +142,7 @@ function RecordList({
   const pageCount = Math.max(1, live?.totalPages ?? Math.ceil(rows.length / 8));
   const page = Math.min(pageCount, Math.max(1, Math.floor(Number(params.get('page'))) || 1));
   type Row = (typeof source)[number];
+  const detailState = (r: Row) => ('animalId' in r ? { animalId: r.animalId } : undefined);
   const columns: TableColumn<Row>[] = [
     {
       id: 'status',
@@ -156,6 +157,7 @@ function RecordList({
       render: (r) => (
         <Link
           className="record-row-link"
+          state={detailState(r)}
           to={{ pathname: `/${kind}/${r.id}`, search: params.toString() }}
         >
           {r.id}
@@ -389,7 +391,12 @@ function RecordList({
         columns={columns}
         rows={live?.content ?? sorted.slice((page - 1) * 8, page * 8)}
         rowKey={(r) => r.id}
-        onRowClick={(r) => navigate({ pathname: `/${kind}/${r.id}`, search: params.toString() })}
+        onRowClick={(r) =>
+          navigate(
+            { pathname: `/${kind}/${r.id}`, search: params.toString() },
+            { state: detailState(r) },
+          )
+        }
       />
       <Pagination
         page={page}

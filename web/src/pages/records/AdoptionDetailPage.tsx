@@ -91,13 +91,15 @@ export function AdoptionDetailPage() {
   return demoMode ? <DemoDetail key={id} id={id} /> : <LiveDetail key={id} id={id!} />;
 }
 function LiveDetail({ id }: { id: string }) {
-  const { search } = useLocation();
+  const { search, state } = useLocation();
   const query = useQuery(detailOptions(id));
-  const siblings = useQuery(siblingOptions(query.data?.record.animalId));
+  const animalId = query.data ? query.data.record.animalId : state?.animalId;
+  const siblings = useQuery(siblingOptions(animalId));
   const cache = useQueryClient();
   if (query.error || !query.data)
     return (
       <WorkPage title="입양 신청 상세" back={'/adoptions' + search}>
+        <ApplicationSwitcher id={id} animalId={animalId} siblingIds={siblings.data ?? []} />
         <LoadStateMessage
           state={
             query.error
@@ -114,9 +116,7 @@ function LiveDetail({ id }: { id: string }) {
     <DetailView
       key={data.record.status}
       {...data}
-      siblingIds={(siblings.data ?? [])
-        .filter((item) => item.name === data.record.name)
-        .map((item) => item.id)}
+      siblingIds={siblings.data ?? []}
       review={async (id, action, reason) => {
         try {
           await submitReview(id, data.record.status, action, reason);
@@ -181,6 +181,44 @@ function DemoDetail({ id }: { id?: string }) {
     />
   );
 }
+function ApplicationSwitcher({
+  id,
+  animalId,
+  siblingIds,
+}: {
+  id: string;
+  animalId: string;
+  siblingIds: string[];
+}) {
+  const { search } = useLocation();
+  const navigate = useNavigate();
+  const index = siblingIds.indexOf(id);
+  const move = (offset: number) => {
+    const target = siblingIds[index + offset];
+    if (target)
+      void navigate('/adoptions/' + encodeURIComponent(target) + search, {
+        state: { animalId, slide: offset > 0 ? 'next' : 'previous' },
+      });
+  };
+  if (index < 0 || siblingIds.length < 2) return null;
+  return (
+    <nav className="ui-pagination application-switcher" aria-label="해당 동물의 신청서">
+      <Button aria-label="이전 신청서" disabled={index === 0} onClick={() => move(-1)}>
+        <img src={chevron} alt="" width="18" height="18" />
+      </Button>
+      <span>
+        해당 동물의 신청서 {index + 1} / {siblingIds.length}
+      </span>
+      <Button
+        aria-label="다음 신청서"
+        disabled={index === siblingIds.length - 1}
+        onClick={() => move(1)}
+      >
+        <img className="application-switcher__next" src={chevron} alt="" width="18" height="18" />
+      </Button>
+    </nav>
+  );
+}
 function DetailView({
   record,
   siblingIds,
@@ -200,15 +238,6 @@ function DetailView({
   review: (id: string, status: AdoptionStatus, reason?: string) => Promise<void>;
 }) {
   const { search, state } = useLocation();
-  const navigate = useNavigate();
-  const index = siblingIds.indexOf(record.id);
-  const move = (offset: number) => {
-    const target = siblingIds[index + offset];
-    if (target)
-      void navigate('/adoptions/' + encodeURIComponent(target) + search, {
-        state: { slide: offset > 0 ? 'next' : 'previous' },
-      });
-  };
   const listUrl = '/adoptions' + search;
   const [action, setAction] = useState<AdoptionStatus>();
   const [reason, setReason] = useState('');
@@ -267,29 +296,7 @@ function DetailView({
           ]}
         />
       </section>
-      {index >= 0 && siblingIds.length > 1 && (
-        <nav className="ui-pagination application-switcher" aria-label="해당 동물의 신청서">
-          <Button aria-label="이전 신청서" disabled={index === 0} onClick={() => move(-1)}>
-            <img src={chevron} alt="" width="18" height="18" />
-          </Button>
-          <span>
-            해당 동물의 신청서 {index + 1} / {siblingIds.length}
-          </span>
-          <Button
-            aria-label="다음 신청서"
-            disabled={index === siblingIds.length - 1}
-            onClick={() => move(1)}
-          >
-            <img
-              className="application-switcher__next"
-              src={chevron}
-              alt=""
-              width="18"
-              height="18"
-            />
-          </Button>
-        </nav>
-      )}
+      <ApplicationSwitcher id={record.id} animalId={record.animalId} siblingIds={siblingIds} />
       <section
         className="detail-box application-questions"
         data-slide={state?.slide}
