@@ -12,13 +12,12 @@ import { AppHeader, Button, DetailScreenSkeleton } from '../../components/common
 import { AppDialog } from '../../components/common/AppDialog';
 import {
   type AdoptionApplicationDetail,
-  type AdoptionApplicationStatus as ApiAdoptionApplicationStatus,
+  type AdoptionApplicationStatus,
   cancelAdoptionApplication,
   deleteAdoptionDraft,
   getAdoptionApplication,
 } from '../../services/adoption';
 import { getApiErrorDisplayMessage } from '../../services/api';
-import type { AdoptionApplicationStatus } from '../../services/storage/adoptionApplicationStorage';
 import { colors, radius, shadows, typography } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AdoptionApplicationHistory'>;
@@ -44,13 +43,13 @@ export const applicationStatusPresentation: Record<AdoptionApplicationStatus, St
       illustration: require('../../assets/images/adoption/process2.png'),
       title: '신청이 접수되었어요!',
     },
-    DOCUMENT_APPROVED: {
+    APPROVED: {
       activeStep: 2,
       description: '보호소와 면담 일정을 조율하고 있습니다',
       illustration: require('../../assets/images/adoption/process3.png'),
       title: '입양 심사가 진행 중이에요',
     },
-    ADOPTION_APPROVED: {
+    ADOPTED: {
       activeStep: 3,
       description: '면담 후 최종 입양이 완료되었습니다',
       illustration: require('../../assets/images/adoption/process4.png'),
@@ -81,12 +80,6 @@ function formatDate(value?: string) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}.${month}.${day}`;
-}
-
-function toPresentationStatus(status: ApiAdoptionApplicationStatus): AdoptionApplicationStatus {
-  if (status === 'APPROVED') {return 'DOCUMENT_APPROVED';}
-  if (status === 'ADOPTED') {return 'ADOPTION_APPROVED';}
-  return status;
 }
 
 function ProcessProgress({ activeStep }: { activeStep: number }) {
@@ -136,14 +129,9 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
   const [actionError, setActionError] = useState('');
 
   useEffect(() => {
-    if (route.params.previewStatus) {
-      setStatus(route.params.previewStatus);
-      setLoading(false);
-      return;
-    }
     if (!route.params.applicationSeq) {
       if (route.params.applicationStatus) {
-        setStatus(toPresentationStatus(route.params.applicationStatus));
+        setStatus(route.params.applicationStatus);
       }
       setLoading(false);
       return;
@@ -153,7 +141,7 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
     getAdoptionApplication(route.params.applicationSeq)
       .then(detail => {
         setApplication(detail);
-        setStatus(toPresentationStatus(detail.status));
+        setStatus(detail.status);
       })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
@@ -161,11 +149,10 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
 
   const presentation = applicationStatusPresentation[status];
   const isDraft = status === 'DRAFT';
-  const isPreview = Boolean(route.params.previewStatus);
   const canCancel = status === 'SUBMITTED';
   const isCanceled = status === 'CANCELED';
   const isRejected = status === 'REJECTED';
-  const isApproved = status === 'ADOPTION_APPROVED';
+  const isApproved = status === 'ADOPTED';
 
   const handleDocumentPress = () => {
     if (isDraft) {
@@ -181,10 +168,6 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
   };
 
   const handleDeleteOrCancel = async () => {
-    if (isPreview) {
-      setShowConfirm(false);
-      return;
-    }
     if (!route.params.applicationSeq || isChanging) {return;}
     try {
       setIsChanging(true);
@@ -222,7 +205,7 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
     try {
       const detail = await getAdoptionApplication(route.params.applicationSeq);
       setApplication(detail);
-      setStatus(toPresentationStatus(detail.status));
+      setStatus(detail.status);
     } catch {
       setLoadError(true);
     }
