@@ -239,10 +239,7 @@ function DetailView({
         />
       </section>
       {index >= 0 && siblingIds.length > 1 && (
-        <nav
-          className="ui-pagination application-switcher"
-          aria-label="해당 동물의 신청서"
-        >
+        <nav className="ui-pagination application-switcher" aria-label="해당 동물의 신청서">
           <Button aria-label="이전 신청서" disabled={index === 0} onClick={() => move(-1)}>
             <img src={chevron} alt="" width="18" height="18" />
           </Button>

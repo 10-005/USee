@@ -1,5 +1,6 @@
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 import { shelterRequest } from '@/shared/api/session';
+import type { adoptionStatusLabels } from '@/entities/shelter/data/applications';
 
 export type Room = {
   chatRoomSeq: number;
@@ -20,7 +21,7 @@ type CounterpartProfile = {
     applicationSeq: number;
     speciesName: string;
     breedName: string;
-    status: keyof typeof import('@/entities/shelter/data/applications').adoptionStatusLabels;
+    status: keyof typeof adoptionStatusLabels;
     submittedDttm: string | null;
   }[];
 };
