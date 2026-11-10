@@ -12,7 +12,8 @@ describe('onboardingValidation', () => {
     expect(isValidNickname('치이카와입니다요요요요')).toBe(false);
     expect(isValidNickname('치이 카와')).toBe(false);
     expect(isValidNickname('치이카와!')).toBe(false);
-    expect(isValidNickname('치이,카와._')).toBe(true);
+    expect(isValidNickname('치이,카와')).toBe(false);
+    expect(isValidNickname('치이카와._')).toBe(true);
   });
 
   it('이름에는 한글과 영문만 허용한다', () => {

@@ -39,6 +39,7 @@ import { ShopScreen } from '../../screens/shop/ShopScreen';
 import { ProductDetailScreen } from '../../screens/shop/ProductDetailScreen';
 import { CartScreen } from '../../screens/shop/CartScreen';
 import { InventoryScreen } from '../../screens/shop/InventoryScreen';
+import { useAuthStore } from '../../stores/authStore';
 
 const styles = StyleSheet.create({
   walkExitTitle: {
@@ -55,66 +56,84 @@ function WalkExitTitle() {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="SignupOnboarding" component={SignupOnboardingScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="PetShop" component={ShopScreen} />
-        <Stack.Screen name="ShopProductDetail" component={ProductDetailScreen} />
-        <Stack.Screen name="ShopCart" component={CartScreen} />
-        <Stack.Screen name="ShopInventory" component={InventoryScreen} />
-        <Stack.Screen name="FoundReportDetail" component={FoundReportDetailScreen} />
-        <Stack.Screen name="FoundReportForm" component={FoundReportFormScreen} />
-        <Stack.Screen name="FoundReportMap" component={FoundReportMapScreen} />
-        <Stack.Screen name="LostReportDetail" component={FoundReportDetailScreen} />
-        <Stack.Screen name="LostReportForm" component={LostReportFormScreen} />
-        <Stack.Screen name="LostReportLocationPicker" component={LostReportLocationPickerScreen} />
-        <Stack.Screen name="LostReportPetSelection" component={LostReportPetSelectionScreen} />
-        <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
-        <Stack.Screen name="MockAdoptionActivity" component={MockAdoptionActivityScreen} />
-        <Stack.Screen name="MockAdoptionSelection" component={MockAdoptionScreen} />
-        <Stack.Screen name="MockAdoptionName" component={MockAdoptionNameScreen} />
-        <Stack.Screen name="PetList" component={PetListScreen} />
-        <Stack.Screen name="PetDetail" component={PetDetailScreen} />
-        <Stack.Screen name="PetRegistration" component={PetRegistrationScreen} />
-        <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
-        <Stack.Screen name="Settings" component={SettingsScreen} />
-        <Stack.Screen name="SavedPosts" component={SavedPostsScreen} />
-        <Stack.Screen name="MyPosts" component={MyPostsScreen} />
-        <Stack.Screen name="NoticeList" component={NoticeListScreen} />
-        <Stack.Screen name="Notifications" component={NotificationListScreen} />
-        <Stack.Screen name="NoticeDetail" component={NoticeDetailScreen} />
-        <Stack.Screen name="MockAdoptionBudget" component={MockAdoptionBudgetScreen} />
-        <Stack.Screen
-          name="ArWalk"
-          component={ArWalkScreen}
-          options={{
-            headerShown: true,
-            title: '산책 그만하기',
-            headerTitle: WalkExitTitle,
-            headerTitleAlign: 'left',
-            headerTransparent: true,
-            headerShadowVisible: false,
-            headerTintColor: '#FFFFFF',
-            headerStyle: { backgroundColor: 'transparent' },
-            headerTitleStyle: { color: '#FFFFFF', fontSize: 10 },
-          }}
-        />
-        <Stack.Screen name="AdoptionDetail" component={AdoptionDetailScreen} />
-        <Stack.Screen name="AdoptionApplication" component={AdoptionApplicationScreen} />
-        <Stack.Screen name="AdoptionApplicantEdit" component={AdoptionApplicantEditScreen} />
-        <Stack.Screen
-          name="AdoptionApplicationHistory"
-          component={AdoptionApplicationHistoryScreen}
-        />
-        <Stack.Screen name="AdoptionApplicationList" component={AdoptionApplicationListScreen} />
-        <Stack.Screen
-          name="AdoptionApplicationReview"
-          component={AdoptionApplicationReviewScreen}
-        />
-        <Stack.Screen name="ShelterDetail" component={ShelterDetailScreen} />
+      <Stack.Navigator
+        initialRouteName={isAuthenticated ? 'Home' : 'Login'}
+        screenOptions={{ headerShown: false }}
+      >
+        {isAuthenticated ? (
+          <>
+            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="PetShop" component={ShopScreen} />
+            <Stack.Screen name="ShopProductDetail" component={ProductDetailScreen} />
+            <Stack.Screen name="ShopCart" component={CartScreen} />
+            <Stack.Screen name="ShopInventory" component={InventoryScreen} />
+            <Stack.Screen name="FoundReportDetail" component={FoundReportDetailScreen} />
+            <Stack.Screen name="FoundReportForm" component={FoundReportFormScreen} />
+            <Stack.Screen name="FoundReportMap" component={FoundReportMapScreen} />
+            <Stack.Screen name="LostReportDetail" component={FoundReportDetailScreen} />
+            <Stack.Screen name="LostReportForm" component={LostReportFormScreen} />
+            <Stack.Screen
+              name="LostReportLocationPicker"
+              component={LostReportLocationPickerScreen}
+            />
+            <Stack.Screen name="LostReportPetSelection" component={LostReportPetSelectionScreen} />
+            <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
+            <Stack.Screen name="MockAdoptionActivity" component={MockAdoptionActivityScreen} />
+            <Stack.Screen name="MockAdoptionSelection" component={MockAdoptionScreen} />
+            <Stack.Screen name="MockAdoptionName" component={MockAdoptionNameScreen} />
+            <Stack.Screen name="PetList" component={PetListScreen} />
+            <Stack.Screen name="PetDetail" component={PetDetailScreen} />
+            <Stack.Screen name="PetRegistration" component={PetRegistrationScreen} />
+            <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="SavedPosts" component={SavedPostsScreen} />
+            <Stack.Screen name="MyPosts" component={MyPostsScreen} />
+            <Stack.Screen name="NoticeList" component={NoticeListScreen} />
+            <Stack.Screen name="Notifications" component={NotificationListScreen} />
+            <Stack.Screen name="NoticeDetail" component={NoticeDetailScreen} />
+            <Stack.Screen name="MockAdoptionBudget" component={MockAdoptionBudgetScreen} />
+            <Stack.Screen
+              name="ArWalk"
+              component={ArWalkScreen}
+              options={{
+                headerShown: true,
+                title: '산책 그만하기',
+                headerTitle: WalkExitTitle,
+                headerTitleAlign: 'left',
+                headerTransparent: true,
+                headerShadowVisible: false,
+                headerTintColor: '#FFFFFF',
+                headerStyle: { backgroundColor: 'transparent' },
+                headerTitleStyle: { color: '#FFFFFF', fontSize: 10 },
+              }}
+            />
+            <Stack.Screen name="AdoptionDetail" component={AdoptionDetailScreen} />
+            <Stack.Screen name="AdoptionApplication" component={AdoptionApplicationScreen} />
+            <Stack.Screen name="AdoptionApplicantEdit" component={AdoptionApplicantEditScreen} />
+            <Stack.Screen
+              name="AdoptionApplicationHistory"
+              component={AdoptionApplicationHistoryScreen}
+            />
+            <Stack.Screen
+              name="AdoptionApplicationList"
+              component={AdoptionApplicationListScreen}
+            />
+            <Stack.Screen
+              name="AdoptionApplicationReview"
+              component={AdoptionApplicationReviewScreen}
+            />
+            <Stack.Screen name="ShelterDetail" component={ShelterDetailScreen} />
+          </>
+        ) : (
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="SignupOnboarding" component={SignupOnboardingScreen} />
+          </>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );

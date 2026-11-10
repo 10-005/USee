@@ -66,6 +66,20 @@ react {
  */
 def enableProguardInReleaseBuilds = false
 
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+}
+
+def kakaoNativeAppKey = localProperties.getProperty("KAKAO_NATIVE_APP_KEY") ?:
+    System.getenv("KAKAO_NATIVE_APP_KEY")
+if (!kakaoNativeAppKey) {
+    throw new GradleException(
+        "KAKAO_NATIVE_APP_KEY is missing. Add it to android/local.properties or the CI environment."
+    )
+}
+
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
  *
@@ -92,6 +106,8 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "com.usee.animal.ar.SegFormerDeviceCheck"
+        resValue "string", "kakao_app_key", kakaoNativeAppKey
+        resValue "string", "kakao_login_scheme", "kakao${kakaoNativeAppKey}"
     }
     sourceSets {
         main {

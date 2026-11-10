@@ -12,6 +12,17 @@ jest.mock('@react-native-firebase/messaging', () => ({
 
 jest.mock('@op-engineering/op-sqlite', () => require('./__mocks__/opSqliteMock'));
 
+jest.mock('@react-native-seoul/kakao-login', () => ({
+  login: jest.fn().mockResolvedValue({ accessToken: 'kakao-access-token' }),
+}));
+
+jest.mock('react-native-keychain', () => ({
+  ACCESSIBLE: { WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'WhenUnlockedThisDeviceOnly' },
+  getGenericPassword: jest.fn().mockResolvedValue(false),
+  resetGenericPassword: jest.fn().mockResolvedValue(true),
+  setGenericPassword: jest.fn().mockResolvedValue(true),
+}));
+
 jest.mock('@dr.pogodin/react-native-fs', () => ({
   DocumentDirectoryPath: '/documents',
   copyFile: jest.fn(),
@@ -35,6 +46,7 @@ jest.mock('react-native-reanimated', () => {
   return {
     __esModule: true,
     default: {
+      createAnimatedComponent: component => component,
       View: props => React.createElement(View, props),
     },
     SensorType: {

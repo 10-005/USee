@@ -1,4 +1,3 @@
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   Alert,
@@ -16,13 +15,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { RootStackParamList } from '../../app/navigation/types';
 import CalendarIcon from '../../assets/icons/common/calendar.svg';
 import CheckCircleIcon from '../../assets/icons/common/check-circle.svg';
 import MinusCircleIcon from '../../assets/icons/common/minus-circle.svg';
 import Logo from '../../assets/images/logo.png';
 import { DatePickerModal } from '../../components/common';
 import { colors, radius, typography } from '../../theme';
+import { ApiClientError, getApiErrorDisplayMessage, getApiFieldError } from '../../services/api';
+import { checkNicknameAvailability } from '../../services/users';
+import { useAuthStore } from '../../stores/authStore';
 import {
   formatBirthDate,
   formatPhoneNumber,
@@ -30,25 +31,30 @@ import {
   isValidNickname,
   isValidPhoneNumber,
   ONBOARDING_NAME_ALERT,
+  ONBOARDING_NICKNAME_ALERT,
 } from './onboardingValidation';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'SignupOnboarding'>;
+type NicknameStatus = 'idle' | 'checking' | 'available' | 'unavailable' | 'invalid';
 
-export function SignupOnboardingScreen({ navigation }: Props) {
+export function SignupOnboardingScreen() {
+  const completeRegistration = useAuthStore(state => state.completeRegistration);
+  const isLoading = useAuthStore(state => state.isLoading);
+  const register = useAuthStore(state => state.register);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const nameRef = useRef<ComponentRef<typeof TextInput>>(null);
   const phoneRef = useRef<ComponentRef<typeof TextInput>>(null);
   const phoneFocusedRef = useRef(false);
   const phoneFieldYRef = useRef(0);
   const phoneRevealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nicknameCheckRequestRef = useRef(0);
   const [nickname, setNickname] = useState('');
-  const [nicknameStatus, setNicknameStatus] = useState<'idle' | 'available' | 'unavailable'>(
-    'idle',
-  );
+  const [nicknameStatus, setNicknameStatus] = useState<NicknameStatus>('idle');
+  const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
   const [birthDate, setBirthDate] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const [phoneFocused, setPhoneFocused] = useState(false);
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -66,26 +72,63 @@ export function SignupOnboardingScreen({ navigation }: Props) {
   };
 
   useEffect(() => {
-    const subscription = Keyboard.addListener('keyboardDidShow', () => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
       if (phoneFocusedRef.current) {
         revealPhoneInput();
       }
     });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      phoneFocusedRef.current = false;
+      setPhoneFocused(false);
+      phoneRef.current?.blur();
+    });
     return () => {
-      subscription.remove();
+      showSubscription.remove();
+      hideSubscription.remove();
       if (phoneRevealTimerRef.current) {
         clearTimeout(phoneRevealTimerRef.current);
       }
     };
   }, []);
 
-  const checkNickname = () => {
+  const checkNickname = async () => {
     if (!isValidNickname(nickname)) {
+      setNicknameStatus('invalid');
+      setNicknameError(ONBOARDING_NICKNAME_ALERT);
       return;
     }
-    Keyboard.dismiss();
-    setNicknameStatus('available');
-    requestAnimationFrame(() => nameRef.current?.focus());
+    const requestId = ++nicknameCheckRequestRef.current;
+    setNicknameStatus('checking');
+    setNicknameError(null);
+    try {
+      const result = await checkNicknameAvailability(nickname);
+      if (requestId !== nicknameCheckRequestRef.current) {
+        return;
+      }
+      if (!result.available) {
+        setNicknameStatus('unavailable');
+        setNicknameError('이미 사용 중인 닉네임입니다.');
+        return;
+      }
+      Keyboard.dismiss();
+      setNicknameStatus('available');
+      requestAnimationFrame(() => nameRef.current?.focus());
+    } catch (error) {
+      if (requestId !== nicknameCheckRequestRef.current) {
+        return;
+      }
+      const fieldError = getApiFieldError(error, 'nickname');
+      if (fieldError) {
+        setNicknameStatus('invalid');
+        setNicknameError(fieldError);
+        return;
+      }
+      setNicknameStatus('idle');
+      Alert.alert(
+        '닉네임 확인 실패',
+        getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'),
+      );
+    }
   };
 
   const confirmName = () => {
@@ -105,13 +148,47 @@ export function SignupOnboardingScreen({ navigation }: Props) {
     setDatePickerOpen(true);
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!isValidPhoneNumber(phone)) {
-      Alert.alert('입력 확인', '올바른 전화번호를 입력해주세요');
+      setPhoneError('올바른 전화번호를 입력해 주세요.');
+      phoneRef.current?.focus();
       return;
     }
     Keyboard.dismiss();
-    setCompletionModalOpen(true);
+    try {
+      await register({
+        birthDate: birthDate.replaceAll('.', '-'),
+        name,
+        nickname,
+        phone: phone.replaceAll('-', ''),
+      });
+      setCompletionModalOpen(true);
+    } catch (error) {
+      if (error instanceof ApiClientError && error.code.includes('NICKNAME')) {
+        setNicknameStatus('unavailable');
+        setNicknameError('이미 사용 중인 닉네임입니다.');
+        Alert.alert('닉네임 확인', '이미 사용 중인 닉네임입니다.');
+        return;
+      }
+      if (error instanceof ApiClientError && error.code === 'USER_DUPLICATE_PHONE') {
+        setPhoneError('이미 사용 중인 전화번호입니다.');
+        requestAnimationFrame(() => {
+          phoneRef.current?.focus();
+          schedulePhoneReveal();
+        });
+        return;
+      }
+      const phoneFieldError = getApiFieldError(error, 'phone');
+      if (phoneFieldError) {
+        setPhoneError(phoneFieldError);
+        requestAnimationFrame(() => {
+          phoneRef.current?.focus();
+          schedulePhoneReveal();
+        });
+        return;
+      }
+      Alert.alert('회원가입 실패', getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'));
+    }
   };
 
   const nicknameChecked = nicknameStatus === 'available';
@@ -147,8 +224,14 @@ export function SignupOnboardingScreen({ navigation }: Props) {
               accessibilityLabel="닉네임"
               autoCapitalize="none"
               onChangeText={value => {
+                nicknameCheckRequestRef.current += 1;
                 setNickname(value);
-                setNicknameStatus(isValidNickname(value) ? 'idle' : 'unavailable');
+                setNicknameStatus(
+                  value.length === 0 || isValidNickname(value) ? 'idle' : 'invalid',
+                );
+                setNicknameError(
+                  value.length === 0 || isValidNickname(value) ? null : ONBOARDING_NICKNAME_ALERT,
+                );
               }}
               onSubmitEditing={checkNickname}
               placeholder="치이카와"
@@ -159,15 +242,17 @@ export function SignupOnboardingScreen({ navigation }: Props) {
             />
             <Pressable
               accessibilityRole="button"
-              disabled={!nicknameValid}
+              disabled={!nicknameValid || nicknameStatus === 'checking'}
               onPress={checkNickname}
               style={({ pressed }) => [
                 styles.checkButton,
-                nicknameValid && styles.checkButtonEnabled,
-                pressed && nicknameValid && styles.pressed,
+                nicknameValid && nicknameStatus !== 'checking' && styles.checkButtonEnabled,
+                pressed && nicknameValid && nicknameStatus !== 'checking' && styles.pressed,
               ]}
             >
-              <Text style={styles.checkButtonLabel}>중복확인</Text>
+              <Text style={styles.checkButtonLabel}>
+                {nicknameStatus === 'checking' ? '확인 중...' : '중복확인'}
+              </Text>
             </Pressable>
           </View>
           {nicknameStatus === 'available' ? (
@@ -176,10 +261,10 @@ export function SignupOnboardingScreen({ navigation }: Props) {
               <Text style={styles.available}>사용 가능한 닉네임입니다</Text>
             </View>
           ) : null}
-          {nicknameStatus === 'unavailable' ? (
+          {nicknameError ? (
             <View style={styles.nicknameStatus}>
               <MinusCircleIcon height={15} width={15} />
-              <Text style={styles.unavailable}>{ONBOARDING_NAME_ALERT}</Text>
+              <Text style={styles.unavailable}>{nicknameError}</Text>
             </View>
           ) : null}
 
@@ -245,7 +330,10 @@ export function SignupOnboardingScreen({ navigation }: Props) {
                   phoneFocusedRef.current = false;
                   setPhoneFocused(false);
                 }}
-                onChangeText={value => setPhone(formatPhoneNumber(value))}
+                onChangeText={value => {
+                  setPhone(formatPhoneNumber(value));
+                  setPhoneError(null);
+                }}
                 onFocus={() => {
                   phoneFocusedRef.current = true;
                   setPhoneFocused(true);
@@ -255,27 +343,34 @@ export function SignupOnboardingScreen({ navigation }: Props) {
                 placeholder="010-1234-5678"
                 placeholderTextColor={colors.gray400}
                 returnKeyType="done"
-                style={styles.input}
+                style={[styles.input, phoneError && styles.inputError]}
                 value={phone}
               />
+              {phoneError ? (
+                <View style={styles.nicknameStatus}>
+                  <MinusCircleIcon height={15} width={15} />
+                  <Text style={styles.unavailable}>{phoneError}</Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
-
-          {birthDate && !phoneFocused ? (
+        </ScrollView>
+        {birthDate && !phoneFocused ? (
+          <View style={styles.submitFooter}>
             <Pressable
               accessibilityRole="button"
-              disabled={!canSubmit}
+              disabled={!canSubmit || isLoading}
               onPress={submit}
               style={({ pressed }) => [
                 styles.submitButton,
-                canSubmit && styles.submitButtonEnabled,
-                pressed && canSubmit && styles.pressed,
+                canSubmit && !isLoading && styles.submitButtonEnabled,
+                pressed && canSubmit && !isLoading && styles.pressed,
               ]}
             >
               <Text style={styles.submitLabel}>회원가입</Text>
             </Pressable>
-          ) : null}
-        </ScrollView>
+          </View>
+        ) : null}
       </KeyboardAvoidingView>
       <DatePickerModal
         maximumDate={new Date()}
@@ -301,12 +396,7 @@ export function SignupOnboardingScreen({ navigation }: Props) {
             <Text style={styles.modalDescription}>USee와 함께 새로운 만남을 시작해보세요.</Text>
             <Pressable
               accessibilityRole="button"
-              onPress={() =>
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Home' }],
-                })
-              }
+              onPress={completeRegistration}
               style={({ pressed }) => [styles.modalButton, pressed && styles.pressed]}
             >
               <Text style={styles.modalButtonText}>확인</Text>
@@ -347,6 +437,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 0,
   },
+  inputError: { borderColor: '#FA705B' },
   nicknameInput: { flex: 1 },
   checkButton: {
     alignItems: 'center',
@@ -379,9 +470,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     height: 48,
     justifyContent: 'center',
-    marginTop: 'auto',
   },
   submitButtonEnabled: { backgroundColor: '#00AD5F' },
+  submitFooter: {
+    backgroundColor: colors.white,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
   submitLabel: { ...typography.bodySemiBold16, color: colors.white },
   modalOverlay: {
     alignItems: 'center',
