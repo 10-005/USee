@@ -56,6 +56,21 @@ export type NotificationListQuery = {
   sort?: string;
 };
 
+export type NotificationReadResult = {
+  isRead: boolean;
+  notificationSeq: number;
+  readDttm: string | null;
+};
+
+export async function markNotificationAsRead(
+  notificationSeq: number,
+): Promise<NotificationReadResult> {
+  const response = await notificationClient.patch<ApiResponse<NotificationReadResult>>(
+    `/notifications/${notificationSeq}/read`,
+  );
+  return response.data.data;
+}
+
 export async function getMyNotifications(
   query: NotificationListQuery = {},
 ): Promise<NotificationPage> {

@@ -1,11 +1,12 @@
 jest.mock('../../api/client', () => ({
-  notificationClient: { get: jest.fn() },
+  notificationClient: { get: jest.fn(), patch: jest.fn() },
 }));
 
 import { notificationClient } from '../../api/client';
-import { getMyNotifications } from '../notificationApi';
+import { getMyNotifications, markNotificationAsRead } from '../notificationApi';
 
 const mockGet = notificationClient.get as jest.Mock;
+const mockPatch = notificationClient.patch as jest.Mock;
 
 const page = {
   content: [],
@@ -15,6 +16,24 @@ const page = {
   totalElements: 0,
   totalPages: 0,
 };
+
+describe('markNotificationAsRead', () => {
+  beforeEach(() => {
+    mockPatch.mockReset();
+  });
+
+  it('알림 번호로 읽음 처리하고 읽은 시각을 반환한다', async () => {
+    const data = {
+      isRead: true,
+      notificationSeq: 805,
+      readDttm: '2026-10-29T18:00:00+09:00',
+    };
+    mockPatch.mockResolvedValue({ data: { data } });
+
+    await expect(markNotificationAsRead(805)).resolves.toEqual(data);
+    expect(mockPatch).toHaveBeenCalledWith('/notifications/805/read');
+  });
+});
 
 describe('getMyNotifications', () => {
   beforeEach(() => {

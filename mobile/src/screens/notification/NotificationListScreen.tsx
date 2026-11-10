@@ -18,6 +18,7 @@ import { AppHeader } from '../../components/common';
 import { getApiErrorDisplayMessage } from '../../services/api';
 import {
   getMyNotifications,
+  markNotificationAsRead,
   type NotificationListQuery,
 } from '../../services/notifications/notificationApi';
 import {
@@ -78,10 +79,17 @@ export function NotificationListScreen({ navigation }: Props) {
   );
 
   const openNotification = (notification: NotificationListEntry) => {
-    setNotifications(current =>
-      current.map(item => (item.id === notification.id ? { ...item, isRead: true } : item)),
-    );
     openNotificationDestination(navigation, notification);
+    if (notification.isRead) {
+      return;
+    }
+    markNotificationAsRead(Number(notification.id))
+      .then(() => {
+        setNotifications(current =>
+          current.map(item => (item.id === notification.id ? { ...item, isRead: true } : item)),
+        );
+      })
+      .catch(() => undefined);
   };
 
   const confirmDelete = () => {
