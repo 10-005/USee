@@ -22,6 +22,7 @@ import PetMoreIcon from '../../assets/icons/mypage/pet-more.svg';
 import PetTrashIcon from '../../assets/icons/mypage/pet-trash.svg';
 import { getApiErrorDisplayMessage } from '../../services/api';
 import { usePetStore } from '../../stores/petStore';
+import { SkeletonBlock, SkeletonGroup } from '../../components/common';
 import { colors, radius, typography } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PetDetail'>;
@@ -67,10 +68,7 @@ export function PetDetailScreen({ navigation, route }: Props) {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <PetHeader onBack={navigation.goBack} onMenu={() => undefined} />
-        <View style={styles.notFound}>
-          <ActivityIndicator color={colors.green400} />
-          <Text style={styles.notFoundText}>반려동물 정보를 불러오는 중...</Text>
-        </View>
+        <PetDetailSkeleton />
       </SafeAreaView>
     );
   }
@@ -251,6 +249,24 @@ export function PetDetailScreen({ navigation, route }: Props) {
   );
 }
 
+function PetDetailSkeleton() {
+  return (
+    <SkeletonGroup accessibilityLabel="반려동물 상세 불러오는 중" style={styles.detailSkeleton}>
+      <SkeletonBlock style={styles.heroSkeleton} />
+      <SkeletonBlock style={styles.nameSkeleton} />
+      <SkeletonBlock style={styles.kindSkeleton} />
+      <View style={styles.rowsSkeleton}>
+        {[0, 1, 2, 3, 4].map(index => (
+          <View key={index} style={styles.rowSkeleton}>
+            <SkeletonBlock style={styles.labelSkeleton} />
+            <SkeletonBlock style={styles.valueSkeleton} />
+          </View>
+        ))}
+      </View>
+    </SkeletonGroup>
+  );
+}
+
 function PetHeader({ onBack, onMenu }: { onBack: () => void; onMenu: () => void }) {
   return (
     <View style={styles.header}>
@@ -389,4 +405,18 @@ const styles = StyleSheet.create({
   retryText: { ...typography.bodySemiBold16, color: colors.green400 },
   disabled: { opacity: 0.65 },
   pressed: { opacity: 0.65 },
+  detailSkeleton: { flex: 1, paddingHorizontal: 26, paddingTop: 12 },
+  heroSkeleton: { borderRadius: 10, height: 360, width: '100%' },
+  nameSkeleton: { height: 22, marginTop: 34, width: '38%' },
+  kindSkeleton: { height: 14, marginTop: 10, width: '52%' },
+  rowsSkeleton: {
+    borderTopColor: colors.gray200,
+    borderTopWidth: 1,
+    gap: 16,
+    marginTop: 18,
+    paddingTop: 18,
+  },
+  rowSkeleton: { flexDirection: 'row', gap: 28 },
+  labelSkeleton: { height: 15, width: 72 },
+  valueSkeleton: { flex: 1, height: 15 },
 });

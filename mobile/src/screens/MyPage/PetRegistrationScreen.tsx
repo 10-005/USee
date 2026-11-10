@@ -82,7 +82,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   const fetchPet = usePetStore(state => state.fetchPet);
   const upsertPet = usePetStore(state => state.upsertPet);
   const isEditing = !isReportFlow && Boolean(editingPet);
-  const usesPetApi = !isReportFlow;
+  const usesPetApi = !isFoundReportFlow;
   const initialAnimal = isLostReportFlow ? lostReportAnimal : editingPet;
   const [photos, setPhotos] = useState<Asset[]>(() =>
     isFoundReportFlow
@@ -179,12 +179,14 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   const existingImageSeqs = useMemo(
     () =>
       Object.fromEntries(
-        (editingPet?.images ?? []).map((image, index) => [
-          Image.resolveAssetSource(image)?.uri ?? '',
-          editingPet?.imageSeqs?.[index],
-        ]),
+        ((isLostReportFlow ? lostReportAnimal.images : editingPet?.images) ?? []).map(
+          (image, index) => [
+            Image.resolveAssetSource(image)?.uri ?? '',
+            (isLostReportFlow ? lostReportAnimal.imageSeqs : editingPet?.imageSeqs)?.[index],
+          ],
+        ),
       ) as Record<string, number>,
-    [editingPet],
+    [editingPet, isLostReportFlow, lostReportAnimal.imageSeqs, lostReportAnimal.images],
   );
 
   const loadSpecies = useCallback(async () => {
@@ -283,7 +285,9 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       neutered &&
       microchip &&
       (microchip !== '완료' || microchipNumber.trim()) &&
-      (!usesPetApi || catalogCombinations.some(combination => combination.colorName === color)) &&
+      (!usesPetApi ||
+        (isLostReportFlow && Boolean(lostReportAnimal.combinationSeq)) ||
+        catalogCombinations.some(combination => combination.colorName === color)) &&
       !isUploadingPhotos &&
       !isSubmitting,
   );
@@ -466,20 +470,50 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       weight: weight ? Number(weight) : null,
     };
     if (isLostReportFlow) {
-      updateLostReportAnimal({
-        age: draftPet.age,
-        breed: draftPet.breed,
-        color: draftPet.color,
-        description: draftPet.description,
-        gender: draftPet.gender,
-        images: [...sources],
-        microchipNumber: draftPet.microchipNumber,
-        name: draftPet.name,
-        neutered: draftPet.neutered,
-        species: draftPet.species,
-        weight: draftPet.weight,
-      });
-      navigation.navigate('LostReportForm', { reportId: route.params?.reportId });
+      const combinationSeq =
+        catalogCombinations.find(item => item.colorName === color)?.combinationSeq ??
+        lostReportAnimal.combinationSeq;
+      if (!combinationSeq) {
+        Alert.alert('입력 확인', '종·품종·색상 조합을 다시 선택해 주세요.');
+        return;
+      }
+      setIsSubmitting(true);
+      try {
+        const nextConfirmed = { ...existingImageSeqs, ...confirmedImageSeqs };
+        for (const photo of photos) {
+          const uri = photo.uri!;
+          if (!nextConfirmed[uri]) {
+            const imageKey = uploadedImageKeys[uri];
+            if (!imageKey) {
+              throw new Error('사진 업로드 정보가 없어요. 사진을 다시 선택해 주세요.');
+            }
+            nextConfirmed[uri] = (await confirmImage(imageKey)).imageSeq;
+          }
+        }
+        updateLostReportAnimal({
+          age: draftPet.age,
+          breed: draftPet.breed,
+          color: draftPet.color,
+          combinationSeq,
+          description: draftPet.description,
+          gender: draftPet.gender,
+          images: [...sources],
+          imageSeqs: photos.map(photo => nextConfirmed[photo.uri!]),
+          microchipNumber: draftPet.microchipNumber,
+          name: draftPet.name,
+          neutered: draftPet.neutered,
+          species: draftPet.species,
+          weight: draftPet.weight,
+        });
+        navigation.navigate('LostReportForm', { reportId: route.params?.reportId });
+      } catch (error) {
+        Alert.alert(
+          '사진 등록 실패',
+          getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'),
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
     if (isFoundReportFlow) {

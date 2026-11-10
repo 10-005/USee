@@ -28,7 +28,7 @@ import PostStatusIcon from '../../assets/icons/common/post-status.svg';
 import ReportIcon from '../../assets/icons/common/report.svg';
 import ReportCloseIcon from '../../assets/icons/common/report-close.svg';
 import StatusPawIcon from '../../assets/icons/common/status-paw.svg';
-import { AppHeader, Button } from '../../components/common';
+import { AppHeader, Button, DetailScreenSkeleton } from '../../components/common';
 import {
   ContentReportModal,
   type ContentReportTarget,
@@ -40,6 +40,7 @@ import { useFoundReportDraftStore } from '../../stores/foundReportDraftStore';
 import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
 import { useLostReportEditStore } from '../../stores/lostReportEditStore';
+import { useMissingReportStore } from '../../stores/missingReportStore';
 import { type ReportProgressStatus, useReportStatusStore } from '../../stores/reportStatusStore';
 import { colors, radius, typography } from '../../theme';
 import { FoundReportCommentList } from './FoundReportCommentList';
@@ -63,15 +64,21 @@ export function getContactDisplayValue(contact?: string) {
 
 export function FoundReportDetailScreen({ navigation, route }: Props) {
   const isLostReport = route.name === 'LostReportDetail';
+  const apiLostReport = useMissingReportStore(state => state.reportById[route.params.reportId]);
+  const apiLostDetail = useMissingReportStore(state => state.detailsById[route.params.reportId]);
+  const fetchLostReport = useMissingReportStore(state => state.fetchReport);
+  const deleteApiLostReport = useMissingReportStore(state => state.deleteReport);
+  const setApiLostReportStatus = useMissingReportStore(state => state.setStatus);
+  const lostReportDetailLoading = useMissingReportStore(state => state.isDetailLoading);
+  const lostReportDetailError = useMissingReportStore(state => state.error);
   const highlightCommentId =
     'highlightCommentId' in route.params ? route.params.highlightCommentId : undefined;
   const baseReport = isLostReport
-    ? getLostReport(route.params.reportId)
+    ? apiLostReport ?? getLostReport(route.params.reportId)
     : getFoundReport(route.params.reportId);
   const foundReportEdit = useFoundReportEditStore(state => state.editsById[route.params.reportId]);
   const lostReportEdit = useLostReportEditStore(state => state.editsById[route.params.reportId]);
   const deleteFoundReport = useFoundReportEditStore(state => state.deleteReport);
-  const deleteLostReport = useLostReportEditStore(state => state.deleteReport);
   const report = {
     ...baseReport,
     ...(isLostReport ? lostReportEdit : foundReportEdit),
@@ -100,6 +107,12 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const setReportStatus = useReportStatusStore(state => state.setStatus);
   const contentReports = useContentReportStore(state => state.reports);
   const addContentReport = useContentReportStore(state => state.addReport);
+
+  useEffect(() => {
+    if (isLostReport) {
+      fetchLostReport(route.params.reportId).catch(() => undefined);
+    }
+  }, [fetchLostReport, isLostReport, route.params.reportId]);
   const progressStatus =
     storedStatus ?? (report.status === '완료' || report.status === '종료' ? 'completed' : 'active');
   const isCompleted = progressStatus === 'completed';
@@ -169,12 +182,29 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     setPendingStatus(selectedStatus);
   };
 
-  const confirmStatusChange = () => {
+  const confirmStatusChange = async () => {
     if (pendingStatus) {
-      setReportStatus(report.id, pendingStatus);
+      try {
+        if (isLostReport) {
+          await setApiLostReportStatus(report.id, pendingStatus);
+        } else {
+          setReportStatus(report.id, pendingStatus);
+        }
+      } catch {
+        Alert.alert('상태 변경 실패', '잠시 후 다시 시도해 주세요.');
+      }
     }
     setPendingStatus(null);
   };
+
+  if (isLostReport && !apiLostReport && (lostReportDetailLoading || !lostReportDetailError)) {
+    return (
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <AppHeader onBackPress={navigation.goBack} title="실종 신고 상세" />
+        <DetailScreenSkeleton accessibilityLabel="실종 신고 상세 불러오는 중" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -280,7 +310,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
         </View>
         <View style={styles.descriptionSection}>
           <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
-          <Text style={styles.description}>{report.description}</Text>
+          <Text style={styles.description}>{report.description.trim() || '-'}</Text>
         </View>
         <FoundReportCommentList
           onTargetLayout={y => {
@@ -323,9 +353,11 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                       : Number.parseFloat(report.age),
                     breed: report.name,
                     color: report.color,
+                    combinationSeq: apiLostDetail?.classification?.combinationSeq ?? null,
                     description: report.description,
                     gender: report.gender,
                     images: [...report.images],
+                    imageSeqs: apiLostDetail?.images.map(image => image.imageSeq) ?? [],
                     microchipNumber: '',
                     name: report.name,
                     neutered: report.neutered,
@@ -339,10 +371,10 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                     contact: report.contact ?? '',
                     detailAddress: '',
                     exposeContact: Boolean(report.contact),
-                    latitude: null,
+                    latitude: apiLostDetail?.latitude ?? null,
                     location: report.location,
-                    longitude: null,
-                    lostAt: new Date(report.date).toISOString(),
+                    longitude: apiLostDetail?.longitude ?? null,
+                    lostAt: apiLostDetail?.occurredDttm ?? new Date(report.date).toISOString(),
                   });
                   navigation.navigate('PetRegistration', {
                     flow: 'lost-report',
@@ -436,9 +468,14 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
               </Pressable>
               <Pressable
                 accessibilityLabel={`${isLostReport ? '실종 신고' : '발견 제보'} 삭제 확인`}
-                onPress={() => {
+                onPress={async () => {
                   if (isLostReport) {
-                    deleteLostReport(report.id);
+                    try {
+                      await deleteApiLostReport(report.id);
+                    } catch {
+                      Alert.alert('실종 신고 삭제 실패', '잠시 후 다시 시도해 주세요.');
+                      return;
+                    }
                   } else {
                     deleteFoundReport(report.id);
                   }

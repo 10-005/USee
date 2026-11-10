@@ -19,7 +19,7 @@ export type RootStackParamList = {
   AdoptionApplicationList: undefined;
   AdoptionApplicationReview: { animalId: string };
   AdoptionDetail: { animalId: string };
-  Home: undefined;
+  Home: { initialReportTab?: 'found' | 'lost'; initialTab?: 'search' } | undefined;
   FoundReportDetail: { highlightCommentId?: string; reportId: string };
   FoundReportForm: { reportId?: string } | undefined;
   FoundReportMap: undefined;

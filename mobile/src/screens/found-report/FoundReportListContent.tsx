@@ -22,10 +22,11 @@ import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import MapButtonIcon from '../../assets/icons/common/map-2.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
-import { SearchBar, FilterChip } from '../../components/common';
+import { FilterChip, SearchBar, SkeletonBlock, SkeletonGroup } from '../../components/common';
 import { colors, radius, typography } from '../../theme';
 import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
 import { useLostReportEditStore } from '../../stores/lostReportEditStore';
+import { useMissingReportStore } from '../../stores/missingReportStore';
 import { useReportStatusStore } from '../../stores/reportStatusStore';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import {
@@ -34,11 +35,13 @@ import {
   type FilterKey,
 } from '../Home/AdoptionFilterSheet';
 import { foundReports, type FoundReport } from './data';
-import { lostReports, type LostReport } from '../lost-report/data';
+import type { LostReport } from '../lost-report/data';
 
 type Props = {
   bottomInset: number;
+  initialTab?: ReportTab;
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
+  onFilterOpenChange?: (open: boolean) => void;
 };
 
 const filterItems: Array<{ key: FilterKey; label: string }> = [
@@ -105,7 +108,12 @@ export const filterReports = <T extends Report>(
   );
 };
 
-export function FoundReportListContent({ bottomInset, navigation }: Props) {
+export function FoundReportListContent({
+  bottomInset,
+  initialTab = 'found',
+  navigation,
+  onFilterOpenChange,
+}: Props) {
   const { width } = useWindowDimensions();
   const cardWidth = (width - 52) / 2;
   const listRef = useRef<FlatList<Report>>(null);
@@ -115,7 +123,7 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
   const scrollDirection = useRef<'down' | 'up' | null>(null);
   const scrollDirectionDistance = useRef(0);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [activeTab, setActiveTab] = useState<ReportTab>('found');
+  const [activeTab, setActiveTab] = useState<ReportTab>(initialTab);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
   const [filters, setFilters] = useState(initialFilters);
@@ -126,8 +134,19 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
   const foundReportEdits = useFoundReportEditStore(state => state.editsById);
   const deletedLostReportIds = useLostReportEditStore(state => state.deletedIds);
   const lostReportEdits = useLostReportEditStore(state => state.editsById);
+  const apiLostReports = useMissingReportStore(state => state.reports);
+  const fetchLostReports = useMissingReportStore(state => state.fetchReports);
+  const lostReportsLoading = useMissingReportStore(state => state.isLoading);
+  const lostReportsError = useMissingReportStore(state => state.error);
+
+  useEffect(() => {
+    if (activeTab === 'lost') {
+      fetchLostReports().catch(() => undefined);
+    }
+  }, [activeTab, fetchLostReports]);
+
   const reports = useMemo(() => {
-    const source = (activeTab === 'found' ? foundReports : lostReports)
+    const source = (activeTab === 'found' ? foundReports : apiLostReports)
       .filter(report =>
         activeTab === 'found'
           ? !deletedFoundReportIds.includes(report.id)
@@ -156,6 +175,7 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
     return filterReports(source, query, filters);
   }, [
     activeTab,
+    apiLostReports,
     deletedFoundReportIds,
     deletedLostReportIds,
     filters,
@@ -242,6 +262,17 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
       updateControlsVisibility(true);
     }
   }, [activeFilter, updateControlsVisibility]);
+
+  useEffect(() => {
+    onFilterOpenChange?.(activeFilter !== null);
+  }, [activeFilter, onFilterOpenChange]);
+
+  useEffect(
+    () => () => {
+      onFilterOpenChange?.(false);
+    },
+    [onFilterOpenChange],
+  );
 
   const selectTab = (tab: ReportTab) => {
     Keyboard.dismiss();
@@ -363,8 +394,21 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
         <FlatList
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>검색 결과가 없습니다</Text>
-              <Text style={styles.emptyBody}>다른 검색어나 필터 조건을 선택해보세요.</Text>
+              {activeTab === 'lost' && lostReportsLoading ? (
+                <LostReportListSkeleton />
+              ) : activeTab === 'lost' && lostReportsError ? (
+                <>
+                  <Text style={styles.emptyTitle}>{lostReportsError}</Text>
+                  <Pressable accessibilityRole="button" onPress={() => fetchLostReports()}>
+                    <Text style={styles.retryText}>다시 시도</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.emptyTitle}>검색 결과가 없습니다</Text>
+                  <Text style={styles.emptyBody}>다른 검색어나 필터 조건을 선택해보세요.</Text>
+                </>
+              )}
             </View>
           }
           columnWrapperStyle={reports.length ? styles.columns : undefined}
@@ -458,6 +502,21 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
   );
 }
 
+function LostReportListSkeleton() {
+  return (
+    <SkeletonGroup accessibilityLabel="실종 신고 목록 불러오는 중" style={styles.gridSkeleton}>
+      {[0, 1, 2, 3].map(index => (
+        <View key={index} style={styles.gridSkeletonCard}>
+          <SkeletonBlock style={styles.gridSkeletonImage} />
+          <SkeletonBlock style={styles.gridSkeletonTitle} />
+          <SkeletonBlock style={styles.gridSkeletonLine} />
+          <SkeletonBlock style={styles.gridSkeletonShortLine} />
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   tabs: { flexDirection: 'row', height: 56 },
@@ -534,5 +593,12 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingBottom: 120 },
   emptyTitle: { ...typography.titleSemiBold18, color: colors.gray600 },
   emptyBody: { ...typography.bodyRegular14, color: colors.gray400, marginTop: 8 },
+  retryText: { ...typography.bodySemiBold16, color: colors.green400, marginTop: 12 },
+  gridSkeleton: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, width: '100%' },
+  gridSkeletonCard: { gap: 9, width: '47%' },
+  gridSkeletonImage: { aspectRatio: 1, borderRadius: 10, width: '100%' },
+  gridSkeletonTitle: { height: 17, width: '64%' },
+  gridSkeletonLine: { height: 12, width: '90%' },
+  gridSkeletonShortLine: { height: 12, width: '58%' },
   pressed: { opacity: 0.7 },
 });
