@@ -8,6 +8,7 @@ export type FoundReportReply = {
   imageUri?: string;
   imageSeq?: number;
   isMine?: boolean;
+  profileUri?: string;
   nickname: string;
   authorId?: string;
 };
