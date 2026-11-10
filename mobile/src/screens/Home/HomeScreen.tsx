@@ -42,6 +42,10 @@ import {
   getActiveSimulation,
 } from '../../services/simulation/activeSession';
 import {
+  isSimulationAutoEnded,
+  subscribeSimulationEnded,
+} from '../../services/simulation/sessionEnd';
+import {
   getActiveMockAdoption,
   type MockAdoptionSession,
 } from '../../services/storage/mockAdoptionStorage';
@@ -146,7 +150,7 @@ export function HomeScreen({ navigation, route }: Props) {
     let mounted = true;
     getActiveSimulation()
       .then(active => applyActiveSimulation(active))
-      .catch(() => getActiveMockAdoption())
+      .catch(error => (isSimulationAutoEnded(error) ? null : getActiveMockAdoption()))
       .then(value => {
         if (mounted) {
           setShortcutSession(value ?? null);
@@ -156,6 +160,7 @@ export function HomeScreen({ navigation, route }: Props) {
       mounted = false;
     };
   }, []);
+  useEffect(() => subscribeSimulationEnded(() => setShortcutSession(null)), []);
   useEffect(() => {
     if (route.params?.tab !== 'mockAdoption') {
       return;

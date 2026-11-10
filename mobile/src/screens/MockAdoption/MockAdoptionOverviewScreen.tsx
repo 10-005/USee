@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
@@ -32,6 +32,12 @@ import {
 import { colors, radius, typography } from '../../theme';
 import { mockAdoptionPets } from './data';
 import { SuddenEventDialog } from './SuddenEventDialog';
+import {
+  isSimulationAutoEnded,
+  SIMULATION_ENDED_DESCRIPTION,
+  SIMULATION_ENDED_TITLE,
+  subscribeSimulationEnded,
+} from '../../services/simulation/sessionEnd';
 
 const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
 
@@ -129,8 +135,15 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
             });
           }
         })
-        .catch(() =>
-          getActiveMockAdoption()
+        .catch(error => {
+          if (isSimulationAutoEnded(error)) {
+            if (mounted) {
+              setSession(null);
+              setFailed(false);
+            }
+            return;
+          }
+          return getActiveMockAdoption()
             .then(value => {
               if (!mounted) {
                 return;
@@ -142,8 +155,8 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
               if (mounted) {
                 setFailed(true);
               }
-            }),
-        )
+            });
+        })
         .finally(() => {
           if (!mounted) {
             return;
@@ -157,6 +170,8 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
       };
     }, [readReports]),
   );
+
+  useEffect(() => subscribeSimulationEnded(() => setSession(null)), []);
 
   const openAdoption = async () => {
     setLoading(true);
@@ -272,8 +287,8 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
         <SuddenEventDialog
           event={{
             scenario: {
-              title: '7일간의 모의 입양이 끝났어요!',
-              description: '발급된 리포트를 확인해 내 모의 입양 결과를 확인해볼 수 있어요',
+              title: SIMULATION_ENDED_TITLE,
+              description: SIMULATION_ENDED_DESCRIPTION,
             },
           }}
           image={endedNotice.image}
