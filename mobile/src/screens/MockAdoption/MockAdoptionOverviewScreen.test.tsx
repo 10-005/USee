@@ -118,6 +118,23 @@ test('announces a finished adoption with the sudden event dialog', async () => {
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
+test('opens the report detail from a received report', async () => {
+  jest.mocked(loadSimulationReports).mockResolvedValue({
+    reports: [report],
+    freshSessionSeqs: [],
+  });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionOverviewScreen {...screenProps} />);
+    await Promise.resolve();
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.root.findByProps({ accessibilityLabel: '나비 리포트 상세보기' }).props.onPress();
+  });
+  expect(navigation.navigate).toHaveBeenCalledWith('MockAdoptionReport', { sessionSeq: 3002 });
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
 test('opens selection when there is no active adoption', async () => {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {

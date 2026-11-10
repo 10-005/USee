@@ -224,7 +224,7 @@ export function MockAdoptionOverviewScreen({ navigation }: Props) {
           </Button>
           <View style={styles.sectionHeading}>
             <Text accessibilityRole="header" style={styles.sectionTitle}>
-              받은 레포트
+              받은 리포트
             </Text>
             <Text style={styles.count}>{reports.length}</Text>
           </View>
@@ -236,7 +236,7 @@ export function MockAdoptionOverviewScreen({ navigation }: Props) {
               <Button onPress={() => readReports(true)}>다시 불러오기</Button>
             </View>
           ) : !reports.length ? (
-            <Text style={styles.summary}>아직 받은 레포트가 없어요.</Text>
+            <Text style={styles.summary}>아직 받은 리포트가 없어요.</Text>
           ) : (
             reports.map(report => {
               const species = report.breed.speciesType === 'CAT' ? '고양이' : '개';
@@ -272,8 +272,9 @@ export function MockAdoptionOverviewScreen({ navigation }: Props) {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`${report.animalName} 리포트 상세보기`}
-                    accessibilityState={{ disabled: true }}
-                    disabled
+                    onPress={() =>
+                      navigation.navigate('MockAdoptionReport', { sessionSeq: report.sessionSeq })
+                    }
                     style={styles.detailButton}
                   >
                     <Text style={styles.detailLabel}>상세보기</Text>
@@ -361,6 +362,6 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 32,
   },
-  detailLabel: { ...typography.bodyRegular14, color: colors.gray300 },
-  detailArrow: { ...typography.bodyRegular16, color: colors.gray300 },
+  detailLabel: { ...typography.bodyRegular14, color: colors.green400 },
+  detailArrow: { ...typography.bodyRegular16, color: colors.green400 },
 });
