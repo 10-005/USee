@@ -3,6 +3,38 @@ import axios, { AxiosError } from 'axios';
 import { createApiClient } from '../apiClient';
 
 describe('createApiClient', () => {
+  beforeEach(() => {
+    jest.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('logs the request and response without the access token', async () => {
+    const consoleLog = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+    const client = createApiClient({
+      baseURL: 'https://api.example.test',
+      getAccessToken: () => 'secret-token',
+    });
+    client.defaults.adapter = async config => ({
+      config,
+      data: {},
+      headers: {},
+      status: 200,
+      statusText: 'OK',
+    });
+
+    await client.get('/simulations/1/transactions', { params: { page: 0 } });
+
+    const text = consoleLog.mock.calls.map(call => call.join(' ')).join('\n');
+    expect(text).toContain('[API] -> GET https://api.example.test/simulations/1/transactions');
+    expect(text).toContain('[API] 200 GET https://api.example.test/simulations/1/transactions');
+    expect(text).toContain('"page":0');
+    expect(text).not.toContain('secret-token');
+    consoleLog.mockRestore();
+  });
+
   it('applies the base URL and default timeout', () => {
     const client = createApiClient({ baseURL: 'https://api.example.test' });
 

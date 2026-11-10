@@ -69,6 +69,7 @@ const ACTIVE_FAILURE = '진행 중인 모의입양을 확인하지 못했어요.
 type SimulationClient = Pick<AxiosInstance, 'get'>;
 
 let currentActiveSimulation: ActiveSimulation | null = null;
+let purchaseNeedsSessionRefresh = false;
 
 function isPositiveId(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value > 0;
@@ -275,16 +276,41 @@ export function readCurrentActiveSimulation(): ActiveSimulation | null {
   return currentActiveSimulation;
 }
 
+export function invalidateActiveSimulation() {
+  purchaseNeedsSessionRefresh = true;
+}
+
+export function isActiveSimulationStale() {
+  return purchaseNeedsSessionRefresh;
+}
+
+export function clearActiveSimulationRefresh() {
+  purchaseNeedsSessionRefresh = false;
+}
+
+export async function refreshActiveSimulationAfterPurchase(
+  client: SimulationClient = simulationClient,
+): Promise<ActiveSimulation | null> {
+  if (!purchaseNeedsSessionRefresh) {
+    return currentActiveSimulation;
+  }
+  const active = await getActiveSimulation(client);
+  await applyActiveSimulation(active);
+  purchaseNeedsSessionRefresh = false;
+  return currentActiveSimulation;
+}
+
 export async function applyActiveSimulation(
   active: ActiveSimulation | null,
 ): Promise<MockAdoptionSession | null> {
   if (!active || active.status !== 'IN_PROGRESS') {
+    const wasInProgress = currentActiveSimulation?.status === 'IN_PROGRESS';
     currentActiveSimulation = null;
     const local = await getActiveMockAdoption();
     if (local) {
       await endMockAdoption();
     }
-    if (active || local) {
+    if (local || wasInProgress) {
       invalidateSimulationReports();
     }
     return null;

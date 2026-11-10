@@ -36,6 +36,7 @@ export type RootStackParamList = {
   ChatRoom: { roomId: string; preview?: ChatPreview };
   MockAdoptionActivity: { petId: string };
   MockAdoptionOverview: undefined;
+  MockAdoptionReport: { sessionSeq: number };
   NoticeDetail: { noticeId: string };
   NoticeList: undefined;
   Notifications: undefined;

@@ -21,6 +21,7 @@ import {
   SkeletonBlock,
   SkeletonGroup,
 } from '../../components/common';
+import { CartHeaderButton } from '../../components/shop/CartHeaderButton';
 import { ProductArt } from '../../components/shop/ProductArt';
 import { categories, filterProducts, money } from '../../services/shop/catalog';
 import { useShopStore, cartTotal } from '../../stores/shopStore';
@@ -72,16 +73,10 @@ export function ShopScreen({ navigation, route }: Props) {
         title="상점"
         onBackPress={() => navigation.goBack()}
         rightAction={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="보유 목록"
-            style={styles.cartAction}
-            onPress={() => navigation.navigate('ShopInventory', { petId })}
-          >
-            <Text numberOfLines={1} style={s.green}>
-              내 물건
-            </Text>
-          </Pressable>
+          <CartHeaderButton
+            count={cartCount}
+            onPress={() => navigation.navigate('ShopCart', { petId })}
+          />
         }
       />
       {status === 'loading' ? (
@@ -192,7 +187,10 @@ export function ShopScreen({ navigation, route }: Props) {
             <Text
               numberOfLines={1}
               accessibilityLiveRegion="polite"
-              style={styles.remainingBudget}
+              style={[
+                styles.remainingBudget,
+                shop.budget - shop.spent < 0 && styles.negativeBudget,
+              ]}
             >{`남은 예산 ${money(shop.budget - shop.spent)}`}</Text>
             <Button
               onPress={() => navigation.navigate('ShopCart', { petId })}
@@ -241,6 +239,7 @@ function ShopSkeleton({ cardWidth }: { cardWidth: number }) {
 
 const styles = StyleSheet.create({
   remainingBudget: { ...typography.captionRegular10, color: colors.gray500, textAlign: 'center' },
+  negativeBudget: { color: colors.danger },
   searchRow: { flexDirection: 'row', marginHorizontal: 20, marginTop: 4 },
   filterBar: { height: 54, minHeight: 54, flexShrink: 0, backgroundColor: colors.white },
   filterScroll: { flex: 1 },
@@ -275,7 +274,6 @@ const styles = StyleSheet.create({
     color: colors.gray500,
     marginVertical: 8,
   },
-  cartAction: { minHeight: 40, justifyContent: 'center', paddingRight: 6 },
   skeletonBadge: { height: 12, marginTop: 10, width: '58%' },
   skeletonChip: { borderRadius: 13, height: 26 },
   skeletonContainer: { flex: 1, paddingHorizontal: 20, paddingTop: 4 },

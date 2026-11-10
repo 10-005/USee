@@ -1,5 +1,11 @@
 import { ApiClientError } from '../api/errors';
-import { getInventoryErrorMessage, getSimulationInventory } from './inventory';
+import {
+  clearSimulationInventories,
+  getInventoryErrorMessage,
+  getSimulationInventory,
+  invalidateSimulationInventory,
+  loadInventoryOnEntry,
+} from './inventory';
 
 const inventory = {
   balance: 110000,
@@ -38,6 +44,28 @@ const envelope = (data: unknown) => ({
     errors: [],
     traceId: '4f2c9e1a7b3d4c5e',
   },
+});
+
+beforeEach(() => {
+  clearSimulationInventories();
+});
+
+test('saves the inventory on the first visit and refetches after spending', async () => {
+  const get = jest
+    .fn()
+    .mockResolvedValueOnce(envelope(inventory))
+    .mockResolvedValueOnce(envelope({ ...inventory, balance: 90000 }));
+
+  await expect(loadInventoryOnEntry(3001, { get })).resolves.toMatchObject({ balance: 110000 });
+  expect(get).toHaveBeenCalledTimes(1);
+  await expect(loadInventoryOnEntry(3001, { get })).resolves.toMatchObject({ balance: 110000 });
+  expect(get).toHaveBeenCalledTimes(1);
+
+  invalidateSimulationInventory(3001);
+  await expect(loadInventoryOnEntry(3001, { get })).resolves.toMatchObject({ balance: 90000 });
+  expect(get).toHaveBeenCalledTimes(2);
+  await expect(loadInventoryOnEntry(3001, { get })).resolves.toMatchObject({ balance: 90000 });
+  expect(get).toHaveBeenCalledTimes(2);
 });
 
 test('reads the balance, owned equipment and a used-up consumable', async () => {

@@ -38,6 +38,8 @@ export function setShopCatalog(catalog: Product[]) {
 export const categories = ['전체', '필수 준비', '식사', '간식', '놀이', '가구', '위생', '생활'];
 export const money = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
 export const findProduct = (id: string) => products.find(product => product.id === id);
+export const isFoodProduct = (product: Pick<Product, 'id' | 'serverCategory'>) =>
+  product.serverCategory === 'FOOD' || product.id === 'food';
 export const availableProducts = (species: Species) =>
   products.filter(p => p.species === 'all' || p.species === species);
 export function filterProducts(species: Species, category: string, query: string, sort: string) {

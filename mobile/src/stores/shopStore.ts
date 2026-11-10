@@ -3,7 +3,9 @@ import { SimulationEventStatus, type SimulationEvent } from '../services/simulat
 import {
   availableProducts,
   findProduct,
+  isFoodProduct,
   setShopCatalog,
+  type Product,
   type Species,
 } from '../services/shop/catalog';
 import {
@@ -11,6 +13,7 @@ import {
   readShopProducts,
   readShopSnapshot,
   writeShopSnapshot,
+  type ShopExpense,
   type ShopSnapshot,
 } from '../services/shop/shopDatabase';
 
@@ -43,7 +46,47 @@ type ShopState = ShopSnapshot & {
 export const cartTotal = (cart: Record<string, number>, ids = Object.keys(cart)) =>
   ids.reduce((sum, id) => sum + (findProduct(id)?.price ?? 0) * (cart[id] ?? 0), 0);
 
+export function foodPurchaseError(
+  inventory: Record<string, number>,
+  cart: Record<string, number>,
+  ids: string[],
+): string | null {
+  for (const id of ids) {
+    const product = findProduct(id);
+    if (!product || !isFoodProduct(product)) {
+      continue;
+    }
+    if ((inventory[id] ?? 0) > 0) {
+      return '가진 사료를 다 쓴 뒤에 다시 살 수 있어요.';
+    }
+    if ((cart[id] ?? 0) !== 1) {
+      return '사료는 한 번에 1개만 구매할 수 있어요.';
+    }
+  }
+  return null;
+}
+
 const storageError = '기기에 저장하지 못했어요. 저장 공간을 확인하고 다시 시도해주세요.';
+let expenseSequence = 0;
+
+function purchaseExpense(
+  state: ShopSnapshot,
+  product: Product,
+  quantity: number,
+  amount: number,
+  spentBefore: number,
+): ShopExpense {
+  expenseSequence += 1;
+  return {
+    id: `${state.sessionKey}:purchase:${expenseSequence}`,
+    kind: 'purchase',
+    title: `${product.name} × ${quantity}`,
+    detail: `${product.category} · ${quantity}개 구매`,
+    amount,
+    balanceAfter: state.budget - (spentBefore + amount),
+    occurredAt: Date.now(),
+  };
+}
 
 export const useShopStore = create<ShopState>((set, get) => {
   const commit = (change: Partial<ShopSnapshot>): boolean => {
@@ -67,6 +110,7 @@ export const useShopStore = create<ShopState>((set, get) => {
     inventory: {},
     ownedItems: [],
     selectedIds: [],
+    expenses: [],
     ready: false,
     error: null,
     open: session => {
@@ -83,6 +127,7 @@ export const useShopStore = create<ShopState>((set, get) => {
         inventory: saved?.inventory ?? {},
         ownedItems: saved?.ownedItems ?? [],
         selectedIds: saved?.selectedIds ?? [],
+        expenses: saved?.expenses ?? [],
       };
       writeShopSnapshot(snapshot);
       set({ ...snapshot, ready: true, error: null });
@@ -122,8 +167,10 @@ export const useShopStore = create<ShopState>((set, get) => {
       ) {
         return false;
       }
+      const cost = pay ? event.vetVisit.cost : 0;
+      expenseSequence += 1;
       return commit({
-        spent: state.spent + (pay ? event.vetVisit.cost : 0),
+        spent: state.spent + cost,
         hospitalEvents: state.hospitalEvents?.map(item =>
           item.occurrenceSeq === id
             ? {
@@ -134,6 +181,22 @@ export const useShopStore = create<ShopState>((set, get) => {
               }
             : item,
         ),
+        ...(cost > 0
+          ? {
+              expenses: [
+                ...(state.expenses ?? []),
+                {
+                  id: `${state.sessionKey}:event:${event.occurrenceSeq}:${expenseSequence}`,
+                  kind: 'event' as const,
+                  title: '동물병원 진료비',
+                  detail: event.scenario.title,
+                  amount: cost,
+                  balanceAfter: state.budget - (state.spent + cost),
+                  occurredAt: Date.now(),
+                },
+              ],
+            }
+          : {}),
       });
     },
     setQuantity: (id, quantity, species) => {
@@ -146,6 +209,9 @@ export const useShopStore = create<ShopState>((set, get) => {
         !Number.isSafeInteger(quantity) ||
         quantity < 0
       ) {
+        return false;
+      }
+      if (isFoodProduct(p) && (quantity > 1 || (quantity > 0 && (state.inventory[id] ?? 0) > 0))) {
         return false;
       }
       const cart = { ...state.cart };
@@ -222,13 +288,24 @@ export const useShopStore = create<ShopState>((set, get) => {
       ) {
         return '구매할 수 없는 상품이 있어요.';
       }
+      const foodError = foodPurchaseError(state.inventory, state.cart, ids);
+      if (foodError) {
+        return foodError;
+      }
       const total = cartTotal(state.cart, ids);
       const inventory = { ...state.inventory };
       const ownedItems = [...state.ownedItems];
+      const expenses = [...(state.expenses ?? [])];
+      let spentBefore = state.spent;
       for (const id of ids) {
-        const capacity = findProduct(id)!.qty;
+        const product = findProduct(id)!;
+        const capacity = product.qty;
+        const quantity = state.cart[id];
+        const amount = product.price * quantity;
+        expenses.push(purchaseExpense(state, product, quantity, amount, spentBefore));
+        spentBefore += amount;
         const previousCount = ownedItems.filter(item => item.productId === id).length;
-        for (let i = 1; i <= state.cart[id]; i += 1) {
+        for (let i = 1; i <= quantity; i += 1) {
           ownedItems.push({
             id: `${state.sessionKey}:${id}:${previousCount + i}`,
             productId: id,
@@ -236,11 +313,12 @@ export const useShopStore = create<ShopState>((set, get) => {
             remaining: capacity,
           });
         }
-        inventory[id] = (inventory[id] ?? 0) + state.cart[id] * capacity;
+        inventory[id] = (inventory[id] ?? 0) + quantity * capacity;
       }
       return commit({
         inventory,
         ownedItems,
+        expenses,
         spent: state.spent + total,
         cart: Object.fromEntries(Object.entries(state.cart).filter(([id]) => !ids.includes(id))),
         selectedIds: [],
@@ -282,6 +360,7 @@ export const useShopStore = create<ShopState>((set, get) => {
         remainingUses -= chunk;
         index += 1;
       }
+      const quantity = state.cart[productId] > 0 ? state.cart[productId] : 1;
       return commit({
         spent: state.spent + purchase.amount,
         inventory: {
@@ -289,6 +368,14 @@ export const useShopStore = create<ShopState>((set, get) => {
           [productId]: purchase.inventoryQuantity,
         },
         ownedItems,
+        ...(purchase.amount > 0
+          ? {
+              expenses: [
+                ...(state.expenses ?? []),
+                purchaseExpense(state, product, quantity, purchase.amount, state.spent),
+              ],
+            }
+          : {}),
         cart: Object.fromEntries(Object.entries(state.cart).filter(([id]) => id !== productId)),
         selectedIds: state.selectedIds.filter(id => id !== productId),
       })
@@ -315,6 +402,10 @@ export const useShopStore = create<ShopState>((set, get) => {
       const count = state.ownedItems.filter(item => item.productId === product.id).length;
       return commit({
         spent: state.spent + product.price,
+        expenses: [
+          ...(state.expenses ?? []),
+          purchaseExpense(state, product, 1, product.price, state.spent),
+        ],
         inventory: {
           ...state.inventory,
           [product.id]: (state.inventory[product.id] ?? 0) + product.qty,
