@@ -21,7 +21,9 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
+import java.time.Instant
 import java.time.OffsetDateTime
+import java.time.ZoneId
 
 interface RescueRecordJpaRepository : JpaRepository<RescueRecord, Int> {
     fun findByRescueSeqAndIsDeletedFalse(rescueSeq: Int): RescueRecord?
@@ -84,7 +86,8 @@ interface AnimalProjection {
 
 interface FoundReportProjection : AnimalProjection {
     val address: String
-    val occurredDttm: OffsetDateTime
+    /** native timestamptz는 Instant로 온다 */
+    val occurredDttm: Instant
     val reporterName: String?
     val reporterDeleted: Boolean
     val reporterPhone: String
@@ -143,7 +146,7 @@ class RescuePersistenceAdapter(
         else rescueRecordJpaRepository.findFirstShelterAnimals(rescueSeqs.toSet()).associate { it.seq to it.toRow() }
 
     override fun findFoundReportSummary(foundReportSeq: Int) = rescueRecordJpaRepository.findFoundReportSummary(foundReportSeq)?.let {
-        FoundReportRow(it.seq, it.toRow(), it.address, it.occurredDttm, it.reporterName, it.reporterDeleted, it.reporterPhone, it.status)
+        FoundReportRow(it.seq, it.toRow(), it.address, it.occurredDttm.atZone(KST).toOffsetDateTime(), it.reporterName, it.reporterDeleted, it.reporterPhone, it.status)
     }
 
     private fun AnimalProjection.toRow() = AnimalRow(combinationSeq, gender, age, neutered, weight, imageSeq)
@@ -179,6 +182,7 @@ class RescuePersistenceAdapter(
 
     private companion object {
         val ONGOING = listOf(RescueStatus.PROCESSING, RescueStatus.DONE)
+        val KST: ZoneId = ZoneId.of("Asia/Seoul")
 
         const val FROM = """
             from rescue_records r
