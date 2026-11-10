@@ -401,7 +401,17 @@ function ChoiceGroup({
   );
 }
 
-function CalendarField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function CalendarField({
+  value,
+  onChange,
+  minimumDate,
+  maximumDate,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  minimumDate?: Date;
+  maximumDate?: Date;
+}) {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const parsedValue = value.split('.').map(Number);
   const selectedValue = value
@@ -421,7 +431,9 @@ function CalendarField({ value, onChange }: { value: string; onChange: (value: s
         <CalendarIcon />
       </Pressable>
       <DatePickerModal
-        minimumDate={new Date()}
+        hasValue={Boolean(value)}
+        minimumDate={minimumDate}
+        maximumDate={maximumDate}
         onClose={() => setCalendarOpen(false)}
         onConfirm={selectedDate => {
           const year = selectedDate.getFullYear();
@@ -979,7 +991,11 @@ function StepOne({
         <Text style={styles.fieldError}>이메일 형식에 맞게 입력해 주세요.</Text>
       ) : null}
       <FieldLabel compact>방문 상담 희망일*</FieldLabel>
-      <CalendarField onChange={value => update('visitDate', value)} value={form.visitDate} />
+      <CalendarField
+        minimumDate={new Date()}
+        onChange={value => update('visitDate', value)}
+        value={form.visitDate}
+      />
     </>
   );
 }
@@ -1170,6 +1186,7 @@ function StepThree({ form, questions, update }: StepProps & { questions: Adoptio
           />
           <FieldLabel>이수일*</FieldLabel>
           <CalendarField
+            maximumDate={new Date()}
             onChange={value => update('educationDate', value)}
             value={form.educationDate}
           />
