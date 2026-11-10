@@ -270,6 +270,7 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
         )}
       </Pressable>
       <DatePickerModal
+        hasValue={Boolean(draft.foundAt)}
         maximumDate={new Date()}
         onClose={() => setDatePickerOpen(false)}
         onConfirm={selectFoundDate}
