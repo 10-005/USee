@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { chatAccessToken, refreshChatToken } from '@/shared/api/session';
 import { env } from '@/shared/config/env';
+import { unreadOptions } from './live';
 
 export function useChatSocket() {
   const cache = useQueryClient();
@@ -31,7 +32,28 @@ export function useChatSocket() {
           void cache.invalidateQueries({ queryKey: ['chat', 'rooms'] });
           void cache.invalidateQueries({ queryKey: ['chat', 'unread'] });
         };
-        client.subscribe('/user/queue/room-updates', refreshLists);
+        client.subscribe('/user/queue/room-updates', (frame) => {
+          if (!active) return;
+          let update;
+          try {
+            update = JSON.parse(frame.body);
+          } catch {
+            refreshLists();
+            return;
+          }
+          if (
+            !Number.isSafeInteger(update?.totalUnreadMessageCount) ||
+            update.totalUnreadMessageCount < 0
+          ) {
+            refreshLists();
+            return;
+          }
+          void cache.cancelQueries({ queryKey: unreadOptions.queryKey });
+          cache.setQueryData(unreadOptions.queryKey, {
+            totalUnreadMessageCount: update.totalUnreadMessageCount,
+          });
+          void cache.invalidateQueries({ queryKey: ['chat', 'rooms'] });
+        });
         refreshLists();
         setConnection({ client });
       },
