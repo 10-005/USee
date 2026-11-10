@@ -10,12 +10,15 @@ import {
 } from '@react-native-firebase/messaging';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 import { getStoredValue, setStoredValue } from '../storage/jsonStorage';
+import { registerDeviceTokenIfSignedIn } from './deviceTokenRegistration';
 import { handleRemoteMessage } from './remoteMessage';
 
 const reportError = () => console.warn('[FCM] 알림 초기화 또는 저장에 실패했습니다.');
-const saveToken = (token: string) => setStoredValue(STORAGE_KEYS.FCM_TOKEN, token);
+const saveToken = async (token: string) => {
+  await setStoredValue(STORAGE_KEYS.FCM_TOKEN, token);
+  await registerDeviceTokenIfSignedIn(token);
+};
 
-// The backend can read this token when its device-registration API is connected.
 export const getStoredFcmToken = () => getStoredValue<string>(STORAGE_KEYS.FCM_TOKEN);
 
 export function registerBackgroundMessaging() {

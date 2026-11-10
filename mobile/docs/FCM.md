@@ -6,7 +6,7 @@
 - `index.js`에서 백그라운드 핸들러 등록. App 마운트 시 포그라운드·알림 클릭·토큰 갱신 리스너 등록, 언마운트 시 해제.
 - Android 13 이상에서 알림 권한 요청. 거부해도 데이터 수신을 위한 토큰 초기화는 수행한다.
 - 토큰은 AsyncStorage에 보관하며 `getStoredFcmToken()`으로 조회한다. 토큰을 로그에 출력하지 않는다.
-- 서버 토큰 등록 API는 아직 없어 자동 전송하지 않는다. 로그인 사용자별 등록·로그아웃 해제는 API 확정 후 연결해야 한다.
+- 로그인 세션이 있으면 `POST /api/notification/v1/notifications/device-tokens`로 기기 토큰을 등록한다. 세션 복원, 로그인, 회원가입, 토큰 저장·갱신 때 호출한다. 알림 서버의 토큰 해제는 연결하지 않는다.
 - iOS는 GoogleService-Info.plist 및 APNs 설정이 없어 이번 수신 초기화에서 제외한다.
 
 ## 수신 메시지

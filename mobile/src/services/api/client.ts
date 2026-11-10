@@ -29,3 +29,9 @@ export const simulationClient = createApiClient({
   getAccessToken,
   refresh,
 });
+
+export const notificationClient = createApiClient({
+  baseURL: `${API_ORIGIN}/api/notification/v1`,
+  getAccessToken,
+  refresh,
+});

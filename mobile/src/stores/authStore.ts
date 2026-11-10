@@ -14,6 +14,7 @@ import {
   type AuthUser,
   type KakaoRegisterRequest,
 } from '../services/auth';
+import { registerDeviceTokenIfSignedIn } from '../services/notifications/deviceTokenRegistration';
 import { getStoredFcmToken } from '../services/notifications/firebaseMessaging';
 
 type RegistrationInput = Omit<KakaoRegisterRequest, 'registrationToken'>;
@@ -41,6 +42,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const tokens = await restoreAuthSession();
       set({ isAuthenticated: Boolean(tokens), isInitializing: false });
+      if (tokens) {
+        registerCurrentDeviceToken().catch(() => undefined);
+      }
     } catch {
       await clearAuthSession();
       set({ isAuthenticated: false, isInitializing: false });
@@ -75,6 +79,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         refreshToken: result.refreshToken,
       });
       set({ isAuthenticated: true, isLoading: false, user: result.user });
+      registerCurrentDeviceToken().catch(() => undefined);
       return 'authenticated';
     } catch (error) {
       const message = error instanceof Error ? error.message : '카카오 로그인에 실패했습니다.';
@@ -113,6 +118,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('일반회원 계정만 모바일 앱을 이용할 수 있어요.');
       }
       await saveAuthSession({ accessToken: result.accessToken, refreshToken: result.refreshToken });
+      registerCurrentDeviceToken().catch(() => undefined);
       set({
         isLoading: false,
         user: { nickname: result.nickname, role: result.role, userSeq: result.userSeq },
@@ -138,6 +144,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 }));
+
+async function registerCurrentDeviceToken() {
+  try {
+    await registerDeviceTokenIfSignedIn(await getStoredFcmToken());
+  } catch {
+    console.warn('[FCM] 기기 토큰 등록에 실패했습니다.');
+  }
+}
 
 subscribeAuthSessionCleared(() => {
   useAuthStore.setState({
