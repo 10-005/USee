@@ -9,9 +9,16 @@ type AppHeaderProps = {
   rightAction?: ReactNode;
   rightActionWidth?: number;
   title: string;
+  titleAccessory?: ReactNode;
 };
 
-export function AppHeader({ onBackPress, rightAction, rightActionWidth, title }: AppHeaderProps) {
+export function AppHeader({
+  onBackPress,
+  rightAction,
+  rightActionWidth,
+  title,
+  titleAccessory,
+}: AppHeaderProps) {
   return (
     <View style={styles.container}>
       <View
@@ -33,9 +40,12 @@ export function AppHeader({ onBackPress, rightAction, rightActionWidth, title }:
           </Pressable>
         ) : null}
       </View>
-      <Text numberOfLines={1} style={styles.title}>
-        {title}
-      </Text>
+      <View style={styles.titleContainer}>
+        <Text numberOfLines={1} style={styles.title}>
+          {title}
+        </Text>
+        {titleAccessory}
+      </View>
       <View
         style={[
           styles.side,
@@ -77,10 +87,18 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.5,
   },
+  titleContainer: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 4,
+    justifyContent: 'center',
+    minWidth: 0,
+  },
   title: {
     ...typography.titleSemiBold18,
     color: colors.black,
-    flex: 1,
+    flexShrink: 1,
     textAlign: 'center',
   },
 });

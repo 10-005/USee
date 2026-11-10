@@ -64,6 +64,8 @@ export function getContactDisplayValue(contact?: string) {
   return contact ?? '비공개';
 }
 
+import { getPublicProfile } from '../../services/users/userApi';
+
 export function FoundReportDetailScreen({ navigation, route }: Props) {
   const isLostReport = route.name === 'LostReportDetail';
   const apiFoundReport = useFoundReportStore(state => state.reportById[route.params.reportId]);
@@ -149,6 +151,22 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const reporterId = String(
     (isLostReport ? apiLostDetail?.user?.userSeq : apiFoundDetail?.reporter?.userSeq) ?? '',
   );
+  const userSeq = Number(reporterId);
+  const detailPhoto = isLostReport ? null : apiFoundDetail?.reporter?.profileImage;
+  const [profile, setProfile] = useState<{ id: number; uri?: string }>();
+  useEffect(() => {
+    if (!userSeq || detailPhoto) return;
+    let active = true;
+    getPublicProfile(userSeq)
+      .then(result => {
+        if (active) setProfile({ id: userSeq, uri: result.profileImage?.imageUrl });
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [userSeq, detailPhoto]);
+  const reporterPhoto = detailPhoto || (profile?.id === userSeq ? profile?.uri : undefined);
   const openChat = async (name: string, authorId: string) => {
     try {
       const params = await useChatStore
@@ -288,7 +306,11 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
       >
         <View style={styles.reporter}>
           <Image
-            source={require('../../assets/images/found-report/reporter-profile.png')}
+            source={
+              reporterPhoto
+                ? { uri: reporterPhoto }
+                : require('../../assets/images/mypage/profile-default.png')
+            }
             style={styles.profileImage}
           />
           <Text style={[styles.reporterName, report.isMine && styles.myReporterName]}>
@@ -334,7 +356,11 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           <Pressable
             accessibilityLabel="북마크"
             accessibilityRole="button"
-            accessibilityState={{ busy: bookmarkPending, disabled: bookmarkPending, selected: bookmarked }}
+            accessibilityState={{
+              busy: bookmarkPending,
+              disabled: bookmarkPending,
+              selected: bookmarked,
+            }}
             disabled={bookmarkPending}
             hitSlop={10}
             onPress={() =>
@@ -388,10 +414,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
       </ScrollView>
       {!keyboardVisible && !commentPhotoMenuVisible && !isCompleted ? (
         <View style={[styles.buttonWrap, { bottom: Math.max(insets.bottom, 12) }]}>
-          <Button
-            onPress={() => openChat(reporterName, reporterId)}
-            style={styles.chatButton}
-          >
+          <Button onPress={() => openChat(reporterName, reporterId)} style={styles.chatButton}>
             채팅 보내기
           </Button>
         </View>
@@ -586,10 +609,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           </View>
         </>
       ) : null}
-      <ContentReportModal
-        onClose={() => setReportTarget(null)}
-        target={reportTarget}
-      />
+      <ContentReportModal onClose={() => setReportTarget(null)} target={reportTarget} />
       <Modal
         animationType="fade"
         onRequestClose={() => setStatusSheetVisible(false)}

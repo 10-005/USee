@@ -200,11 +200,7 @@ function CommentComposer({
           {isSubmitting ? (
             <ActivityIndicator color={colors.green400} size="small" />
           ) : (
-            <SendIcon
-              color={canSubmit ? colors.green400 : '#797770'}
-              height={20}
-              width={20}
-            />
+            <SendIcon color={canSubmit ? colors.green400 : '#797770'} height={20} width={20} />
           )}
         </Pressable>
       </View>
@@ -317,7 +313,11 @@ function CommentItem({
           accessibilityState={{ expanded: authorMenuOpen }}
         >
           <Image
-            source={require('../../assets/images/found-report/reporter-profile.png')}
+            source={
+              comment.profileUri
+                ? { uri: comment.profileUri }
+                : require('../../assets/images/mypage/profile-default.png')
+            }
             style={styles.avatar}
           />
         </Pressable>
@@ -604,6 +604,7 @@ function mapComment(detail: CommentDetail, currentUserSeq: number): FoundReportR
     imageSeq: detail.image?.imageSeq,
     imageUri: detail.image?.imageUrl,
     isMine: detail.author.userSeq === currentUserSeq,
+    profileUri: detail.author.profileImage?.imageUrl,
     nickname: detail.author.displayName,
   };
 }
@@ -616,7 +617,8 @@ async function uploadCommentImage(asset?: Asset) {
   const issued = await uploadImageToPendingStorage({
     byteSize: asset.fileSize ?? 0,
     contentType,
-    fileName: asset.fileName ?? `comment-${Date.now()}.${contentType === 'image/png' ? 'png' : 'jpg'}`,
+    fileName:
+      asset.fileName ?? `comment-${Date.now()}.${contentType === 'image/png' ? 'png' : 'jpg'}`,
     uri: asset.uri,
   });
   return confirmImage(issued.imageKey);
@@ -695,7 +697,9 @@ export function FoundReportCommentList({
   };
 
   const addComment = async (content: string, image?: Asset) => {
-    if (mutating) {return false;}
+    if (mutating) {
+      return false;
+    }
     try {
       setMutating(true);
       setSubmittingTarget('root');
@@ -721,7 +725,9 @@ export function FoundReportCommentList({
   };
 
   const addReply = async (commentId: string, content: string, image?: Asset) => {
-    if (mutating) {return false;}
+    if (mutating) {
+      return false;
+    }
     try {
       setMutating(true);
       setSubmittingTarget(commentId);
@@ -750,16 +756,22 @@ export function FoundReportCommentList({
 
   const findComment = (commentId: string) => {
     for (const root of comments) {
-      if (root.id === commentId) {return root;}
+      if (root.id === commentId) {
+        return root;
+      }
       const reply = root.replies.find(item => item.id === commentId);
-      if (reply) {return reply;}
+      if (reply) {
+        return reply;
+      }
     }
     return null;
   };
 
   const editComment = async (commentId: string, content: string) => {
     const comment = findComment(commentId);
-    if (!comment?.commentSeq || !comment.commentType || mutating) {return;}
+    if (!comment?.commentSeq || !comment.commentType || mutating) {
+      return;
+    }
     try {
       setMutating(true);
       await updateComment(comment.commentType, comment.commentSeq, { body: content.trim() });
@@ -777,7 +789,9 @@ export function FoundReportCommentList({
 
   const removeComment = async (commentId: string) => {
     const comment = findComment(commentId);
-    if (!comment?.commentSeq || !comment.commentType || mutating) {return;}
+    if (!comment?.commentSeq || !comment.commentType || mutating) {
+      return;
+    }
     try {
       setMutating(true);
       await deleteComment(comment.commentType, comment.commentSeq);
@@ -840,13 +854,14 @@ export function FoundReportCommentList({
             setLoading(true);
             setLoadError('');
             refreshComments()
-              .catch(error =>
-                setLoadError(getApiErrorDisplayMessage(error, '다시 시도해 주세요.')),
-              )
+              .catch(error => setLoadError(getApiErrorDisplayMessage(error, '다시 시도해 주세요.')))
               .finally(() => setLoading(false));
           }}
         >
-          <Text style={styles.commentState}>{loadError}{'\n'}다시 시도</Text>
+          <Text style={styles.commentState}>
+            {loadError}
+            {'\n'}다시 시도
+          </Text>
         </Pressable>
       ) : null}
       <CommentComposer
@@ -911,10 +926,7 @@ export function FoundReportCommentList({
           }}
         />
       ))}
-      <ContentReportModal
-        onClose={() => setReportTarget(null)}
-        target={reportTarget}
-      />
+      <ContentReportModal onClose={() => setReportTarget(null)} target={reportTarget} />
       <Modal
         animationType="fade"
         onRequestClose={() => setDeleteTargetId(null)}

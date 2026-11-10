@@ -418,7 +418,7 @@ export function HomeScreen({ navigation, route }: Props) {
         style={[styles.cardImage, { height: cardWidth, width: cardWidth }]}
       />
       <Pressable
-        accessibilityLabel={`[${item.species}]${item.name} 북마크 ${
+        accessibilityLabel={`[${item.species}] ${item.name} 북마크 ${
           bookmarked ? '해제' : '등록'
         }`}
         accessibilityRole="button"
@@ -455,7 +455,7 @@ export function HomeScreen({ navigation, route }: Props) {
         <Text style={styles.statusText}>{item.status}</Text>
       </View>
       <Text numberOfLines={1} style={styles.cardTitle}>
-        [{item.species}]{item.name}
+        [{item.species}] {item.name}
       </Text>
       <View style={styles.cardMetaRow}>
         <MapIcon />

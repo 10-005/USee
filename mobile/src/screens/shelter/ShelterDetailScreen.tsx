@@ -66,14 +66,7 @@ export function ShelterDetailScreen({ navigation, route }: Props) {
       return;
     }
     try {
-      const params = await useChatStore
-        .getState()
-        .openPostRoom(
-          'adoption',
-          route.params.shelterId,
-          shelter.shelterName,
-          route.params.shelterId,
-        );
+      const params = await useChatStore.getState().openShelterRoom(route.params.shelterId);
       navigation.navigate('ChatRoom', params);
     } catch {
       Alert.alert('채팅', '채팅방을 열 수 없어요. 다시 시도해 주세요.');
