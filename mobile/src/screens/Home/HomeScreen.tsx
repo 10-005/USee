@@ -38,6 +38,7 @@ import SearchIcon from '../../assets/icons/navigation/search.svg';
 import { BottomNavigation, RegistrationMenu } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { useProfileStore } from '../../stores/profileStore';
+import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
 import { MockAdoptionOverviewScreen } from '../MockAdoption/MockAdoptionOverviewScreen';
 import { MockAdoptionShortcut } from '../MockAdoption/MockAdoptionShortcut';
 import { colors, radius, typography } from '../../theme';
@@ -114,7 +115,7 @@ const navigationItems = [
   },
 ] as const;
 
-export function HomeScreen({ navigation }: Props) {
+export function HomeScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = (screenWidth - 52) / 2;
@@ -128,13 +129,15 @@ export function HomeScreen({ navigation }: Props) {
   const [controlsVisible, setControlsVisible] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
   const [registrationMenuOpen, setRegistrationMenuOpen] = useState(false);
+  const [reportFilterOpen, setReportFilterOpen] = useState(false);
   const [filterValues, setFilterValues] = useState(initialFilters);
   const bookmarkedIds = useAdoptionBookmarkStore(state => state.bookmarkedIds);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
   const loadProfile = useProfileStore(state => state.loadProfile);
+  const resetLostReportDraft = useLostReportDraftStore(state => state.resetDraft);
   const [selectedTab, setSelectedTab] = useState<
     (typeof navigationItems)[number]['key'] | 'mockAdoption'
-  >('adoption');
+  >(route.params?.initialTab ?? 'adoption');
   const animals = useMemo(() => {
     const filtered = adoptionAnimals.filter(item => {
       const queryMatched = `${item.name} ${item.location} ${item.summary}`
@@ -401,7 +404,12 @@ export function HomeScreen({ navigation }: Props) {
           onOpenSavedPosts={() => navigation.navigate('SavedPosts')}
         />
       ) : selectedTab === 'search' ? (
-        <FoundReportListContent bottomInset={insets.bottom} navigation={navigation} />
+        <FoundReportListContent
+          bottomInset={insets.bottom}
+          initialTab={route.params?.initialReportTab}
+          navigation={navigation}
+          onFilterOpenChange={setReportFilterOpen}
+        />
       ) : (
         <>
           <View style={styles.header}>
@@ -520,13 +528,13 @@ export function HomeScreen({ navigation }: Props) {
           </View>
         </>
       )}
-      {!activeFilter && !registrationMenuOpen ? (
+      {!activeFilter && !reportFilterOpen && !registrationMenuOpen ? (
         <MockAdoptionShortcut
           bottom={insets.bottom + 104}
           onOpen={petId => navigation.navigate('MockAdoptionActivity', { petId })}
         />
       ) : null}
-      {activeFilter ? null : navigationBar}
+      {activeFilter || reportFilterOpen ? null : navigationBar}
       {registrationMenuOpen && !activeFilter ? (
         <RegistrationMenu
           bottom={insets.bottom + 84}
@@ -537,6 +545,7 @@ export function HomeScreen({ navigation }: Props) {
           }}
           onSelectLost={() => {
             setRegistrationMenuOpen(false);
+            resetLostReportDraft();
             navigation.navigate('LostReportPetSelection');
           }}
         />

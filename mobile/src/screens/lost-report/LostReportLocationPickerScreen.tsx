@@ -5,7 +5,7 @@ import {
 } from '@mj-studio/react-native-naver-map';
 import Geolocation from '@react-native-community/geolocation';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
   PermissionsAndroid,
@@ -24,11 +24,13 @@ import LocationIcon from '../../assets/icons/common/location.svg';
 import MapLocationIcon from '../../assets/icons/common/map-location.svg';
 import SearchIcon from '../../assets/icons/common/search.svg';
 import { AppHeader } from '../../components/common';
+import { getApiErrorDisplayMessage } from '../../services/api';
 import {
   getCandidateAddress,
   searchGeocodeCandidates,
   type GeocodeCandidate,
 } from '../../services/geocode/geocode';
+import { reverseGeocode } from '../../services/geocode/reverseGeocode';
 import { useAdoptionLocationStore } from '../../stores/adoptionLocationStore';
 import { useFoundReportDraftStore } from '../../stores/foundReportDraftStore';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
@@ -43,7 +45,6 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
   const isAdoptionLocation = route.params?.target === 'adoption';
   const isFoundReportLocation = route.params?.target === 'found-report';
   const mapRef = useRef<NaverMapViewRef>(null);
-  const hasRequestedInitialLocationRef = useRef(false);
   const details = useLostReportDraftStore(state => state.details);
   const updateDetails = useLostReportDraftStore(state => state.updateDetails);
   const selectAdoptionLocation = useAdoptionLocationStore(state => state.selectLocation);
@@ -88,6 +89,7 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
   const [selectedCandidate, setSelectedCandidate] = useState(initialCandidate);
   const [isSearching, setIsSearching] = useState(false);
   const [isFindingLocation, setIsFindingLocation] = useState(false);
+  const [isResolvingAddress, setIsResolvingAddress] = useState(false);
   const [locationError, setLocationError] = useState('');
 
   const initialCoordinate = selectedCandidate ?? DEFAULT_LOCATION;
@@ -104,8 +106,14 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
       return;
     }
     setIsSearching(true);
+    setLocationError('');
     try {
       setCandidates(await searchGeocodeCandidates(normalized));
+    } catch (error) {
+      setCandidates(null);
+      setLocationError(
+        getApiErrorDisplayMessage(error, '주소를 검색하지 못했어요. 잠시 후 다시 시도해 주세요.'),
+      );
     } finally {
       setIsSearching(false);
     }
@@ -124,20 +132,20 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
     });
   };
 
-  const chooseMapCoordinate = (
-    latitude: number,
-    longitude: number,
-    label = '지도에서 선택한 위치',
-  ) => {
-    const coordinateLabel = `${label} (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`;
-    setSelectedCandidate({
-      jibunAddress: '',
-      latitude,
-      longitude,
-      roadAddress: coordinateLabel,
-    });
+  const chooseMapCoordinate = async (latitude: number, longitude: number) => {
     setCandidates(null);
     Keyboard.dismiss();
+    setLocationError('');
+    setIsResolvingAddress(true);
+    try {
+      const address = await reverseGeocode(latitude, longitude);
+      setSelectedCandidate({ jibunAddress: null, latitude, longitude, roadAddress: address });
+    } catch {
+      setSelectedCandidate(null);
+      setLocationError('선택한 위치의 주소를 확인하지 못했어요. 다시 눌러 주세요.');
+    } finally {
+      setIsResolvingAddress(false);
+    }
   };
 
   const selectCurrentLocation = async () => {
@@ -162,8 +170,8 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
     setIsFindingLocation(true);
     mapRef.current?.setLocationTrackingMode('Follow');
     Geolocation.getCurrentPosition(
-      ({ coords }) => {
-        chooseMapCoordinate(coords.latitude, coords.longitude, '현재 위치');
+      async ({ coords }) => {
+        await chooseMapCoordinate(coords.latitude, coords.longitude);
         mapRef.current?.animateCameraTo({
           duration: 500,
           latitude: coords.latitude,
@@ -183,16 +191,6 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
     );
   };
-
-  useEffect(() => {
-    if (hasRequestedInitialLocationRef.current) {
-      return;
-    }
-    hasRequestedInitialLocationRef.current = true;
-    selectCurrentLocation().catch(() => {
-      setLocationError('현재 위치를 확인하지 못했어요. 위치 권한과 GPS를 확인해 주세요.');
-    });
-  });
 
   const selectLocation = () => {
     if (!selectedCandidate) {
@@ -276,10 +274,12 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
             if (reason !== 'Location') {
               return;
             }
-            chooseMapCoordinate(latitude, longitude, '현재 위치');
+            chooseMapCoordinate(latitude, longitude).catch(() => undefined);
             setIsFindingLocation(false);
           }}
-          onTapMap={({ latitude, longitude }) => chooseMapCoordinate(latitude, longitude)}
+          onTapMap={({ latitude, longitude }) =>
+            chooseMapCoordinate(latitude, longitude).catch(() => undefined)
+          }
           ref={mapRef}
           style={styles.map}
         >
@@ -346,6 +346,8 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
           {locationError ||
             (isFindingLocation
               ? '현재 위치를 확인하고 있어요.'
+              : isResolvingAddress
+              ? '선택한 위치의 주소를 확인하고 있어요.'
               : '주소를 검색하거나 지도를 눌러 실종 장소를 선택해 주세요.')}
         </Text>
         <View style={[styles.selectedBox, !selectedCandidate && styles.selectedBoxEmpty]}>
@@ -361,13 +363,13 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ disabled: !selectedCandidate }}
-          disabled={!selectedCandidate}
+          accessibilityState={{ disabled: !selectedCandidate || isResolvingAddress }}
+          disabled={!selectedCandidate || isResolvingAddress}
           onPress={selectLocation}
           style={({ pressed }) => [
             styles.selectButton,
-            !selectedCandidate && styles.selectButtonDisabled,
-            pressed && selectedCandidate && styles.pressed,
+            (!selectedCandidate || isResolvingAddress) && styles.selectButtonDisabled,
+            pressed && selectedCandidate && !isResolvingAddress && styles.pressed,
           ]}
         >
           <Text style={styles.selectLabel}>이 위치로 선택</Text>

@@ -1,4 +1,9 @@
+jest.mock('../api/client', () => ({ apiClient: { get: jest.fn() } }));
+
+import { apiClient } from '../api/client';
 import { getCandidateAddress, searchGeocodeCandidates } from './geocode';
+
+const mockGet = apiClient.get as jest.Mock;
 
 describe('geocode', () => {
   it('도로명 주소를 우선 사용한다', () => {
@@ -12,16 +17,19 @@ describe('geocode', () => {
     ).toBe('도로명 주소');
   });
 
-  it('입력한 주소로 로컬 후보를 검색한다', async () => {
-    const result = await searchGeocodeCandidates('동성로');
-    expect(result[0]?.roadAddress).toBe('대구광역시 중구 동성로 1');
-  });
+  it('입력한 주소로 실서버 후보를 검색한다', async () => {
+    const candidates = [
+      {
+        jibunAddress: '대구광역시 중구 동성로2가 1',
+        latitude: 35.8714,
+        longitude: 128.6014,
+        roadAddress: '대구광역시 중구 동성로 1',
+      },
+    ];
+    mockGet.mockResolvedValue({ data: { data: candidates } });
+    const result = await searchGeocodeCandidates('  동성로   1  ');
 
-  it('로컬 미리보기 데이터에서 장소명으로 검색한다', async () => {
-    const result = await searchGeocodeCandidates('인동초');
-
-    expect(result).toEqual([
-      expect.objectContaining({ roadAddress: '경상북도 구미시 여헌로3길 34' }),
-    ]);
+    expect(mockGet).toHaveBeenCalledWith('/geocode', { params: { query: '동성로 1' } });
+    expect(result).toEqual(candidates);
   });
 });
