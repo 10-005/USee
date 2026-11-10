@@ -8,7 +8,7 @@ import NoticeIcon from '../../assets/icons/mypage/notice.svg';
 import PencilIcon from '../../assets/icons/mypage/pencil.svg';
 import SavedPostsIcon from '../../assets/icons/mypage/saved-posts.svg';
 import SettingsIcon from '../../assets/icons/mypage/settings.svg';
-import { ProfileScreenSkeleton } from '../../components/common';
+import { SkeletonBlock, SkeletonGroup } from '../../components/common';
 import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
 
@@ -40,7 +40,7 @@ export function MyPageScreen({
   const loadProfile = useProfileStore(state => state.loadProfile);
 
   if (isLoading && !isLoaded) {
-    return <ProfileScreenSkeleton accessibilityLabel="프로필 불러오는 중" />;
+    return <MyPageSkeleton />;
   }
 
   if (error && !isLoaded) {
@@ -161,6 +161,40 @@ export function MyPageScreen({
         </View>
       </View>
     </View>
+  );
+}
+
+function MyPageSkeleton() {
+  return (
+    <SkeletonGroup accessibilityLabel="마이페이지 불러오는 중" style={styles.skeletonContainer}>
+      <View style={styles.skeletonHeader}>
+        <SkeletonBlock style={styles.skeletonHeaderTitle} />
+        <SkeletonBlock style={styles.skeletonSettings} />
+      </View>
+      <View style={styles.skeletonProfile}>
+        <SkeletonBlock style={styles.skeletonAvatar} />
+        <SkeletonBlock style={styles.skeletonNickname} />
+      </View>
+      <View style={styles.skeletonSheet}>
+        <View style={styles.skeletonShortcuts}>
+          {[0, 1].map(index => (
+            <View key={index} style={styles.skeletonShortcut}>
+              <SkeletonBlock style={styles.skeletonArtwork} />
+              <SkeletonBlock style={styles.skeletonShortcutTitle} />
+              <SkeletonBlock style={styles.skeletonShortcutDescription} />
+            </View>
+          ))}
+        </View>
+        <View style={styles.skeletonMenuList}>
+          {[0, 1, 2, 3].map(index => (
+            <View key={index} style={styles.skeletonMenuRow}>
+              <SkeletonBlock style={styles.skeletonMenuIcon} />
+              <SkeletonBlock style={styles.skeletonMenuText} />
+            </View>
+          ))}
+        </View>
+      </View>
+    </SkeletonGroup>
   );
 }
 
@@ -293,4 +327,40 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   retryButtonText: { ...typography.bodySemiBold16, color: colors.white },
+  skeletonContainer: { backgroundColor: colors.gray10, flex: 1 },
+  skeletonHeader: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    height: 56,
+    justifyContent: 'center',
+  },
+  skeletonHeaderTitle: { height: 22, width: 82 },
+  skeletonSettings: { height: 24, position: 'absolute', right: 20, width: 24 },
+  skeletonProfile: { alignItems: 'center', height: 145, paddingTop: 23 },
+  skeletonAvatar: { borderRadius: 35, height: 70, width: 70 },
+  skeletonNickname: { height: 18, marginTop: 12, width: 92 },
+  skeletonSheet: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    flex: 1,
+    paddingHorizontal: 27,
+    paddingTop: 25,
+  },
+  skeletonShortcuts: { flexDirection: 'row', gap: 12 },
+  skeletonShortcut: {
+    borderColor: colors.gray200,
+    borderRadius: 24,
+    borderWidth: 1,
+    flex: 1,
+    height: 158,
+    padding: 16,
+  },
+  skeletonArtwork: { borderRadius: 28, height: 56, width: 56 },
+  skeletonShortcutTitle: { height: 17, marginTop: 14, width: '62%' },
+  skeletonShortcutDescription: { height: 12, marginTop: 7, width: '82%' },
+  skeletonMenuList: { gap: 14, marginTop: 25 },
+  skeletonMenuRow: { alignItems: 'center', flexDirection: 'row', height: 35 },
+  skeletonMenuIcon: { height: 22, width: 22 },
+  skeletonMenuText: { height: 15, marginLeft: 10, width: '42%' },
 });

@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
-import { AppHeader, ListScreenSkeleton } from '../../components/common';
+import { AppHeader, SkeletonBlock, SkeletonGroup } from '../../components/common';
 import {
   type AdoptionApplicationStatus,
   getMyAdoptionApplications,
@@ -65,6 +65,7 @@ export function AdoptionApplicationListScreen({ navigation }: Props) {
   const [filter, setFilter] = useState<FilterValue>('ALL');
   const [filterOpen, setFilterOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -72,7 +73,10 @@ export function AdoptionApplicationListScreen({ navigation }: Props) {
       getMyAdoptionApplications()
         .then(page => setApplications(page.content))
         .catch(() => setApplications([]))
-        .finally(() => setLoading(false));
+        .finally(() => {
+          setLoaded(true);
+          setLoading(false);
+        });
     }, []),
   );
 
@@ -115,8 +119,8 @@ export function AdoptionApplicationListScreen({ navigation }: Props) {
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
       <AppHeader onBackPress={navigation.goBack} title="입양 신청 내역" />
-      {loading ? (
-        <ListScreenSkeleton accessibilityLabel="입양 신청 내역 불러오는 중" />
+      {loading && !loaded ? (
+        <AdoptionApplicationListSkeleton />
       ) : totalCount === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>입양 신청 내역이 없습니다</Text>
@@ -206,6 +210,30 @@ export function AdoptionApplicationListScreen({ navigation }: Props) {
   );
 }
 
+function AdoptionApplicationListSkeleton() {
+  return (
+    <SkeletonGroup
+      accessibilityLabel="입양 신청 내역 불러오는 중"
+      style={styles.skeletonContent}
+    >
+      <View style={styles.skeletonListHeader}>
+        <SkeletonBlock style={styles.skeletonCount} />
+        <SkeletonBlock style={styles.skeletonFilter} />
+      </View>
+      {[0, 1, 2].map(index => (
+        <View key={index} style={styles.skeletonCard}>
+          <View style={styles.skeletonCardTop}>
+            <SkeletonBlock style={styles.skeletonStatus} />
+            <SkeletonBlock style={styles.skeletonDate} />
+          </View>
+          <SkeletonBlock style={styles.skeletonAnimal} />
+          <SkeletonBlock style={styles.skeletonShelter} />
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
+}
+
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
   empty: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingBottom: 80 },
@@ -276,5 +304,29 @@ const styles = StyleSheet.create({
   filterOption: { justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing[8] },
   filterOptionText: { ...typography.bodySemiBold16, color: colors.black },
   filterOptionSelected: { color: '#FF6B5E' },
+  skeletonContent: { flex: 1, paddingHorizontal: spacing[12] },
+  skeletonListHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing[6],
+    paddingTop: spacing[10],
+  },
+  skeletonCount: { height: 15, width: 54 },
+  skeletonFilter: { borderRadius: radius.pill, height: 30, width: 98 },
+  skeletonCard: {
+    borderColor: colors.gray200,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    height: 112,
+    marginBottom: spacing[6],
+    paddingHorizontal: spacing[8],
+    paddingVertical: spacing[6],
+  },
+  skeletonCardTop: { flexDirection: 'row', justifyContent: 'space-between' },
+  skeletonStatus: { height: 22, width: 68 },
+  skeletonDate: { height: 14, width: 78 },
+  skeletonAnimal: { height: 20, marginTop: spacing[5], width: '48%' },
+  skeletonShelter: { height: 13, marginTop: spacing[3], width: '64%' },
   pressed: { opacity: 0.7 },
 });
