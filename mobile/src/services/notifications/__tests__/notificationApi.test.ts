@@ -1,10 +1,16 @@
 jest.mock('../../api/client', () => ({
-  notificationClient: { get: jest.fn(), patch: jest.fn() },
+  notificationClient: { delete: jest.fn(), get: jest.fn(), patch: jest.fn() },
 }));
 
 import { notificationClient } from '../../api/client';
-import { getMyNotifications, markNotificationAsRead } from '../notificationApi';
+import {
+  deleteAllNotifications,
+  deleteNotification,
+  getMyNotifications,
+  markNotificationAsRead,
+} from '../notificationApi';
 
+const mockDelete = notificationClient.delete as jest.Mock;
 const mockGet = notificationClient.get as jest.Mock;
 const mockPatch = notificationClient.patch as jest.Mock;
 
@@ -32,6 +38,26 @@ describe('markNotificationAsRead', () => {
 
     await expect(markNotificationAsRead(805)).resolves.toEqual(data);
     expect(mockPatch).toHaveBeenCalledWith('/notifications/805/read');
+  });
+});
+
+describe('deleteNotification', () => {
+  beforeEach(() => {
+    mockDelete.mockReset();
+  });
+
+  it('알림 번호로 개별 알림을 삭제한다', async () => {
+    mockDelete.mockResolvedValue({ status: 204 });
+
+    await expect(deleteNotification(805)).resolves.toBeUndefined();
+    expect(mockDelete).toHaveBeenCalledWith('/notifications/805');
+  });
+
+  it('내 알림을 모두 삭제한다', async () => {
+    mockDelete.mockResolvedValue({ status: 204 });
+
+    await expect(deleteAllNotifications()).resolves.toBeUndefined();
+    expect(mockDelete).toHaveBeenCalledWith('/notifications');
   });
 });
 

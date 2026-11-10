@@ -3,6 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Modal,
@@ -17,6 +18,8 @@ import type { RootStackParamList } from '../../app/navigation/types';
 import { AppHeader } from '../../components/common';
 import { getApiErrorDisplayMessage } from '../../services/api';
 import {
+  deleteAllNotifications,
+  deleteNotification,
   getMyNotifications,
   markNotificationAsRead,
   type NotificationListQuery,
@@ -43,6 +46,7 @@ export function NotificationListScreen({ navigation }: Props) {
   const [notifications, setNotifications] = useState<NotificationListEntry[]>([]);
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,12 +97,29 @@ export function NotificationListScreen({ navigation }: Props) {
   };
 
   const confirmDelete = () => {
-    if (deleteTarget === 'all') {
-      setNotifications([]);
-    } else if (deleteTarget) {
-      setNotifications(current => current.filter(item => item.id !== deleteTarget.id));
+    if (!deleteTarget || isDeleting) {
+      return;
     }
-    setDeleteTarget(null);
+    const target = deleteTarget;
+    setIsDeleting(true);
+    const request =
+      target === 'all' ? deleteAllNotifications() : deleteNotification(Number(target.id));
+    request
+      .then(() => {
+        setNotifications(current =>
+          target === 'all' ? [] : current.filter(item => item.id !== target.id),
+        );
+      })
+      .catch(deleteError => {
+        Alert.alert(
+          '알림 삭제 실패',
+          getApiErrorDisplayMessage(deleteError, '알림을 삭제하지 못했어요.'),
+        );
+      })
+      .finally(() => {
+        setIsDeleting(false);
+        setDeleteTarget(null);
+      });
   };
 
   return (

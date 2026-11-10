@@ -71,6 +71,14 @@ export async function markNotificationAsRead(
   return response.data.data;
 }
 
+export async function deleteNotification(notificationSeq: number): Promise<void> {
+  await notificationClient.delete(`/notifications/${notificationSeq}`);
+}
+
+export async function deleteAllNotifications(): Promise<void> {
+  await notificationClient.delete('/notifications');
+}
+
 export async function getMyNotifications(
   query: NotificationListQuery = {},
 ): Promise<NotificationPage> {
