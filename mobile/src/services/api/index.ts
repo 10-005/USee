@@ -1,27 +1,13 @@
 export { createApiClient } from './apiClient';
-export {
-  API_ORIGIN,
-  apiClients,
-  createServiceClients,
-  serviceBaseUrl,
-  setAccessTokenProvider,
-  simulationClient,
-} from './client';
-export { ApiClientError } from './errors';
+export { API_BASE_URL, API_ORIGIN, apiClient, simulationClient } from './client';
+export { ApiClientError, getApiErrorDisplayMessage, getApiFieldError } from './errors';
 export { isApiResponse, readApiData } from './response';
 export type {
   AccessTokenProvider,
-  ActorSummary,
-  AnimalClassification,
+  AccountRole,
   ApiClientOptions,
   ApiError,
-  ApiFieldError,
+  ApiErrorResponse,
   ApiResponse,
-  ApiService,
-  District,
-  GeoPoint,
-  ImageRef,
-  PageResponse,
-  UserRole,
+  AuthTokens,
 } from './types';
-export { API_SERVICES } from './types';

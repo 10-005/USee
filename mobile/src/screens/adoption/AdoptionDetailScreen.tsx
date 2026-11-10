@@ -127,11 +127,12 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
           <InfoRows rows={basicInfo} />
         </View>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>특징</Text>
+          <Text style={styles.sectionTitle}>상세정보</Text>
+          <Text style={[styles.detailLabel, styles.firstDetailLabel]}>특징</Text>
           <Text style={styles.bodyText}>생후 3개월이며 경계심은 살짝 있지만 순한 편.</Text>
-          <Text style={styles.subTitle}>건강검진 특이사항</Text>
+          <Text style={styles.detailLabel}>건강검진 특이사항</Text>
           <Text style={styles.bodyText}>건강검진 X</Text>
-          <Text style={styles.subTitle}>예방접종 상태</Text>
+          <Text style={styles.detailLabel}>예방접종 상태</Text>
           <Text style={styles.bodyText}>광견병, 종합백신, 코로나 접종 완료</Text>
         </View>
         <View style={styles.section}>
@@ -184,8 +185,8 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
   shelterProfile: { alignItems: 'center', flexDirection: 'row', height: 62, paddingHorizontal: 26 },
-  profileImage: { borderRadius: 24, height: 48, width: 48 },
-  shelterName: { ...typography.titleSemiBold18, color: colors.gray600, flex: 1, marginLeft: 16 },
+  profileImage: { borderRadius: 20, height: 40, width: 40 },
+  shelterName: { ...typography.bodySemiBold16, color: colors.gray600, flex: 1, marginLeft: 12 },
   profileMeta: { ...typography.captionRegular10, color: colors.gray300 },
   heroImage: { height: 412, width: '100%' },
   titleRow: {
@@ -219,8 +220,13 @@ const styles = StyleSheet.create({
   sectionTitleInHeader: { marginBottom: 0 },
   shelterLink: { alignItems: 'center', flexDirection: 'row', gap: 2 },
   shelterLinkText: { ...typography.bodyRegular14, color: colors.green400 },
-  subTitle: { ...typography.titleBold18, color: colors.black, marginTop: 12 },
-  bodyText: { ...typography.bodyRegular16, color: colors.gray500 },
+  detailLabel: {
+    ...typography.bodyRegular14,
+    color: colors.gray400,
+    marginTop: 12,
+  },
+  firstDetailLabel: { marginTop: 0 },
+  bodyText: { ...typography.bodyRegular14, color: colors.black },
   infoRows: { gap: 10 },
   infoRow: { flexDirection: 'row' },
   infoLabel: { ...typography.bodyRegular14, color: colors.gray400, width: 110 },

@@ -24,4 +24,28 @@ describe('lost report data', () => {
     expect(getLostReport('lost-3').status).toBe('종료');
     expect(getLostReport('lost-2').contact).toBeUndefined();
   });
+
+  it('성별과 중성화 필터에 모름 값을 함께 포함한다', () => {
+    const unknownReport = {
+      ...lostReports[0],
+      gender: '모름' as const,
+      id: 'lost-unknown',
+      neutered: null,
+    };
+
+    expect(
+      filterReports([unknownReport], '', {
+        ...filters,
+        gender: '수컷',
+        neutered: '중성화 O',
+      }),
+    ).toEqual([unknownReport]);
+    expect(
+      filterReports([unknownReport], '', {
+        ...filters,
+        gender: '암컷',
+        neutered: '중성화 X',
+      }),
+    ).toEqual([unknownReport]);
+  });
 });

@@ -8,6 +8,7 @@ import NoticeIcon from '../../assets/icons/mypage/notice.svg';
 import PencilIcon from '../../assets/icons/mypage/pencil.svg';
 import SavedPostsIcon from '../../assets/icons/mypage/saved-posts.svg';
 import SettingsIcon from '../../assets/icons/mypage/settings.svg';
+import { ProfileScreenSkeleton } from '../../components/common';
 import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
 
@@ -33,6 +34,30 @@ export function MyPageScreen({
   onOpenSavedPosts,
 }: Props) {
   const profile = useProfileStore(state => state.profile);
+  const error = useProfileStore(state => state.error);
+  const isLoaded = useProfileStore(state => state.isLoaded);
+  const isLoading = useProfileStore(state => state.isLoading);
+  const loadProfile = useProfileStore(state => state.loadProfile);
+
+  if (isLoading && !isLoaded) {
+    return <ProfileScreenSkeleton accessibilityLabel="프로필 불러오는 중" />;
+  }
+
+  if (error && !isLoaded) {
+    return (
+      <View style={styles.loadState}>
+        <Text style={styles.loadStateTitle}>프로필을 불러오지 못했어요</Text>
+        <Text style={styles.loadStateDescription}>{error}</Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => loadProfile(true).catch(() => undefined)}
+          style={styles.retryButton}
+        >
+          <Text style={styles.retryButtonText}>다시 시도</Text>
+        </Pressable>
+      </View>
+    );
+  }
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -57,12 +82,21 @@ export function MyPageScreen({
         <Pressable
           accessibilityLabel="내 정보 수정"
           accessibilityRole="button"
+          accessibilityState={{ disabled: profile.accountStatus !== 'ACTIVE' }}
+          disabled={profile.accountStatus !== 'ACTIVE'}
           onPress={onOpenProfileEdit}
-          style={({ pressed }) => [styles.nicknameButton, pressed && styles.pressed]}
+          style={({ pressed }) => [
+            styles.nicknameButton,
+            profile.accountStatus !== 'ACTIVE' && styles.disabledProfile,
+            pressed && styles.pressed,
+          ]}
         >
           <Text style={styles.nickname}>{profile.nickname}</Text>
           <PencilIcon />
         </Pressable>
+        {profile.accountStatus === 'SUSPENDED' ? (
+          <Text style={styles.suspendedText}>이용이 정지된 계정입니다</Text>
+        ) : null}
       </View>
 
       <View style={styles.sheet}>
@@ -173,6 +207,8 @@ const styles = StyleSheet.create({
     minHeight: 24,
   },
   nickname: { ...typography.bodySemiBold16, color: colors.gray600 },
+  disabledProfile: { opacity: 0.55 },
+  suspendedText: { ...typography.captionRegular10, color: colors.danger, marginTop: 4 },
   sheet: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 30,
@@ -236,4 +272,25 @@ const styles = StyleSheet.create({
     marginLeft: 9,
   },
   pressed: { opacity: 0.65 },
+  loadState: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  loadStateTitle: { ...typography.titleBold18, color: colors.gray800 },
+  loadStateDescription: {
+    ...typography.bodyRegular14,
+    color: colors.gray500,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: colors.green400,
+    borderRadius: radius.md,
+    marginTop: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  retryButtonText: { ...typography.bodySemiBold16, color: colors.white },
 });

@@ -1,5 +1,5 @@
 import { ApiClientError } from './errors';
-import type { ApiFieldError, ApiResponse } from './types';
+import type { ApiResponse } from './types';
 
 export function isApiResponse(value: unknown): value is ApiResponse<unknown> {
   if (!value || typeof value !== 'object') {
@@ -21,7 +21,7 @@ export function readApiData<T>(body: unknown): T {
   if (!isApiResponse(body) || body.code !== 'SUCCESS') {
     throw new ApiClientError({
       code: isApiResponse(body) ? body.code : 'UNKNOWN_ERROR',
-      errors: isApiResponse(body) ? body.errors : [],
+      details: isApiResponse(body) ? body.errors : [],
       message: isApiResponse(body) ? body.message : '응답을 해석하지 못했습니다.',
       status: isApiResponse(body) ? body.status : undefined,
       traceId: isApiResponse(body) ? body.traceId : undefined,
@@ -30,10 +30,10 @@ export function readApiData<T>(body: unknown): T {
   return body.data as T;
 }
 
-function isFieldError(value: unknown): value is ApiFieldError {
+function isFieldError(value: unknown): boolean {
   if (!value || typeof value !== 'object') {
     return false;
   }
-  const error = value as ApiFieldError;
+  const error = value as { field?: unknown; reason?: unknown };
   return typeof error.field === 'string' && typeof error.reason === 'string';
 }

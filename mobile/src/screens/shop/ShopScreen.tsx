@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Keyboard,
   TextInput,
@@ -15,7 +14,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/navigation/types';
-import { AppHeader, Button, SearchBar } from '../../components/common';
+import {
+  AppHeader,
+  Button,
+  SearchBar,
+  SkeletonBlock,
+  SkeletonGroup,
+} from '../../components/common';
 import { ProductArt } from '../../components/shop/ProductArt';
 import { categories, filterProducts, money } from '../../services/shop/catalog';
 import { useShopStore, cartTotal } from '../../stores/shopStore';
@@ -80,7 +85,7 @@ export function ShopScreen({ navigation, route }: Props) {
         }
       />
       {status === 'loading' ? (
-        <ActivityIndicator accessibilityLabel="상품 불러오는 중" />
+        <ShopSkeleton cardWidth={(width - 52) / 2} />
       ) : status === 'error' || !pet ? (
         <View style={s.empty}>
           <Text style={s.body}>진행 중인 모의 입양 정보를 확인할 수 없어요.</Text>
@@ -207,6 +212,33 @@ export function ShopScreen({ navigation, route }: Props) {
     </SafeAreaView>
   );
 }
+
+function ShopSkeleton({ cardWidth }: { cardWidth: number }) {
+  return (
+    <SkeletonGroup accessibilityLabel="상품 불러오는 중" style={styles.skeletonContainer}>
+      <SkeletonBlock style={styles.skeletonSearch} />
+      <View style={styles.skeletonFilters}>
+        {[58, 72, 64, 78].map(width => (
+          <SkeletonBlock key={width} style={[styles.skeletonChip, { width }]} />
+        ))}
+      </View>
+      <View style={styles.skeletonSortRow}>
+        <SkeletonBlock style={styles.skeletonSort} />
+      </View>
+      <View style={styles.skeletonGrid}>
+        {[0, 1, 2, 3].map(index => (
+          <View key={index} style={{ width: cardWidth }}>
+            <SkeletonBlock style={[styles.skeletonImage, { width: cardWidth }]} />
+            <SkeletonBlock style={styles.skeletonBadge} />
+            <SkeletonBlock style={styles.skeletonTitle} />
+            <SkeletonBlock style={styles.skeletonPrice} />
+          </View>
+        ))}
+      </View>
+    </SkeletonGroup>
+  );
+}
+
 const styles = StyleSheet.create({
   remainingBudget: { ...typography.captionRegular10, color: colors.gray500, textAlign: 'center' },
   searchRow: { flexDirection: 'row', marginHorizontal: 20, marginTop: 4 },
@@ -244,4 +276,15 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   cartAction: { minHeight: 40, justifyContent: 'center', paddingRight: 6 },
+  skeletonBadge: { height: 12, marginTop: 10, width: '58%' },
+  skeletonChip: { borderRadius: 13, height: 26 },
+  skeletonContainer: { flex: 1, paddingHorizontal: 20, paddingTop: 4 },
+  skeletonFilters: { flexDirection: 'row', gap: 6, marginTop: 14 },
+  skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12 },
+  skeletonImage: { aspectRatio: 1, borderRadius: 14 },
+  skeletonPrice: { height: 14, marginTop: 7, width: '45%' },
+  skeletonSearch: { height: 46, width: '100%' },
+  skeletonSort: { height: 14, width: 52 },
+  skeletonSortRow: { alignItems: 'flex-end', marginTop: 18 },
+  skeletonTitle: { height: 15, marginTop: 8, width: '82%' },
 });

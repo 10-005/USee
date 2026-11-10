@@ -1,7 +1,13 @@
 import { MAX_IMAGE_SIZE_BYTES } from '../../../constants/upload';
-import { petOptions, validatePetImage } from '../petRegistration';
+import { normalizePetSpecies, petOptions, validatePetImage } from '../petRegistration';
 
 describe('pet registration helpers', () => {
+  it('서버에서 받은 동물 종류를 수정 화면 초기값으로 유지한다', () => {
+    expect(normalizePetSpecies('개')).toBe('개');
+    expect(normalizePetSpecies('고양이')).toBe('고양이');
+    expect(normalizePetSpecies('기타')).toBe('기타');
+  });
+
   it('provides dependent breed and color options by species', () => {
     const dog = petOptions('강아지', '도고 아르젠티노', '');
     expect(dog.breeds.filter(name => name === '도고 아르젠티노')).toHaveLength(1);

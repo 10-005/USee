@@ -9,9 +9,11 @@ export type LostReportAnimalDraft = {
   age: number | null;
   breed: string;
   color: string;
+  combinationSeq: number | null;
   description: string;
   gender: Pet['gender'] | null;
   images: ImageSourcePropType[];
+  imageSeqs: number[];
   microchipNumber: string;
   name: string;
   neutered: boolean | null;
@@ -34,9 +36,11 @@ const createEmptyAnimalDraft = (): LostReportAnimalDraft => ({
   age: null,
   breed: '',
   color: '',
+  combinationSeq: null,
   description: '',
   gender: null,
   images: [],
+  imageSeqs: [],
   microchipNumber: '',
   name: '',
   neutered: null,
@@ -46,7 +50,7 @@ const createEmptyAnimalDraft = (): LostReportAnimalDraft => ({
 });
 
 const createEmptyDetailsDraft = (): LostReportDetailsDraft => ({
-  contact: '010-1234-5678',
+  contact: '',
   detailAddress: '',
   exposeContact: false,
   latitude: null,
@@ -59,9 +63,11 @@ const createAnimalDraftFromPet = (pet: Pet): LostReportAnimalDraft => ({
   age: pet.age,
   breed: pet.breed,
   color: pet.color,
+  combinationSeq: pet.combinationSeq ?? null,
   description: pet.description,
   gender: pet.gender,
   images: [...pet.images],
+  imageSeqs: [...(pet.imageSeqs ?? [])],
   microchipNumber: pet.microchipNumber,
   name: pet.name,
   neutered: pet.neutered,

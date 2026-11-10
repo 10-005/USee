@@ -8,7 +8,7 @@ import CheckIcon from '../../assets/icons/common/check.svg';
 import CancelIcon from '../../assets/icons/common/cancel.svg';
 import FormIcon from '../../assets/icons/common/form.svg';
 import RightArrowIcon from '../../assets/icons/common/right-arrow.svg';
-import { AppHeader, Button } from '../../components/common';
+import { AppHeader, Button, DetailScreenSkeleton } from '../../components/common';
 import {
   type AdoptionApplicationRecord,
   type AdoptionApplicationStatus,
@@ -124,10 +124,12 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
   const [status, setStatus] = useState<AdoptionApplicationStatus>('DRAFT');
   const [showConfirm, setShowConfirm] = useState(false);
   const [showRejectionReason, setShowRejectionReason] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getAdoptionApplicationRecord(), getAdoptionApplicationDraft()]).then(
-      ([storedRecord, draft]) => {
+    setLoading(true);
+    Promise.all([getAdoptionApplicationRecord(), getAdoptionApplicationDraft()])
+      .then(([storedRecord, draft]) => {
         if (route.params.previewStatus) {
           setRecord(
             route.params.previewStatus === 'DRAFT'
@@ -155,8 +157,8 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
         } else if (draft) {
           setStatus('DRAFT');
         }
-      },
-    );
+      })
+      .finally(() => setLoading(false));
   }, [route.params.animalId, route.params.previewStatus, route.params.source]);
 
   const presentation = applicationStatusPresentation[status];
@@ -201,101 +203,109 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <AppHeader onBackPress={navigation.goBack} title="입양 신청 내역" />
-      <View style={styles.statusArea}>
-        <View
-          style={[
-            styles.statusCopy,
-            isCanceled && styles.canceledStatusCopy,
-            isRejected && styles.rejectedStatusCopy,
-          ]}
-        >
-          <Text style={styles.statusTitle}>{presentation.title}</Text>
-          <Text style={styles.statusDescription}>{presentation.description}</Text>
-        </View>
-        <Image
-          source={presentation.illustration}
-          style={[
-            styles.processImage,
-            isApproved && styles.approvedProcessImage,
-            isCanceled && styles.canceledProcessImage,
-            isRejected && styles.rejectedProcessImage,
-          ]}
-        />
-        {!isCanceled && !isRejected ? (
-          <ProcessProgress activeStep={presentation.activeStep} />
-        ) : null}
-      </View>
-      <View style={[styles.sheet, { paddingBottom: insets.bottom }]}>
-        <View style={styles.animalRow}>
-          <Image
-            source={require('../../assets/images/adoption/animal-detail.jpg')}
-            style={styles.animalImage}
-          />
-          <View style={styles.animalText}>
-            <Text style={styles.animalTitle}>[개] 믹스견</Text>
-            <Text style={styles.animalMeta}>2026년생 | 암컷 | 3kg</Text>
-            <Text style={styles.animalMeta}>
-              중성화 여부 <Text style={styles.neutered}>O</Text>
-            </Text>
+      {loading ? (
+        <DetailScreenSkeleton accessibilityLabel="입양 신청 상세 불러오는 중" />
+      ) : (
+        <>
+          <View style={styles.statusArea}>
+            <View
+              style={[
+                styles.statusCopy,
+                isCanceled && styles.canceledStatusCopy,
+                isRejected && styles.rejectedStatusCopy,
+              ]}
+            >
+              <Text style={styles.statusTitle}>{presentation.title}</Text>
+              <Text style={styles.statusDescription}>{presentation.description}</Text>
+            </View>
+            <Image
+              source={presentation.illustration}
+              style={[
+                styles.processImage,
+                isApproved && styles.approvedProcessImage,
+                isCanceled && styles.canceledProcessImage,
+                isRejected && styles.rejectedProcessImage,
+              ]}
+            />
+            {!isCanceled && !isRejected ? (
+              <ProcessProgress activeStep={presentation.activeStep} />
+            ) : null}
           </View>
-        </View>
-        <View style={styles.registrationRows}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>등록번호</Text>
-            <Text style={styles.infoValue}>113122600015</Text>
+          <View style={[styles.sheet, { paddingBottom: insets.bottom }]}>
+            <View style={styles.animalRow}>
+              <Image
+                source={require('../../assets/images/adoption/animal-detail.jpg')}
+                style={styles.animalImage}
+              />
+              <View style={styles.animalText}>
+                <Text style={styles.animalTitle}>[개] 믹스견</Text>
+                <Text style={styles.animalMeta}>2026년생 | 암컷 | 3kg</Text>
+                <Text style={styles.animalMeta}>
+                  중성화 여부 <Text style={styles.neutered}>O</Text>
+                </Text>
+              </View>
+            </View>
+            <View style={styles.registrationRows}>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>등록번호</Text>
+                <Text style={styles.infoValue}>113122600015</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>마이크로칩번호</Text>
+                <Text style={styles.infoValue}>410987654321098</Text>
+              </View>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() =>
+                navigation.navigate('AdoptionDetail', { animalId: route.params.animalId })
+              }
+              style={styles.animalDetailLink}
+            >
+              <Text style={styles.animalDetailText}>보호동물 상세보기</Text>
+              <RightArrowIcon height={19} width={19} />
+            </Pressable>
+            <View style={styles.divider} />
+            <Text style={styles.sectionTitle}>신청 정보</Text>
+            {[
+              ['신청 번호', record?.applicationNumber ?? '-'],
+              ['신청일', formatDate(record?.submittedAt)],
+              ['신청자', record?.applicantName ?? '-'],
+              ['보호소', record?.shelterName ?? '-'],
+            ].map(([label, value]) => (
+              <View key={label} style={styles.infoRow}>
+                <Text style={styles.infoLabel}>{label}</Text>
+                <Text style={styles.infoValue}>{value}</Text>
+              </View>
+            ))}
+            <Pressable
+              accessibilityRole="button"
+              onPress={handleDocumentPress}
+              style={styles.documentCard}
+            >
+              <View style={styles.documentIconCircle}>
+                <FormIcon height={25} width={25} />
+              </View>
+              <View style={styles.documentCopy}>
+                <Text style={styles.documentTitle}>입양 신청서</Text>
+                <Text style={styles.documentDescription}>작성한 입양 신청서 확인</Text>
+              </View>
+              <RightArrowIcon height={24} width={24} />
+            </Pressable>
+            {isDraft || canCancel || isRejected ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => (isRejected ? setShowRejectionReason(true) : setShowConfirm(true))}
+                style={styles.bottomAction}
+              >
+                <Text style={styles.bottomActionText}>
+                  {isRejected ? '거절 사유 확인' : isDraft ? '입양신청서 삭제' : '제출 취소'}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>마이크로칩번호</Text>
-            <Text style={styles.infoValue}>410987654321098</Text>
-          </View>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => navigation.navigate('AdoptionDetail', { animalId: route.params.animalId })}
-          style={styles.animalDetailLink}
-        >
-          <Text style={styles.animalDetailText}>보호동물 상세보기</Text>
-          <RightArrowIcon height={19} width={19} />
-        </Pressable>
-        <View style={styles.divider} />
-        <Text style={styles.sectionTitle}>신청 정보</Text>
-        {[
-          ['신청 번호', record?.applicationNumber ?? '-'],
-          ['신청일', formatDate(record?.submittedAt)],
-          ['신청자', record?.applicantName ?? '-'],
-          ['보호소', record?.shelterName ?? '-'],
-        ].map(([label, value]) => (
-          <View key={label} style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{label}</Text>
-            <Text style={styles.infoValue}>{value}</Text>
-          </View>
-        ))}
-        <Pressable
-          accessibilityRole="button"
-          onPress={handleDocumentPress}
-          style={styles.documentCard}
-        >
-          <View style={styles.documentIconCircle}>
-            <FormIcon height={25} width={25} />
-          </View>
-          <View style={styles.documentCopy}>
-            <Text style={styles.documentTitle}>입양 신청서</Text>
-            <Text style={styles.documentDescription}>작성한 입양 신청서 확인</Text>
-          </View>
-          <RightArrowIcon height={24} width={24} />
-        </Pressable>
-        {isDraft || canCancel || isRejected ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => (isRejected ? setShowRejectionReason(true) : setShowConfirm(true))}
-            style={styles.bottomAction}
-          >
-            <Text style={styles.bottomActionText}>
-              {isRejected ? '거절 사유 확인' : isDraft ? '입양신청서 삭제' : '제출 취소'}
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
+        </>
+      )}
       <Modal animationType="fade" transparent visible={showConfirm}>
         <View style={styles.overlay}>
           <View style={styles.modalCard}>

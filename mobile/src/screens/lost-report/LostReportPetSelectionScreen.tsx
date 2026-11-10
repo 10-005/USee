@@ -1,12 +1,22 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import PawInputActiveIcon from '../../assets/icons/common/paw-input-active.svg';
 import PawInputIcon from '../../assets/icons/common/paw-input.svg';
-import { AppHeader, StepIndicator } from '../../components/common';
+import { AppHeader, SkeletonBlock, SkeletonGroup, StepIndicator } from '../../components/common';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
 import { usePetStore, type Pet } from '../../stores/petStore';
 import { colors, radius, typography } from '../../theme';
@@ -16,11 +26,16 @@ type Props = NativeStackScreenProps<RootStackParamList, 'LostReportPetSelection'
 export function LostReportPetSelectionScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const pets = usePetStore(state => state.pets);
+  const fetchPets = usePetStore(state => state.fetchPets);
+  const fetchPet = usePetStore(state => state.fetchPet);
+  const petError = usePetStore(state => state.error);
+  const petsLoading = usePetStore(state => state.isLoading);
   const entryMode = useLostReportDraftStore(state => state.entryMode);
   const selectedPetId = useLostReportDraftStore(state => state.selectedPetId);
   const selectManual = useLostReportDraftStore(state => state.selectManual);
   const selectPet = useLostReportDraftStore(state => state.selectPet);
   const resetSelection = useLostReportDraftStore(state => state.resetSelection);
+  const [selectingPetId, setSelectingPetId] = useState<string | null>(null);
   const hasSelection = entryMode !== null;
   const nextButtonInsetStyle = useMemo(() => ({ bottom: insets.bottom + 16 }), [insets.bottom]);
   const scrollInsetStyle = useMemo(() => ({ paddingBottom: insets.bottom + 88 }), [insets.bottom]);
@@ -28,6 +43,29 @@ export function LostReportPetSelectionScreen({ navigation }: Props) {
   useEffect(() => {
     resetSelection();
   }, [resetSelection]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPets().catch(() => undefined);
+    }, [fetchPets]),
+  );
+
+  const choosePet = async (pet: Pet) => {
+    if (selectingPetId) {
+      return;
+    }
+    setSelectingPetId(pet.id);
+    try {
+      const detail = await fetchPet(pet.id);
+      if (detail) {
+        selectPet(detail);
+      } else {
+        Alert.alert('반려동물 조회 실패', '잠시 후 다시 선택해 주세요.');
+      }
+    } finally {
+      setSelectingPetId(null);
+    }
+  };
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -63,10 +101,21 @@ export function LostReportPetSelectionScreen({ navigation }: Props) {
         </Pressable>
 
         <View style={styles.petList}>
+          {petsLoading && pets.length === 0 ? (
+            <PetSelectionSkeleton />
+          ) : petError && pets.length === 0 ? (
+            <View style={styles.stateView}>
+              <Text style={styles.stateText}>{petError}</Text>
+              <Pressable accessibilityRole="button" onPress={() => fetchPets()}>
+                <Text style={styles.retryText}>다시 시도</Text>
+              </Pressable>
+            </View>
+          ) : null}
           {pets.map(pet => (
             <PetSelectionCard
               key={pet.id}
-              onPress={() => selectPet(pet)}
+              loading={selectingPetId === pet.id}
+              onPress={() => choosePet(pet)}
               pet={pet}
               selected={entryMode === 'pet' && selectedPetId === pet.id}
             />
@@ -92,11 +141,32 @@ export function LostReportPetSelectionScreen({ navigation }: Props) {
   );
 }
 
+function PetSelectionSkeleton() {
+  return (
+    <SkeletonGroup
+      accessibilityLabel="등록한 반려동물 불러오는 중"
+      style={styles.selectionSkeleton}
+    >
+      {[0, 1, 2].map(index => (
+        <View key={index} style={styles.petCard}>
+          <SkeletonBlock style={styles.petImage} />
+          <View style={styles.skeletonText}>
+            <SkeletonBlock style={styles.skeletonName} />
+            <SkeletonBlock style={styles.skeletonMeta} />
+          </View>
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
+}
+
 function PetSelectionCard({
   onPress,
   pet,
   selected,
+  loading,
 }: {
+  loading: boolean;
   onPress: () => void;
   pet: Pet;
   selected: boolean;
@@ -120,6 +190,7 @@ function PetSelectionCard({
           {pet.species} | {pet.breed}
         </Text>
       </View>
+      {loading ? <ActivityIndicator color={colors.green400} style={styles.cardLoader} /> : null}
     </Pressable>
   );
 }
@@ -151,6 +222,13 @@ const styles = StyleSheet.create({
   selectedOption: { backgroundColor: '#ECFDF3', borderColor: colors.green400 },
   selectedLabel: { color: colors.green400 },
   petList: { gap: 16, marginTop: 16 },
+  stateView: { alignItems: 'center', gap: 10, justifyContent: 'center', minHeight: 120 },
+  stateText: { ...typography.bodyRegular14, color: colors.gray500, textAlign: 'center' },
+  retryText: { ...typography.bodySemiBold16, color: colors.green400 },
+  selectionSkeleton: { gap: 16 },
+  skeletonText: { flex: 1, gap: 10, marginLeft: 20 },
+  skeletonName: { height: 16, width: '42%' },
+  skeletonMeta: { height: 12, width: '64%' },
   petCard: {
     alignItems: 'center',
     borderColor: colors.gray500,
@@ -168,6 +246,7 @@ const styles = StyleSheet.create({
   },
   petImage: { borderRadius: 10, height: 67, width: 67 },
   petText: { marginLeft: 20 },
+  cardLoader: { marginLeft: 'auto' },
   petName: {
     ...typography.bodySemiBold16,
     color: colors.gray500,

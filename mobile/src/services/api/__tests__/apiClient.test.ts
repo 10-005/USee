@@ -1,163 +1,100 @@
-import type { InternalAxiosRequestConfig } from 'axios';
-import { AxiosError } from 'axios';
+import axios, { AxiosError } from 'axios';
 
-import { TEMP_ACCESS_TOKEN } from '../accessToken';
 import { createApiClient } from '../apiClient';
-import { serviceBaseUrl, simulationClient } from '../client';
-import { readApiData } from '../response';
-import { API_SERVICES } from '../types';
-
-const success = <T>(data: T) => ({
-  status: 200,
-  code: 'SUCCESS',
-  message: '요청이 성공했습니다.',
-  data,
-  errors: [],
-  traceId: '4f2c9e1a7b3d4c5e',
-});
 
 describe('createApiClient', () => {
   it('applies the base URL and default timeout', () => {
-    const client = createApiClient({ baseURL: 'https://api.example.test/api/core/v1' });
+    const client = createApiClient({ baseURL: 'https://api.example.test' });
 
-    expect(client.defaults.baseURL).toBe('https://api.example.test/api/core/v1');
+    expect(client.defaults.baseURL).toBe('https://api.example.test');
     expect(client.defaults.timeout).toBe(10_000);
   });
 
   it('applies a custom timeout', () => {
     const client = createApiClient({
-      baseURL: 'https://api.example.test/api/core/v1',
+      baseURL: 'https://api.example.test',
       timeout: 3_000,
     });
 
     expect(client.defaults.timeout).toBe(3_000);
   });
 
-  it('sends the access token and a trace id', async () => {
+  it('shares one rotating refresh request across concurrent expired requests', async () => {
+    let currentAccessToken = 'expired-access';
+    const onTokensRefreshed = jest.fn(tokens => {
+      currentAccessToken = tokens.accessToken;
+    });
     const client = createApiClient({
-      baseURL: 'https://api.example.test/api/simulation/v1',
-      getAccessToken: async () => 'access-token',
+      baseURL: 'https://api.example.test',
+      getAccessToken: () => currentAccessToken,
+      refresh: {
+        endpoint: '/auth/refresh',
+        getRefreshToken: () => 'refresh-token',
+        onAuthenticationFailure: jest.fn(),
+        onTokensRefreshed,
+      },
     });
-    let request: InternalAxiosRequestConfig | undefined;
-    client.defaults.adapter = async config => {
-      request = config;
-      return { config, data: success({ ok: true }), headers: {}, status: 200, statusText: 'OK' };
-    };
-
-    await client.get('/simulations/current');
-
-    expect(request?.headers.get('Authorization')).toBe('Bearer access-token');
-    expect(request?.headers.get('X-Trace-Id')).toMatch(/^[0-9a-f]{16}$/);
-  });
-
-  it('keeps a caller supplied trace id and omits an empty token', async () => {
-    const client = createApiClient({
-      baseURL: 'https://api.example.test/api/simulation/v1',
-      getAccessToken: () => null,
-    });
-    let request: InternalAxiosRequestConfig | undefined;
-    client.defaults.adapter = async config => {
-      request = config;
-      return { config, data: success(null), headers: {}, status: 200, statusText: 'OK' };
-    };
-
-    await client.get('/simulations/current', { headers: { 'X-Trace-Id': 'given-trace' } });
-
-    expect(request?.headers.get('Authorization')).toBeUndefined();
-    expect(request?.headers.get('X-Trace-Id')).toBe('given-trace');
-  });
-
-  it('reads the common error envelope', async () => {
-    const client = createApiClient({ baseURL: 'https://api.example.test/api/simulation/v1' });
-    client.defaults.adapter = async config => {
-      throw new AxiosError('Request failed', 'ERR_BAD_REQUEST', config, undefined, {
-        config,
-        data: {
-          status: 400,
-          code: 'COMMON_INVALID_INPUT',
-          message: '입력값이 올바르지 않습니다.',
-          data: null,
-          errors: [{ field: 'animalName', reason: '이름은 6자 이하여야 합니다.' }],
-          traceId: '4f2c9e1a7b3d4c5e',
-        },
-        headers: {},
-        status: 400,
-        statusText: 'Bad Request',
-      });
-    };
-
-    await expect(client.post('/simulations', {})).rejects.toMatchObject({
-      code: 'COMMON_INVALID_INPUT',
-      errors: [{ field: 'animalName', reason: '이름은 6자 이하여야 합니다.' }],
-      message: '입력값이 올바르지 않습니다.',
-      status: 400,
-      traceId: '4f2c9e1a7b3d4c5e',
-    });
-  });
-
-  it('hides a non-envelope server failure behind the common code', async () => {
-    const client = createApiClient({ baseURL: 'https://api.example.test/api/core/v1' });
-    client.defaults.adapter = async config => {
-      throw new AxiosError('Request failed', 'ERR_BAD_RESPONSE', config, undefined, {
-        config,
-        data: '<html>internal</html>',
-        headers: { 'x-trace-id': 'header-trace' },
-        status: 500,
-        statusText: 'Error',
-      });
-    };
-
-    await expect(client.get('/pets')).rejects.toMatchObject({
-      code: 'COMMON_INTERNAL_ERROR',
-      message: '요청을 처리하지 못했습니다.',
-      status: 500,
-      traceId: 'header-trace',
-    });
-  });
-});
-
-describe('simulationClient', () => {
-  it('sends the temporary access token', async () => {
-    const previous = simulationClient.defaults.adapter;
-    let authorization: unknown;
-    simulationClient.defaults.adapter = async config => {
-      authorization = config.headers.get('Authorization');
-      return { config, data: success(null), headers: {}, status: 200, statusText: 'OK' };
-    };
-    try {
-      await simulationClient.get('/simulations/current');
-    } finally {
-      simulationClient.defaults.adapter = previous;
-    }
-
-    expect(authorization).toBe(TEMP_ACCESS_TOKEN ? `Bearer ${TEMP_ACCESS_TOKEN}` : undefined);
-  });
-});
-
-describe('serviceBaseUrl', () => {
-  it.each(API_SERVICES)('builds the %s service path', service => {
-    expect(serviceBaseUrl(service, 'https://api.example.test/')).toBe(
-      `https://api.example.test/api/${service}/v1`,
-    );
-  });
-});
-
-describe('readApiData', () => {
-  it('returns data, including an explicit null', () => {
-    expect(readApiData(success({ sessionSeq: 3001 }))).toEqual({ sessionSeq: 3001 });
-    expect(readApiData(success(null))).toBeNull();
-  });
-
-  it('rejects an envelope whose code is not SUCCESS', () => {
-    expect(() =>
-      readApiData({
-        status: 409,
-        code: 'SIMULATION_ACTIVE_ALREADY_EXISTS',
-        message: '이미 진행 중인 모의입양이 있습니다.',
-        data: null,
+    const refreshPost = jest.spyOn(axios, 'post').mockResolvedValueOnce({
+      data: {
+        code: 'SUCCESS',
+        data: { accessToken: 'new-access', refreshToken: 'new-refresh' },
         errors: [],
-        traceId: '4f2c9e1a7b3d4c5e',
-      }),
-    ).toThrow(expect.objectContaining({ code: 'SIMULATION_ACTIVE_ALREADY_EXISTS' }));
+        message: 'ok',
+        status: 200,
+        traceId: 'trace',
+      },
+    });
+
+    client.defaults.adapter = async config => {
+      if (config.headers.get('Authorization') === 'Bearer expired-access') {
+        throw new AxiosError('expired', 'ERR_BAD_REQUEST', config, undefined, {
+          config,
+          data: { code: 'AUTH_TOKEN_EXPIRED', errors: [], message: 'expired' },
+          headers: {},
+          status: 401,
+          statusText: 'Unauthorized',
+        });
+      }
+      return { config, data: {}, headers: {}, status: 200, statusText: 'OK' };
+    };
+
+    await Promise.all([client.get('/first'), client.get('/second')]);
+
+    expect(refreshPost).toHaveBeenCalledTimes(1);
+    expect(onTokensRefreshed).toHaveBeenCalledWith({
+      accessToken: 'new-access',
+      refreshToken: 'new-refresh',
+    });
+    refreshPost.mockRestore();
+  });
+
+  it('clears the session when the access token is invalid', async () => {
+    const consoleWarn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const onAuthenticationFailure = jest.fn();
+    const client = createApiClient({
+      baseURL: 'https://api.example.test',
+      getAccessToken: () => 'invalid-access',
+      refresh: {
+        endpoint: '/auth/refresh',
+        getRefreshToken: () => 'refresh-token',
+        onAuthenticationFailure,
+        onTokensRefreshed: jest.fn(),
+      },
+    });
+    client.defaults.adapter = async config => {
+      throw new AxiosError('invalid', 'ERR_BAD_REQUEST', config, undefined, {
+        config,
+        data: { code: 'AUTH_TOKEN_INVALID', errors: [], message: 'invalid' },
+        headers: {},
+        status: 401,
+        statusText: 'Unauthorized',
+      });
+    };
+
+    await expect(client.get('/users/me')).rejects.toMatchObject({
+      code: 'AUTH_TOKEN_INVALID',
+    });
+    expect(onAuthenticationFailure).toHaveBeenCalledTimes(1);
+    consoleWarn.mockRestore();
   });
 });

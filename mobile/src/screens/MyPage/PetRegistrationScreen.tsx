@@ -1,7 +1,8 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useRef, useState, type ComponentRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   BackHandler,
   Image,
@@ -32,17 +33,36 @@ import {
   StepIndicator,
 } from '../../components/common';
 import { MAX_IMAGE_SIZE_MB } from '../../constants/upload';
+import { getApiErrorDisplayMessage } from '../../services/api';
+import { confirmImage, uploadImageToPendingStorage } from '../../services/images';
+import {
+  createPet,
+  getAnimalBreeds,
+  getAnimalCombinations,
+  getAnimalSpecies,
+  updateMyPet,
+  type AnimalBreed,
+  type AnimalCombination,
+  type AnimalSpecies,
+} from '../../services/pets';
 import { useFoundReportDraftStore } from '../../stores/foundReportDraftStore';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
-import { usePetStore } from '../../stores/petStore';
+import { mapPetDetail, usePetStore } from '../../stores/petStore';
 import { colors, radius, typography } from '../../theme';
-import { petOptions, SPECIES_CODES, type PetSpecies, validatePetImage } from './petRegistration';
+import {
+  normalizePetSpecies,
+  petOptions,
+  SPECIES_CODES,
+  type PetSpecies,
+  validatePetImage,
+} from './petRegistration';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PetRegistration'>;
 type SelectKey = 'species' | 'breed' | 'color' | null;
 type Gender = '수컷' | '암컷' | '모름';
 type Neutered = '완료' | '미완료' | '모름';
 type Microchip = '완료' | '미완료' | '모름';
+type ApiSpeciesLabel = '개' | '고양이' | '기타';
 
 export function PetRegistrationScreen({ navigation, route }: Props) {
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
@@ -59,9 +79,10 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       ? state.pets.find(pet => pet.id === route.params?.petId)
       : undefined,
   );
-  const addPet = usePetStore(state => state.addPet);
-  const updatePet = usePetStore(state => state.updatePet);
+  const fetchPet = usePetStore(state => state.fetchPet);
+  const upsertPet = usePetStore(state => state.upsertPet);
   const isEditing = !isReportFlow && Boolean(editingPet);
+  const usesPetApi = !isFoundReportFlow;
   const initialAnimal = isLostReportFlow ? lostReportAnimal : editingPet;
   const [photos, setPhotos] = useState<Asset[]>(() =>
     isFoundReportFlow
@@ -77,8 +98,8 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   const [selectKey, setSelectKey] = useState<SelectKey>(null);
   const [name, setName] = useState(initialAnimal?.name ?? '');
   const initialSpecies = isFoundReportFlow ? foundReportDraft.species : initialAnimal?.species;
-  const [species, setSpecies] = useState<PetSpecies | ''>(
-    initialSpecies && initialSpecies in SPECIES_CODES ? (initialSpecies as PetSpecies) : '',
+  const [species, setSpecies] = useState<PetSpecies | ApiSpeciesLabel | ''>(
+    normalizePetSpecies(initialSpecies),
   );
   const [breed, setBreed] = useState(
     isFoundReportFlow ? foundReportDraft.breed : initialAnimal?.breed ?? '',
@@ -146,6 +167,80 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
     isFoundReportFlow ? foundReportDraft.microchipNumber : initialAnimal?.microchipNumber ?? '',
   );
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [catalogSpecies, setCatalogSpecies] = useState<AnimalSpecies[]>([]);
+  const [catalogBreeds, setCatalogBreeds] = useState<AnimalBreed[]>([]);
+  const [catalogCombinations, setCatalogCombinations] = useState<AnimalCombination[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadedImageKeys, setUploadedImageKeys] = useState<Record<string, string>>({});
+  const [confirmedImageSeqs, setConfirmedImageSeqs] = useState<Record<string, number>>({});
+  const existingImageSeqs = useMemo(
+    () =>
+      Object.fromEntries(
+        ((isLostReportFlow ? lostReportAnimal.images : editingPet?.images) ?? []).map(
+          (image, index) => [
+            Image.resolveAssetSource(image)?.uri ?? '',
+            (isLostReportFlow ? lostReportAnimal.imageSeqs : editingPet?.imageSeqs)?.[index],
+          ],
+        ),
+      ) as Record<string, number>,
+    [editingPet, isLostReportFlow, lostReportAnimal.imageSeqs, lostReportAnimal.images],
+  );
+
+  const loadSpecies = useCallback(async () => {
+    if (!usesPetApi) {
+      return;
+    }
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      setCatalogSpecies(await getAnimalSpecies());
+    } catch (error) {
+      setCatalogError(getApiErrorDisplayMessage(error, '기준정보를 불러오지 못했어요.'));
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, [usesPetApi]);
+
+  useEffect(() => {
+    loadSpecies().catch(() => undefined);
+  }, [loadSpecies]);
+
+  useEffect(() => {
+    if (!isEditing || !editingPet || catalogSpecies.length === 0) {
+      return;
+    }
+    const selectedSpecies = catalogSpecies.find(
+      item => speciesLabel(item.speciesCode) === editingPet.species,
+    );
+    if (!selectedSpecies) {
+      return;
+    }
+    setCatalogLoading(true);
+    getAnimalBreeds(selectedSpecies.speciesSeq)
+      .then(async breeds => {
+        setCatalogBreeds(breeds);
+        const selectedBreed = breeds.find(item => item.breedName === editingPet.breed);
+        if (selectedBreed) {
+          setCatalogCombinations(await getAnimalCombinations(selectedBreed.breedSeq));
+        }
+      })
+      .catch(error =>
+        setCatalogError(getApiErrorDisplayMessage(error, '기준정보를 불러오지 못했어요.')),
+      )
+      .finally(() => setCatalogLoading(false));
+  }, [catalogSpecies, editingPet, isEditing]);
+
+  const retryCatalog = () => {
+    setSpecies('');
+    setBreed('');
+    setColor('');
+    setCatalogBreeds([]);
+    setCatalogCombinations([]);
+    loadSpecies().catch(() => undefined);
+  };
 
   const hasDraft = Boolean(
     photos.length ||
@@ -189,10 +284,15 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       gender &&
       neutered &&
       microchip &&
-      (microchip !== '완료' || microchipNumber.trim()),
+      (microchip !== '완료' || microchipNumber.trim()) &&
+      (!usesPetApi ||
+        (isLostReportFlow && Boolean(lostReportAnimal.combinationSeq)) ||
+        catalogCombinations.some(combination => combination.colorName === color)) &&
+      !isUploadingPhotos &&
+      !isSubmitting,
   );
 
-  const appendPhotos = (assets: Asset[] = []) => {
+  const appendPhotos = async (assets: Asset[] = []) => {
     const accepted: Asset[] = [];
     for (const asset of assets) {
       const error = validatePetImage(asset);
@@ -200,9 +300,50 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         Alert.alert('사진을 등록할 수 없어요', error);
         continue;
       }
-      accepted.push(asset);
+      if (
+        !photos.some(photo => photo.uri === asset.uri) &&
+        !accepted.some(photo => photo.uri === asset.uri)
+      ) {
+        accepted.push(asset);
+      }
     }
-    setPhotos(current => [...current, ...accepted].slice(0, 3));
+    const available = accepted.slice(0, Math.max(0, 3 - photos.length));
+    if (!usesPetApi) {
+      setPhotos(current => [...current, ...available].slice(0, 3));
+      return;
+    }
+    if (available.some(asset => !asset.fileSize || !asset.type || !asset.uri)) {
+      Alert.alert('사진을 등록할 수 없어요', '사진의 크기나 형식을 확인할 수 없어요.');
+      return;
+    }
+    setIsUploadingPhotos(true);
+    try {
+      const results = await Promise.allSettled(
+        available.map(async asset => ({
+          asset,
+          upload: await uploadImageToPendingStorage({
+            byteSize: asset.fileSize!,
+            contentType: asset.type as 'image/jpeg' | 'image/png',
+            fileName:
+              asset.fileName ?? `pet-${Date.now()}.${asset.type === 'image/png' ? 'png' : 'jpg'}`,
+            uri: asset.uri!,
+          }),
+        })),
+      );
+      const uploaded = results.flatMap(result =>
+        result.status === 'fulfilled' ? [result.value] : [],
+      );
+      setPhotos(current => [...current, ...uploaded.map(result => result.asset)].slice(0, 3));
+      setUploadedImageKeys(current => ({
+        ...current,
+        ...Object.fromEntries(uploaded.map(result => [result.asset.uri!, result.upload.imageKey])),
+      }));
+      if (uploaded.length !== available.length) {
+        Alert.alert('일부 사진 업로드 실패', '업로드되지 않은 사진을 다시 선택해 주세요.');
+      }
+    } finally {
+      setIsUploadingPhotos(false);
+    }
   };
 
   const chooseFromLibrary = async () => {
@@ -221,7 +362,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         return;
       }
       if (!result.didCancel) {
-        appendPhotos(result.assets);
+        await appendPhotos(result.assets);
       }
     } catch {
       Alert.alert(
@@ -252,7 +393,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         return;
       }
       if (!result.didCancel) {
-        appendPhotos(result.assets);
+        await appendPhotos(result.assets);
       }
     } catch {
       Alert.alert(
@@ -262,35 +403,65 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
     }
   };
 
-  const options = petOptions(species, breed, color);
+  const options = petOptions(species in SPECIES_CODES ? (species as PetSpecies) : '', breed, color);
+  const apiSpeciesOptions = catalogSpecies.map(item => speciesLabel(item.speciesCode));
+  const apiBreedOptions = catalogBreeds.map(item => item.breedName);
+  const apiColorOptions = catalogCombinations.map(item => item.colorName);
 
   const selectOption = (value: string) => {
     if (selectKey === 'species' && species !== value) {
-      setSpecies(value as PetSpecies);
+      setSpecies(value as PetSpecies | ApiSpeciesLabel);
       setBreed('');
       setColor('');
+      setCatalogBreeds([]);
+      setCatalogCombinations([]);
+      if (usesPetApi) {
+        setCatalogError(null);
+        const selected = catalogSpecies.find(item => speciesLabel(item.speciesCode) === value);
+        if (selected) {
+          setCatalogLoading(true);
+          getAnimalBreeds(selected.speciesSeq)
+            .then(setCatalogBreeds)
+            .catch(error =>
+              setCatalogError(getApiErrorDisplayMessage(error, '품종을 불러오지 못했어요.')),
+            )
+            .finally(() => setCatalogLoading(false));
+        }
+      }
     } else if (selectKey === 'breed' && breed !== value) {
       setBreed(value);
       setColor('');
+      setCatalogCombinations([]);
+      if (usesPetApi) {
+        setCatalogError(null);
+        const selected = catalogBreeds.find(item => item.breedName === value);
+        if (selected) {
+          setCatalogLoading(true);
+          getAnimalCombinations(selected.breedSeq)
+            .then(setCatalogCombinations)
+            .catch(error =>
+              setCatalogError(getApiErrorDisplayMessage(error, '색상 조합을 불러오지 못했어요.')),
+            )
+            .finally(() => setCatalogLoading(false));
+        }
+      }
     } else if (selectKey === 'color') {
       setColor(value);
     }
     setSelectKey(null);
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!isValid || !photos[0]?.uri) {
       return;
     }
     const sources = photos.map(photo => ({ uri: photo.uri! }));
-    const pet = {
+    const draftPet = {
       age: age ? Number(age) : null,
       breed,
       color,
       description: description.trim(),
       gender: gender as Gender,
-      id: editingPet?.id ?? `pet-${Date.now()}`,
-      image: sources[0],
       images: sources,
       microchipNumber: microchip === '완료' ? microchipNumber.trim() : '',
       name: name.trim(),
@@ -299,20 +470,50 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       weight: weight ? Number(weight) : null,
     };
     if (isLostReportFlow) {
-      updateLostReportAnimal({
-        age: pet.age,
-        breed: pet.breed,
-        color: pet.color,
-        description: pet.description,
-        gender: pet.gender,
-        images: [...sources],
-        microchipNumber: pet.microchipNumber,
-        name: pet.name,
-        neutered: pet.neutered,
-        species: pet.species,
-        weight: pet.weight,
-      });
-      navigation.navigate('LostReportForm', { reportId: route.params?.reportId });
+      const combinationSeq =
+        catalogCombinations.find(item => item.colorName === color)?.combinationSeq ??
+        lostReportAnimal.combinationSeq;
+      if (!combinationSeq) {
+        Alert.alert('입력 확인', '종·품종·색상 조합을 다시 선택해 주세요.');
+        return;
+      }
+      setIsSubmitting(true);
+      try {
+        const nextConfirmed = { ...existingImageSeqs, ...confirmedImageSeqs };
+        for (const photo of photos) {
+          const uri = photo.uri!;
+          if (!nextConfirmed[uri]) {
+            const imageKey = uploadedImageKeys[uri];
+            if (!imageKey) {
+              throw new Error('사진 업로드 정보가 없어요. 사진을 다시 선택해 주세요.');
+            }
+            nextConfirmed[uri] = (await confirmImage(imageKey)).imageSeq;
+          }
+        }
+        updateLostReportAnimal({
+          age: draftPet.age,
+          breed: draftPet.breed,
+          color: draftPet.color,
+          combinationSeq,
+          description: draftPet.description,
+          gender: draftPet.gender,
+          images: [...sources],
+          imageSeqs: photos.map(photo => nextConfirmed[photo.uri!]),
+          microchipNumber: draftPet.microchipNumber,
+          name: draftPet.name,
+          neutered: draftPet.neutered,
+          species: draftPet.species,
+          weight: draftPet.weight,
+        });
+        navigation.navigate('LostReportForm', { reportId: route.params?.reportId });
+      } catch (error) {
+        Alert.alert(
+          '사진 등록 실패',
+          getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'),
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
     if (isFoundReportFlow) {
@@ -333,10 +534,55 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       navigation.navigate('FoundReportForm', { reportId: route.params?.reportId });
       return;
     }
-    if (isEditing) {
-      updatePet(pet);
-    } else {
-      addPet(pet);
+    const combination = catalogCombinations.find(item => item.colorName === color);
+    if (!combination) {
+      Alert.alert('입력 확인', '종·품종·색상 조합을 다시 선택해 주세요.');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const nextConfirmed = { ...existingImageSeqs, ...confirmedImageSeqs };
+      for (const photo of photos) {
+        const uri = photo.uri!;
+        if (!nextConfirmed[uri]) {
+          const imageKey = uploadedImageKeys[uri];
+          if (!imageKey) {
+            throw new Error('사진 업로드 정보가 없어요. 사진을 다시 선택해 주세요.');
+          }
+          nextConfirmed[uri] = (await confirmImage(imageKey)).imageSeq;
+          setConfirmedImageSeqs(current => ({ ...current, [uri]: nextConfirmed[uri] }));
+        }
+      }
+      const request = {
+        age: age.trim() || null,
+        combinationSeq: combination.combinationSeq,
+        description: description.trim() || null,
+        gender:
+          gender === '수컷'
+            ? ('MALE' as const)
+            : gender === '암컷'
+            ? ('FEMALE' as const)
+            : ('UNKNOWN' as const),
+        imageSeqs: photos.map(photo => nextConfirmed[photo.uri!]),
+        isNeutered: neutered === '모름' ? null : neutered === '완료',
+        microchipNumber: microchip === '완료' ? microchipNumber.trim() : null,
+        name: name.trim(),
+        weight: weight.trim() || null,
+      };
+      if (isEditing && editingPet) {
+        upsertPet(mapPetDetail(await updateMyPet(Number(editingPet.id), request)));
+      } else {
+        const created = await createPet(request);
+        await fetchPet(String(created.petSeq));
+      }
+    } catch (error) {
+      Alert.alert(
+        `반려동물 ${isEditing ? '수정' : '등록'} 실패`,
+        getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'),
+      );
+      return;
+    } finally {
+      setIsSubmitting(false);
     }
     navigation.goBack();
   };
@@ -377,169 +623,187 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         >
           <ScrollView
             ref={scrollRef}
-          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-          contentContainerStyle={styles.content}
-          decelerationRate="fast"
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
-          onTouchStart={Keyboard.dismiss}
-        >
-          <FieldLabel required>반려동물 사진</FieldLabel>
-          <View style={styles.photoArea}>
-            {photos.map((photo, index) => (
-              <View key={`${photo.uri}-${index}`} style={styles.photoWrapper}>
-                <Image source={{ uri: photo.uri }} style={styles.photo} />
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+            contentContainerStyle={styles.content}
+            decelerationRate="fast"
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+            onTouchStart={Keyboard.dismiss}
+          >
+            <FieldLabel required>반려동물 사진</FieldLabel>
+            <View style={styles.photoArea}>
+              {photos.map((photo, index) => (
+                <View key={`${photo.uri}-${index}`} style={styles.photoWrapper}>
+                  <Image source={{ uri: photo.uri }} style={styles.photo} />
+                  <Pressable
+                    accessibilityLabel={`${index + 1}번째 사진 삭제`}
+                    hitSlop={8}
+                    onPress={() => setPhotos(items => items.filter((_, i) => i !== index))}
+                    style={styles.deletePhoto}
+                  >
+                    <XCircleIcon height={18} width={18} />
+                  </Pressable>
+                </View>
+              ))}
+              {photos.length < 3 && (
                 <Pressable
-                  accessibilityLabel={`${index + 1}번째 사진 삭제`}
-                  hitSlop={8}
-                  onPress={() => setPhotos(items => items.filter((_, i) => i !== index))}
-                  style={styles.deletePhoto}
+                  accessibilityLabel="사진 추가"
+                  onPress={() => setPhotoMenuOpen(open => !open)}
+                  style={styles.addPhoto}
                 >
-                  <XCircleIcon height={18} width={18} />
+                  <PlusIcon height={24} width={24} />
+                </Pressable>
+              )}
+              {photoMenuOpen && (
+                <View style={styles.photoMenu}>
+                  <Pressable onPress={chooseFromLibrary} style={styles.photoMenuItem}>
+                    <LibraryIcon height={24} width={24} />
+                    <Text style={styles.photoMenuText}>사진 보관함</Text>
+                  </Pressable>
+                  <Pressable onPress={takePhoto} style={styles.photoMenuItem}>
+                    <CameraIcon height={24} width={24} />
+                    <Text style={styles.photoMenuText}>사진 찍기</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+            <Text style={styles.representativeGuide}>첫 번째 사진이 대표 사진으로 등록돼요.</Text>
+            <Text style={styles.photoGuide}>
+              최대 3장 · JPG/PNG · 장당 {MAX_IMAGE_SIZE_MB}MB 이하
+            </Text>
+            {isUploadingPhotos ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color={colors.green400} />
+                <Text style={styles.loadingText}>사진 업로드 중...</Text>
+              </View>
+            ) : null}
+            {usesPetApi && catalogError ? (
+              <View style={styles.catalogError}>
+                <Text style={styles.errorText}>{catalogError}</Text>
+                <Pressable onPress={retryCatalog}>
+                  <Text style={styles.retryText}>다시 시도</Text>
                 </Pressable>
               </View>
-            ))}
-            {photos.length < 3 && (
-              <Pressable
-                accessibilityLabel="사진 추가"
-                onPress={() => setPhotoMenuOpen(open => !open)}
-                style={styles.addPhoto}
-              >
-                <PlusIcon height={24} width={24} />
-              </Pressable>
-            )}
-            {photoMenuOpen && (
-              <View style={styles.photoMenu}>
-                <Pressable onPress={chooseFromLibrary} style={styles.photoMenuItem}>
-                  <LibraryIcon height={24} width={24} />
-                  <Text style={styles.photoMenuText}>사진 보관함</Text>
-                </Pressable>
-                <Pressable onPress={takePhoto} style={styles.photoMenuItem}>
-                  <CameraIcon height={24} width={24} />
-                  <Text style={styles.photoMenuText}>사진 찍기</Text>
-                </Pressable>
-              </View>
-            )}
-          </View>
-          <Text style={styles.representativeGuide}>첫 번째 사진이 대표 사진으로 등록돼요.</Text>
-          <Text style={styles.photoGuide}>
-            최대 3장 · JPG/PNG · 장당 {MAX_IMAGE_SIZE_MB}MB 이하
-          </Text>
+            ) : null}
 
-          {!isReportFlow ? (
+            {!isReportFlow ? (
+              <InputField
+                label="이름"
+                onChangeText={setName}
+                placeholder="예: 두둥"
+                required
+                value={name}
+              />
+            ) : null}
+            <SelectField
+              isOpen={selectKey === 'species'}
+              label="동물 종류"
+              onPress={() => setSelectKey(current => (current === 'species' ? null : 'species'))}
+              onSelect={selectOption}
+              options={usesPetApi ? apiSpeciesOptions : Object.keys(SPECIES_CODES)}
+              required
+              value={species}
+            />
+            {species && (
+              <SelectField
+                disabled={!species}
+                isOpen={selectKey === 'breed'}
+                label="품종"
+                onPress={() => setSelectKey(current => (current === 'breed' ? null : 'breed'))}
+                onSelect={selectOption}
+                options={usesPetApi ? apiBreedOptions : options.breeds}
+                required
+                value={breed}
+              />
+            )}
+            {breed && (
+              <SelectField
+                disabled={!breed}
+                isOpen={selectKey === 'color'}
+                label="색상"
+                onPress={() => setSelectKey(current => (current === 'color' ? null : 'color'))}
+                onSelect={selectOption}
+                options={usesPetApi ? apiColorOptions : options.colors}
+                required
+                value={color}
+              />
+            )}
+            <ChoiceField
+              label="성별"
+              onChange={value => setGender(value as Gender)}
+              options={['수컷', '암컷', '모름']}
+              required
+              value={gender}
+            />
+            <ChoiceField
+              label="중성화 여부"
+              onChange={value => setNeutered(value as Neutered)}
+              options={['완료', '미완료', '모름']}
+              required
+              value={neutered}
+            />
+            <View style={styles.row}>
+              <View style={styles.half}>
+                <InputField
+                  keyboardType="number-pad"
+                  label="나이"
+                  onChangeText={setAge}
+                  placeholder="예: 12살"
+                  value={age}
+                />
+              </View>
+              <View style={styles.half}>
+                <InputField
+                  keyboardType="decimal-pad"
+                  label="몸무게"
+                  onChangeText={setWeight}
+                  placeholder="예: 5kg"
+                  value={weight}
+                />
+              </View>
+            </View>
             <InputField
-              label="이름"
-              onChangeText={setName}
-              placeholder="예: 두둥"
-              required
-              value={name}
+              label="특징"
+              multiline
+              onChangeText={setDescription}
+              placeholder="예: 꼬리 끝이 뭉툭함"
+              value={description}
             />
-          ) : null}
-          <SelectField
-            isOpen={selectKey === 'species'}
-            label="동물 종류"
-            onPress={() => setSelectKey(current => (current === 'species' ? null : 'species'))}
-            onSelect={selectOption}
-            options={Object.keys(SPECIES_CODES)}
-            required
-            value={species}
-          />
-          {species && (
-            <SelectField
-              disabled={!species}
-              isOpen={selectKey === 'breed'}
-              label="품종"
-              onPress={() => setSelectKey(current => (current === 'breed' ? null : 'breed'))}
-              onSelect={selectOption}
-              options={options.breeds}
+            <ChoiceField
+              label="마이크로칩(RFID) 등록 여부"
+              onChange={value => {
+                setMicrochip(value as Microchip);
+                if (value !== '완료') {
+                  setMicrochipNumber('');
+                }
+              }}
+              options={isFoundReportFlow ? ['완료', '미완료', '모름'] : ['완료', '미완료']}
               required
-              value={breed}
+              value={microchip}
             />
-          )}
-          {breed && (
-            <SelectField
-              disabled={!breed}
-              isOpen={selectKey === 'color'}
-              label="색상"
-              onPress={() => setSelectKey(current => (current === 'color' ? null : 'color'))}
-              onSelect={selectOption}
-              options={options.colors}
-              required
-              value={color}
-            />
-          )}
-          <ChoiceField
-            label="성별"
-            onChange={value => setGender(value as Gender)}
-            options={['수컷', '암컷', '모름']}
-            required
-            value={gender}
-          />
-          <ChoiceField
-            label="중성화 여부"
-            onChange={value => setNeutered(value as Neutered)}
-            options={['완료', '미완료', '모름']}
-            required
-            value={neutered}
-          />
-          <View style={styles.row}>
-            <View style={styles.half}>
+            {microchip === '완료' && (
               <InputField
                 keyboardType="number-pad"
-                label="나이"
-                onChangeText={setAge}
-                placeholder="예: 12살"
-                value={age}
+                label="마이크로칩(RFID) 번호"
+                onChangeText={setMicrochipNumber}
+                placeholder="번호를 입력해주세요"
+                required
+                value={microchipNumber}
               />
-            </View>
-            <View style={styles.half}>
-              <InputField
-                keyboardType="decimal-pad"
-                label="몸무게"
-                onChangeText={setWeight}
-                placeholder="예: 5kg"
-                value={weight}
-              />
-            </View>
-          </View>
-          <InputField
-            label="특징"
-            multiline
-            onChangeText={setDescription}
-            placeholder="예: 꼬리 끝이 뭉툭함"
-            value={description}
-          />
-          <ChoiceField
-            label="마이크로칩(RFID) 등록 여부"
-            onChange={value => {
-              setMicrochip(value as Microchip);
-              if (value !== '완료') {
-                setMicrochipNumber('');
-              }
-            }}
-            options={isFoundReportFlow ? ['완료', '미완료', '모름'] : ['완료', '미완료']}
-            required
-            value={microchip}
-          />
-          {microchip === '완료' && (
-            <InputField
-              keyboardType="number-pad"
-              label="마이크로칩(RFID) 번호"
-              onChangeText={setMicrochipNumber}
-              placeholder="번호를 입력해주세요"
-              required
-              value={microchipNumber}
-            />
-          )}
-          <Pressable
-            disabled={!isValid}
-            onPress={submit}
-            style={[styles.submit, !isValid && styles.submitDisabled]}
-          >
-            <Text style={styles.submitText}>
-              {isReportFlow ? '다음' : isEditing ? '수정하기' : '등록하기'}
-            </Text>
-          </Pressable>
+            )}
+            <Pressable
+              disabled={!isValid || catalogLoading}
+              onPress={submit}
+              style={[styles.submit, (!isValid || catalogLoading) && styles.submitDisabled]}
+            >
+              {isSubmitting || catalogLoading ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.submitText}>
+                  {isReportFlow ? '다음' : isEditing ? '수정하기' : '등록하기'}
+                </Text>
+              )}
+            </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>
       </KeyboardAwareInputProvider>
@@ -574,6 +838,16 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       </Modal>
     </SafeAreaView>
   );
+}
+
+function speciesLabel(code: AnimalSpecies['speciesCode']): ApiSpeciesLabel {
+  if (code === 'DOG') {
+    return '개';
+  }
+  if (code === 'CAT') {
+    return '고양이';
+  }
+  return '기타';
 }
 
 function FieldLabel({ children, required }: { children: string; required?: boolean }) {
@@ -748,6 +1022,19 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     marginTop: 2,
   },
+  loadingRow: { alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 18 },
+  loadingText: { ...typography.bodyRegular14, color: colors.gray500 },
+  catalogError: {
+    alignItems: 'center',
+    backgroundColor: colors.gray10,
+    borderRadius: radius.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+    padding: 12,
+  },
+  errorText: { ...typography.bodyRegular14, color: colors.danger, flex: 1 },
+  retryText: { ...typography.bodySemiBold16, color: colors.green400, marginLeft: 12 },
   field: { marginBottom: 24, position: 'relative' },
   fieldOpen: { zIndex: 30 },
   input: {

@@ -12,7 +12,7 @@ export type LostReport = {
   isMine: boolean;
   location: string;
   name: string;
-  neutered: boolean;
+  neutered: boolean | null;
   species: '개' | '고양이' | '기타';
   status: '실종' | '종료';
   weight: string;

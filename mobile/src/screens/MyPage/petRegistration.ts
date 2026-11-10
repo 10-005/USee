@@ -6,10 +6,24 @@ import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE_BYTES } from '../../constants/uploa
 export const SPECIES_CODES = { 강아지: '417000', 고양이: '422400', 기타: '429900' };
 export type PetSpecies = keyof typeof SPECIES_CODES;
 
+export function normalizePetSpecies(value?: string) {
+  if (!value) {
+    return '';
+  }
+  if (value in SPECIES_CODES || value === '개' || value === '고양이' || value === '기타') {
+    return value as PetSpecies | '개' | '고양이' | '기타';
+  }
+  return '';
+}
+
 function optionsWithOtherLast(names: string[], current: string) {
   const options = new Set(names);
-  if (current) {options.add(current);}
-  if (options.delete('기타')) {options.add('기타');}
+  if (current) {
+    options.add(current);
+  }
+  if (options.delete('기타')) {
+    options.add('기타');
+  }
   return [...options];
 }
 
@@ -19,8 +33,14 @@ export function petOptions(species: PetSpecies | '', breed: string, color: strin
     : [];
   const matchingColors = breeds.filter(item => item.name === breed).flatMap(item => item.colors);
   return {
-    breeds: optionsWithOtherLast(breeds.map(item => item.name), breed),
-    colors: optionsWithOtherLast(matchingColors.map(item => item.name), color),
+    breeds: optionsWithOtherLast(
+      breeds.map(item => item.name),
+      breed,
+    ),
+    colors: optionsWithOtherLast(
+      matchingColors.map(item => item.name),
+      color,
+    ),
   };
 }
 

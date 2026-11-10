@@ -9,19 +9,13 @@ export const formatPhoneNumber = (value: string) => {
   return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
 };
 
-export const getNicknameError = (nickname: string, originalNickname: string) => {
+export const getNicknameError = (nickname: string) => {
   const trimmed = nickname.trim();
   if (!trimmed) {
     return '닉네임을 입력해주세요.';
   }
-  if (!/^[가-힣a-zA-Z0-9]{2,12}$/.test(trimmed)) {
-    return '한글, 영문, 숫자 2~12자로 입력해주세요.';
-  }
-  if (
-    trimmed !== originalNickname &&
-    ['관리자', '운영자', 'admin'].includes(trimmed.toLowerCase())
-  ) {
-    return '이미 사용 중인 닉네임입니다.';
+  if (!/^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9._]{2,10}$/.test(trimmed)) {
+    return '한글, 영문, 숫자와 . _를 사용해 2~10자로 입력해주세요.';
   }
   return null;
 };

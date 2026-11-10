@@ -22,23 +22,28 @@ import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import MapButtonIcon from '../../assets/icons/common/map-2.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
-import { SearchBar, FilterChip } from '../../components/common';
+import { FilterChip, SearchBar, SkeletonBlock, SkeletonGroup } from '../../components/common';
 import { colors, radius, typography } from '../../theme';
 import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
 import { useLostReportEditStore } from '../../stores/lostReportEditStore';
+import { useMissingReportStore } from '../../stores/missingReportStore';
+import { useCatalogStore } from '../../stores/catalogStore';
 import { useReportStatusStore } from '../../stores/reportStatusStore';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import {
   AdoptionFilterSheet,
   type AdoptionFilters,
   type FilterKey,
+  type TwoColumnFilterOptions,
 } from '../Home/AdoptionFilterSheet';
 import { foundReports, type FoundReport } from './data';
-import { lostReports, type LostReport } from '../lost-report/data';
+import type { LostReport } from '../lost-report/data';
 
 type Props = {
   bottomInset: number;
+  initialTab?: ReportTab;
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
+  onFilterOpenChange?: (open: boolean) => void;
 };
 
 const filterItems: Array<{ key: FilterKey; label: string }> = [
@@ -96,8 +101,10 @@ export const filterReports = <T extends Report>(
       (region === '전체' || report.location.startsWith(region.replace(/(특별시|광역시)$/, '시'))) &&
       (filters.species === '전체' || report.species === filters.species.split(' > ')[0]) &&
       (filters.status === '전체' || report.status === filters.status) &&
-      (filters.gender === '전체' || report.gender === filters.gender) &&
-      (filters.neutered === '전체' || report.neutered === (filters.neutered === '중성화 O'))
+      (filters.gender === '전체' || report.gender === filters.gender || report.gender === '모름') &&
+      (filters.neutered === '전체' ||
+        report.neutered === null ||
+        report.neutered === (filters.neutered === '중성화 O'))
     );
   });
   return [...filtered].sort((a, b) =>
@@ -105,7 +112,12 @@ export const filterReports = <T extends Report>(
   );
 };
 
-export function FoundReportListContent({ bottomInset, navigation }: Props) {
+export function FoundReportListContent({
+  bottomInset,
+  initialTab = 'found',
+  navigation,
+  onFilterOpenChange,
+}: Props) {
   const { width } = useWindowDimensions();
   const cardWidth = (width - 52) / 2;
   const listRef = useRef<FlatList<Report>>(null);
@@ -115,7 +127,7 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
   const scrollDirection = useRef<'down' | 'up' | null>(null);
   const scrollDirectionDistance = useRef(0);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [activeTab, setActiveTab] = useState<ReportTab>('found');
+  const [activeTab, setActiveTab] = useState<ReportTab>(initialTab);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
   const [filters, setFilters] = useState(initialFilters);
@@ -126,8 +138,88 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
   const foundReportEdits = useFoundReportEditStore(state => state.editsById);
   const deletedLostReportIds = useLostReportEditStore(state => state.deletedIds);
   const lostReportEdits = useLostReportEditStore(state => state.editsById);
+  const apiLostReports = useMissingReportStore(state => state.reports);
+  const fetchLostReports = useMissingReportStore(state => state.fetchReports);
+  const lostReportsLoading = useMissingReportStore(state => state.isLoading);
+  const lostReportsError = useMissingReportStore(state => state.error);
+  const districts = useCatalogStore(state => state.districts);
+  const speciesCatalog = useCatalogStore(state => state.species);
+  const breedsBySpecies = useCatalogStore(state => state.breedsBySpecies);
+  const loadDistricts = useCatalogStore(state => state.loadDistricts);
+  const loadSpecies = useCatalogStore(state => state.loadSpecies);
+  const loadBreeds = useCatalogStore(state => state.loadBreeds);
+
+  useEffect(() => {
+    if (activeTab === 'lost') {
+      loadDistricts().catch(() => undefined);
+      loadSpecies().catch(() => undefined);
+    }
+  }, [activeTab, loadDistricts, loadSpecies]);
+
+  useEffect(() => {
+    if (activeTab === 'lost' && speciesCatalog.length > 0) {
+      Promise.all(speciesCatalog.map(item => loadBreeds(item.speciesSeq))).catch(() => undefined);
+    }
+  }, [activeTab, loadBreeds, speciesCatalog]);
+
+  const regionOptions = useMemo<TwoColumnFilterOptions>(() => {
+    const grouped: TwoColumnFilterOptions = { 전체: [] };
+    districts.forEach(district => {
+      grouped[district.sidoName] ??= ['전체'];
+      if (!grouped[district.sidoName].includes(district.sigunguName)) {
+        grouped[district.sidoName].push(district.sigunguName);
+      }
+    });
+    return grouped;
+  }, [districts]);
+
+  const speciesOptions = useMemo<TwoColumnFilterOptions>(() => {
+    const options: TwoColumnFilterOptions = { 전체: [] };
+    speciesCatalog.forEach(item => {
+      options[item.speciesName] = [
+        '전체',
+        ...(breedsBySpecies[item.speciesSeq] ?? []).map(breed => breed.breedName),
+      ];
+    });
+    return options;
+  }, [breedsBySpecies, speciesCatalog]);
+
+  const missingSearchParams = useMemo(() => {
+    const [periodStart = '전체', periodEnd = ''] = filters.period.split('|');
+    const [sidoName, sigunguName] = filters.region.split(' > ');
+    const speciesName = filters.species.split(' > ')[0];
+    const district = sigunguName
+      ? districts.find(item => item.sidoName === sidoName && item.sigunguName === sigunguName)
+      : undefined;
+    const selectedSpecies = speciesCatalog.find(item => item.speciesName === speciesName);
+    return {
+      districtCode: district?.districtCode,
+      keyword: query.trim() || undefined,
+      occurredFrom: periodStart === '전체' ? undefined : periodStart.replaceAll('.', '-'),
+      occurredTo: periodEnd ? periodEnd.replaceAll('.', '-') : undefined,
+      sort: filters.sort === '오래된 순' ? 'regDttm,asc' : 'regDttm,desc',
+      speciesSeq: selectedSpecies?.speciesSeq,
+      status:
+        filters.status === '실종'
+          ? ('ACTIVE' as const)
+          : filters.status === '종료'
+          ? ('CLOSED' as const)
+          : undefined,
+    };
+  }, [districts, filters, query, speciesCatalog]);
+
+  useEffect(() => {
+    if (activeTab !== 'lost') {
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetchLostReports(missingSearchParams).catch(() => undefined);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [activeTab, fetchLostReports, missingSearchParams]);
+
   const reports = useMemo(() => {
-    const source = (activeTab === 'found' ? foundReports : lostReports)
+    const source = (activeTab === 'found' ? foundReports : apiLostReports)
       .filter(report =>
         activeTab === 'found'
           ? !deletedFoundReportIds.includes(report.id)
@@ -153,9 +245,30 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
               : '종료',
         } as Report;
       });
-    return filterReports(source, query, filters);
+    if (activeTab === 'found') {
+      return filterReports(source, query, filters);
+    }
+    const [selectedSido, selectedSigungu] = filters.region.split(' > ');
+    const selectedBreed = filters.species.split(' > ')[1];
+    return source.filter(report => {
+      const matchesSido =
+        selectedSido === '전체' ||
+        Boolean(selectedSigungu) ||
+        report.location.startsWith(selectedSido) ||
+        report.location.startsWith(selectedSido.replace(/(특별시|광역시)$/, '시'));
+      const matchesBreed =
+        !selectedBreed || selectedBreed === '전체' || report.name === selectedBreed;
+      const matchesGender =
+        filters.gender === '전체' || report.gender === filters.gender || report.gender === '모름';
+      const matchesNeutered =
+        filters.neutered === '전체' ||
+        report.neutered === null ||
+        report.neutered === (filters.neutered === '중성화 O');
+      return matchesSido && matchesBreed && matchesGender && matchesNeutered;
+    });
   }, [
     activeTab,
+    apiLostReports,
     deletedFoundReportIds,
     deletedLostReportIds,
     filters,
@@ -242,6 +355,17 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
       updateControlsVisibility(true);
     }
   }, [activeFilter, updateControlsVisibility]);
+
+  useEffect(() => {
+    onFilterOpenChange?.(activeFilter !== null);
+  }, [activeFilter, onFilterOpenChange]);
+
+  useEffect(
+    () => () => {
+      onFilterOpenChange?.(false);
+    },
+    [onFilterOpenChange],
+  );
 
   const selectTab = (tab: ReportTab) => {
     Keyboard.dismiss();
@@ -363,8 +487,21 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
         <FlatList
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>검색 결과가 없습니다</Text>
-              <Text style={styles.emptyBody}>다른 검색어나 필터 조건을 선택해보세요.</Text>
+              {activeTab === 'lost' && lostReportsLoading ? (
+                <LostReportListSkeleton />
+              ) : activeTab === 'lost' && lostReportsError ? (
+                <>
+                  <Text style={styles.emptyTitle}>{lostReportsError}</Text>
+                  <Pressable accessibilityRole="button" onPress={() => fetchLostReports()}>
+                    <Text style={styles.retryText}>다시 시도</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.emptyTitle}>검색 결과가 없습니다</Text>
+                  <Text style={styles.emptyBody}>다른 검색어나 필터 조건을 선택해보세요.</Text>
+                </>
+              )}
             </View>
           }
           columnWrapperStyle={reports.length ? styles.columns : undefined}
@@ -450,6 +587,8 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
         filters={filters}
         onChange={(key, value) => setFilters(current => ({ ...current, [key]: value }))}
         onClose={() => setActiveFilter(null)}
+        regionOptions={activeTab === 'lost' ? regionOptions : undefined}
+        speciesOptions={activeTab === 'lost' ? speciesOptions : undefined}
         statusOptions={
           activeTab === 'found' ? ['전체', '진행 중', '완료'] : ['전체', '실종', '종료']
         }
@@ -458,12 +597,27 @@ export function FoundReportListContent({ bottomInset, navigation }: Props) {
   );
 }
 
+function LostReportListSkeleton() {
+  return (
+    <SkeletonGroup accessibilityLabel="실종 신고 목록 불러오는 중" style={styles.gridSkeleton}>
+      {[0, 1, 2, 3].map(index => (
+        <View key={index} style={styles.gridSkeletonCard}>
+          <SkeletonBlock style={styles.gridSkeletonImage} />
+          <SkeletonBlock style={styles.gridSkeletonTitle} />
+          <SkeletonBlock style={styles.gridSkeletonLine} />
+          <SkeletonBlock style={styles.gridSkeletonShortLine} />
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   tabs: { flexDirection: 'row', height: 56 },
-  tab: { alignItems: 'center', flex: 1, justifyContent: 'flex-end' },
-  activeTabText: { ...typography.bodySemiBold16, color: colors.green400, marginBottom: 16 },
-  tabText: { ...typography.bodyRegular16, color: colors.gray600, marginBottom: 16 },
+  tab: { alignItems: 'center', flex: 1, justifyContent: 'space-between', paddingTop: 16 },
+  activeTabText: { ...typography.bodySemiBold16, color: colors.green400, height: 20 },
+  tabText: { ...typography.bodyRegular16, color: colors.gray600, height: 20 },
   activeIndicator: { backgroundColor: colors.green400, height: 4, width: '100%' },
   inactiveIndicator: { backgroundColor: colors.gray200, height: 1, width: '100%' },
   listArea: { flex: 1 },
@@ -534,5 +688,12 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingBottom: 120 },
   emptyTitle: { ...typography.titleSemiBold18, color: colors.gray600 },
   emptyBody: { ...typography.bodyRegular14, color: colors.gray400, marginTop: 8 },
+  retryText: { ...typography.bodySemiBold16, color: colors.green400, marginTop: 12 },
+  gridSkeleton: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, width: '100%' },
+  gridSkeletonCard: { gap: 9, width: '47%' },
+  gridSkeletonImage: { aspectRatio: 1, borderRadius: 10, width: '100%' },
+  gridSkeletonTitle: { height: 17, width: '64%' },
+  gridSkeletonLine: { height: 12, width: '90%' },
+  gridSkeletonShortLine: { height: 12, width: '58%' },
   pressed: { opacity: 0.7 },
 });

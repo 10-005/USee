@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppHeader, Button } from '../../components/common';
+import { AppHeader, Button, ListScreenSkeleton } from '../../components/common';
 import {
   applyActiveSimulation,
   getActiveSimulation,
@@ -72,6 +72,7 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
   const insets = useSafeAreaInsets();
   const [session, setSession] = useState<MockAdoptionSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [reports, setReports] = useState<SimulationReport[]>([]);
   const [freshSessionSeqs, setFreshSessionSeqs] = useState<number[]>([]);
@@ -162,6 +163,7 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
             return;
           }
           setLoading(false);
+          setInitialLoading(false);
           readReports();
         });
       return () => {
@@ -196,93 +198,97 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
   return (
     <View style={styles.container}>
       <AppHeader title="모의입양" onBackPress={onBack} />
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.intro}>
-          <View style={styles.introText}>
-            <Text style={styles.title}>모의입양</Text>
-            <Text style={styles.description}>
-              {
-                '실제 입양 전,\n보호동물과 함께하는 가상 체험을 통해\n최적의 반려동물을 찾는 데 도움을 주는 서비스입니다.'
-              }
+      {initialLoading ? (
+        <ListScreenSkeleton accessibilityLabel="모의입양 정보 불러오는 중" />
+      ) : (
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.intro}>
+            <View style={styles.introText}>
+              <Text style={styles.title}>모의입양</Text>
+              <Text style={styles.description}>
+                {
+                  '실제 입양 전,\n보호동물과 함께하는 가상 체험을 통해\n최적의 반려동물을 찾는 데 도움을 주는 서비스입니다.'
+                }
+              </Text>
+            </View>
+            <Image
+              accessible={false}
+              resizeMode="contain"
+              source={require('../../assets/images/mock-adoption/intro-dog.png')}
+              style={styles.introImage}
+            />
+          </View>
+          <Button loading={loading} onPress={openAdoption}>
+            {failed ? '다시 시도하기' : session ? `${petName} 보러가기` : '모의입양 시작하기'}
+          </Button>
+          <View style={styles.sectionHeading}>
+            <Text accessibilityRole="header" style={styles.sectionTitle}>
+              받은 레포트
             </Text>
+            <Text style={styles.count}>{reports.length}</Text>
           </View>
-          <Image
-            accessible={false}
-            resizeMode="contain"
-            source={require('../../assets/images/mock-adoption/intro-dog.png')}
-            style={styles.introImage}
-          />
-        </View>
-        <Button loading={loading} onPress={openAdoption}>
-          {failed ? '다시 시도하기' : session ? `${petName} 보러가기` : '모의입양 시작하기'}
-        </Button>
-        <View style={styles.sectionHeading}>
-          <Text accessibilityRole="header" style={styles.sectionTitle}>
-            받은 레포트
-          </Text>
-          <Text style={styles.count}>{reports.length}</Text>
-        </View>
-        {reportsLoading ? (
-          <ActivityIndicator accessibilityLabel="리포트 불러오는 중" />
-        ) : reportError ? (
-          <View style={styles.reportStatus}>
-            <Text style={styles.summary}>{reportError}</Text>
-            <Button onPress={() => readReports(true)}>다시 불러오기</Button>
-          </View>
-        ) : !reports.length ? (
-          <Text style={styles.summary}>아직 받은 레포트가 없어요.</Text>
-        ) : (
-          reports.map(report => {
-            const species = report.breed.speciesType === 'CAT' ? '고양이' : '개';
-            const image = report.breed.representativeImageUrl
-              ? { uri: report.breed.representativeImageUrl }
-              : localPetImage(report.breed.breedSeq);
-            return (
-              <View key={report.sessionSeq} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  {image ? (
-                    <Image
-                      accessibilityLabel={`${report.animalName} (${species}) 이미지`}
-                      source={image}
-                      resizeMode="contain"
-                      style={styles.petImage}
-                    />
-                  ) : null}
-                  <View style={styles.petInfo}>
-                    <View style={styles.titleRow}>
-                      <Text style={styles.petName}>{report.animalName} 모의 입양 결과분석</Text>
-                      {freshSessionSeqs.includes(report.sessionSeq) ? (
-                        <View style={styles.badge}>
-                          <Text style={styles.badgeText}>new</Text>
-                        </View>
-                      ) : null}
+          {reportsLoading ? (
+            <ActivityIndicator accessibilityLabel="리포트 불러오는 중" />
+          ) : reportError ? (
+            <View style={styles.reportStatus}>
+              <Text style={styles.summary}>{reportError}</Text>
+              <Button onPress={() => readReports(true)}>다시 불러오기</Button>
+            </View>
+          ) : !reports.length ? (
+            <Text style={styles.summary}>아직 받은 레포트가 없어요.</Text>
+          ) : (
+            reports.map(report => {
+              const species = report.breed.speciesType === 'CAT' ? '고양이' : '개';
+              const image = report.breed.representativeImageUrl
+                ? { uri: report.breed.representativeImageUrl }
+                : localPetImage(report.breed.breedSeq);
+              return (
+                <View key={report.sessionSeq} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    {image ? (
+                      <Image
+                        accessibilityLabel={`${report.animalName} (${species}) 이미지`}
+                        source={image}
+                        resizeMode="contain"
+                        style={styles.petImage}
+                      />
+                    ) : null}
+                    <View style={styles.petInfo}>
+                      <View style={styles.titleRow}>
+                        <Text style={styles.petName}>{report.animalName} 모의 입양 결과분석</Text>
+                        {freshSessionSeqs.includes(report.sessionSeq) ? (
+                          <View style={styles.badge}>
+                            <Text style={styles.badgeText}>new</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={styles.date}>{reportDate(report.endedDttm)}</Text>
                     </View>
-                    <Text style={styles.date}>{reportDate(report.endedDttm)}</Text>
                   </View>
-                </View>
-                <Text numberOfLines={1} style={styles.summary}>
-                  {`사용 금액 ${won(report.totalSpent)} · 예산 차이 ${won(report.difference)}`}
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${report.animalName} 리포트 상세보기`}
-                  accessibilityState={{ disabled: true }}
-                  disabled
-                  style={styles.detailButton}
-                >
-                  <Text style={styles.detailLabel}>상세보기</Text>
-                  <Text accessible={false} style={styles.detailArrow}>
-                    →
+                  <Text numberOfLines={1} style={styles.summary}>
+                    {`사용 금액 ${won(report.totalSpent)} · 예산 차이 ${won(report.difference)}`}
                   </Text>
-                </Pressable>
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${report.animalName} 리포트 상세보기`}
+                    accessibilityState={{ disabled: true }}
+                    disabled
+                    style={styles.detailButton}
+                  >
+                    <Text style={styles.detailLabel}>상세보기</Text>
+                    <Text accessible={false} style={styles.detailArrow}>
+                      →
+                    </Text>
+                  </Pressable>
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
       {endedNotice ? (
         <SuddenEventDialog
           event={{

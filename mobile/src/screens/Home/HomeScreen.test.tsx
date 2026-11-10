@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { FlatList } from 'react-native';
-import ReactTestRenderer from 'react-test-renderer';
+import ReactTestRenderer, { type ReactTestInstance } from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   applyActiveSimulation,
@@ -254,10 +254,12 @@ test('returning to adoption resets the hidden search and filter header', async (
     renderer.root.findAllByProps({ accessibilityLabel: '입양' })[0].props.onPress();
   });
 
-  expect(renderer!.root.findAll(node => node.props.pointerEvents === 'none')).toHaveLength(0);
-  expect(
-    renderer!.root.findAllByProps({ placeholder: '특징으로 검색해보세요' }).length,
-  ).toBeGreaterThan(0);
+  const searchInput = renderer!.root.findByProps({ placeholder: '특징으로 검색해보세요' });
+  let searchHeader: ReactTestInstance | null = searchInput;
+  while (searchHeader && searchHeader.props.pointerEvents === undefined) {
+    searchHeader = searchHeader.parent;
+  }
+  expect(searchHeader?.props.pointerEvents).toBe('auto');
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 

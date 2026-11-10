@@ -10,12 +10,15 @@ import { colors, radius, typography } from '../../theme';
 
 export type FilterKey = 'period' | 'region' | 'species' | 'status' | 'gender' | 'neutered' | 'sort';
 export type AdoptionFilters = Record<FilterKey, string>;
+export type TwoColumnFilterOptions = Record<string, string[]>;
 
 type Props = {
   activeFilter: FilterKey | null;
   filters: AdoptionFilters;
   onChange: (key: FilterKey, value: string) => void;
   onClose: () => void;
+  regionOptions?: TwoColumnFilterOptions;
+  speciesOptions?: TwoColumnFilterOptions;
   statusOptions?: string[];
 };
 
@@ -97,16 +100,19 @@ function SimpleFilter({
 
 function TwoColumnFilter({
   kind,
+  options,
   value,
   onChange,
 }: {
   kind: 'region' | 'species';
+  options?: TwoColumnFilterOptions;
   value: string;
   onChange: (value: string) => void;
 }) {
-  const source = kind === 'region' ? regions : species;
+  const source = options ?? (kind === 'region' ? regions : species);
   const initialPrimary = value.includes(' > ') ? value.split(' > ')[0] : value;
   const [primary, setPrimary] = useState(source[initialPrimary] ? initialPrimary : '전체');
+  const effectivePrimary = source[primary] ? primary : '전체';
   const secondary = value.includes(' > ') ? value.split(' > ')[1] : '';
 
   return (
@@ -121,7 +127,10 @@ function TwoColumnFilter({
                 setPrimary(option);
                 onChange(option);
               }}
-              style={[styles.columnOption, primary === option && styles.columnOptionSelected]}
+              style={[
+                styles.columnOption,
+                effectivePrimary === option && styles.columnOptionSelected,
+              ]}
             >
               <Text style={styles.columnOptionText}>{option}</Text>
             </Pressable>
@@ -131,13 +140,15 @@ function TwoColumnFilter({
       <View style={[styles.column, styles.secondaryColumn]}>
         <Text style={styles.columnTitle}>{kind === 'region' ? '시군구' : '종'}</Text>
         <ScrollView decelerationRate="fast" showsVerticalScrollIndicator={false}>
-          {source[primary].map(option => (
+          {(source[effectivePrimary] ?? []).map(option => (
             <Pressable
               key={option}
-              onPress={() => onChange(option === '전체' ? primary : `${primary} > ${option}`)}
+              onPress={() =>
+                onChange(option === '전체' ? effectivePrimary : `${effectivePrimary} > ${option}`)
+              }
               style={[
                 styles.columnOption,
-                (secondary === option || (option === '전체' && value === primary)) &&
+                (secondary === option || (option === '전체' && value === effectivePrimary)) &&
                   styles.columnOptionSelected,
               ]}
             >
@@ -383,6 +394,8 @@ export function AdoptionFilterSheet({
   filters,
   onChange,
   onClose,
+  regionOptions,
+  speciesOptions,
   statusOptions,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -430,6 +443,7 @@ export function AdoptionFilterSheet({
         {activeFilter === 'region' || activeFilter === 'species' ? (
           <TwoColumnFilter
             kind={activeFilter}
+            options={activeFilter === 'region' ? regionOptions : speciesOptions}
             onChange={value => onChange(activeFilter, value)}
             value={filters[activeFilter]}
           />

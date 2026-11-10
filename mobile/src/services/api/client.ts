@@ -1,34 +1,31 @@
-import { TEMP_ACCESS_TOKEN } from './accessToken';
+import {
+  clearAuthSession,
+  getAccessToken,
+  getRefreshToken,
+  saveAuthSession,
+} from '../auth/authSession';
 import { createApiClient } from './apiClient';
-import type { AccessTokenProvider, ApiService } from './types';
-import { API_SERVICES } from './types';
+import type { ApiClientOptions } from './types';
 
 export const API_ORIGIN = 'https://k15d106.p.ssafy.io';
 
-const accessTokenProvider: { current: AccessTokenProvider } = {
-  current: () => TEMP_ACCESS_TOKEN,
+export const API_BASE_URL = `${API_ORIGIN}/api/core/v1`;
+
+const refresh: NonNullable<ApiClientOptions['refresh']> = {
+  endpoint: `${API_BASE_URL}/auth/refresh`,
+  getRefreshToken,
+  onAuthenticationFailure: clearAuthSession,
+  onTokensRefreshed: saveAuthSession,
 };
 
-export function setAccessTokenProvider(provider: AccessTokenProvider) {
-  accessTokenProvider.current = provider;
-}
+export const apiClient = createApiClient({
+  baseURL: API_BASE_URL,
+  getAccessToken,
+  refresh,
+});
 
-export function serviceBaseUrl(service: ApiService, origin = API_ORIGIN): string {
-  return `${origin.replace(/\/$/, '')}/api/${service}/v1`;
-}
-
-export function createServiceClients(origin = API_ORIGIN) {
-  return Object.fromEntries(
-    API_SERVICES.map(service => [
-      service,
-      createApiClient({
-        baseURL: serviceBaseUrl(service, origin),
-        getAccessToken: () => accessTokenProvider.current(),
-      }),
-    ]),
-  ) as Record<ApiService, ReturnType<typeof createApiClient>>;
-}
-
-export const apiClients = createServiceClients();
-
-export const simulationClient = apiClients.simulation;
+export const simulationClient = createApiClient({
+  baseURL: `${API_ORIGIN}/api/simulation/v1`,
+  getAccessToken,
+  refresh,
+});

@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   AppState,
   Linking,
   Modal,
@@ -29,6 +30,8 @@ import { usePetStore } from '../../stores/petStore';
 import { clearSimulationReports } from '../../services/simulation/reports';
 import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
+import { useAuthStore } from '../../stores/authStore';
+import { getApiErrorDisplayMessage } from '../../services/api';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 type AccountModal = 'logout' | 'withdraw' | null;
@@ -50,6 +53,8 @@ export function SettingsScreen({ navigation }: Props) {
   const resetProfile = useProfileStore(state => state.resetProfile);
   const resetPets = usePetStore(state => state.resetPets);
   const resetBookmarks = useAdoptionBookmarkStore(state => state.reset);
+  const logout = useAuthStore(state => state.logout);
+  const withdraw = useAuthStore(state => state.withdraw);
   const [notificationsAllowed, setNotificationsAllowed] = useState(true);
   const [accountModal, setAccountModal] = useState<AccountModal>(null);
   const [activeTimeField, setActiveTimeField] = useState<'start' | 'end' | null>(null);
@@ -94,20 +99,30 @@ export function SettingsScreen({ navigation }: Props) {
   const [selectedHour = 0, selectedMinute = 0] = savedTime.split(':').map(Number);
   selectedTime.setHours(selectedHour, selectedMinute, 0, 0);
 
-  const completeLogout = () => {
-    clearSimulationReports();
-    resetUserState();
-    setAccountModal(null);
-    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  const completeLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      clearSimulationReports();
+      resetUserState();
+      setAccountModal(null);
+    }
   };
 
   const completeWithdrawal = async () => {
-    await AsyncStorage.clear();
-    clearSimulationReports();
-    resetUserState();
-    settings.resetSettings();
-    setAccountModal(null);
-    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+    try {
+      await withdraw();
+      await AsyncStorage.clear();
+      clearSimulationReports();
+      resetUserState();
+      settings.resetSettings();
+      setAccountModal(null);
+    } catch (error) {
+      Alert.alert(
+        '회원 탈퇴 실패',
+        getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'),
+      );
+    }
   };
 
   return (

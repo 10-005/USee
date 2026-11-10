@@ -25,7 +25,7 @@ import MapLocationIcon from '../../assets/icons/common/map-location.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
 import RightArrowGreenIcon from '../../assets/icons/common/right-arrow-green.svg';
 import SearchIcon from '../../assets/icons/common/search.svg';
-import { AppHeader } from '../../components/common';
+import { AppHeader, SkeletonBlock, SkeletonGroup } from '../../components/common';
 import {
   getCandidateAddress,
   searchGeocodeCandidates,
@@ -184,11 +184,11 @@ export function FoundReportMapScreen({ navigation }: Props) {
           ))}
         </NaverMapView>
 
-        {isLoading ? (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator color={colors.green400} />
-          </View>
-        ) : null}
+        {isLoading ? <MapSkeleton /> : null}
+
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>신고 {reports.length}건</Text>
+        </View>
 
         {candidates ? (
           <View style={styles.resultsPanel}>
@@ -229,10 +229,6 @@ export function FoundReportMapScreen({ navigation }: Props) {
             <EmptyState area={searchedArea} />
           </View>
         ) : null}
-
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>신고 {reports.length}건</Text>
-        </View>
 
         {selectedReport ? (
           <Pressable
@@ -281,6 +277,25 @@ export function FoundReportMapScreen({ navigation }: Props) {
   );
 }
 
+function MapSkeleton() {
+  return (
+    <SkeletonGroup accessibilityLabel="발견 신고 지도 불러오는 중" style={styles.loadingOverlay}>
+      <SkeletonBlock style={styles.skeletonCount} />
+      <SkeletonBlock style={[styles.skeletonMarker, styles.skeletonMarkerOne]} />
+      <SkeletonBlock style={[styles.skeletonMarker, styles.skeletonMarkerTwo]} />
+      <SkeletonBlock style={[styles.skeletonMarker, styles.skeletonMarkerThree]} />
+      <View style={styles.skeletonReportCard}>
+        <SkeletonBlock style={styles.skeletonReportImage} />
+        <View style={styles.skeletonReportInfo}>
+          <SkeletonBlock style={styles.skeletonReportTitle} />
+          <SkeletonBlock style={styles.skeletonReportLine} />
+          <SkeletonBlock style={styles.skeletonReportLineShort} />
+        </View>
+      </View>
+    </SkeletonGroup>
+  );
+}
+
 function EmptyState({ area }: { area: string }) {
   return (
     <View style={styles.emptyContent}>
@@ -323,15 +338,34 @@ const styles = StyleSheet.create({
   mapContainer: { flex: 1 },
   map: { flex: 1 },
   loadingOverlay: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    backgroundColor: colors.gray10,
     bottom: 0,
-    justifyContent: 'center',
     left: 0,
     position: 'absolute',
     right: 0,
     top: 0,
+    zIndex: 3,
   },
+  skeletonCount: { height: 30, left: 16, position: 'absolute', top: 12, width: 68 },
+  skeletonMarker: { borderRadius: 20, height: 40, position: 'absolute', width: 34 },
+  skeletonMarkerOne: { left: '28%', top: '28%' },
+  skeletonMarkerTwo: { right: '24%', top: '44%' },
+  skeletonMarkerThree: { left: '48%', top: '59%' },
+  skeletonReportCard: {
+    backgroundColor: colors.white,
+    borderRadius: radius.md,
+    bottom: 24,
+    flexDirection: 'row',
+    left: 16,
+    padding: 12,
+    position: 'absolute',
+    right: 16,
+  },
+  skeletonReportImage: { height: 106, width: 106 },
+  skeletonReportInfo: { flex: 1, gap: 12, marginLeft: 12, paddingTop: 6 },
+  skeletonReportLine: { height: 14, width: '88%' },
+  skeletonReportLineShort: { height: 14, width: '62%' },
+  skeletonReportTitle: { height: 20, width: '72%' },
   resultsPanel: {
     backgroundColor: colors.white,
     borderBottomLeftRadius: radius.md,
@@ -341,7 +375,8 @@ const styles = StyleSheet.create({
     maxHeight: 230,
     position: 'absolute',
     right: 20,
-    top: 0,
+    top: -8,
+    zIndex: 2,
   },
   resultsScroll: { maxHeight: 230 },
   resultItem: {
@@ -367,6 +402,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     position: 'absolute',
     top: 12,
+    zIndex: 1,
   },
   countText: { ...typography.captionSemiBold12, color: colors.gray700 },
   emptyCard: {

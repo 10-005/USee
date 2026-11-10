@@ -1,7 +1,9 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   BackHandler,
   Keyboard,
   KeyboardAvoidingView,
@@ -26,8 +28,11 @@ import {
   Switch,
   TimePickerModal,
 } from '../../components/common';
+import { AppDialog } from '../../components/common/AppDialog';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
-import { useLostReportEditStore } from '../../stores/lostReportEditStore';
+import { ApiClientError, getApiErrorDisplayMessage } from '../../services/api';
+import { createMissingReport, updateMissingReport } from '../../services/missingReports';
+import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LostReportForm'>;
@@ -66,22 +71,44 @@ function formatPhone(value: string) {
 export function LostReportFormScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const contactInitializedRef = useRef(false);
   const details = useLostReportDraftStore(state => state.details);
   const resetDraft = useLostReportDraftStore(state => state.resetDraft);
   const updateDetails = useLostReportDraftStore(state => state.updateDetails);
-  const updateReport = useLostReportEditStore(state => state.updateReport);
+  const profilePhone = useProfileStore(state => state.profile.phone);
+  const loadProfile = useProfileStore(state => state.loadProfile);
   const isEditing = Boolean(route.params?.reportId);
   const [step, setStep] = useState<Step>(3);
   const [error, setError] = useState('');
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [pendingDate, setPendingDate] = useState<Date | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeReportDialogVisible, setActiveReportDialogVisible] = useState(false);
+
+  useEffect(() => {
+    loadProfile().catch(() => undefined);
+  }, [loadProfile]);
+
+  useEffect(() => {
+    if (!contactInitializedRef.current && !details.contact && profilePhone) {
+      contactInitializedRef.current = true;
+      updateDetails({ contact: profilePhone });
+    } else if (details.contact) {
+      contactInitializedRef.current = true;
+    }
+  }, [details.contact, profilePhone, updateDetails]);
 
   const buttonInsetStyle = useMemo(() => ({ bottom: insets.bottom + 16 }), [insets.bottom]);
   const contentInsetStyle = useMemo(() => ({ paddingBottom: insets.bottom + 92 }), [insets.bottom]);
   const canContinue =
     step === 3
-      ? Boolean(details.lostAt && details.location.trim())
-      : !details.exposeContact || PHONE_PATTERN.test(details.contact);
+      ? Boolean(
+          details.lostAt &&
+            details.location.trim() &&
+            details.latitude !== null &&
+            details.longitude !== null,
+        )
+      : PHONE_PATTERN.test(details.contact);
 
   const goBack = useCallback(() => {
     Keyboard.dismiss();
@@ -122,7 +149,17 @@ export function LostReportFormScreen({ navigation, route }: Props) {
     navigation.navigate('LostReportLocationPicker');
   };
 
-  const handleSubmit = () => {
+  const openCreatedReport = (reportId: string) => {
+    navigation.reset({
+      index: 1,
+      routes: [
+        { name: 'Home', params: { initialReportTab: 'lost', initialTab: 'search' } },
+        { name: 'LostReportDetail', params: { reportId } },
+      ],
+    });
+  };
+
+  const handleSubmit = async () => {
     Keyboard.dismiss();
     if (!canContinue) {
       setError(step === 3 ? '실종일과 실종 장소를 입력해 주세요.' : '전화번호를 확인해 주세요.');
@@ -133,30 +170,63 @@ export function LostReportFormScreen({ navigation, route }: Props) {
       setError('');
       return;
     }
-    if (isEditing && route.params?.reportId) {
-      const animal = useLostReportDraftStore.getState().animal;
-      updateReport(route.params.reportId, {
-        age: animal.age === null ? '모름' : `${animal.age}살`,
-        color: animal.color,
-        contact: details.exposeContact ? details.contact : undefined,
-        date: details.lostAt.slice(0, 10),
-        description: animal.description,
-        gender: animal.gender ?? '모름',
-        images: animal.images,
-        location: details.detailAddress
-          ? `${details.location} ${details.detailAddress}`
-          : details.location,
-        name: animal.name || animal.breed,
-        neutered: animal.neutered === true,
-        species: animal.species === '강아지' ? '개' : (animal.species as '고양이' | '기타'),
-        weight: animal.weight === null ? '모름' : `${animal.weight}kg`,
-      });
-      resetDraft();
-      navigation.navigate('LostReportDetail', { reportId: route.params.reportId });
+    if (isSubmitting) {
       return;
     }
-    resetDraft();
-    navigation.navigate('Home');
+    const animal = useLostReportDraftStore.getState().animal;
+    if (!animal.combinationSeq || animal.imageSeqs.length === 0) {
+      setError('반려동물 정보와 사진을 다시 확인해 주세요.');
+      return;
+    }
+    const request = {
+      age: animal.age === null ? null : `${animal.age}살`,
+      address: details.detailAddress
+        ? `${details.location} ${details.detailAddress}`
+        : details.location,
+      combinationSeq: animal.combinationSeq,
+      contactPhone: details.contact.replace(/\D/g, ''),
+      description: animal.description.trim() || null,
+      gender:
+        animal.gender === '수컷'
+          ? ('MALE' as const)
+          : animal.gender === '암컷'
+          ? ('FEMALE' as const)
+          : ('UNKNOWN' as const),
+      imageSeqs: animal.imageSeqs,
+      isNeutered: animal.neutered,
+      isPhonePublic: details.exposeContact,
+      latitude: details.latitude!,
+      longitude: details.longitude!,
+      microchipNumber: animal.microchipNumber.trim() || null,
+      occurredDttm: details.lostAt,
+      weight: animal.weight === null ? null : `${animal.weight}kg`,
+    };
+    setIsSubmitting(true);
+    try {
+      if (isEditing && route.params?.reportId) {
+        await updateMissingReport(Number(route.params.reportId), request);
+        resetDraft();
+        openCreatedReport(route.params.reportId);
+      } else {
+        const created = await createMissingReport(request);
+        resetDraft();
+        openCreatedReport(String(created.missingReportSeq));
+      }
+    } catch (submitError) {
+      if (
+        submitError instanceof ApiClientError &&
+        submitError.code === 'MISSING_ACTIVE_ALREADY_EXISTS'
+      ) {
+        setActiveReportDialogVisible(true);
+        return;
+      }
+      Alert.alert(
+        `실종 신고 ${isEditing ? '수정' : '등록'} 실패`,
+        getApiErrorDisplayMessage(submitError, '잠시 후 다시 시도해 주세요.'),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -172,43 +242,47 @@ export function LostReportFormScreen({ navigation, route }: Props) {
         >
           <ScrollView
             ref={scrollRef}
-          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-          contentContainerStyle={[styles.content, contentInsetStyle]}
-          decelerationRate="fast"
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
-          onTouchStart={Keyboard.dismiss}
-          showsVerticalScrollIndicator={false}
-        >
-          {step === 3 ? (
-            <LostInformationStep
-              details={details}
-              error={error}
-              onFindLocation={openLocationPicker}
-              onOpenDateTime={openDateTimePicker}
-              onUpdate={updateDetails}
-            />
-          ) : (
-            <ContactStep details={details} error={error} onUpdate={updateDetails} />
-          )}
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+            contentContainerStyle={[styles.content, contentInsetStyle]}
+            decelerationRate="fast"
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+            onTouchStart={Keyboard.dismiss}
+            showsVerticalScrollIndicator={false}
+          >
+            {step === 3 ? (
+              <LostInformationStep
+                details={details}
+                error={error}
+                onFindLocation={openLocationPicker}
+                onOpenDateTime={openDateTimePicker}
+                onUpdate={updateDetails}
+              />
+            ) : (
+              <ContactStep details={details} error={error} onUpdate={updateDetails} />
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </KeyboardAwareInputProvider>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled: !canContinue }}
-        disabled={!canContinue}
+        disabled={!canContinue || isSubmitting}
         onPress={handleSubmit}
         style={({ pressed }) => [
           styles.submitButton,
           buttonInsetStyle,
-          !canContinue && styles.submitButtonDisabled,
-          pressed && canContinue && styles.pressed,
+          (!canContinue || isSubmitting) && styles.submitButtonDisabled,
+          pressed && canContinue && !isSubmitting && styles.pressed,
         ]}
       >
-        <Text style={styles.submitLabel}>
-          {step === 3 ? '다음' : isEditing ? '게시글 수정' : '게시글 등록'}
-        </Text>
+        {isSubmitting ? (
+          <ActivityIndicator color={colors.white} />
+        ) : (
+          <Text style={styles.submitLabel}>
+            {step === 3 ? '다음' : isEditing ? '게시글 수정' : '게시글 등록'}
+          </Text>
+        )}
       </Pressable>
       <DatePickerModal
         maximumDate={new Date()}
@@ -229,6 +303,15 @@ export function LostReportFormScreen({ navigation, route }: Props) {
         value={pendingDate ?? new Date()}
         visible={pendingDate !== null}
       />
+      {activeReportDialogVisible ? (
+        <AppDialog
+          confirmLabel="확인"
+          message="기존 신고를 종료하거나 삭제한 후 다시 등록해 주세요."
+          onClose={() => setActiveReportDialogVisible(false)}
+          onConfirm={() => setActiveReportDialogVisible(false)}
+          title="이미 진행 중인 실종 신고가 있어요"
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -305,14 +388,14 @@ function ContactStep({
           value={details.exposeContact}
         />
       </View>
-      <Text style={[styles.label, !details.exposeContact && styles.disabledLabel]}>전화번호</Text>
+      <Text style={styles.label}>전화번호</Text>
       <KeyboardAwareTextInput
-        editable={details.exposeContact}
+        editable
         keyboardType="phone-pad"
         onChangeText={contact => onUpdate({ contact: formatPhone(contact) })}
         placeholder="010-0000-0000"
         placeholderTextColor={colors.gray300}
-        style={[styles.textInput, !details.exposeContact && styles.disabledInput]}
+        style={styles.textInput}
         value={details.contact}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}

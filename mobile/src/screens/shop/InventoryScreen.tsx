@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/navigation/types';
-import { AppHeader, Button } from '../../components/common';
+import { AppHeader, Button, SkeletonBlock, SkeletonGroup } from '../../components/common';
 import { ProductArt } from '../../components/shop/ProductArt';
 import { shopStyles as s } from '../../components/shop/shopStyles';
 import { ApiClientError } from '../../services/api';
@@ -24,10 +24,15 @@ const categoryLabel: Record<InventoryItem['category'], string> = {
   FOOD: '식사',
   SNACK: '간식',
   TOY: '놀이',
+  FURNITURE: '가구',
+  LEASH: '생활',
+  GROOMING_KIT: '위생',
   LITTER_BOX: '위생',
   LITTER: '위생',
   SHAMPOO: '위생',
   MEDICINE: '생활',
+  POOP_BAG: '위생',
+  CATNIP: '놀이',
 };
 
 function displayProduct(item: InventoryItem): Product {
@@ -90,7 +95,7 @@ export function InventoryScreen({ navigation, route }: Props) {
     <SafeAreaView style={s.screen}>
       <AppHeader title="보유 목록" onBackPress={() => navigation.goBack()} />
       {status === 'loading' || (session?.sessionSeq && !remoteInventory && !remoteError) ? (
-        <ActivityIndicator accessibilityLabel="보유 물품 불러오는 중" />
+        <InventorySkeleton />
       ) : status === 'error' || remoteError ? (
         <View style={s.empty}>
           <Text style={s.body}>{remoteError ?? '보유 물품을 불러오지 못했어요.'}</Text>
@@ -230,9 +235,54 @@ function ServerInventory({
   );
 }
 
+function InventorySkeleton() {
+  return (
+    <SkeletonGroup accessibilityLabel="보유 물품 불러오는 중" style={styles.skeletonContainer}>
+      <View style={styles.skeletonBanner}>
+        <SkeletonBlock style={styles.skeletonBannerTitle} />
+        <SkeletonBlock style={styles.skeletonBannerAmount} />
+        <SkeletonBlock style={styles.skeletonBannerSubtext} />
+      </View>
+      {[0, 1, 2].map(index => (
+        <View key={index} style={styles.skeletonCard}>
+          <SkeletonBlock style={styles.skeletonImage} />
+          <View style={styles.skeletonCardInfo}>
+            <SkeletonBlock style={styles.skeletonTitle} />
+            <SkeletonBlock style={styles.skeletonDescription} />
+          </View>
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
+}
+
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderColor: colors.gray200, borderRadius: 12, padding: 14, gap: 12 },
   image: { width: 64 },
   packs: { borderTopWidth: 1, borderColor: colors.gray200, paddingTop: 12, gap: 8 },
   depleted: { color: colors.gray400 },
+  skeletonBanner: {
+    backgroundColor: colors.gray10,
+    borderRadius: 12,
+    height: 94,
+    padding: 16,
+  },
+  skeletonBannerAmount: { height: 16, position: 'absolute', right: 16, top: 16, width: 82 },
+  skeletonBannerSubtext: { height: 13, marginTop: 14, width: 120 },
+  skeletonBannerTitle: { height: 16, width: 62 },
+  skeletonCard: {
+    alignItems: 'center',
+    borderColor: colors.gray200,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 14,
+    height: 94,
+    padding: 14,
+  },
+  skeletonCardInfo: { flex: 1, gap: 10 },
+  skeletonContainer: { gap: 12, padding: 20 },
+  skeletonDescription: { height: 13, width: '72%' },
+  skeletonImage: { height: 64, width: 64 },
+  skeletonTitle: { height: 16, width: '46%' },
 });

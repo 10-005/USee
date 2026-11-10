@@ -1,26 +1,15 @@
 import axios, { AxiosError } from 'axios';
-import type { AxiosInstance, AxiosResponse } from 'axios';
+import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
 import { ApiClientError } from './errors';
-import { isApiResponse } from './response';
-import type { ApiClientOptions } from './types';
+import type { ApiClientOptions, ApiErrorResponse, ApiResponse, AuthTokens } from './types';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
-const TRACE_HEADER = 'X-Trace-Id';
-
-const FALLBACK_ERRORS: Record<number, { code: string; message: string }> = {
-  400: { code: 'COMMON_INVALID_INPUT', message: '입력값이 올바르지 않습니다.' },
-  401: { code: 'AUTH_UNAUTHORIZED', message: '인증이 필요합니다.' },
-  403: { code: 'AUTH_FORBIDDEN', message: '요청 권한이 없습니다.' },
-  404: { code: 'COMMON_NOT_FOUND', message: '요청한 대상을 찾지 못했습니다.' },
-  405: { code: 'COMMON_METHOD_NOT_ALLOWED', message: '지원하지 않는 요청입니다.' },
-  500: { code: 'COMMON_INTERNAL_ERROR', message: '요청을 처리하지 못했습니다.' },
-  503: { code: 'COMMON_SERVICE_UNAVAILABLE', message: '서비스를 일시적으로 사용할 수 없습니다.' },
-};
 
 export function createApiClient({
   baseURL,
   getAccessToken,
+  refresh,
   timeout = DEFAULT_TIMEOUT_MS,
 }: ApiClientOptions): AxiosInstance {
   const client = axios.create({
@@ -34,56 +23,121 @@ export function createApiClient({
 
   client.interceptors.request.use(async config => {
     const accessToken = await getAccessToken?.();
+
     if (accessToken) {
       config.headers.set('Authorization', `Bearer ${accessToken}`);
     }
-    if (!config.headers.get(TRACE_HEADER)) {
-      config.headers.set(TRACE_HEADER, createTraceId());
-    }
+
     return config;
   });
 
+  let refreshPromise: Promise<AuthTokens> | null = null;
+
   client.interceptors.response.use(
-    (response: AxiosResponse) => response,
-    error => Promise.reject(toApiClientError(error)),
+    response => response,
+    async error => {
+      const request = error.config as
+        | (InternalAxiosRequestConfig & { _authRetry?: boolean })
+        | undefined;
+      const responseData = error.response?.data as ApiErrorResponse | undefined;
+
+      if (
+        refresh &&
+        request &&
+        !request._authRetry &&
+        responseData?.code === 'AUTH_TOKEN_EXPIRED'
+      ) {
+        request._authRetry = true;
+
+        try {
+          refreshPromise ??= refreshTokens(baseURL, timeout, refresh);
+          const tokens = await refreshPromise;
+          request.headers.set('Authorization', `Bearer ${tokens.accessToken}`);
+          return await client.request(request);
+        } catch (refreshError) {
+          const apiError = toApiClientError(refreshError);
+          if (apiError.status === 401 || apiError.status === 403) {
+            await refresh.onAuthenticationFailure();
+          }
+          logApiError(apiError);
+          return Promise.reject(apiError);
+        } finally {
+          refreshPromise = null;
+        }
+      }
+
+      if (
+        refresh &&
+        (responseData?.code === 'AUTH_TOKEN_INVALID' || responseData?.code === 'AUTH_UNAUTHORIZED')
+      ) {
+        await refresh.onAuthenticationFailure();
+      }
+
+      const apiError = toApiClientError(error);
+      logApiError(apiError);
+      return Promise.reject(apiError);
+    },
   );
 
   return client;
 }
 
+async function refreshTokens(
+  baseURL: string,
+  timeout: number,
+  refresh: NonNullable<ApiClientOptions['refresh']>,
+): Promise<AuthTokens> {
+  const refreshToken = await refresh.getRefreshToken();
+  if (!refreshToken) {
+    throw new ApiClientError({
+      code: 'AUTH_INVALID_REFRESH_TOKEN',
+      message: '로그인이 필요합니다.',
+    });
+  }
+
+  const response = await axios.post<ApiResponse<AuthTokens>>(
+    refresh.endpoint,
+    { refreshToken },
+    { baseURL, timeout },
+  );
+  await refresh.onTokensRefreshed(response.data.data);
+  return response.data.data;
+}
+
 function toApiClientError(error: unknown): ApiClientError {
+  if (error instanceof ApiClientError) {
+    return error;
+  }
+
   if (!(error instanceof AxiosError)) {
     return new ApiClientError({
-      code: 'NETWORK_ERROR',
-      message: '서버에 연결하지 못했습니다.',
+      code: 'UNKNOWN_ERROR',
+      message: '알 수 없는 오류가 발생했습니다.',
     });
   }
 
-  const body = error.response?.data;
-  if (isApiResponse(body)) {
-    return new ApiClientError({
-      code: body.code,
-      errors: body.errors,
-      message: body.message,
-      status: error.response?.status ?? body.status,
-      traceId: body.traceId,
-    });
-  }
+  const responseData = error.response?.data as ApiErrorResponse | undefined;
 
-  const status = error.response?.status;
-  const fallback = status ? FALLBACK_ERRORS[status] : undefined;
   return new ApiClientError({
-    code: fallback?.code ?? 'NETWORK_ERROR',
-    message: fallback?.message ?? '서버에 연결하지 못했습니다.',
-    status,
-    traceId: headerValue(error.response?.headers?.[TRACE_HEADER.toLowerCase()]),
+    code: responseData?.code ?? error.code ?? 'NETWORK_ERROR',
+    details: responseData?.errors,
+    message: responseData?.message ?? error.message,
+    status: error.response?.status,
+    traceId: responseData?.traceId,
   });
 }
 
-function createTraceId(): string {
-  return Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-}
+function logApiError(error: ApiClientError): void {
+  if (!__DEV__) {
+    return;
+  }
 
-function headerValue(value: unknown): string | undefined {
-  return typeof value === 'string' && value ? value : undefined;
+  // Tokens and request bodies are intentionally excluded from diagnostics.
+  console.warn('[API_ERROR]', {
+    code: error.code,
+    details: error.details,
+    message: error.message,
+    status: error.status,
+    traceId: error.traceId,
+  });
 }
