@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { AppHeader, Button, SkeletonBlock, SkeletonGroup } from '../../components/common';
+import { CartHeaderButton } from '../../components/shop/CartHeaderButton';
 import { ProductArt } from '../../components/shop/ProductArt';
 import { QuantityControl } from '../../components/shop/QuantityControl';
 import { findProduct, money } from '../../services/shop/catalog';
@@ -40,19 +41,10 @@ export function ProductDetailScreen({ navigation, route }: Props) {
         title="상품 상세"
         onBackPress={() => navigation.goBack()}
         rightAction={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`장바구니 ${cartCount}개`}
-            style={styles.cartAction}
+          <CartHeaderButton
+            count={cartCount}
             onPress={() => navigation.navigate('ShopCart', { petId })}
-          >
-            <Text style={s.green}>장바구니</Text>
-            {cartCount > 0 ? (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{cartCount}</Text>
-              </View>
-            ) : null}
-          </Pressable>
+          />
         }
       />
       {status === 'loading' ? (
@@ -239,20 +231,6 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   basisContent: { gap: 16 },
-  cartAction: { minHeight: 40, justifyContent: 'center', paddingRight: 6 },
-  cartBadge: {
-    position: 'absolute',
-    right: -6,
-    bottom: -2,
-    backgroundColor: colors.danger,
-    borderRadius: 12,
-    minWidth: 22,
-    minHeight: 18,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cartBadgeText: { ...typography.captionSemiBold12, color: colors.white },
   toast: {
     position: 'absolute',
     bottom: '100%',
