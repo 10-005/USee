@@ -63,7 +63,9 @@ class WalkService(
         val walk = walkRepository.save(SimulationWalk.start(session, now))
         session.recordAction(now)
         actionLogRepository.save(SimulationActionLog.walk(session, ActionCode.WALK_START, checkNotNull(walk.walkSeq)))
-        return WalkStartResult(walk, session, properties.walk.heartbeatInterval)
+        // 시연 회원은 하트비트를 짧게 받아 배변 이벤트가 시작 30초 무렵에 뜨게 한다
+        val heartbeatInterval = if (properties.demo.isDemo(session)) properties.demo.heartbeatInterval else properties.walk.heartbeatInterval
+        return WalkStartResult(walk, session, heartbeatInterval)
     }
 
     @Transactional(noRollbackFor = [BusinessException::class])
