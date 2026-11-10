@@ -7,6 +7,8 @@ import com.ssafy.animal.chat.application.port.`in`.ChatRoomItem
 import com.ssafy.animal.chat.application.port.`in`.ChatRoomPage
 import com.ssafy.animal.chat.application.port.`in`.ChatUseCase
 import com.ssafy.animal.chat.application.port.`in`.Counterpart
+import com.ssafy.animal.chat.application.port.`in`.CounterpartApplication
+import com.ssafy.animal.chat.application.port.`in`.CounterpartProfile
 import com.ssafy.animal.chat.application.port.`in`.CreateRoomCommand
 import com.ssafy.animal.chat.application.port.`in`.CreateRoomResult
 import com.ssafy.animal.chat.application.port.`in`.ImageRef
@@ -44,6 +46,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
+import java.time.ZoneId
 
 @Service
 @Transactional(readOnly = true)
@@ -113,6 +116,21 @@ class ChatService(
             lastHiddenMessageSeq = me.lastHiddenMessageSeq,
             unreadCount = chatRepository.countUnread(chatRoomSeq, me.readFloor, actor.userSeq),
         )
+    }
+
+    override fun getCounterpartProfile(actor: AuthUser, chatRoomSeq: Long): CounterpartProfile {
+        val shelterSeq = actor.shelterSeq ?: throw BusinessException(CommonErrorCode.AUTH_FORBIDDEN)
+        participantOrNotFound(actor, chatRoomSeq)
+        // 보호소가 참여한 방은 SHELTER 방이고 회원은 userASeq
+        val userSeq = chatRepository.findRoom(chatRoomSeq)!!.userASeq
+        val user = chatRepository.findUsers(listOf(userSeq.toLong())).firstOrNull()?.takeUnless { it.deleted }
+        val applications = chatRepository.findShelterApplications(userSeq, shelterSeq.toInt()).map {
+            CounterpartApplication(it.applicationSeq, it.speciesName, it.breedName, it.status, it.submittedDttm?.atZone(KST)?.toOffsetDateTime())
+        }
+        // 본명은 이 보호소와 입양 신청으로 엮인 회원만(실명 노출 최소화)
+        val realName = if (user != null && applications.isNotEmpty()) chatRepository.findUserRealName(userSeq) else null
+        val image = user?.profileImageSeq?.let { ImageRef(it, imageUrls(listOf(it))[it]) }
+        return CounterpartProfile(userSeq.toLong(), displayName(user), realName, image, applications)
     }
 
     override fun getMessages(actor: AuthUser, chatRoomSeq: Long, beforeMessageSeq: Long?, size: Int): ChatMessagePage {
@@ -369,6 +387,7 @@ class ChatService(
 
     companion object {
         const val WITHDRAWN = "(탈퇴한 사용자)"
+        private val KST = ZoneId.of("Asia/Seoul")
         private const val ACTIVE = "ACTIVE"
         private const val MAX_SIZE = 100
         private const val CLIENT_MESSAGE_ID_MAX = 64

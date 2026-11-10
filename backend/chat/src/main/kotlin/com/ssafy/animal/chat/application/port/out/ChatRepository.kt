@@ -5,6 +5,7 @@ import com.ssafy.animal.chat.domain.ChatParticipant
 import com.ssafy.animal.chat.domain.ChatRoom
 import com.ssafy.animal.chat.domain.SharedTargetType
 import com.ssafy.animal.common.auth.AuthUser
+import java.time.Instant
 
 /**
  * chat_* 쓰기 + 다른 도메인 테이블(users·shelters·shelter_members·images·게시물) 읽기 전용 native 조회(Q420 D).
@@ -55,6 +56,22 @@ interface ChatRepository {
 
     /** 비삭제·작성자 비탈퇴(보호동물은 비삭제) 게시물만 */
     fun findVisibleSharedPosts(type: SharedTargetType, seqs: Collection<Long>): Set<Long>
+
+    /** 14.9 회원이 이 보호소에 낸 입양 신청. 12.9와 같이 DRAFT·CANCELED·삭제는 빼고 제출일 최신순 */
+    fun findShelterApplications(userSeq: Int, shelterSeq: Int): List<ApplicationRow>
+
+    /** 회원 계정의 본명(users.name). 없으면 null */
+    fun findUserRealName(userSeq: Int): String?
+}
+
+interface ApplicationRow {
+    val applicationSeq: Long
+    val speciesName: String
+    val breedName: String
+    val status: String
+
+    /** native timestamptz는 Instant로 온다 */
+    val submittedDttm: Instant?
 }
 
 interface RoomSummaryRow {

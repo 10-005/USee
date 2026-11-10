@@ -4,6 +4,7 @@ import com.ssafy.animal.chat.application.port.`in`.ChatMessagePage
 import com.ssafy.animal.chat.application.port.`in`.ChatRoomDetail
 import com.ssafy.animal.chat.application.port.`in`.ChatRoomPage
 import com.ssafy.animal.chat.application.port.`in`.ChatUseCase
+import com.ssafy.animal.chat.application.port.`in`.CounterpartProfile
 import com.ssafy.animal.chat.application.port.`in`.CreateRoomCommand
 import com.ssafy.animal.chat.application.port.`in`.CreateRoomResult
 import com.ssafy.animal.chat.application.port.`in`.LeaveResult
@@ -308,6 +309,92 @@ class ChatController(
         @Parameter(hidden = true) @AuthenticationPrincipal user: AuthUser,
         @Parameter(description = "대화방 번호", example = "501") @PathVariable chatRoomSeq: Long,
     ) = chatUseCase.getRoom(user, chatRoomSeq)
+
+    /** 14.9 보호소 웹 채팅창의 상대 정보 카드 */
+    @Operation(
+        summary = "상대 회원 정보와 입양 신청 (보호소 전용)",
+        description = "- 로그인 필요(SHELTER만). USER가 부르면 403 `AUTH_FORBIDDEN`.\n" +
+            "- 내 보호소가 참여한 방이어야 한다. 없는 방이거나 참여자가 아니면 404.\n" +
+            "- `applications`: 이 회원이 **내 보호소에** 낸 입양 신청. 12.9와 같이 DRAFT·CANCELED는 빼고 제출일 최신순, 페이지 없는 배열. 없으면 `[]`.\n" +
+            "- `realName`: 회원 계정의 본명. **`applications`가 1건 이상일 때만** 주고, 없으면 null(입양 신청으로 엮이지 않은 회원의 실명은 보이지 않음).\n" +
+            "- 탈퇴한 회원은 `nickname`이 \"(탈퇴한 사용자)\", `realName`·`profileImage`는 null. 신청 내역은 그대로 나온다.\n" +
+            "- 신청서 상세는 `applicationSeq`로 `GET /api/core/v1/adoption-applications/{applicationSeq}`.",
+    )
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "200",
+            description = "조회 성공",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = ChatCounterpartProfileSuccessSchema::class),
+                    examples = [
+                        ExampleObject(
+                            name = "신청 내역 있음",
+                            value = """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"userSeq":1,"nickname":"justin","realName":"신지환","profileImage":{"imageSeq":19,"imageUrl":"https://cdn.example.com/images/19.jpg","displayOrder":1},"applications":[{"applicationSeq":9,"speciesName":"개","breedName":"말티즈","status":"SUBMITTED","submittedDttm":"2026-11-07T01:59:35+09:00"},{"applicationSeq":10,"speciesName":"고양이","breedName":"믹스묘","status":"APPROVED","submittedDttm":"2026-11-04T01:59:35+09:00"}]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}""",
+                        ),
+                        ExampleObject(
+                            name = "신청 내역 없음",
+                            value = """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"userSeq":18,"nickname":"반려가족","realName":null,"profileImage":null,"applications":[]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "400",
+            description = "chatRoomSeq가 정수가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [ExampleObject(name = "chatRoomSeq 타입 오류", value = INVALID_ROOM_SEQ_TYPE)],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "401",
+            description = "access 토큰 없음·만료·무효. 만료면 갱신 후 재시도",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [
+                        ExampleObject(name = "AUTH_UNAUTHORIZED", value = FailExamples.AUTH_UNAUTHORIZED),
+                        ExampleObject(name = "AUTH_TOKEN_EXPIRED", value = FailExamples.AUTH_TOKEN_EXPIRED),
+                        ExampleObject(name = "AUTH_TOKEN_INVALID", value = FailExamples.AUTH_TOKEN_INVALID),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "SHELTER가 아닌 계정",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [ExampleObject(name = "AUTH_FORBIDDEN", value = FailExamples.AUTH_FORBIDDEN)],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "없는 방이거나 내 보호소가 참여자가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = FailResponseSchema::class),
+                    examples = [ExampleObject(name = "CHAT_ROOM_NOT_FOUND", value = CHAT_ROOM_NOT_FOUND)],
+                ),
+            ],
+        ),
+    )
+    @GetMapping("/rooms/{chatRoomSeq}/counterpart")
+    fun getCounterpartProfile(
+        @Parameter(hidden = true) @AuthenticationPrincipal user: AuthUser,
+        @Parameter(description = "대화방 번호", example = "501") @PathVariable chatRoomSeq: Long,
+    ) = chatUseCase.getCounterpartProfile(user, chatRoomSeq)
 
     /** 14.4 beforeMessageSeq 역방향 커서 */
     @Operation(
@@ -646,6 +733,7 @@ data class ReadRequest(
 abstract class ChatRoomPageSuccessSchema : SuccessResponseSchema<ChatRoomPage>()
 abstract class ChatCreateRoomSuccessSchema : SuccessResponseSchema<CreateRoomResult>()
 abstract class ChatRoomDetailSuccessSchema : SuccessResponseSchema<ChatRoomDetail>()
+abstract class ChatCounterpartProfileSuccessSchema : SuccessResponseSchema<CounterpartProfile>()
 abstract class ChatMessagePageSuccessSchema : SuccessResponseSchema<ChatMessagePage>()
 abstract class ChatReadSuccessSchema : SuccessResponseSchema<ReadResult>()
 abstract class ChatLeaveSuccessSchema : SuccessResponseSchema<LeaveResult>()
