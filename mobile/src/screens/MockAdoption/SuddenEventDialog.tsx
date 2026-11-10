@@ -10,10 +10,9 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { typography } from '../../theme';
-import type { SimulationEvent } from '../../services/simulation/events';
 
 type Props = {
-  event: SimulationEvent;
+  event: { scenario: { title: string; description: string } };
   image: ImageSourcePropType;
   petName: string;
   onClose: () => void;

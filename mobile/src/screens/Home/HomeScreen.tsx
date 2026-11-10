@@ -37,6 +37,14 @@ import SearchActiveIcon from '../../assets/icons/navigation/search-active.svg';
 import SearchIcon from '../../assets/icons/navigation/search.svg';
 import { BottomNavigation, RegistrationMenu } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
+import {
+  applyActiveSimulation,
+  getActiveSimulation,
+} from '../../services/simulation/activeSession';
+import {
+  getActiveMockAdoption,
+  type MockAdoptionSession,
+} from '../../services/storage/mockAdoptionStorage';
 import { MockAdoptionOverviewScreen } from '../MockAdoption/MockAdoptionOverviewScreen';
 import { MockAdoptionShortcut } from '../MockAdoption/MockAdoptionShortcut';
 import { colors, radius, typography } from '../../theme';
@@ -133,6 +141,21 @@ export function HomeScreen({ navigation, route }: Props) {
   const [selectedTab, setSelectedTab] = useState<
     (typeof navigationItems)[number]['key'] | 'mockAdoption'
   >('adoption');
+  const [shortcutSession, setShortcutSession] = useState<MockAdoptionSession | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    getActiveSimulation()
+      .then(active => applyActiveSimulation(active))
+      .catch(() => getActiveMockAdoption())
+      .then(value => {
+        if (mounted) {
+          setShortcutSession(value ?? null);
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
   useEffect(() => {
     if (route.params?.tab !== 'mockAdoption') {
       return;
@@ -379,6 +402,7 @@ export function HomeScreen({ navigation, route }: Props) {
           <MockAdoptionShortcut
             bottom={insets.bottom + 104}
             onOpen={petId => navigation.navigate('MockAdoptionActivity', { petId })}
+            session={shortcutSession}
           />
         ) : null}
         {navigationBar}
@@ -523,6 +547,7 @@ export function HomeScreen({ navigation, route }: Props) {
         <MockAdoptionShortcut
           bottom={insets.bottom + 104}
           onOpen={petId => navigation.navigate('MockAdoptionActivity', { petId })}
+          session={shortcutSession}
         />
       ) : null}
       {activeFilter ? null : navigationBar}

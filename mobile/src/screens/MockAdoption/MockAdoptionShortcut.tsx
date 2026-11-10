@@ -1,6 +1,5 @@
-import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
-import { Alert, AppState, Image, Pressable, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Image, Pressable, StyleSheet } from 'react-native';
 
 import {
   getActiveMockAdoption,
@@ -11,55 +10,25 @@ import { mockAdoptionPets } from './data';
 type Props = {
   bottom: number;
   onOpen: (petId: string) => void;
+  session: MockAdoptionSession | null;
 };
 
-export function MockAdoptionShortcut({ bottom, onOpen }: Props) {
-  const [session, setSession] = useState<MockAdoptionSession | null>(null);
+export function MockAdoptionShortcut({ bottom, onOpen, session }: Props) {
+  const [current, setCurrent] = useState<MockAdoptionSession | null>(session);
   const [opening, setOpening] = useState(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      let mounted = true;
-      let revision = 0;
-      let expiryTimer: ReturnType<typeof setTimeout> | undefined;
-      const refresh = async () => {
-        const current = ++revision;
-        clearTimeout(expiryTimer);
-        try {
-          const active = await getActiveMockAdoption();
-          if (!mounted || current !== revision) {
-            return;
-          }
-          const remaining = active ? active.expiresAt - Date.now() : 0;
-          setSession(remaining > 0 ? active : null);
-          if (remaining > 0) {
-            expiryTimer = setTimeout(() => {
-              setSession(null);
-              getActiveMockAdoption().catch(() => undefined);
-            }, remaining);
-          }
-        } catch {
-          if (mounted && current === revision) {
-            setSession(null);
-          }
-        }
-      };
-      refresh();
-      const subscription = AppState.addEventListener('change', state => {
-        if (state === 'active') {
-          refresh();
-        }
-      });
-      return () => {
-        mounted = false;
-        clearTimeout(expiryTimer);
-        subscription.remove();
-      };
-    }, []),
-  );
+  useEffect(() => {
+    const remaining = session ? session.expiresAt - Date.now() : 0;
+    setCurrent(remaining > 0 ? session : null);
+    if (remaining <= 0) {
+      return;
+    }
+    const expiryTimer = setTimeout(() => setCurrent(null), remaining);
+    return () => clearTimeout(expiryTimer);
+  }, [session]);
 
-  const pet = mockAdoptionPets.find(item => item.id === session?.petId);
-  if (!session || !pet) {
+  const pet = mockAdoptionPets.find(item => item.id === current?.petId);
+  if (!current || !pet) {
     return null;
   }
 
@@ -67,8 +36,9 @@ export function MockAdoptionShortcut({ bottom, onOpen }: Props) {
     setOpening(true);
     try {
       const active = await getActiveMockAdoption();
-      setSession(active);
-      if (active) {
+      const remaining = active ? active.expiresAt - Date.now() : 0;
+      setCurrent(remaining > 0 ? active : null);
+      if (active && remaining > 0) {
         onOpen(active.petId);
       }
     } catch {
@@ -80,7 +50,7 @@ export function MockAdoptionShortcut({ bottom, onOpen }: Props) {
 
   return (
     <Pressable
-      accessibilityLabel={`${session.petName ?? pet.name} 모의입양 바로가기`}
+      accessibilityLabel={`${current.petName ?? pet.name} 모의입양 바로가기`}
       accessibilityRole="button"
       accessibilityState={{ disabled: opening, busy: opening }}
       disabled={opening}

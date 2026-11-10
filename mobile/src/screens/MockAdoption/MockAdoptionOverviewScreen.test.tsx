@@ -1,5 +1,9 @@
 import ReactTestRenderer from 'react-test-renderer';
 
+import {
+  getActiveSimulation,
+  type ActiveSimulation,
+} from '../../services/simulation/activeSession';
 import { loadSimulationReports } from '../../services/simulation/reports';
 import { MockAdoptionOverviewScreen } from './MockAdoptionOverviewScreen';
 
@@ -65,5 +69,38 @@ test('marks only reports that were not in the previous list', async () => {
   expect(titleRow('나비')?.findAllByProps({ children: 'new' }).length).toBeGreaterThan(0);
   expect(titleRow('초코')?.findAllByProps({ children: 'new' })).toHaveLength(0);
   expect(renderer.root.findAllByProps({ children: '2026.11.03' }).length).toBeGreaterThan(0);
+  expect(renderer.root.findAllByProps({ children: '7일간의 모의 입양이 끝났어요!' })).toHaveLength(
+    0,
+  );
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('announces a finished adoption with the sudden event dialog', async () => {
+  jest.mocked(getActiveSimulation).mockResolvedValueOnce({
+    status: 'COMPLETED',
+    animalName: '초코',
+    breed: { breedSeq: '000018', representativeImageUrl: null },
+  } as ActiveSimulation);
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <MockAdoptionOverviewScreen onBack={jest.fn()} onStart={jest.fn()} onResume={jest.fn()} />,
+    );
+    await Promise.resolve();
+  });
+  expect(
+    renderer.root.findAllByProps({ children: '7일간의 모의 입양이 끝났어요!' }).length,
+  ).toBeGreaterThan(0);
+  expect(
+    renderer.root.findAllByProps({
+      children: '발급된 리포트를 확인해 내 모의 입양 결과를 확인해볼 수 있어요',
+    }).length,
+  ).toBeGreaterThan(0);
+  await ReactTestRenderer.act(() =>
+    renderer.root.findAllByProps({ accessibilityLabel: '돌발 이벤트 확인' })[0].props.onPress(),
+  );
+  expect(renderer.root.findAllByProps({ children: '7일간의 모의 입양이 끝났어요!' })).toHaveLength(
+    0,
+  );
   await ReactTestRenderer.act(() => renderer.unmount());
 });

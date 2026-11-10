@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  type ImageSourcePropType,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,6 +17,7 @@ import { AppHeader, Button } from '../../components/common';
 import {
   applyActiveSimulation,
   getActiveSimulation,
+  type ActiveSimulation,
 } from '../../services/simulation/activeSession';
 import {
   getSimulationReportErrorMessage,
@@ -29,6 +31,7 @@ import {
 } from '../../services/storage/mockAdoptionStorage';
 import { colors, radius, typography } from '../../theme';
 import { mockAdoptionPets } from './data';
+import { SuddenEventDialog } from './SuddenEventDialog';
 
 const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
 
@@ -41,6 +44,16 @@ function localPetImage(breedSeq: string) {
   return mockAdoptionPets.find(
     pet => pet.breedCode === breedSeq || pet.breedCode === breedSeq.padStart(5, '0'),
   )?.image;
+}
+
+function endedPetImage(active: ActiveSimulation): ImageSourcePropType {
+  if (active.breed.representativeImageUrl) {
+    return { uri: active.breed.representativeImageUrl };
+  }
+  return (
+    localPetImage(active.breed.breedSeq) ??
+    require('../../assets/images/mock-adoption/intro-dog.png')
+  );
 }
 
 type Props = {
@@ -58,6 +71,10 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
   const [freshSessionSeqs, setFreshSessionSeqs] = useState<number[]>([]);
   const [reportError, setReportError] = useState<string>();
   const [reportsLoading, setReportsLoading] = useState(true);
+  const [endedNotice, setEndedNotice] = useState<{
+    petName: string;
+    image: ImageSourcePropType;
+  } | null>(null);
   const reportsActive = useRef(true);
 
   const readReports = useCallback((force = false) => {
@@ -93,13 +110,24 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
       reportsActive.current = true;
       setReportsLoading(true);
       getActiveSimulation()
-        .then(active => applyActiveSimulation(active))
-        .then(value => {
+        .then(active =>
+          applyActiveSimulation(active).then(value => ({
+            active,
+            value,
+          })),
+        )
+        .then(result => {
           if (!mounted) {
             return;
           }
-          setSession(value);
+          setSession(result.value);
           setFailed(false);
+          if (result.active && result.active.status !== 'IN_PROGRESS') {
+            setEndedNotice({
+              petName: result.active.animalName,
+              image: endedPetImage(result.active),
+            });
+          }
         })
         .catch(() =>
           getActiveMockAdoption()
@@ -240,6 +268,19 @@ export function MockAdoptionOverviewScreen({ onBack, onStart, onResume }: Props)
           })
         )}
       </ScrollView>
+      {endedNotice ? (
+        <SuddenEventDialog
+          event={{
+            scenario: {
+              title: '7일간의 모의 입양이 끝났어요!',
+              description: '발급된 리포트를 확인해 내 모의 입양 결과를 확인해볼 수 있어요',
+            },
+          }}
+          image={endedNotice.image}
+          petName={endedNotice.petName}
+          onClose={() => setEndedNotice(null)}
+        />
+      ) : null}
     </View>
   );
 }
