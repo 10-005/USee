@@ -1,11 +1,13 @@
 import { Image, Pressable, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 
 import { colors, radius, spacing, typography } from '../../../theme';
+import BadgeIcon from '../../../assets/icons/common/badge.svg';
 
 type ChatListItemProps = {
   avatarSource: ImageSourcePropType;
   lastMessage: string;
   name: string;
+  isShelter?: boolean;
   onPress?: () => void;
   time: string;
   unreadCount?: number;
@@ -15,12 +17,14 @@ export function ChatListItem({
   avatarSource,
   lastMessage,
   name,
+  isShelter = false,
   onPress,
   time,
   unreadCount = 0,
 }: ChatListItemProps) {
   const accessibilityLabel = [
     name,
+    isShelter ? '보호소' : null,
     lastMessage,
     time,
     unreadCount > 0 ? `읽지 않은 메시지 ${unreadCount}개` : null,
@@ -33,9 +37,12 @@ export function ChatListItem({
       <Image source={avatarSource} style={styles.avatar} />
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text numberOfLines={1} style={styles.name}>
-            {name}
-          </Text>
+          <View style={styles.nameRow}>
+            <Text numberOfLines={1} style={styles.name}>
+              {name}
+            </Text>
+            {isShelter && <BadgeIcon height={18} width={18} />}
+          </View>
           <Text style={styles.time}>{time}</Text>
         </View>
         <View style={styles.messageRow}>
@@ -91,10 +98,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing[4],
   },
+  nameRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
   name: {
     ...typography.bodySemiBold16,
     color: colors.gray600,
-    flex: 1,
+    flexShrink: 1,
   },
   time: {
     ...typography.captionRegular10,
