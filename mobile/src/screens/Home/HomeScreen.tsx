@@ -37,6 +37,7 @@ import SearchActiveIcon from '../../assets/icons/navigation/search-active.svg';
 import SearchIcon from '../../assets/icons/navigation/search.svg';
 import { BottomNavigation, RegistrationMenu } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
+import { useProfileStore } from '../../stores/profileStore';
 import { MockAdoptionOverviewScreen } from '../MockAdoption/MockAdoptionOverviewScreen';
 import { MockAdoptionShortcut } from '../MockAdoption/MockAdoptionShortcut';
 import { colors, radius, typography } from '../../theme';
@@ -130,6 +131,7 @@ export function HomeScreen({ navigation }: Props) {
   const [filterValues, setFilterValues] = useState(initialFilters);
   const bookmarkedIds = useAdoptionBookmarkStore(state => state.bookmarkedIds);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
+  const loadProfile = useProfileStore(state => state.loadProfile);
   const [selectedTab, setSelectedTab] = useState<
     (typeof navigationItems)[number]['key'] | 'mockAdoption'
   >('adoption');
@@ -246,6 +248,12 @@ export function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     listRef.current?.scrollToOffset({ animated: false, offset: 0 });
   }, [filterValues, query]);
+
+  useEffect(() => {
+    if (selectedTab === 'mypage') {
+      loadProfile().catch(() => undefined);
+    }
+  }, [loadProfile, selectedTab]);
 
   const updateFilter = (key: FilterKey, value: string) =>
     setFilterValues(current => ({ ...current, [key]: value }));

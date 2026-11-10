@@ -5,16 +5,33 @@
  * @format
  */
 
-import { StatusBar, useColorScheme } from 'react-native';
+import { ActivityIndicator, StyleSheet, StatusBar, View, useColorScheme } from 'react-native';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { RootNavigator } from './navigation/RootNavigator';
 import { startForegroundMessaging } from '../services/notifications/firebaseMessaging';
+import { useAuthStore } from '../stores/authStore';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
-  useEffect(() => startForegroundMessaging(), []);
+  const initializeAuth = useAuthStore(state => state.initialize);
+  const isInitializing = useAuthStore(state => state.isInitializing);
+
+  useEffect(() => {
+    initializeAuth();
+    return startForegroundMessaging();
+  }, [initializeAuth]);
+
+  if (isInitializing) {
+    return (
+      <SafeAreaProvider>
+        <View style={styles.loading}>
+          <ActivityIndicator />
+        </View>
+      </SafeAreaProvider>
+    );
+  }
 
   return (
     <SafeAreaProvider>
@@ -25,3 +42,7 @@ function App() {
 }
 
 export default App;
+
+const styles = StyleSheet.create({
+  loading: { alignItems: 'center', flex: 1, justifyContent: 'center' },
+});

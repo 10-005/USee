@@ -2,6 +2,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useMemo, useRef, useState, type ComponentRef } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   BackHandler,
   Image,
@@ -34,6 +35,10 @@ import {
   KeyboardAwareInputProvider,
   KeyboardAwareTextInput,
 } from '../../components/common';
+import { ApiClientError, getApiErrorDisplayMessage, getApiFieldError } from '../../services/api';
+import { confirmImage, uploadImageToPendingStorage } from '../../services/images';
+import { updateMyProfile } from '../../services/users';
+import { useAuthStore } from '../../stores/authStore';
 import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
 import {
@@ -52,19 +57,30 @@ export function ProfileEditScreen({ navigation }: Props) {
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const profile = useProfileStore(state => state.profile);
   const updateProfile = useProfileStore(state => state.updateProfile);
+  const syncUser = useAuthStore(state => state.syncUser);
   const [nickname, setNickname] = useState(profile.nickname);
   const [name, setName] = useState(profile.name);
   const [birthDate, setBirthDate] = useState(profile.birthDate);
   const [phone, setPhone] = useState(profile.phone);
   const [image, setImage] = useState(profile.image);
+  const [pendingImageKey, setPendingImageKey] = useState<string | null>(null);
+  const [confirmedImageSeq, setConfirmedImageSeq] = useState<number | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverErrors, setServerErrors] = useState<{
+    name?: string;
+    nickname?: string;
+    phone?: string;
+  }>({});
   const [imageMenuOpen, setImageMenuOpen] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [touched, setTouched] = useState({ name: false, nickname: false, phone: false });
 
-  const nicknameError = getNicknameError(nickname, profile.nickname);
-  const nameError = getNameError(name);
-  const phoneError = isValidPhoneNumber(phone) ? null : '올바른 휴대폰 번호를 입력해주세요.';
+  const nicknameError = serverErrors.nickname ?? getNicknameError(nickname);
+  const nameError = serverErrors.name ?? getNameError(name);
+  const phoneError =
+    serverErrors.phone ?? (isValidPhoneNumber(phone) ? null : '올바른 휴대폰 번호를 입력해주세요.');
   const hasChanges = useMemo(
     () =>
       nickname.trim() !== profile.nickname ||
@@ -74,7 +90,8 @@ export function ProfileEditScreen({ navigation }: Props) {
       image !== profile.image,
     [birthDate, image, name, nickname, phone, profile],
   );
-  const canSubmit = hasChanges && !nicknameError && !nameError && !phoneError;
+  const busy = isSubmitting || isUploadingImage;
+  const canSubmit = hasChanges && !nicknameError && !nameError && !phoneError && !busy;
 
   const requestBack = useCallback(() => {
     Keyboard.dismiss();
@@ -112,13 +129,40 @@ export function ProfileEditScreen({ navigation }: Props) {
     return null;
   };
 
-  const applyImage = (asset?: Asset) => {
+  const applyImage = async (asset?: Asset) => {
     const error = validateImage(asset);
     if (error) {
       Alert.alert('사진을 변경할 수 없어요', error);
       return;
     }
-    setImage({ uri: asset!.uri! });
+    if (!asset?.type || !ALLOWED_IMAGE_TYPES.includes(asset.type as 'image/jpeg' | 'image/png')) {
+      Alert.alert('사진을 변경할 수 없어요', 'JPG 또는 PNG 사진만 등록할 수 있어요.');
+      return;
+    }
+    if (!asset.fileSize) {
+      Alert.alert('사진을 변경할 수 없어요', '사진 크기를 확인할 수 없어요.');
+      return;
+    }
+    setIsUploadingImage(true);
+    try {
+      const upload = await uploadImageToPendingStorage({
+        byteSize: asset.fileSize,
+        contentType: asset.type as 'image/jpeg' | 'image/png',
+        fileName:
+          asset.fileName ?? `profile-${Date.now()}.${asset.type === 'image/png' ? 'png' : 'jpg'}`,
+        uri: asset.uri!,
+      });
+      setPendingImageKey(upload.imageKey);
+      setConfirmedImageSeq(null);
+      setImage({ uri: asset.uri });
+    } catch (uploadError) {
+      Alert.alert(
+        '사진 업로드 실패',
+        getApiErrorDisplayMessage(uploadError, '잠시 후 다시 시도해 주세요.'),
+      );
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   const chooseFromLibrary = async () => {
@@ -135,7 +179,7 @@ export function ProfileEditScreen({ navigation }: Props) {
           result.errorMessage ?? '잠시 후 다시 시도해주세요.',
         );
       } else if (!result.didCancel) {
-        applyImage(result.assets?.[0]);
+        await applyImage(result.assets?.[0]);
       }
     } catch {
       Alert.alert('사진을 변경할 수 없어요', '앱을 새로 빌드한 뒤 다시 시도해주세요.');
@@ -161,7 +205,7 @@ export function ProfileEditScreen({ navigation }: Props) {
       if (result.errorCode) {
         Alert.alert('카메라를 열 수 없어요', result.errorMessage ?? '잠시 후 다시 시도해주세요.');
       } else if (!result.didCancel) {
-        applyImage(result.assets?.[0]);
+        await applyImage(result.assets?.[0]);
       }
     } catch {
       Alert.alert('카메라를 열 수 없어요', '앱을 새로 빌드한 뒤 다시 시도해주세요.');
@@ -174,12 +218,57 @@ export function ProfileEditScreen({ navigation }: Props) {
     setDatePickerOpen(true);
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!canSubmit) {
       return;
     }
-    updateProfile({ birthDate, image, name: name.trim(), nickname: nickname.trim(), phone });
-    navigation.goBack();
+    setTouched({ name: true, nickname: true, phone: true });
+    setServerErrors({});
+    setIsSubmitting(true);
+    try {
+      let nextImageSeq = confirmedImageSeq;
+      if (pendingImageKey && nextImageSeq === null) {
+        const confirmedImage = await confirmImage(pendingImageKey);
+        nextImageSeq = confirmedImage.imageSeq;
+        setConfirmedImageSeq(nextImageSeq);
+      }
+      const updated = await updateMyProfile({
+        birthDate: birthDate.replaceAll('.', '-'),
+        name: name.trim(),
+        nickname: nickname.trim(),
+        phone: phone.replaceAll('-', ''),
+        ...(nextImageSeq !== null ? { profileImageSeq: nextImageSeq } : {}),
+      });
+      updateProfile(updated);
+      syncUser({ nickname: updated.nickname, role: updated.role, userSeq: updated.userSeq });
+      navigation.goBack();
+    } catch (error) {
+      const nicknameFieldError = getApiFieldError(error, 'nickname');
+      const nameFieldError = getApiFieldError(error, 'name');
+      const phoneFieldError = getApiFieldError(error, 'phone');
+      if (nicknameFieldError || nameFieldError || phoneFieldError) {
+        setServerErrors({
+          name: nameFieldError ?? undefined,
+          nickname: nicknameFieldError ?? undefined,
+          phone: phoneFieldError ?? undefined,
+        });
+        return;
+      }
+      if (error instanceof ApiClientError && error.code === 'USER_DUPLICATE_NICKNAME') {
+        setServerErrors({ nickname: '이미 사용 중인 닉네임입니다.' });
+        return;
+      }
+      if (error instanceof ApiClientError && error.code === 'USER_DUPLICATE_PHONE') {
+        setServerErrors({ phone: '이미 사용 중인 휴대폰 번호입니다.' });
+        return;
+      }
+      Alert.alert(
+        '내 정보 수정 실패',
+        getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const dismissOverlays = () => {
@@ -208,78 +297,92 @@ export function ProfileEditScreen({ navigation }: Props) {
         >
           <ScrollView
             ref={scrollRef}
-          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-          contentContainerStyle={styles.content}
-          decelerationRate="fast"
-          keyboardDismissMode="on-drag"
-          keyboardShouldPersistTaps="handled"
-          onScrollBeginDrag={dismissOverlays}
-          showsVerticalScrollIndicator={false}
-        >
-        <View style={styles.profileWrap}>
-          <Pressable
-            accessibilityLabel="프로필 사진 변경"
-            onPress={event => {
-              event.stopPropagation();
-              Keyboard.dismiss();
-              setImageMenuOpen(current => !current);
-            }}
+            automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+            contentContainerStyle={styles.content}
+            decelerationRate="fast"
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+            onScrollBeginDrag={dismissOverlays}
+            showsVerticalScrollIndicator={false}
           >
-            <Image source={image} style={styles.profileImage} />
-            <View style={styles.cameraBadge}>
-              <CameraIcon height={15} width={15} />
-            </View>
-          </Pressable>
-          {imageMenuOpen ? (
-            <View style={styles.imageMenu}>
-              <Pressable onPress={chooseFromLibrary} style={styles.imageMenuRow}>
-                <LibraryIcon height={24} width={24} />
-                <Text style={styles.imageMenuText}>사진 보관함</Text>
+            <View style={styles.profileWrap}>
+              <Pressable
+                accessibilityLabel="프로필 사진 변경"
+                onPress={event => {
+                  event.stopPropagation();
+                  Keyboard.dismiss();
+                  setImageMenuOpen(current => !current);
+                }}
+              >
+                <Image source={image} style={styles.profileImage} />
+                <View style={styles.cameraBadge}>
+                  <CameraIcon height={15} width={15} />
+                </View>
               </Pressable>
-              <Pressable onPress={takePhoto} style={styles.imageMenuRow}>
-                <CameraIcon height={24} width={24} />
-                <Text style={styles.imageMenuText}>사진 찍기</Text>
-              </Pressable>
+              {imageMenuOpen ? (
+                <View style={styles.imageMenu}>
+                  <Pressable onPress={chooseFromLibrary} style={styles.imageMenuRow}>
+                    <LibraryIcon height={24} width={24} />
+                    <Text style={styles.imageMenuText}>사진 보관함</Text>
+                  </Pressable>
+                  <Pressable onPress={takePhoto} style={styles.imageMenuRow}>
+                    <CameraIcon height={24} width={24} />
+                    <Text style={styles.imageMenuText}>사진 찍기</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {isUploadingImage ? (
+                <View style={styles.imageLoadingOverlay}>
+                  <ActivityIndicator color={colors.white} />
+                </View>
+              ) : null}
             </View>
-          ) : null}
-        </View>
 
-        <ProfileInput
-          error={touched.nickname ? nicknameError : null}
-          label="닉네임"
-          maxLength={12}
-          onBlur={() => setTouched(current => ({ ...current, nickname: true }))}
-          onChangeText={setNickname}
-          value={nickname}
-        />
-        <ProfileInput
-          error={touched.name ? nameError : null}
-          label="이름"
-          maxLength={20}
-          onBlur={() => setTouched(current => ({ ...current, name: true }))}
-          onChangeText={setName}
-          value={name}
-        />
-        <View style={styles.field}>
-          <Text style={styles.label}>생년월일</Text>
-          <Pressable
-            accessibilityLabel="생년월일 선택"
-            onPress={openDatePicker}
-            style={styles.dateInput}
-          >
-            <Text style={styles.dateText}>{birthDate}</Text>
-            <CalendarIcon height={20} width={20} />
-          </Pressable>
-        </View>
-        <ProfileInput
-          error={touched.phone ? phoneError : null}
-          keyboardType="number-pad"
-          label="휴대폰"
-          maxLength={13}
-          onBlur={() => setTouched(current => ({ ...current, phone: true }))}
-          onChangeText={value => setPhone(formatPhoneNumber(value))}
-          value={phone}
-        />
+            <ProfileInput
+              error={touched.nickname ? nicknameError : null}
+              label="닉네임"
+              maxLength={10}
+              onBlur={() => setTouched(current => ({ ...current, nickname: true }))}
+              onChangeText={value => {
+                setNickname(value);
+                setServerErrors(current => ({ ...current, nickname: undefined }));
+              }}
+              value={nickname}
+            />
+            <ProfileInput
+              error={touched.name ? nameError : null}
+              label="이름"
+              maxLength={20}
+              onBlur={() => setTouched(current => ({ ...current, name: true }))}
+              onChangeText={value => {
+                setName(value);
+                setServerErrors(current => ({ ...current, name: undefined }));
+              }}
+              value={name}
+            />
+            <View style={styles.field}>
+              <Text style={styles.label}>생년월일</Text>
+              <Pressable
+                accessibilityLabel="생년월일 선택"
+                onPress={openDatePicker}
+                style={styles.dateInput}
+              >
+                <Text style={styles.dateText}>{birthDate}</Text>
+                <CalendarIcon height={20} width={20} />
+              </Pressable>
+            </View>
+            <ProfileInput
+              error={touched.phone ? phoneError : null}
+              keyboardType="number-pad"
+              label="휴대폰"
+              maxLength={13}
+              onBlur={() => setTouched(current => ({ ...current, phone: true }))}
+              onChangeText={value => {
+                setPhone(formatPhoneNumber(value));
+                setServerErrors(current => ({ ...current, phone: undefined }));
+              }}
+              value={phone}
+            />
           </ScrollView>
         </KeyboardAvoidingView>
       </KeyboardAwareInputProvider>
@@ -292,7 +395,11 @@ export function ProfileEditScreen({ navigation }: Props) {
           onPress={submit}
           style={[styles.submitButton, canSubmit && styles.submitButtonActive]}
         >
-          <Text style={styles.submitText}>수정하기</Text>
+          {busy ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.submitText}>수정하기</Text>
+          )}
         </Pressable>
       </View>
       <DatePickerModal
@@ -396,6 +503,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
     width: 24,
+  },
+  imageLoadingOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    borderRadius: 53,
+    height: 105,
+    justifyContent: 'center',
+    left: '50%',
+    marginLeft: -52.5,
+    position: 'absolute',
+    top: 15,
+    width: 105,
   },
   imageMenu: {
     backgroundColor: colors.white,

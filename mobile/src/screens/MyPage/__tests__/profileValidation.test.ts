@@ -13,10 +13,10 @@ describe('profileValidation', () => {
     expect(isValidPhoneNumber('010-1234-5678')).toBe(true);
   });
 
-  it('닉네임 형식과 로컬 중복값을 검증한다', () => {
-    expect(getNicknameError('한', '치이카와')).not.toBeNull();
-    expect(getNicknameError('관리자', '치이카와')).toBe('이미 사용 중인 닉네임입니다.');
-    expect(getNicknameError('새닉네임', '치이카와')).toBeNull();
+  it('서버와 같은 닉네임 형식을 검증한다', () => {
+    expect(getNicknameError('한')).not.toBeNull();
+    expect(getNicknameError('새닉네임._')).toBeNull();
+    expect(getNicknameError('새,닉네임')).not.toBeNull();
   });
 
   it('이름은 한글 또는 영문만 허용한다', () => {
