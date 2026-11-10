@@ -1,5 +1,6 @@
 import { useHeaderHeight } from '@react-navigation/elements';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,9 +19,11 @@ import { useShopStore } from '../../stores/shopStore';
 import { AppDialog } from '../../components/common/AppDialog';
 import { findProduct, money } from '../../services/shop/catalog';
 import {
+  getSimulationWalkEndErrorMessage,
   getSimulationWalkStartErrorMessage,
   startSimulationWalk,
 } from '../../services/simulation/walk';
+import { endActiveSimulationWalk } from '../../services/simulation/walkLifecycle';
 import {
   getActiveMockAdoption,
   saveMockAdoptionWalk,
@@ -90,7 +93,10 @@ function WalkTreat({ onThrow }: { onThrow: (dx: number, dy: number) => void }) {
 export function ArWalkScreen({
   route,
 }: { route?: { params?: RootStackParamList['ArWalk'] } } = {}) {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'ArWalk'>>();
   const shop = useShopStore();
+  const endingWalk = useRef(false);
+  const walkStart = useRef<Promise<void>>(Promise.resolve());
   const [bagPurchaseVisible, setBagPurchaseVisible] = useState(false);
   const [bagPurchaseError, setBagPurchaseError] = useState('');
   const purchasingBags = useRef(false);
@@ -167,7 +173,7 @@ export function ArWalkScreen({
     }
     serverWalkRequested.current = true;
     let mounted = true;
-    getActiveMockAdoption()
+    const starting = getActiveMockAdoption()
       .then(async active => {
         if (!active?.sessionSeq || active.walkSeq) {
           return;
@@ -180,10 +186,30 @@ export function ArWalkScreen({
           Alert.alert('산책', getSimulationWalkStartErrorMessage(error));
         }
       });
+    walkStart.current = starting;
     return () => {
       mounted = false;
     };
   }, [walkStartedAt]);
+
+  useEffect(() => {
+    return navigation.addListener('beforeRemove', event => {
+      if (endingWalk.current) {
+        return;
+      }
+      event.preventDefault();
+      endingWalk.current = true;
+      walkStart.current
+        .then(() => endActiveSimulationWalk())
+        .then(() => {
+          navigation.dispatch(event.data.action);
+        })
+        .catch(error => {
+          endingWalk.current = false;
+          Alert.alert('산책', getSimulationWalkEndErrorMessage(error));
+        });
+    });
+  }, [navigation]);
 
   useEffect(() => {
     if (walkStartedAt === null) {

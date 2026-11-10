@@ -8,6 +8,7 @@ import {
 
 import { ApiClientError } from '../../services/api';
 import { startSimulationWalk } from '../../services/simulation/walk';
+import { endActiveSimulationWalk } from '../../services/simulation/walkLifecycle';
 import {
   getActiveMockAdoption,
   saveMockAdoptionWalk,
@@ -21,7 +22,29 @@ import * as voiceHook from './useWalkVoice';
 import { VoiceGlowText } from './components/VoiceGlowText';
 
 jest.mock('@react-navigation/elements', () => ({ useHeaderHeight: () => 80 }));
-jest.mock('@react-navigation/native', () => ({ useIsFocused: () => true }));
+const mockWalkNavigation = {
+  dispatch: jest.fn(),
+  listeners: new Map<
+    string,
+    (event: { preventDefault: () => void; data: { action: unknown } }) => void
+  >(),
+};
+
+jest.mock('@react-navigation/native', () => ({
+  useIsFocused: () => true,
+  useNavigation: () => ({
+    addListener: (
+      event: string,
+      callback: (event: { preventDefault: () => void; data: { action: unknown } }) => void,
+    ) => {
+      mockWalkNavigation.listeners.set(event, callback);
+      return () => {
+        mockWalkNavigation.listeners.delete(event);
+      };
+    },
+    dispatch: (action: unknown) => mockWalkNavigation.dispatch(action),
+  }),
+}));
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -35,6 +58,9 @@ jest.mock('./useWalkRoute', () => ({
   useWalkRoute: () => ({ segments: [], meters: 0, message: '' }),
 }));
 jest.mock('./components/WalkRouteMap', () => ({ WalkRouteMap: 'WalkRouteMap' }));
+jest.mock('../../services/simulation/walkLifecycle', () => ({
+  endActiveSimulationWalk: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../../services/simulation/walk', () => ({
   ...jest.requireActual('../../services/simulation/walk'),
   startSimulationWalk: jest.fn(),
@@ -54,10 +80,14 @@ const activeSession = {
 };
 
 beforeEach(() => {
+  mockWalkNavigation.dispatch.mockReset();
+  mockWalkNavigation.listeners.clear();
   jest.mocked(getActiveMockAdoption).mockReset();
   jest.mocked(getActiveMockAdoption).mockResolvedValue(null);
   jest.mocked(startSimulationWalk).mockReset();
   jest.mocked(saveMockAdoptionWalk).mockReset();
+  jest.mocked(endActiveSimulationWalk).mockReset();
+  jest.mocked(endActiveSimulationWalk).mockResolvedValue(undefined);
 });
 
 test('water uses a tap and treats require an upward drag', async () => {
@@ -325,6 +355,46 @@ test('shows the walk start error without stopping the timer', async () => {
   expect(
     renderer.root.findAllByProps({ accessibilityLabel: '산책 시간 00:00' }).length,
   ).toBeGreaterThan(0);
+  alert.mockRestore();
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('ends the server walk before leaving the walk screen', async () => {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<ArWalkScreen />);
+  });
+  const action = { type: 'GO_BACK' };
+  const preventDefault = jest.fn();
+  await ReactTestRenderer.act(async () => {
+    mockWalkNavigation.listeners.get('beforeRemove')?.({
+      preventDefault,
+      data: { action },
+    });
+    await Promise.resolve();
+  });
+  expect(preventDefault).toHaveBeenCalledTimes(1);
+  expect(endActiveSimulationWalk).toHaveBeenCalledTimes(1);
+  expect(mockWalkNavigation.dispatch).toHaveBeenCalledWith(action);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('stays on the walk screen when the walk cannot be ended', async () => {
+  jest.mocked(endActiveSimulationWalk).mockRejectedValue(new Error('offline'));
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<ArWalkScreen />);
+  });
+  await ReactTestRenderer.act(async () => {
+    mockWalkNavigation.listeners.get('beforeRemove')?.({
+      preventDefault: jest.fn(),
+      data: { action: { type: 'GO_BACK' } },
+    });
+    await Promise.resolve();
+  });
+  expect(alert).toHaveBeenCalledWith('산책', '산책을 종료하지 못했어요. 다시 시도해주세요.');
+  expect(mockWalkNavigation.dispatch).not.toHaveBeenCalled();
   alert.mockRestore();
   await ReactTestRenderer.act(() => renderer.unmount());
 });

@@ -1,4 +1,6 @@
 import {
+  clearMockAdoptionWalk,
+  getActiveMockAdoption,
   setMockAdoptionExpireHandler,
   type MockAdoptionSession,
 } from '../storage/mockAdoptionStorage';
@@ -15,6 +17,21 @@ export async function endStoredWalk(session: MockAdoptionSession): Promise<void>
       throw error;
     }
   }
+}
+
+export async function endActiveSimulationWalk(): Promise<void> {
+  const active = await getActiveMockAdoption();
+  if (!active?.sessionSeq || !active.walkSeq) {
+    return;
+  }
+  try {
+    await endSimulationWalk(active.sessionSeq, active.walkSeq);
+  } catch (error) {
+    if (!isFinishedWalkError(error)) {
+      throw error;
+    }
+  }
+  await clearMockAdoptionWalk();
 }
 
 export function installMockAdoptionWalkExpiry() {

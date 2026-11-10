@@ -115,6 +115,19 @@ export async function saveMockAdoptionWalk(walkSeq: number) {
   await setStoredValue(STORAGE_KEYS.MOCK_ADOPTION_SESSION, { ...session, walkSeq });
 }
 
+export async function clearMockAdoptionWalk() {
+  const session = await getStoredValue<MockAdoptionSession>(STORAGE_KEYS.MOCK_ADOPTION_SESSION);
+  if (!session || !isStoredSession(session) || session.walkSeq === undefined) {
+    return;
+  }
+  if (Date.now() >= session.expiresAt) {
+    return;
+  }
+  const next = { ...session };
+  delete next.walkSeq;
+  await setStoredValue(STORAGE_KEYS.MOCK_ADOPTION_SESSION, next);
+}
+
 export async function endMockAdoption() {
   await removeStoredValue(STORAGE_KEYS.MOCK_ADOPTION_SESSION);
 }

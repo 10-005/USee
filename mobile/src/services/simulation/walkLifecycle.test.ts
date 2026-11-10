@@ -7,7 +7,7 @@ import {
   startMockAdoption,
 } from '../storage/mockAdoptionStorage';
 import { invalidateSimulationReports } from './reports';
-import { installMockAdoptionWalkExpiry } from './walkLifecycle';
+import { endActiveSimulationWalk, installMockAdoptionWalkExpiry } from './walkLifecycle';
 import { endSimulationWalk } from './walk';
 
 jest.mock('./reports', () => ({
@@ -63,6 +63,36 @@ describe('mock adoption walk expiry', () => {
 
     await expect(getActiveMockAdoption()).resolves.toBeNull();
     expect(invalidateSimulationReports).toHaveBeenCalledTimes(1);
+  });
+
+  it('ends the open walk and drops its id when the user leaves', async () => {
+    await startMockAdoption('dog-1', 35000, '초코', 3001, 8001);
+
+    await endActiveSimulationWalk();
+
+    expect(endWalk).toHaveBeenCalledWith(3001, 8001);
+    const session = await getActiveMockAdoption();
+    expect(session).toMatchObject({ sessionSeq: 3001 });
+    expect(session).not.toHaveProperty('walkSeq');
+  });
+
+  it('drops the walk id when the server walk is already finished', async () => {
+    await startMockAdoption('dog-1', 35000, '초코', 3001, 8001);
+    endWalk.mockRejectedValue(
+      new ApiClientError({ code: 'SIMULATION_WALK_NOT_IN_PROGRESS', message: 'server' }),
+    );
+
+    await endActiveSimulationWalk();
+
+    await expect(getActiveMockAdoption()).resolves.not.toHaveProperty('walkSeq');
+  });
+
+  it('keeps the walk id when ending fails', async () => {
+    await startMockAdoption('dog-1', 35000, '초코', 3001, 8001);
+    endWalk.mockRejectedValue(new Error('offline'));
+
+    await expect(endActiveSimulationWalk()).rejects.toThrow('offline');
+    await expect(getActiveMockAdoption()).resolves.toMatchObject({ walkSeq: 8001 });
   });
 
   it('keeps the expired session when the walk end can be retried', async () => {
