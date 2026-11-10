@@ -9,16 +9,16 @@ import CancelIcon from '../../assets/icons/common/cancel.svg';
 import FormIcon from '../../assets/icons/common/form.svg';
 import RightArrowIcon from '../../assets/icons/common/right-arrow.svg';
 import { AppHeader, Button, DetailScreenSkeleton } from '../../components/common';
+import { AppDialog } from '../../components/common/AppDialog';
 import {
-  type AdoptionApplicationRecord,
-  type AdoptionApplicationStatus,
-  getAdoptionApplicationRecord,
-  updateAdoptionApplicationStatus,
-} from '../../services/storage/adoptionApplicationStorage';
-import {
-  getAdoptionApplicationDraft,
-  removeAdoptionApplicationDraft,
-} from '../../services/storage/adoptionDraftStorage';
+  type AdoptionApplicationDetail,
+  type AdoptionApplicationStatus as ApiAdoptionApplicationStatus,
+  cancelAdoptionApplication,
+  deleteAdoptionDraft,
+  getAdoptionApplication,
+} from '../../services/adoption';
+import { getApiErrorDisplayMessage } from '../../services/api';
+import type { AdoptionApplicationStatus } from '../../services/storage/adoptionApplicationStorage';
 import { colors, radius, shadows, typography } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AdoptionApplicationHistory'>;
@@ -58,13 +58,13 @@ export const applicationStatusPresentation: Record<AdoptionApplicationStatus, St
     },
     REJECTED: {
       activeStep: 2,
-      description: '심사 결과 및 거절 사유에 대한\n자세한 내용은 보호소에 문의해 주세요',
+      description: '심사 결과와 거절 사유를 확인해 주세요',
       illustration: require('../../assets/images/adoption/process_refused.png'),
       title: '입양이 거절되었어요',
     },
     CANCELED: {
       activeStep: 0,
-      description: '신청자가 직접 신청을 취소하여\n더 이상 심사가 진행되지 않습니다',
+      description: '신청자가 직접 입양 신청을 취소했어요',
       illustration: require('../../assets/images/adoption/process_failed.png'),
       title: '입양 신청이 취소되었어요',
     },
@@ -81,6 +81,12 @@ function formatDate(value?: string) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}.${month}.${day}`;
+}
+
+function toPresentationStatus(status: ApiAdoptionApplicationStatus): AdoptionApplicationStatus {
+  if (status === 'APPROVED') {return 'DOCUMENT_APPROVED';}
+  if (status === 'ADOPTED') {return 'ADOPTION_APPROVED';}
+  return status;
 }
 
 function ProcessProgress({ activeStep }: { activeStep: number }) {
@@ -120,46 +126,38 @@ function ProcessProgress({ activeStep }: { activeStep: number }) {
 
 export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const [record, setRecord] = useState<AdoptionApplicationRecord | null>(null);
+  const [application, setApplication] = useState<AdoptionApplicationDetail | null>(null);
   const [status, setStatus] = useState<AdoptionApplicationStatus>('DRAFT');
   const [showConfirm, setShowConfirm] = useState(false);
   const [showRejectionReason, setShowRejectionReason] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isChanging, setIsChanging] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   useEffect(() => {
+    if (route.params.previewStatus) {
+      setStatus(route.params.previewStatus);
+      setLoading(false);
+      return;
+    }
+    if (!route.params.applicationSeq) {
+      if (route.params.applicationStatus) {
+        setStatus(toPresentationStatus(route.params.applicationStatus));
+      }
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    Promise.all([getAdoptionApplicationRecord(), getAdoptionApplicationDraft()])
-      .then(([storedRecord, draft]) => {
-        if (route.params.previewStatus) {
-          setRecord(
-            route.params.previewStatus === 'DRAFT'
-              ? null
-              : storedRecord ?? {
-                  animalId: route.params.animalId,
-                  applicantName: '우사기',
-                  applicationNumber: '113122600015',
-                  form: {},
-                  rejectionReason:
-                    '신청자님의 양육 환경과 현재 보호동물의 특성을 종합적으로 검토한 결과, 안정적인 적응이 어렵다고 판단되었습니다.',
-                  shelterName: '박범준보호소',
-                  status: route.params.previewStatus,
-                  submittedAt: '2026-10-27T00:00:00.000Z',
-                  version: 1,
-                },
-          );
-          setStatus(route.params.previewStatus);
-        } else if (route.params.source === 'draft' && draft) {
-          setRecord(null);
-          setStatus('DRAFT');
-        } else if (storedRecord) {
-          setRecord(storedRecord);
-          setStatus(storedRecord.status);
-        } else if (draft) {
-          setStatus('DRAFT');
-        }
+    setLoadError(false);
+    getAdoptionApplication(route.params.applicationSeq)
+      .then(detail => {
+        setApplication(detail);
+        setStatus(toPresentationStatus(detail.status));
       })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [route.params.animalId, route.params.previewStatus, route.params.source]);
+  }, [route]);
 
   const presentation = applicationStatusPresentation[status];
   const isDraft = status === 'DRAFT';
@@ -174,30 +172,60 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
       navigation.navigate('AdoptionApplication', { animalId: route.params.animalId });
       return;
     }
-    navigation.navigate('AdoptionApplicationReview', { animalId: route.params.animalId });
+    if (route.params.applicationSeq) {
+      navigation.navigate('AdoptionApplicationReview', {
+        animalId: route.params.animalId,
+        applicationSeq: route.params.applicationSeq,
+      });
+    }
   };
 
   const handleDeleteOrCancel = async () => {
     if (isPreview) {
       setShowConfirm(false);
-      if (!isDraft) {
-        setRecord(current => (current ? { ...current, status: 'CANCELED' } : current));
-        setStatus('CANCELED');
+      return;
+    }
+    if (!route.params.applicationSeq || isChanging) {return;}
+    try {
+      setIsChanging(true);
+      setActionError('');
+      if (isDraft) {
+        await deleteAdoptionDraft(route.params.applicationSeq);
+        setShowConfirm(false);
+        navigation.goBack();
+        return;
       }
-      return;
-    }
-    if (isDraft) {
-      await removeAdoptionApplicationDraft();
-      setShowConfirm(false);
-      navigation.goBack();
-      return;
-    }
-    const updated = await updateAdoptionApplicationStatus('CANCELED');
-    if (updated) {
-      setRecord(updated);
+      await cancelAdoptionApplication(route.params.applicationSeq);
+      setApplication(current => (current ? { ...current, status: 'CANCELED' } : current));
       setStatus('CANCELED');
+      setShowConfirm(false);
+    } catch (error) {
+      setShowConfirm(false);
+      setActionError(
+        getApiErrorDisplayMessage(
+          error,
+          isDraft
+            ? '입양 신청서를 삭제하지 못했어요.'
+            : '입양 신청을 취소하지 못했어요.',
+        ),
+      );
+    } finally {
+      setIsChanging(false);
     }
-    setShowConfirm(false);
+  };
+
+  const closeActionError = async () => {
+    setActionError('');
+    if (!route.params.applicationSeq) {
+      return;
+    }
+    try {
+      const detail = await getAdoptionApplication(route.params.applicationSeq);
+      setApplication(detail);
+      setStatus(toPresentationStatus(detail.status));
+    } catch {
+      setLoadError(true);
+    }
   };
 
   return (
@@ -205,18 +233,28 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
       <AppHeader onBackPress={navigation.goBack} title="입양 신청 내역" />
       {loading ? (
         <DetailScreenSkeleton accessibilityLabel="입양 신청 상세 불러오는 중" />
+      ) : loadError ? (
+        <View style={styles.errorState}>
+          <Text style={styles.errorText}>입양 신청 내역을 불러오지 못했어요</Text>
+        </View>
       ) : (
         <>
           <View style={styles.statusArea}>
             <View
               style={[
                 styles.statusCopy,
+                !isCanceled && !isRejected && styles.activeStatusCopy,
                 isCanceled && styles.canceledStatusCopy,
                 isRejected && styles.rejectedStatusCopy,
               ]}
             >
               <Text style={styles.statusTitle}>{presentation.title}</Text>
-              <Text style={styles.statusDescription}>{presentation.description}</Text>
+              <Text
+                numberOfLines={isRejected || isCanceled ? 1 : undefined}
+                style={styles.statusDescription}
+              >
+                {presentation.description}
+              </Text>
             </View>
             <Image
               source={presentation.illustration}
@@ -234,25 +272,55 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
           <View style={[styles.sheet, { paddingBottom: insets.bottom }]}>
             <View style={styles.animalRow}>
               <Image
-                source={require('../../assets/images/adoption/animal-detail.jpg')}
+                source={
+                  application?.animalSummary?.representativeImageUrl
+                    ? { uri: application.animalSummary.representativeImageUrl }
+                    : require('../../assets/images/adoption/animal-detail.jpg')
+                }
                 style={styles.animalImage}
               />
               <View style={styles.animalText}>
-                <Text style={styles.animalTitle}>[개] 믹스견</Text>
-                <Text style={styles.animalMeta}>2026년생 | 암컷 | 3kg</Text>
+                <Text style={styles.animalTitle}>
+                  [{application?.animalSummary?.speciesName ?? '동물'}]{' '}
+                  {application?.animalSummary?.breedName ?? '품종 정보 없음'}
+                </Text>
                 <Text style={styles.animalMeta}>
-                  중성화 여부 <Text style={styles.neutered}>O</Text>
+                  {[
+                    application?.animalSummary?.age,
+                    application?.animalSummary?.gender === 'MALE'
+                      ? '수컷'
+                      : application?.animalSummary?.gender === 'FEMALE'
+                        ? '암컷'
+                        : '모름',
+                    application?.animalSummary?.weight,
+                  ]
+                    .filter(Boolean)
+                    .join(' | ')}
+                </Text>
+                <Text style={styles.animalMeta}>
+                  중성화 여부{' '}
+                  <Text style={styles.neutered}>
+                    {application?.animalSummary?.isNeutered == null
+                      ? '모름'
+                      : application.animalSummary.isNeutered
+                        ? 'O'
+                        : 'X'}
+                  </Text>
                 </Text>
               </View>
             </View>
             <View style={styles.registrationRows}>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>등록번호</Text>
-                <Text style={styles.infoValue}>113122600015</Text>
+                <Text style={styles.infoValue}>
+                  {application?.animalSummary?.registrationNumber ?? '-'}
+                </Text>
               </View>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>마이크로칩번호</Text>
-                <Text style={styles.infoValue}>410987654321098</Text>
+                <Text style={styles.infoValue}>
+                  {application?.animalSummary?.microchipNumber ?? '-'}
+                </Text>
               </View>
             </View>
             <Pressable
@@ -268,10 +336,10 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
             <View style={styles.divider} />
             <Text style={styles.sectionTitle}>신청 정보</Text>
             {[
-              ['신청 번호', record?.applicationNumber ?? '-'],
-              ['신청일', formatDate(record?.submittedAt)],
-              ['신청자', record?.applicantName ?? '-'],
-              ['보호소', record?.shelterName ?? '-'],
+              ['신청 번호', application ? String(application.applicationSeq) : '-'],
+              ['신청일', formatDate(application?.submittedDttm ?? undefined)],
+              ['신청자', application?.applicant.name ?? '-'],
+              ['보호소', application?.animalSummary?.shelterName ?? '-'],
             ].map(([label, value]) => (
               <View key={label} style={styles.infoRow}>
                 <Text style={styles.infoLabel}>{label}</Text>
@@ -325,6 +393,7 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
                 닫기
               </Button>
               <Button
+                disabled={isChanging}
                 onPress={handleDeleteOrCancel}
                 style={[styles.modalButton, styles.dangerButton]}
               >
@@ -343,7 +412,7 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
         <View style={[styles.overlay, styles.rejectionOverlay]}>
           <View style={styles.rejectionModalCard}>
             <View style={styles.rejectionModalHeader}>
-              <Text style={styles.rejectionModalTitle}>거절 사유 확인</Text>
+              <Text style={styles.rejectionModalTitle}>거절 사유</Text>
               <Pressable
                 accessibilityLabel="거절 사유 닫기"
                 accessibilityRole="button"
@@ -355,31 +424,43 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
               </Pressable>
             </View>
             <Text style={styles.rejectionReason}>
-              {record?.rejectionReason ??
+              {application?.rejectionReason ??
                 '심사 결과, 현재 신청 정보만으로는 보호동물에게 적합한 양육 환경을 확인하기 어려워 입양 신청이 승인되지 않았습니다. 자세한 내용은 보호소에 문의해 주세요.'}
             </Text>
           </View>
         </View>
       </Modal>
+      {actionError ? (
+        <AppDialog
+          confirmLabel="확인"
+          message={actionError}
+          onClose={closeActionError}
+          onConfirm={closeActionError}
+          title={isDraft ? '신청서 삭제 실패' : '신청 취소 실패'}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
+  errorState: { alignItems: 'center', flex: 1, justifyContent: 'center' },
+  errorText: { ...typography.bodyRegular14, color: colors.gray500 },
   statusArea: { height: 203, paddingHorizontal: 36, paddingTop: 44 },
   statusCopy: { marginLeft: 19, maxWidth: 250 },
+  activeStatusCopy: { transform: [{ translateY: 20 }] },
   canceledStatusCopy: {
     left: 36,
     marginLeft: 0,
-    maxWidth: 180,
+    maxWidth: 230,
     position: 'absolute',
-    top: 103,
+    top: 124,
   },
   rejectedStatusCopy: {
     left: 36,
     marginLeft: 0,
-    maxWidth: 190,
+    maxWidth: 230,
     position: 'absolute',
     top: 124,
   },
@@ -387,7 +468,7 @@ const styles = StyleSheet.create({
   statusDescription: { ...typography.captionSemiBold12, color: colors.gray500, marginTop: 6 },
   processImage: { height: 93, position: 'absolute', right: 38, top: 32, width: 93 },
   approvedProcessImage: { height: 104, right: 32, top: 32, width: 104 },
-  canceledProcessImage: { height: 141, right: 46, top: 37, width: 141 },
+  canceledProcessImage: { height: 120, right: 30, top: 69, width: 120 },
   rejectedProcessImage: { height: 160, right: 42, top: 37, width: 160 },
   processWrap: { height: 72, marginTop: 33 },
   processLine: {
@@ -496,17 +577,15 @@ const styles = StyleSheet.create({
   },
   rejectionModalHeader: { alignItems: 'center', flexDirection: 'row', gap: 12 },
   rejectionModalTitle: {
-    color: '#222222',
+    ...typography.titleBold18,
+    color: colors.gray800,
     flex: 1,
-    fontFamily: 'Pretendard-Bold',
-    fontSize: 22,
-    lineHeight: 28,
   },
   rejectionClose: { height: 16, width: 16 },
   rejectionReason: {
-    ...typography.bodyRegular16,
+    ...typography.bodyRegular14,
     color: colors.gray500,
-    lineHeight: 20.5,
+    lineHeight: 20,
     marginTop: 16,
   },
 });

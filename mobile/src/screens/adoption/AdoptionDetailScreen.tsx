@@ -44,6 +44,7 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
   }, [fetchAnimal, route.params.animalId]);
 
   const isClosed = detail?.protectionStatus !== 'PROTECTING';
+  const canApply = !isClosed && detail?.adoptionStatus === 'AVAILABLE';
   const bookmarked = useAdoptionBookmarkStore(state =>
     state.bookmarkedIds.includes(route.params.animalId),
   );
@@ -96,6 +97,9 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
         if (activeApplication) {
           navigation.navigate('AdoptionApplicationHistory', {
             animalId: route.params.animalId,
+            applicationSeq: activeApplication.applicationSeq,
+            applicationStatus: activeApplication.status,
+            source: 'record',
           });
           return;
         }
@@ -238,9 +242,11 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
           <Button onPress={openChat} style={styles.action}>
             채팅 보내기
           </Button>
-          <Button onPress={openApplication} style={[styles.action, styles.applyButton]}>
-            입양 신청하기
-          </Button>
+          {canApply ? (
+            <Button onPress={openApplication} style={[styles.action, styles.applyButton]}>
+              입양 신청하기
+            </Button>
+          ) : null}
         </View>
       ) : null}
     </SafeAreaView>

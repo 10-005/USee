@@ -84,10 +84,7 @@ export function AdoptionApplicationListScreen({ navigation }: Props) {
       }`,
       date: application.displayDttm ?? '',
       id: String(application.applicationSeq),
-      shelter:
-        [application.animalSummary?.shelterAddress, application.animalSummary?.shelterName]
-          .filter(Boolean)
-          .join(' ') || '보호소 정보 없음',
+      shelter: application.animalSummary?.shelterName ?? '보호소 정보 없음',
       status: application.status,
     }));
     return filter === 'ALL' ? result : result.filter(item => item.status === filter);
@@ -100,12 +97,16 @@ export function AdoptionApplicationListScreen({ navigation }: Props) {
   const openItem = (item: ListItem) => {
     if (item.status === 'DRAFT') {
       navigation.navigate('AdoptionApplicationHistory', {
+        applicationSeq: Number(item.id),
+        applicationStatus: item.status,
         animalId: item.animalId,
         source: 'draft',
       });
       return;
     }
     navigation.navigate('AdoptionApplicationHistory', {
+      applicationSeq: Number(item.id),
+      applicationStatus: item.status,
       animalId: item.animalId,
       source: 'record',
     });
@@ -252,7 +253,7 @@ const styles = StyleSheet.create({
   },
   date: { ...typography.bodyRegular14, color: colors.gray400 },
   animal: { ...typography.titleBold18, color: colors.black, marginTop: spacing[5] },
-  shelter: { ...typography.bodyRegular14, color: colors.gray500, marginTop: spacing[3] },
+  shelter: { ...typography.captionSemiBold12, color: colors.gray500, marginTop: spacing[3] },
   filteredEmpty: {
     ...typography.bodyRegular14,
     color: colors.gray400,
