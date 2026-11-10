@@ -90,13 +90,18 @@ object KoreanLabels {
 data class SummaryEvidence(
     val good: List<String>,
     val lacking: List<String>,
+    /** 조언 근거(3차 수정): 권장에 못 미친 날이 많은 돌봄 키의 권장 횟수, 최대 2개 */
+    val advice: List<String>,
 ) {
     companion object {
         /** 목록마다 최대 개수 */
         const val LIMIT = 6
 
+        /** 조언 근거 최대 개수 */
+        const val ADVICE_LIMIT = 2
+
         fun build(input: ReportSummaryInput, care: CareReport): SummaryEvidence =
-            SummaryEvidence(good(input, care), lacking(input, care))
+            SummaryEvidence(good(input, care), lacking(input, care), advice(input, care))
 
         /** 상태별 결과 한 줄 */
         fun statusText(input: ReportSummaryInput): String = when (input.status) {
@@ -142,18 +147,23 @@ data class SummaryEvidence(
                     "${day.day}일차: ${KoreanLabels.josa(KoreanLabels.stat(stat), "이", "가")} ${day.lowestStats!!.getValue(key)}까지 떨어짐($rule 건강이 깎임)"
                 }
             }
+            // 미해결 이벤트 줄에 "그날 … 0회"로 이미 말한 (일차, 키)는 0회 줄에서 뺀다
+            val saidZero = mutableSetOf<Pair<Int, CareKey>>()
             val unresolved = evaluated.flatMap { day ->
                 day.events.filter { it.status == OccurrenceStatus.EXPIRED }.map { event ->
-                    val key = CareKey.of(event.resolveActionCode)
-                    val zero = key?.takeIf { day.counts[it] == 0 }?.let { ", 그날 ${KoreanLabels.care(it)} 0회" }.orEmpty()
+                    val key = CareKey.of(event.resolveActionCode)?.takeIf { day.counts[it] == 0 }
+                    key?.let { saidZero += day.day to it }
+                    val zero = key?.let { ", 그날 ${KoreanLabels.care(it)} 0회" }.orEmpty()
                     "${day.day}일차: '${event.title}' 미해결(정답: ${KoreanLabels.action(event.resolveActionCode)})$zero"
                 }
             }
-            // 포기·중단이면 마지막 평가 일차는 하루를 다 못 채웠을 수 있어 횟수 후보에서 뺀다
-            val countDays = if (input.status == SessionStatus.COMPLETED) evaluated else evaluated.dropLast(1)
+            val countDays = countDays(input, care)
             val keys = care.guideline.filter { it.value > 0 }
-            val zero = countDays.flatMap { day ->
-                keys.filter { day.counts.getValue(it.key) == 0 }.map { (key, times) -> "${day.day}일차: ${KoreanLabels.care(key)} 0회(권장 ${times}회)" }
+            // 같은 날의 0회는 한 줄로 묶는다(키 순서는 CareKey 선언 순)
+            val zero = countDays.mapNotNull { day ->
+                val parts = keys.filter { (key, _) -> day.counts.getValue(key) == 0 && (day.day to key) !in saidZero }
+                    .map { (key, times) -> "${KoreanLabels.care(key)} 0회(권장 ${times}회)" }
+                if (parts.isEmpty()) null else "${day.day}일차: ${parts.joinToString(", ")}"
             }
             val short = keys.mapNotNull { (key, times) ->
                 val days = countDays.filter { it.counts.getValue(key) in 1 until times }.map { it.day }
@@ -168,6 +178,23 @@ data class SummaryEvidence(
             }
             val all = danger + unresolved + zero + short + listOfNotNull(overspent)
             return if (all.isEmpty()) listOf("권장 횟수에 못 미친 날과 미해결 돌발 상황이 없음") else all.take(LIMIT)
+        }
+
+        /** 미달 일수(0회 포함)가 많은 키부터, 같으면 CareKey 선언 순 */
+        private fun advice(input: ReportSummaryInput, care: CareReport): List<String> {
+            val countDays = countDays(input, care)
+            return care.guideline.filter { it.value > 0 }
+                .map { (key, times) -> Triple(key, times, countDays.count { it.counts.getValue(key) < times }) }
+                .filter { it.third > 0 }
+                .sortedWith(compareByDescending<Triple<CareKey, Int, Int>> { it.third }.thenBy { it.first.ordinal })
+                .take(ADVICE_LIMIT)
+                .map { (key, times) -> "${KoreanLabels.josa(KoreanLabels.care(key), "은", "는")} 하루 ${times}회가 권장" }
+        }
+
+        /** 횟수 판정 대상 일차. 포기·중단이면 마지막 평가 일차는 하루를 다 못 채웠을 수 있어 뺀다 */
+        private fun countDays(input: ReportSummaryInput, care: CareReport): List<DayCare> {
+            val evaluated = care.days.take(care.evaluatedDays)
+            return if (input.status == SessionStatus.COMPLETED) evaluated else evaluated.dropLast(1)
         }
     }
 }

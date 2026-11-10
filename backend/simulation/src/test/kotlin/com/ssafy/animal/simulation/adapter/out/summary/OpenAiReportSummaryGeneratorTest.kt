@@ -58,6 +58,7 @@ class OpenAiReportSummaryGeneratorTest {
             // 사용자 메시지는 근거 후보 JSON(일차별 표·이탈 표시·최종 스탯·원본 정보 없음)
             .andExpect(jsonPath("$.messages[1].content", containsString("\"lacking\"")))
             .andExpect(jsonPath("$.messages[1].content", containsString("\"statusText\"")))
+            .andExpect(jsonPath("$.messages[1].content", containsString("\"advice\":[\"밥은 하루 3회가 권장\"")))
             .andExpect(jsonPath("$.messages[1].content", not(containsString("\"days\""))))
             .andExpect(jsonPath("$.messages[1].content", not(containsString("\"deviations\""))))
             .andExpect(jsonPath("$.messages[1].content", not(containsString("\"finalStats\""))))
@@ -82,6 +83,20 @@ class OpenAiReportSummaryGeneratorTest {
         respond("""{"overall":"초코의 돌봄을 그만뒀어요.","good":"밥을 챙겼어요.","lacking":"5일차에 물이 부족했어요."}""")
         val invented = assertFailsWith<IllegalStateException> { generator.generate(input()) }
         assertEquals("요약에 근거 없는 일차가 있습니다: 5일차", invented.message)
+    }
+
+    @Test
+    fun `보낸 문장에 없는 숫자를 쓰면 예외이고 쉼표 금액·일차는 통과한다`() {
+        respond("""{"overall":"3일째에 초코의 돌봄을 그만뒀어요.","good":"예상보다 118,800원 덜 썼어요.","lacking":"2일차에 밥을 주지 않았어요. 밥을 하루 5회 챙겨 보세요."}""")
+        val invented = assertFailsWith<IllegalStateException> { generator.generate(input()) }
+        assertEquals("요약에 근거 없는 숫자가 있습니다: 5", invented.message)
+
+        server.reset()
+        respond("""{"overall":"3일째에 초코의 돌봄을 그만뒀어요.","good":"예상보다 118,800원 덜 썼어요.","lacking":"1·2일차에 밥이 부족했어요. 밥을 하루 3회 챙겨 보세요."}""")
+        assertEquals(
+            "3일째에 초코의 돌봄을 그만뒀어요.\n\n예상보다 118,800원 덜 썼어요.\n\n1·2일차에 밥이 부족했어요. 밥을 하루 3회 챙겨 보세요.",
+            generator.generate(input()),
+        )
     }
 
     @Test
@@ -139,12 +154,13 @@ class OpenAiReportSummaryGeneratorTest {
     fun `입력 JSON은 동물·결과와 근거 후보만 담는다`() {
         val payload = generator.payload(input())
 
-        assertEquals(setOf("animal", "result", "good", "lacking"), payload.keys)
+        assertEquals(setOf("animal", "result", "good", "lacking", "advice"), payload.keys)
         assertEquals(mapOf("name" to "초코", "species" to "개", "breed" to "말티즈", "personality" to "다정함"), payload["animal"])
         assertEquals(mapOf("status" to "ABANDONED", "statusText" to "3일째에 그만둠", "evaluatedDays" to 3), payload["result"])
         assertEquals(listOf("1일차: '물그릇을 엎었어요'를 30분 만에 해결(물 주기)", "예상 비용 150,000원보다 118,800원 덜 씀"), payload["good"])
         // 포기 세션이라 마지막(3일차)은 0회 후보에서 빠진다
-        assertEquals("1일차: 물 0회(권장 3회)", (payload["lacking"] as List<*>).first())
+        assertEquals("1일차: 물 0회(권장 3회), 배변 청소 0회(권장 2회), 놀이·간식 0회(권장 2회), 산책 0회(권장 1회)", (payload["lacking"] as List<*>).first())
+        assertEquals(listOf("밥은 하루 3회가 권장", "물은 하루 3회가 권장"), payload["advice"])
         assertFalse((payload["lacking"] as List<*>).any { "3일차" in it.toString() })
     }
 

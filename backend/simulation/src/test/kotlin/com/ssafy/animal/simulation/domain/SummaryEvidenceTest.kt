@@ -68,19 +68,43 @@ class SummaryEvidenceTest {
             events = listOf(CareEventRecord("쿠션을 물어뜯어요", ActionCode.PLAY, OccurrenceStatus.EXPIRED, start.plusDays(1).plusHours(4), null)),
         )
 
-        val lacking = evidence(care, expectedCost = 50_000, spent = mapOf("FOOD" to 20_000, "EVENT" to 62_000)).lacking
+        val evidence = evidence(care, expectedCost = 50_000, spent = mapOf("FOOD" to 20_000, "EVENT" to 62_000))
 
+        // 2일차 놀이·간식 0회는 이벤트 줄에서 이미 말해 0회 줄을 만들지 않는다(남는 키 없음)
         assertEquals(
             listOf(
                 "3일차: 수분이 12까지 떨어짐(20 미만이면 건강이 깎임)",
                 "2일차: '쿠션을 물어뜯어요' 미해결(정답: 놀이), 그날 놀이·간식 0회",
-                "2일차: 놀이·간식 0회(권장 2회)",
                 "3일차: 배변 청소 0회(권장 2회)",
                 "배변 청소 부족: 2일차(권장 2회)",
                 "예상 비용보다 32,000원 더 씀, 가장 많이 쓴 분류는 병원 진료비(62,000원)",
             ),
-            lacking,
+            evidence.lacking,
         )
+        // 미달 일수: 배변 청소 2일 > 놀이·간식 1일
+        assertEquals(listOf("배변 청소는 하루 2회가 권장", "놀이·간식은 하루 2회가 권장"), evidence.advice)
+    }
+
+    @Test
+    fun `같은 날의 0회는 한 줄로 묶고 이벤트 줄과 겹치는 키만 뺀다`() {
+        val care = CareFixtures.care(
+            start, evaluatedDays = 2,
+            logs = logs(listOf(3, 0, 2, 0, 1), listOf(3, 3, 2, 0, 0)),
+            events = listOf(CareEventRecord("쿠션을 물어뜯어요", ActionCode.PLAY, OccurrenceStatus.EXPIRED, start.plusDays(1).plusHours(2), null)),
+        )
+
+        val evidence = evidence(care)
+
+        assertEquals(
+            listOf(
+                "2일차: '쿠션을 물어뜯어요' 미해결(정답: 놀이), 그날 놀이·간식 0회",
+                "1일차: 물 0회(권장 3회), 놀이·간식 0회(권장 2회)",
+                "2일차: 산책 0회(권장 1회)",
+            ),
+            evidence.lacking,
+        )
+        // 놀이·간식 2일 미달 > 물·산책 1일(선언 순으로 물)
+        assertEquals(listOf("놀이·간식은 하루 2회가 권장", "물은 하루 3회가 권장"), evidence.advice)
     }
 
     @Test
@@ -113,17 +137,21 @@ class SummaryEvidenceTest {
 
         assertEquals(listOf("권장 횟수에 못 미친 날과 미해결 돌발 상황이 없음"), abandoned)
         assertTrue(completed.any { it.startsWith("2일차:") })
+        assertEquals(emptyList(), evidence(care, status = SessionStatus.ABANDONED).advice)
+        assertEquals("밥은 하루 3회가 권장", evidence(care, status = SessionStatus.COMPLETED).advice.first())
     }
 
     @Test
     fun `목록마다 최대 6개이고 심한 순서로 자른다`() {
         val care = CareFixtures.care(start, evaluatedDays = 7) // 7일 내내 아무것도 안 함 → 0회 후보 35개
 
-        val lacking = evidence(care).lacking
+        val evidence = evidence(care)
 
-        assertEquals(SummaryEvidence.LIMIT, lacking.size)
-        assertEquals("1일차: 밥 0회(권장 3회)", lacking.first())
-        assertEquals("2일차: 밥 0회(권장 3회)", lacking.last())
+        assertEquals(SummaryEvidence.LIMIT, evidence.lacking.size)
+        assertEquals("1일차: 밥 0회(권장 3회), 물 0회(권장 3회), 배변 청소 0회(권장 2회), 놀이·간식 0회(권장 2회), 산책 0회(권장 1회)", evidence.lacking.first())
+        assertTrue(evidence.lacking.last().startsWith("6일차: "))
+        // 미달 일수가 모두 같으면 CareKey 선언 순, 최대 2개
+        assertEquals(listOf("밥은 하루 3회가 권장", "물은 하루 3회가 권장"), evidence.advice)
     }
 
     @Test
