@@ -276,7 +276,7 @@ it('담당 발견 신고를 구조 접수·완료한 뒤 같은 구조 번호로
     target: { files: [new File(['cat'], 'cat.png', { type: 'image/png' })] },
   });
   fireEvent.change(screen.getByLabelText('동물 종류 *'), { target: { value: 'cat' } });
-  fireEvent.change(screen.getByLabelText('품종 *'), { target: { value: '32' } });
+  fireEvent.change(screen.getByLabelText('품종 *'), { target: { value: '샴' } });
   fireEvent.change(screen.getByLabelText('색상 *'), { target: { value: '회백색' } });
   fireEvent.change(screen.getByLabelText('성별 *'), { target: { value: 'female' } });
   fireEvent.click(screen.getByRole('radio', { name: '미완료' }));

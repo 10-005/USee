@@ -3,27 +3,26 @@ import type { ShelterAnimalRecord } from '@/entities/shelter/model';
 import type { Combination } from '@/entities/shelter/data/animals';
 
 const speciesCodes = { dog: '417000', cat: '422400', other: '429900' };
-const breedLabels = new Map<string, string>();
-for (const { breeds } of catalog.species) {
-  const seen = new Set<string>();
-  const duplicates = new Set<string>();
-  for (const { name } of breeds) {
-    if (seen.has(name)) duplicates.add(name);
-    seen.add(name);
-  }
-  for (const { name, code } of breeds) {
-    breedLabels.set(code, duplicates.has(name) ? `${name} (${code})` : name);
-  }
-}
-
-export function breedLabel(breed: { name: string; code: string }) {
-  return breedLabels.get(breed.code) ?? breed.name;
-}
-
-export function breedsFor(species: ShelterAnimalRecord['species'] | '') {
+type Breed = {
+  name: string;
+  code: string | null;
+  originalBreedNames?: string[];
+  originalBreedCodes?: string[];
+  colors: { name: string; code: string }[];
+};
+export function breedsFor(species: ShelterAnimalRecord['species'] | ''): Breed[] {
   return species
     ? (catalog.species.find((item) => item.code === speciesCodes[species])?.breeds ?? [])
     : [];
+}
+
+function namesFor(breed: Breed) {
+  const names = new Set([breed.name, ...(breed.originalBreedNames ?? [])]);
+  breed.originalBreedNames?.forEach((name, index) => {
+    const code = breed.originalBreedCodes?.[index];
+    if (code) names.add(name + '(' + code + ')');
+  });
+  return names;
 }
 
 export function catalogCombinations(
@@ -34,19 +33,20 @@ export function catalogCombinations(
   if (!species) return [];
   const speciesName = catalog.species.find((item) => item.code === speciesCodes[species])?.name;
   const choices = available.filter((row) => row.speciesName === speciesName);
-  const byBreed = new Map<string, Combination[]>();
+  const byName = new Map<string, Combination[]>();
   for (const row of choices) {
-    const group = byBreed.get(row.breedName) ?? [];
-    group.push(row);
-    byBreed.set(row.breedName, group);
+    const rows = byName.get(row.breedName);
+    if (rows) rows.push(row);
+    else byName.set(row.breedName, [row]);
   }
-  const labels = new Map<number, string>();
-  const ordered = breedsFor(species).flatMap((breed) => {
-    const rows = byBreed.get(breed.name + '(' + breed.code + ')') ?? byBreed.get(breed.name) ?? [];
-    for (const row of rows) labels.set(row.breedSeq, breedLabel(breed));
-    return breed.colors.flatMap((color) => rows.filter((row) => row.colorName === color.name));
+  const result = breedsFor(species).flatMap((breed) => {
+    const rows = [...namesFor(breed)].flatMap((name) => byName.get(name) ?? []);
+    return [...new Set(breed.colors.map((color) => color.name))].flatMap((color) =>
+      rows.filter((row) => row.colorName === color).map((row) => ({ ...row, label: breed.name })),
+    );
   });
   const saved = choices.find((row) => row.combinationSeq === savedId);
-  if (saved && !ordered.includes(saved)) ordered.push(saved);
-  return ordered.map((row) => ({ ...row, label: labels.get(row.breedSeq) ?? row.breedName }));
+  if (saved && !result.some((row) => row.combinationSeq === savedId))
+    result.push({ ...saved, label: saved.breedName });
+  return result;
 }
