@@ -1,10 +1,12 @@
 import { ApiClientError } from '../api/errors';
+import { SimulationWalkAction } from './actions';
 import {
-  cleanUpSimulationWalkPoop,
   endSimulationWalk,
+  getSimulationWalkActionErrorMessage,
   getSimulationWalkEndErrorMessage,
   getSimulationWalkStartErrorMessage,
   isWalkPoopEvent,
+  performSimulationWalkAction,
   sendSimulationWalkHeartbeat,
   startSimulationWalk,
 } from './walk';
@@ -156,18 +158,72 @@ test('reads a heartbeat and treats a poop title as the cleanup event', async () 
   ).toBe(false);
 });
 
-test('cleans up poop with the walk action and no item', async () => {
-  const post = jest.fn().mockResolvedValue(
-    envelope({
-      actionLogSeq: 1,
-      actionType: 'WALK',
-      actionCode: 'CLEAN_UP_POOP',
-    }),
+const walkAction = (actionCode: string, extra: Record<string, unknown> = {}) => ({
+  actionLogSeq: 50010,
+  actionType: 'WALK',
+  actionCode,
+  walkSeq: 8001,
+  consumedItem: null,
+  statDelta: { hydration: 20 },
+  stats: heartbeatStats,
+  balance: 118000,
+  resolvedEvent: null,
+  ...extra,
+});
+
+test('gives water without an item and a snack with its item', async () => {
+  const post = jest
+    .fn()
+    .mockResolvedValueOnce(envelope(walkAction('GIVE_WATER')))
+    .mockResolvedValueOnce(
+      envelope(
+        walkAction('GIVE_SNACK', {
+          consumedItem: { itemSeq: 41, itemName: '간식', remainingQuantity: 4 },
+          statDelta: {},
+        }),
+      ),
+    );
+
+  await performSimulationWalkAction(
+    3001,
+    8001,
+    { actionCode: SimulationWalkAction.GiveWater },
+    { post },
   );
-  await cleanUpSimulationWalkPoop(3001, 8001, { post });
+  await performSimulationWalkAction(
+    3001,
+    8001,
+    { actionCode: SimulationWalkAction.GiveSnack, itemSeq: 41 },
+    { post },
+  );
+  expect(post).toHaveBeenNthCalledWith(1, '/simulations/3001/walks/8001/actions', {
+    actionCode: 'GIVE_WATER',
+  });
+  expect(post).toHaveBeenNthCalledWith(2, '/simulations/3001/walks/8001/actions', {
+    actionCode: 'GIVE_SNACK',
+    itemSeq: 41,
+  });
+});
+
+test('cleans up poop with the walk action and no item', async () => {
+  const post = jest.fn().mockResolvedValue(envelope(walkAction('CLEAN_UP_POOP')));
+  await performSimulationWalkAction(
+    3001,
+    8001,
+    { actionCode: SimulationWalkAction.CleanUpPoop },
+    { post },
+  );
   expect(post).toHaveBeenCalledWith('/simulations/3001/walks/8001/actions', {
     actionCode: 'CLEAN_UP_POOP',
   });
+});
+
+test('describes a missing walk item', () => {
+  expect(
+    getSimulationWalkActionErrorMessage(
+      new ApiClientError({ code: 'SIMULATION_ITEM_NOT_IN_INVENTORY', message: 'server' }),
+    ),
+  ).toBe('필요한 아이템이 없어요.');
 });
 
 test('uses a generic message when the walk cannot be ended', () => {

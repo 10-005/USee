@@ -4,6 +4,7 @@ import { simulationClient } from '../api/client';
 import { ApiClientError } from '../api/errors';
 import { readApiData } from '../api/response';
 import { CARE_STAT_KEYS, type CareStats } from './care';
+import { SimulationWalkAction } from './actions';
 import {
   SimulationEventStatus,
   SimulationTriggerContext,
@@ -40,6 +41,39 @@ const FINISHED_WALK_CODES = new Set([
 ]);
 
 const WALK_END_FAILURE = '산책을 종료하지 못했어요. 다시 시도해주세요.';
+const WALK_ACTION_FAILURE = '산책 중 행동을 하지 못했어요. 다시 시도해주세요.';
+
+const WALK_ACTION_ERROR_MESSAGES: Record<string, string> = {
+  SIMULATION_WALK_NOT_IN_PROGRESS: '진행 중인 산책이 없어요.',
+  SIMULATION_POOP_NOT_FOUND: '치울 배변이 없어요.',
+  SIMULATION_ITEM_NOT_IN_INVENTORY: '필요한 아이템이 없어요.',
+  SIMULATION_NOT_IN_PROGRESS: '진행 중인 모의입양이 없어요.',
+  SIMULATION_NOT_FOUND: '진행 중인 모의입양을 찾지 못했어요.',
+  SIMULATION_WALK_NOT_FOUND: '산책을 찾지 못했어요.',
+  COMMON_INVALID_INPUT: '산책 중 행동을 확인해주세요.',
+};
+
+export type WalkActionRequest =
+  | { actionCode: SimulationWalkAction.GiveWater }
+  | { actionCode: SimulationWalkAction.GiveSnack; itemSeq: number }
+  | { actionCode: SimulationWalkAction.CleanUpPoop; itemSeq?: number };
+
+export type WalkActionResult = {
+  actionLogSeq: number;
+  actionCode: WalkActionRequest['actionCode'];
+  walkSeq: number;
+  consumedItem: { itemSeq: number; itemName: string; remainingQuantity: number } | null;
+  statDelta: SimulationStatDelta;
+  stats: CareStats;
+  balance: number;
+  resolvedEvent: {
+    occurrenceSeq: number;
+    scenarioTitle: string;
+    resultText: string | null;
+    eventStatDelta: SimulationStatDelta;
+    eventCost: number;
+  } | null;
+};
 
 export type WalkHeartbeat = {
   walkSeq: number;
@@ -89,16 +123,16 @@ function readText(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
-function readHeartbeatStats(value: unknown): CareStats {
+function readHeartbeatStats(value: unknown, failure = WALK_START_FAILURE): CareStats {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw invalidWalk(WALK_START_FAILURE);
+    throw invalidWalk(failure);
   }
   const stats = value as Partial<CareStats>;
   if (
     !readText(stats.calculatedDttm) ||
     !CARE_STAT_KEYS.every(key => typeof stats[key] === 'number' && Number.isInteger(stats[key]))
   ) {
-    throw invalidWalk(WALK_START_FAILURE);
+    throw invalidWalk(failure);
   }
   return {
     satiety: stats.satiety as number,
@@ -285,21 +319,118 @@ export async function sendSimulationWalkHeartbeat(
   return readHeartbeat(readApiData(response.data));
 }
 
-export async function cleanUpSimulationWalkPoop(
+function readResolvedWalkEvent(value: unknown): WalkActionResult['resolvedEvent'] {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw invalidWalk(WALK_ACTION_FAILURE);
+  }
+  const event = value as Partial<NonNullable<WalkActionResult['resolvedEvent']>>;
+  const scenarioTitle = readText(event.scenarioTitle);
+  const resultText = event.resultText === null ? null : readText(event.resultText);
+  if (
+    !isPositiveId(event.occurrenceSeq) ||
+    !scenarioTitle ||
+    (event.resultText !== null && !resultText) ||
+    !isStatDelta(event.eventStatDelta) ||
+    typeof event.eventCost !== 'number' ||
+    !Number.isInteger(event.eventCost) ||
+    event.eventCost < 0
+  ) {
+    throw invalidWalk(WALK_ACTION_FAILURE);
+  }
+  return {
+    occurrenceSeq: event.occurrenceSeq,
+    scenarioTitle,
+    resultText,
+    eventStatDelta: event.eventStatDelta,
+    eventCost: event.eventCost,
+  };
+}
+
+function readConsumedWalkItem(value: unknown): WalkActionResult['consumedItem'] {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw invalidWalk(WALK_ACTION_FAILURE);
+  }
+  const item = value as Partial<NonNullable<WalkActionResult['consumedItem']>>;
+  const itemName = readText(item.itemName);
+  if (
+    !isPositiveId(item.itemSeq) ||
+    !itemName ||
+    typeof item.remainingQuantity !== 'number' ||
+    !Number.isInteger(item.remainingQuantity) ||
+    item.remainingQuantity < 0
+  ) {
+    throw invalidWalk(WALK_ACTION_FAILURE);
+  }
+  return {
+    itemSeq: item.itemSeq,
+    itemName,
+    remainingQuantity: item.remainingQuantity,
+  };
+}
+
+function readWalkAction(value: unknown, request: WalkActionRequest): WalkActionResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw invalidWalk(WALK_ACTION_FAILURE);
+  }
+  const action = value as Partial<WalkActionResult>;
+  if (
+    !isPositiveId(action.actionLogSeq) ||
+    action.actionCode !== request.actionCode ||
+    !isPositiveId(action.walkSeq) ||
+    !isStatDelta(action.statDelta) ||
+    typeof action.balance !== 'number' ||
+    !Number.isInteger(action.balance)
+  ) {
+    throw invalidWalk(WALK_ACTION_FAILURE);
+  }
+  return {
+    actionLogSeq: action.actionLogSeq,
+    actionCode: request.actionCode,
+    walkSeq: action.walkSeq,
+    consumedItem: readConsumedWalkItem(action.consumedItem),
+    statDelta: action.statDelta,
+    stats: readHeartbeatStats(action.stats, WALK_ACTION_FAILURE),
+    balance: action.balance,
+    resolvedEvent: readResolvedWalkEvent(action.resolvedEvent),
+  };
+}
+
+export function getSimulationWalkActionErrorMessage(error: unknown): string {
+  if (error instanceof ApiClientError && WALK_ACTION_ERROR_MESSAGES[error.code]) {
+    return WALK_ACTION_ERROR_MESSAGES[error.code];
+  }
+  return WALK_ACTION_FAILURE;
+}
+
+export async function performSimulationWalkAction(
   sessionSeq: number,
   walkSeq: number,
+  request: WalkActionRequest,
   client: SimulationClient = simulationClient,
-): Promise<void> {
-  if (!isPositiveId(sessionSeq) || !isPositiveId(walkSeq)) {
-    throw invalidWalk();
+): Promise<WalkActionResult> {
+  if (
+    !isPositiveId(sessionSeq) ||
+    !isPositiveId(walkSeq) ||
+    (request.actionCode === SimulationWalkAction.GiveSnack && !isPositiveId(request.itemSeq)) ||
+    (request.actionCode === SimulationWalkAction.CleanUpPoop &&
+      request.itemSeq !== undefined &&
+      !isPositiveId(request.itemSeq))
+  ) {
+    throw invalidWalk(WALK_ACTION_FAILURE);
   }
-  const response = await client.post(`/simulations/${sessionSeq}/walks/${walkSeq}/actions`, {
-    actionCode: 'CLEAN_UP_POOP',
-  });
-  const data = readApiData(response.data);
-  if (!data || typeof data !== 'object') {
-    throw invalidWalk();
-  }
+  const body =
+    request.actionCode === SimulationWalkAction.GiveSnack ||
+    (request.actionCode === SimulationWalkAction.CleanUpPoop && request.itemSeq !== undefined)
+      ? { actionCode: request.actionCode, itemSeq: request.itemSeq }
+      : { actionCode: request.actionCode };
+  const response = await client.post(`/simulations/${sessionSeq}/walks/${walkSeq}/actions`, body);
+  return readWalkAction(readApiData(response.data), request);
 }
 
 export async function endSimulationWalk(

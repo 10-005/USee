@@ -18,18 +18,21 @@ import { useCameraPermission } from 'react-native-vision-camera';
 import { useShopStore } from '../../stores/shopStore';
 import { AppDialog } from '../../components/common/AppDialog';
 import { availableProducts, findProduct, money } from '../../services/shop/catalog';
+import { findCareSupply } from '../../services/shop/consumption';
 import { ApiClientError } from '../../services/api';
+import { SimulationWalkAction } from '../../services/simulation/actions';
 import {
   getPurchaseErrorMessage,
   purchaseSimulationItems,
 } from '../../services/simulation/purchase';
 import type { SimulationEvent } from '../../services/simulation/events';
 import {
-  cleanUpSimulationWalkPoop,
+  getSimulationWalkActionErrorMessage,
   getSimulationWalkEndErrorMessage,
   getSimulationWalkStartErrorMessage,
   isFinishedWalkError,
   isWalkPoopEvent,
+  performSimulationWalkAction,
   sendSimulationWalkHeartbeat,
   startSimulationWalk,
 } from '../../services/simulation/walk';
@@ -205,6 +208,20 @@ export function ArWalkScreen({
   const careRequestId = useRef(0);
   const viewport = useRef({ width: 0, height: 0 });
   const careBottom = insets.bottom + 24;
+  const [walkEvent, setWalkEvent] = useState<SimulationEvent | null>(null);
+  const serverWalk = useRef<{ sessionSeq: number; walkSeq: number } | null>(null);
+  const dismissedWalkEvents = useRef(new Set<number>());
+  const poopEventRef = useRef<SimulationEvent | null>(null);
+  const closeResolvedWalkEvent = (occurrenceSeq?: number) => {
+    if (!occurrenceSeq) {
+      return;
+    }
+    dismissedWalkEvents.current.add(occurrenceSeq);
+    if (poopEventRef.current?.occurrenceSeq === occurrenceSeq) {
+      poopEventRef.current = null;
+    }
+    setWalkEvent(current => (current?.occurrenceSeq === occurrenceSeq ? null : current));
+  };
   const sendCare = (action: 'drink' | 'eat', dx = 0, dy = 0) => {
     const { width, height } = viewport.current;
     if (width <= 0 || height <= 0) {
@@ -214,21 +231,55 @@ export function ArWalkScreen({
     const x = (width / 2 + (action === 'drink' ? -dockOffset : dockOffset) + dx) / width;
     const y = (height - careBottom - styles.careButton.height / 2 + dy) / height;
     const clamp = (value: number) => Math.max(0, Math.min(1, value));
-    setCareRequest(`${++careRequestId.current}:${action}:${clamp(x)}:${clamp(y)}`);
+    const place = () => {
+      setCareRequest(`${++careRequestId.current}:${action}:${clamp(x)}:${clamp(y)}`);
+    };
+    const remote = serverWalk.current;
+    if (!remote) {
+      place();
+      return;
+    }
+    if (action === 'drink') {
+      performSimulationWalkAction(remote.sessionSeq, remote.walkSeq, {
+        actionCode: SimulationWalkAction.GiveWater,
+      })
+        .then(result => {
+          closeResolvedWalkEvent(result.resolvedEvent?.occurrenceSeq);
+          place();
+        })
+        .catch(error => {
+          Alert.alert('산책', getSimulationWalkActionErrorMessage(error));
+        });
+      return;
+    }
+    const snack = findCareSupply('dog', 'treat');
+    if (!snack?.itemSeq) {
+      Alert.alert('산책', '간식이 필요해요!');
+      return;
+    }
+    performSimulationWalkAction(remote.sessionSeq, remote.walkSeq, {
+      actionCode: SimulationWalkAction.GiveSnack,
+      itemSeq: snack.itemSeq,
+    })
+      .then(result => {
+        useShopStore.getState().consume({ [snack.id]: 1 });
+        closeResolvedWalkEvent(result.resolvedEvent?.occurrenceSeq);
+        place();
+      })
+      .catch(error => {
+        Alert.alert('산책', getSimulationWalkActionErrorMessage(error));
+      });
   };
   const [showTraversalDebug, setShowTraversalDebug] = useState(false);
   const [hasSeenDog, setHasSeenDog] = useState(false);
   const [loadingDots, setLoadingDots] = useState(2);
   const [walkStartedAt, setWalkStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [walkEvent, setWalkEvent] = useState<SimulationEvent | null>(null);
   const [poopRequest, setPoopRequest] = useState(0);
   const [walkPetId, setWalkPetId] = useState<string | null>(null);
   const walkPet = mockAdoptionPets.find(pet => pet.id === walkPetId);
   const serverWalkRequested = useRef(false);
-  const dismissedWalkEvents = useRef(new Set<number>());
   const armedPoop = useRef<number | null>(null);
-  const poopEventRef = useRef<SimulationEvent | null>(null);
   const walkRoute = useWalkRoute(isFocused && walkStartedAt !== null);
   const voice = useWalkVoice(
     isFocused && hasPermission && status === 'anchored' && !bagPurchaseVisible,
@@ -273,6 +324,7 @@ export function ArWalkScreen({
         intervalSeconds = started.heartbeatIntervalSeconds;
       }
       const sessionSeq = active.sessionSeq;
+      serverWalk.current = { sessionSeq, walkSeq };
       const beat = async () => {
         try {
           const result = await sendSimulationWalkHeartbeat(sessionSeq, walkSeq);
@@ -386,14 +438,18 @@ export function ArWalkScreen({
               respond(consumeWalkBag());
               return undefined;
             }
-            return cleanUpSimulationWalkPoop(active.sessionSeq, active.walkSeq).then(() => {
-              poopEventRef.current = null;
+            return performSimulationWalkAction(active.sessionSeq, active.walkSeq, {
+              actionCode: SimulationWalkAction.CleanUpPoop,
+            }).then(result => {
+              closeResolvedWalkEvent(
+                result.resolvedEvent?.occurrenceSeq ?? poopEvent.occurrenceSeq,
+              );
               respond(consumeWalkBag());
             });
           })
           .catch(error => {
             respond(false);
-            Alert.alert('산책', getSimulationWalkEndErrorMessage(error));
+            Alert.alert('산책', getSimulationWalkActionErrorMessage(error));
           });
       }
     }

@@ -14,6 +14,7 @@ export enum SimulationCareAction {
 export enum SimulationWalkAction {
   GiveWater = 'GIVE_WATER',
   GiveSnack = 'GIVE_SNACK',
+  CleanUpPoop = 'CLEAN_UP_POOP',
 }
 
 export type SimulationCareRequest =

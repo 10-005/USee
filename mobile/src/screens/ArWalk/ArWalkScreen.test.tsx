@@ -13,8 +13,9 @@ import {
   SimulationTriggerType,
 } from '../../services/simulation/events';
 import { purchaseSimulationItems } from '../../services/simulation/purchase';
+import { SimulationWalkAction } from '../../services/simulation/actions';
 import {
-  cleanUpSimulationWalkPoop,
+  performSimulationWalkAction,
   sendSimulationWalkHeartbeat,
   startSimulationWalk,
 } from '../../services/simulation/walk';
@@ -82,7 +83,7 @@ jest.mock('../../services/simulation/walk', () => ({
     newEvent: null,
     pendingEvent: null,
   }),
-  cleanUpSimulationWalkPoop: jest.fn().mockResolvedValue(undefined),
+  performSimulationWalkAction: jest.fn().mockResolvedValue({ resolvedEvent: null }),
 }));
 jest.mock('../../services/simulation/purchase', () => ({
   ...jest.requireActual('../../services/simulation/purchase'),
@@ -126,8 +127,26 @@ beforeEach(() => {
     pendingEvent: null,
   });
   jest.mocked(purchaseSimulationItems).mockReset();
-  jest.mocked(cleanUpSimulationWalkPoop).mockReset();
-  jest.mocked(cleanUpSimulationWalkPoop).mockResolvedValue(undefined);
+  jest.mocked(performSimulationWalkAction).mockReset();
+  jest.mocked(performSimulationWalkAction).mockResolvedValue({
+    actionLogSeq: 1,
+    actionCode: SimulationWalkAction.GiveWater,
+    walkSeq: 8001,
+    consumedItem: null,
+    statDelta: {},
+    stats: {
+      satiety: 0,
+      hydration: 0,
+      cleanliness: 0,
+      bond: 0,
+      calmness: 0,
+      health: 0,
+      energy: 0,
+      calculatedDttm: '2026-11-09T10:00:00+09:00',
+    },
+    balance: 0,
+    resolvedEvent: null,
+  });
   jest.mocked(saveMockAdoptionWalk).mockReset();
   jest.mocked(endActiveSimulationWalk).mockReset();
   jest.mocked(endActiveSimulationWalk).mockResolvedValue(undefined);
@@ -496,6 +515,35 @@ test('shows a heartbeat event and starts poop only when the event is poop', asyn
   }
 });
 
+test('sends water and a snack through the walk action api', async () => {
+  jest.mocked(getActiveMockAdoption).mockResolvedValue({ ...activeSession, walkSeq: 8001 });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<ArWalkScreen />);
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.root.findAllByProps({ style: styles.screen })[0].props.onLayout({
+      nativeEvent: { layout: { width: 400, height: 800 } },
+    });
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(ArFloorView).props.onTracking({
+      nativeEvent: { status: 'anchored', visible: true, onScreen: true, canGiveCare: true },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findAllByProps({ accessibilityLabel: '물 주기' })[0].props.onPress();
+    await Promise.resolve();
+  });
+  expect(performSimulationWalkAction).toHaveBeenCalledWith(3001, 8001, {
+    actionCode: 'GIVE_WATER',
+  });
+  expect(renderer.root.findByType(ArFloorView).props.careRequest).toMatch(/^1:drink:/);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
 test('keeps the timer when the walk is already recorded for this adoption', async () => {
   jest.mocked(getActiveMockAdoption).mockResolvedValue({ ...activeSession, walkSeq: 8001 });
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -562,7 +610,7 @@ test('ends the server walk before leaving the walk screen', async () => {
 });
 
 test('covers the walk until the end request returns and ignores another leave', async () => {
-  let finish = () => undefined;
+  let finish: () => void = () => undefined;
   jest.mocked(endActiveSimulationWalk).mockImplementation(
     () =>
       new Promise(resolve => {
