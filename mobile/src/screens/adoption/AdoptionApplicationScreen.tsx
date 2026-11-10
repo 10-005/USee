@@ -366,27 +366,36 @@ function ChoiceGroup({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const columnCount = options.length === 3 ? 3 : 2;
+  const rows = Array.from({ length: Math.ceil(options.length / columnCount) }, (_, index) =>
+    options.slice(index * columnCount, (index + 1) * columnCount),
+  );
   return (
     <View style={styles.choiceGroup}>
-      {options.map(option => (
-        <Pressable
-          key={option}
-          onPress={() => onChange(option)}
-          style={[
-            styles.choice,
-            options.length === 3 ? styles.choiceThird : styles.choiceHalf,
-            value === option && styles.choiceSelected,
-          ]}
-        >
-          <Text
-            adjustsFontSizeToFit
-            minimumFontScale={0.65}
-            numberOfLines={1}
-            style={[styles.choiceText, value === option && styles.choiceTextSelected]}
-          >
-            {option}
-          </Text>
-        </Pressable>
+      {rows.map((row, rowIndex) => (
+        <View key={rowIndex} style={styles.choiceRow}>
+          {row.map(option => (
+            <Pressable
+              key={option}
+              onPress={() => onChange(option)}
+              style={[styles.choice, value === option && styles.choiceSelected]}
+            >
+              <Text
+                adjustsFontSizeToFit
+                minimumFontScale={0.65}
+                numberOfLines={1}
+                style={[styles.choiceText, value === option && styles.choiceTextSelected]}
+              >
+                {option}
+              </Text>
+            </Pressable>
+          ))}
+          {row.length < columnCount
+            ? Array.from({ length: columnCount - row.length }, (_, index) => (
+                <View key={`spacer-${index}`} style={styles.choiceSpacer} />
+              ))
+            : null}
+        </View>
       ))}
     </View>
   );
@@ -1293,19 +1302,21 @@ const styles = StyleSheet.create({
   },
   compactInput: { fontSize: 14, lineHeight: 20 },
   textArea: { height: 98, paddingTop: 14 },
-  choiceGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  choiceGroup: { gap: 8 },
+  choiceRow: { flexDirection: 'row', gap: 8 },
   choice: {
     alignItems: 'center',
     borderColor: colors.gray200,
     borderRadius: radius.md,
     borderWidth: 1,
     justifyContent: 'center',
+    flex: 1,
+    minWidth: 0,
     minHeight: 42,
     paddingHorizontal: 14,
   },
   choiceSelected: { backgroundColor: '#3DDC97', borderColor: '#3DDC97' },
-  choiceHalf: { width: '48.8%' },
-  choiceThird: { width: '31.8%' },
+  choiceSpacer: { flex: 1 },
   choiceText: {
     ...typography.bodyRegular14,
     color: colors.gray400,
