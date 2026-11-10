@@ -6,7 +6,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 
 interface MissingReportRepository {
-    /** 바로 반영한다. 회원당 ACTIVE 1건 부분 UNIQUE에 걸리면 409 MISSING_ACTIVE_ALREADY_EXISTS로 바꿔 던진다 */
+    /** 바로 반영한다 */
     fun saveAndFlush(report: MissingReport): MissingReport
 
     /** 비삭제·작성자 비탈퇴만(7.2) */
@@ -15,8 +15,6 @@ interface MissingReportRepository {
     /** 비삭제·본인 작성만(7.5~7.7) */
     fun findOwned(userSeq: Int, missingReportSeq: Int): MissingReport?
 
-    /** 회원의 비삭제 ACTIVE 신고가 있는지 */
-    fun existsActive(userSeq: Int): Boolean
 
     /** 7.1 비삭제·작성자 비탈퇴 + 필터. 정렬은 regDttm만 */
     fun search(filter: MissingSearchFilter, pageable: Pageable): Page<MissingReport>

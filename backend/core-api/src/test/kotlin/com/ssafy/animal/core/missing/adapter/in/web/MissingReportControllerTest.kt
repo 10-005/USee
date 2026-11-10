@@ -189,7 +189,6 @@ class MissingReportControllerTest {
         then(useCase).should(never()).create(anyLong(), any())
 
         listOf(
-            listOf(1L) to BusinessException(MissingErrorCode.MISSING_ACTIVE_ALREADY_EXISTS),
             listOf(2L) to BusinessException(CatalogErrorCode.CATALOG_COMBINATION_NOT_FOUND),
             listOf(3L) to BusinessException(ImageErrorCode.IMAGE_NOT_FOUND),
             listOf(4L) to BusinessException(ImageErrorCode.IMAGE_NOT_OWNED),
@@ -228,9 +227,8 @@ class MissingReportControllerTest {
     }
 
     @Test
-    fun `7_6은 상태를 바꾸고 재개 충돌은 409, 같은 상태는 400`() {
+    fun `7_6은 상태를 바꾸고 같은 상태는 400`() {
         given(useCase.changeStatus(42, 101, MissingStatus.CLOSED)).willReturn(report.also { it.changeStatus(MissingStatus.CLOSED, 42) })
-        willThrow(BusinessException(MissingErrorCode.MISSING_ACTIVE_ALREADY_EXISTS)).given(useCase).changeStatus(42, 102, MissingStatus.ACTIVE)
         willThrow(BusinessException(CommonErrorCode.COMMON_INVALID_INPUT, errors = listOf(ErrorDetail("status", "같음"))))
             .given(useCase).changeStatus(42, 103, MissingStatus.ACTIVE)
 
@@ -238,10 +236,6 @@ class MissingReportControllerTest {
             status { isOk() }
             jsonPath("$.data.missingReportSeq") { value(101) }
             jsonPath("$.data.status") { value("CLOSED") }
-        }
-        mockMvc.patch("/api/core/v1/missing-reports/102/status") { statusBody("ACTIVE") }.andExpect {
-            status { isConflict() }
-            jsonPath("$.code") { value("MISSING_ACTIVE_ALREADY_EXISTS") }
         }
         mockMvc.patch("/api/core/v1/missing-reports/103/status") { statusBody("ACTIVE") }.andExpect {
             status { isBadRequest() }

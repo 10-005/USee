@@ -7,7 +7,7 @@
 > **백엔드 스택 [확정]:** JDK 21, Spring Boot 4.1.2, Kotlin 2.3.21, JPA + QueryDSL, PostgreSQL 17, Redis 7.4, RabbitMQ(STOMP relay + 서비스 간 이벤트), AWS S3(presigned PUT), 네이버 지도 역지오코딩. OpenSearch는 도입하지 않습니다(S7). 서비스 4개: core-api(8080) / chat(8081) / notification(8082) / simulation(8083).
 
 **표기 규칙**
-- **[확정 정책]**: DB v20에서 확인되는 기능·권한·상태·제약, 또는 Q406~Q504·S1~S8 질의응답으로 확정한 사항. **[가안]**: 추천안을 채택했고 수치는 코드 설정값으로 둔 사항(플레이 테스트·운영 후 조정). **[초안]**: DTO 필드 이름·예시 값·세부 검증 등 구현 중 조정 가능한 제안. 확정 정책과 초안이 충돌하면 DB v20과 1장 공통 규약이 우선합니다. **v14에는 [미정] 항목이 없습니다.** 팀 논의 대기 항목(11장 발생장소·공고번호 등)은 20.3에 따로 모았습니다.
+- **[확정 정책]**: DB v20에서 확인되는 기능·권한·상태·제약, 또는 Q406~Q505·S1~S8 질의응답으로 확정한 사항. **[가안]**: 추천안을 채택했고 수치는 코드 설정값으로 둔 사항(플레이 테스트·운영 후 조정). **[초안]**: DTO 필드 이름·예시 값·세부 검증 등 구현 중 조정 가능한 제안. 확정 정책과 초안이 충돌하면 DB v20과 1장 공통 규약이 우선합니다. **v14에는 [미정] 항목이 없습니다.** 팀 논의 대기 항목(11장 발생장소·공고번호 등)은 20.3에 따로 모았습니다.
 - 표의 `/...` 경로는 **해당 장의 서비스 접두어**를 앞에 붙인 상대 경로입니다. core-api `/api/core/v1`(2~13·15·16장), chat `/api/chat/v1`(14장), notification `/api/notification/v1`(17장), simulation `/api/simulation/v1`(18장). **[비인증]** 표시 외에는 로그인 필수입니다.
 - 이 문서는 **클라이언트·보호소 업무 API**를 다룹니다. **ADMIN API는 이번 프로젝트 구현 범위 외**(Q410·Q411)이며 별도 장을 두지 않습니다. 내부 AI 워커 및 공공데이터 ETL 전용 API는 다루지 않습니다.
 
@@ -32,6 +32,7 @@
 | Q502 | **12.15 신청자 모의 입양 리포트 목록 구현(2026-11-10).** 보류였던 12.15(= 18.21)를 구현합니다. 담당 SHELTER가 소속 보호소의 제출된 신청서(타 보호소·DRAFT·CANCELED는 404)로 신청자의 **종료 리포트 전체**를 동물·품종과 상관없이 최근 종료 순, 페이지 없는 배열로 받습니다. 항목은 **동물 정보(가상 이름·품종)·기간(시작·종료)·총지출만**이고 상세는 `sessionSeq`로 18.18을 부릅니다(요약·상태·예상 비용은 넣지 않음). core-api가 simulation 세션·리포트를 읽기 전용 JOIN하며, 그 SELECT 권한은 스키마 소유자인 simulation Flyway가 core_app에 줍니다(서버 DB 초기화는 core_app에 simulation 권한을 주지 않음) | 12.15·18.21 |
 | Q503 | **18.9 장바구니 일괄 구매(2026-11-10).** 앱의 장바구니에서 한 번에 사도록 18.9 요청을 `{ "items": [ { itemSeq, quantity } ] }`(1~50줄)로 바꾸고 단건 본문은 대체합니다. **전부 사거나 하나도 사지 않습니다**: 세션 잠금·지연 계산 뒤 모든 줄을 먼저 검증하고(앞 줄부터, 첫 오류 응답) 통과해야 쓰므로 한 줄이라도 오류면 잔액·보유·지출이 그대로입니다. 같은 `itemSeq` 두 줄은 400(합치지 않음), 줄 단위 400의 `field`는 `items[i].quantity` 형식. 지출 내역은 물품마다 1건씩 요청 순서대로(18.11 형식·리포트 집계 유지), 응답은 `purchases[]`(종전 단건 응답 형식, `balanceAfter`는 그 물품 직후 잔액) + `totalAmount` + 최종 `balanceAfter`. DB 변경 없음 | 18.9·21.5 |
 | Q504 | **18.22 세션 스탯 전용 조회 신설(2026-11-10).** `GET /simulations/{sessionSeq}/stats`가 `{ sessionSeq, status, stats }`만 돌려줍니다(메인 화면 게이지 갱신용, 18.4의 품종·기구·이벤트 조립 생략). 권한(본인만, 그 외 404)과 지연 계산·이벤트 만료·종료 판정 저장은 18.4와 같고, **끝난 세션도 200**으로 종료 시점 스탯과 상태를 줘 앱이 상태로 리포트에 갑니다. 경로는 다른 세션 API처럼 `{sessionSeq}` 기준(진행 중 세션 바로 찾기는 18.2). DB 변경 없음 | 18.22·22장 |
+| Q505 | **회원당 ACTIVE 실종 신고 1건 제한 폐지(2026-11-10).** 한 회원이 진행 중(ACTIVE) 실종 신고를 여러 건 둘 수 있습니다(여러 마리를 잃어버린 경우 등). 7.4 등록·7.6 재개에서 다른 ACTIVE 신고를 검사하지 않고, 오류 코드 `MISSING_ACTIVE_ALREADY_EXISTS`(409)를 **삭제**합니다. AI 매칭은 종전대로 신고마다 따로 요청합니다. 7.3 내 신고 목록은 계속 페이지 없는 배열. DB: `missing_reports`의 부분 UNIQUE `uq_missing_user_active`를 Flyway로 삭제(회원별 조회는 `ix_missing_user`가 유지). Q399 선행 확인(회원당 ACTIVE 최대 1건) 대체 | 1.2·7.3·7.4·7.6·19장·22장 |
 
 ## v13 변경 요약 (v12 → v13)
 
@@ -259,8 +260,8 @@
 ```json
 {
   "status": 409,
-  "code": "MISSING_ACTIVE_ALREADY_EXISTS",
-  "message": "이미 진행 중인 실종 신고가 있습니다.",
+  "code": "MISSING_REPORT_CLOSED",
+  "message": "종료된 실종 신고는 수정할 수 없습니다. 먼저 재개해 주세요.",
   "data": null,
   "errors": [],
   "traceId": "4f2c9e1a7b3d4c5e"
@@ -669,7 +670,7 @@ v4의 `POST /files/upload-urls`(입양 수료증 비공개 업로드)는 **수�
 
 ### 7.3 GET /missing-reports/me
 
-**요청 [확정 정책] (Q464)** 파라미터 없음(보내도 무시). 범위는 토큰 `userSeq`가 작성한 **비삭제** 신고 전체(ACTIVE·CLOSED 모두). 회원당 ACTIVE 1건 정책상 건수가 적어 페이지네이션·필터·정렬 파라미터를 두지 않습니다.
+**요청 [확정 정책] (Q464)** 파라미터 없음(보내도 무시). 범위는 토큰 `userSeq`가 작성한 **비삭제** 신고 전체(ACTIVE·CLOSED 모두). 회원 한 명이 쓰는 신고는 많지 않아 페이지네이션·필터·정렬 파라미터를 두지 않습니다(Q505로 ACTIVE 건수 제한이 없어져도 유지).
 
 **성공 200 `data:[...]` [초안]** `Page<T>`가 아닌 **배열**. 각 항목은 7.1 목록 필드와 동일하며 **`regDttm desc` 고정**(동률은 PK desc). 신고가 없으면 빈 배열.
 
@@ -701,16 +702,16 @@ v4의 `POST /files/upload-urls`(입양 수료증 비공개 업로드)는 **수�
 - 실종 주소/좌표/시각/연락처/유효 조합/성별/사진 1~3장을 검증합니다. `contactPhone`은 회원 전화번호로 초기 제안하되 신고별로 수정 가능. **USER만 작성**(Q421).
 - **[확정 정책] 주소·좌표(Q467):** `address`·`latitude`·`longitude`는 앱이 5.6 주소 검색 프록시의 후보에서 고른 값(또는 지도 핀)을 그대로 보냅니다. 서버가 주소를 좌표로 바꾸지 않으며, 상세 주소 텍스트 필드는 받지 않습니다(대략적 위치만).
 - **[확정 정책] 행정구역 코드(Q406 A):** 서버가 좌표를 네이버 역지오코딩(`legalcode`)으로 조회해 앞 5자리를 `districtCode`에 저장합니다. 실패하면 `null`로 저장하고 등록은 그대로 진행합니다(Q406-2). 앱이 코드를 보내지 않습니다.
-- **[확정 정책]** 작성 USER당 비삭제 ACTIVE 실종 신고 최대 1건. 최초 등록/재개 시 유효한 발견 신고·보호동물과 AI 매칭 후보. 서버 트랜잭션과 부분 UNIQUE로 경합 차단.
-- **오류 [초안]** 409 `MISSING_ACTIVE_ALREADY_EXISTS`; 404 `CATALOG_COMBINATION_NOT_FOUND`, `IMAGE_NOT_FOUND`; 403 `IMAGE_NOT_OWNED`(Q407); 400 `IMAGE_INVALID_COUNT`.
+- **[확정 정책]** 작성 USER는 비삭제 ACTIVE 실종 신고를 **건수 제한 없이** 여러 건 둘 수 있습니다(Q505, 종전 회원당 1건·부분 UNIQUE 폐지). 최초 등록/재개 시 유효한 발견 신고·보호동물과 AI 매칭 후보이며, 신고마다 따로 매칭합니다.
+- **오류 [초안]** 404 `CATALOG_COMBINATION_NOT_FOUND`, `IMAGE_NOT_FOUND`; 403 `IMAGE_NOT_OWNED`(Q407); 400 `IMAGE_INVALID_COUNT`.
 
 ### 7.5 PATCH /missing-reports/{id} · 7.6 PATCH /.../status · 7.7 DELETE /...
 
 - `7.5` **요청 [초안]** 변경 가능한 7.4 필드 일부(`weight` 포함, 자유 텍스트 Q469) + `imageSeqs`(전체 최종 배열, Q424). 상태는 별도 7.6 호출. 성공 200은 7.2 상세 DTO(6.4와 같은 규칙). 좌표·주소를 바꾸면 `districtCode`를 **재도출**합니다. 위치 수정은 **발견 신고와 달리 자동 보호소 배정 대상 자체가 아닙니다.** 이미지 배열에 diff가 있으면 AI 재매칭 요청. **[확정 정책] CLOSED는 읽기 전용(Q425 B):** `status=CLOSED`인 신고에 7.5를 호출하면 409 `MISSING_REPORT_CLOSED`이며, 고치려면 먼저 7.6으로 ACTIVE 재개합니다. 작성자 본인만(Q423).
-- `7.6` **요청 [초안]** `{ "status":"CLOSED" }` 또는 `{ "status":"ACTIVE" }`. 성공 200 `data:{missingReportSeq,status}`. ACTIVE 재개 시 다른 ACTIVE 신고가 있으면 409 `MISSING_ACTIVE_ALREADY_EXISTS`. 실종 신고의 종료 사유/종료 시각 API 필드는 **없습니다**. 작성자 본인만.
+- `7.6` **요청 [초안]** `{ "status":"CLOSED" }` 또는 `{ "status":"ACTIVE" }`. 성공 200 `data:{missingReportSeq,status}`. 다른 ACTIVE 신고가 있어도 재개할 수 있습니다(Q505). 실종 신고의 종료 사유/종료 시각 API 필드는 **없습니다**. 작성자 본인만.
 - `7.7` 성공 **204**(본문 없음, Q450). [확정 정책] 논리 삭제(ACTIVE·CLOSED 모두 가능); AI 대상 제외, 사진은 마지막 참조 해제 시만 정리. 작성자 본인만.
 - 신고/보호동물 반환, 발견/구조 완료를 이유로 실종 신고가 자동 종료되지는 않습니다.
-- **오류 [초안]** 7.5~7.7 공통 404 `MISSING_REPORT_NOT_FOUND`(없음·삭제·**타인 신고**, Q434). 7.5: 409 `MISSING_REPORT_CLOSED`, 404 `CATALOG_COMBINATION_NOT_FOUND`·`IMAGE_NOT_FOUND`, 403 `IMAGE_NOT_OWNED`, 400 `IMAGE_INVALID_COUNT`. 7.6: 409 `MISSING_ACTIVE_ALREADY_EXISTS`(재개), 400 `COMMON_INVALID_INPUT`(현재와 같은 상태).
+- **오류 [초안]** 7.5~7.7 공통 404 `MISSING_REPORT_NOT_FOUND`(없음·삭제·**타인 신고**, Q434). 7.5: 409 `MISSING_REPORT_CLOSED`, 404 `CATALOG_COMBINATION_NOT_FOUND`·`IMAGE_NOT_FOUND`, 403 `IMAGE_NOT_OWNED`, 400 `IMAGE_INVALID_COUNT`. 7.6: 400 `COMMON_INVALID_INPUT`(현재와 같은 상태).
 
 ---
 
@@ -2402,7 +2403,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `CATALOG_` (주소 검색, Q467) | `CATALOG_GEOCODE_UNAVAILABLE` | 503 | 5.6에서 네이버 Geocoding 호출 실패·타임아웃(결과 0건은 오류가 아니라 빈 배열) |
 | `USER_` (반려동물, Q452) | `USER_PET_NOT_FOUND` | 404 | 없음·삭제·**타인 소유**(Q434; `PET_NOT_OWNED` 삭제, v4에서 `PET_NOT_FOUND` 개명). 6장 전용이며 7.4에서는 더 이상 발생하지 않음(Q466) |
 | `MISSING_` | `MISSING_REPORT_NOT_FOUND` | 404 | 없음·삭제·비노출·**타인 신고**(Q434) |
-| `MISSING_` | `MISSING_ACTIVE_ALREADY_EXISTS`, `MISSING_REPORT_CLOSED` | 409 | 회원당 ACTIVE 1건 제약 위반 / CLOSED 본문 수정(Q425) |
+| `MISSING_` | `MISSING_REPORT_CLOSED` | 409 | CLOSED 본문 수정(Q425). `MISSING_ACTIVE_ALREADY_EXISTS`는 Q505로 삭제 |
 | `FOUND_` | `FOUND_REPORT_NOT_FOUND`, `FOUND_REPORT_CLOSED`, `FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE` | 404/409/409 | 없음·삭제·**타인 신고**(8.6은 작성자·담당 보호소 외, Q434) / CLOSED 본문 수정 / 비삭제 보호소가 하나도 없음 |
 | `SHELTER_` | `SHELTER_NOT_FOUND` | 404 | 보호소 없음·삭제(`SHELTER_NOT_OWNED`는 토큰 기반이라 발생 경로 없어 삭제, Q442) |
 | `RESCUE_` | `RESCUE_ACTIVE_ALREADY_EXISTS` | 409 | 동일 발견 PROCESSING/DONE 1건 제약 |
@@ -2444,7 +2445,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `FILE_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `INVALID_IMAGE_COUNT` | `IMAGE_TOO_LARGE`, `IMAGE_UNSUPPORTED_TYPE`, `IMAGE_INVALID_COUNT` |
 | `INVALID_KAKAO_TOKEN`, `INVALID_CREDENTIALS`, `INVALID_REFRESH_TOKEN`, `INVALID_REGISTRATION_CONTEXT`, `KAKAO_ACCOUNT_CONFLICT` | `AUTH_` 접두어 |
 | `DUPLICATE_NICKNAME`, `DUPLICATE_PHONE`, `REQUIRED_USER_PROFILE_MISSING` | `USER_DUPLICATE_NICKNAME`, `USER_DUPLICATE_PHONE`, `USER_REQUIRED_PROFILE_MISSING` |
-| `ACTIVE_MISSING_REPORT_ALREADY_EXISTS` | `MISSING_ACTIVE_ALREADY_EXISTS` |
+| `ACTIVE_MISSING_REPORT_ALREADY_EXISTS` | `MISSING_ACTIVE_ALREADY_EXISTS`(Q505로 삭제) |
 | `SHELTER_ASSIGNMENT_UNAVAILABLE` | `FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE` |
 | `ACTIVE_RESCUE_ALREADY_EXISTS`, `INVALID_RESCUE_TRANSITION` | `RESCUE_ACTIVE_ALREADY_EXISTS`, `RESCUE_INVALID_TRANSITION` |
 | `SHELTER_ANIMAL_NOT_FOUND`, `INVALID_ANIMAL_STATUS_COMBINATION` | `ANIMAL_NOT_FOUND`, `ANIMAL_INVALID_STATUS_COMBINATION` |
@@ -2653,6 +2654,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | Q502 12.15 구현 (2026-11-10) | 담당 SHELTER, 제출된 신청서만(그 외 404), 신청자의 종료 리포트 전체를 최근 종료 순 배열로. 항목은 sessionSeq·animalName·breed·startedDttm·endedDttm·totalSpent. simulation Flyway가 core_app에 세션·리포트 SELECT 권한 부여 | 12.15·18.21 |
 | Q503 18.9 장바구니 구매 (2026-11-10) | 요청 `items[]`(1~50줄, 같은 물품 중복 400), 전부 또는 없음(모든 줄 검증 후 쓰기), 지출은 물품마다 1건씩 요청 순서, 응답 `purchases[]`·`totalAmount`·`balanceAfter`. DB 변경 없음 | 18.9·21.5 |
 | Q504 18.22 스탯 전용 조회 (2026-11-10) | `GET /simulations/{sessionSeq}/stats` → `{ sessionSeq, status, stats }`. 본인만(그 외 404), 18.4와 같은 지연 계산·종료 판정 저장, 끝난 세션도 200(종료 시점 스탯). DB 변경 없음 | 18.22·22장 |
+| Q505 회원당 ACTIVE 실종 신고 제한 폐지 (2026-11-10) | 7.4 등록·7.6 재개에서 다른 ACTIVE 신고 검사 삭제, `MISSING_ACTIVE_ALREADY_EXISTS` 삭제. DB `uq_missing_user_active` 삭제(`V20261110_1700`). Q399 선행 확인 대체 | 7.4·7.6·19장 |
 
 ### 20.2 미결 안건
 
@@ -2763,7 +2765,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `animal_species`, `animal_breeds`, `animal_colors`, `animal_combinations` | core / core-api(시드만) | 5·18 | 조합 FK 한 개로 저장. `species_code DOG/CAT/ETC`(M8), `breeds.personality` **NOT NULL**·`breeds.representative_image_seq` FK→`images`(품종당 1장, 시드, Q482). simulation이 모의 입양 시작·표시용으로 읽기 전용 |
 | `pets`, `pet_images` | core / core-api(`user` 패키지, Q452) | 6 | 사진 1~3장. 실종 신고와 FK 연결 없음(Q466). 경로 `/users/me/pets` |
 | `images` | core / core-api | 3·4·5·6~11·13·14·18 | `reg_usr_seq` 업로더(Q407), 마지막 참조 해제 후 원본 best-effort 삭제(Q427). chat은 `chat_messages.image_seq` 연결 행만 쓰고 `images` 행은 core-api만 생성. 품종 대표 이미지(`animal_breeds.representative_image_seq`, 시드·`reg_usr_seq` NULL)는 참조 정리 대상이 아니며 simulation이 읽기 전용(Q482) |
-| `missing_reports`, `missing_report_images` | core / core-api | 7·17 | 회원당 ACTIVE 최대 1건, `district_code`(Q406), CLOSED 읽기 전용(Q425), AI 알림 기준. `name`·`pet_seq` 없음(Q465·Q466). `weight` 자유 텍스트(Q469) |
+| `missing_reports`, `missing_report_images` | core / core-api | 7·17 | 회원당 ACTIVE 건수 제한 없음(Q505), `district_code`(Q406), CLOSED 읽기 전용(Q425), AI 알림 기준. `name`·`pet_seq` 없음(Q465·Q466). `weight` 자유 텍스트(Q469) |
 | `found_reports`, `found_report_images` | core / core-api | 8·10·17 | `district_code` 도출 → 매핑/최근접 자동 배정, 수동 재배정 API 없음, CLOSED 읽기 전용. `weight` 자유 텍스트(Q469) |
 | `rescue_records` | core / core-api | 10·11 | DONE 1:N 보호동물, 구조 정보 JOIN. SHELTER 전용 생성. 사유 코드 4종·장소·`rescued_dttm` 접수 시 필수(Q461) |
 | `shelter_animals`, `shelter_animal_images` | core / core-api | 11·12·18 | 최초 PROTECTING(입양 가능 여부·공고기간은 등록 시 선택, Q479), 이름 없음. `weight`(Q458 신설, Q469로 자유 텍스트)·`registration_number`(Q458)·`adoption_reason`·`adoption_memo`(Q479). 상태·공고기간은 11.6 관리 API, 어느 상태에서든 전환. 모의 입양과 연결 없음(Q482, simulation이 읽지 않음) |

@@ -42,6 +42,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -59,8 +60,6 @@ class MissingReportServiceTest {
         override fun findVisible(missingReportSeq: Int) = reports[missingReportSeq]?.takeUnless { it.isDeleted }
         override fun findOwned(userSeq: Int, missingReportSeq: Int) =
             reports[missingReportSeq]?.takeIf { it.userSeq == userSeq && !it.isDeleted }
-        override fun existsActive(userSeq: Int) =
-            reports.values.any { it.userSeq == userSeq && it.status == MissingStatus.ACTIVE && !it.isDeleted }
         override fun search(filter: MissingSearchFilter, pageable: Pageable) =
             PageImpl(reports.values.filterNot { it.isDeleted }, pageable, reports.size.toLong())
         override fun findMine(userSeq: Int) = reports.values.filter { it.userSeq == userSeq && !it.isDeleted }
@@ -173,11 +172,20 @@ class MissingReportServiceTest {
     }
 
     @Test
-    fun `7_4 회원당 ACTIVE 1건, 사진·조합 검증, 실패하면 이벤트 없음`() {
+    fun `7_4 진행 중 신고가 있어도 회원은 여러 건을 등록하고 각각 매칭을 요청한다(Q505)`() {
+        val first = create()
+        val second = create()
+
+        assertNotEquals(first, second)
+        assertEquals(listOf(MissingStatus.ACTIVE, MissingStatus.ACTIVE), service.getMine(1).map { it.report.status })
+        assertEquals(2, events.count { it is MatchRequested })
+    }
+
+    @Test
+    fun `7_4 사진·조합 검증, 실패하면 이벤트 없음`() {
         create()
         events.clear()
 
-        assertFails(MissingErrorCode.MISSING_ACTIVE_ALREADY_EXISTS) { create() }
         assertFails(MissingErrorCode.IMAGE_INVALID_COUNT) { create(2, command(emptyList())) }
         assertFails(CommonErrorCode.COMMON_INVALID_INPUT) { create(2, command(listOf(2001, 2001))) }
         assertFails(ImageErrorCode.IMAGE_NOT_OWNED) { create(2, command(listOf(1001))) }
@@ -260,23 +268,22 @@ class MissingReportServiceTest {
     }
 
     @Test
-    fun `7_6 같은 상태는 400, 다른 ACTIVE가 있으면 재개 409, 재개하면 매칭 요청`() {
+    fun `7_6 같은 상태는 400, 다른 ACTIVE가 있어도 재개하고 매칭을 요청한다`() {
         val first = create().toLong()
         assertFails(CommonErrorCode.COMMON_INVALID_INPUT) { service.changeStatus(1, first, MissingStatus.ACTIVE) }
         assertEquals(MissingStatus.CLOSED, service.changeStatus(1, first, MissingStatus.CLOSED).status)
         val second = create().toLong()
 
-        assertFails(MissingErrorCode.MISSING_ACTIVE_ALREADY_EXISTS) { service.changeStatus(1, first, MissingStatus.ACTIVE) }
         assertFails(MissingErrorCode.MISSING_REPORT_NOT_FOUND) { service.changeStatus(2, second, MissingStatus.CLOSED) }
 
-        service.changeStatus(1, second, MissingStatus.CLOSED)
         events.clear()
         service.changeStatus(1, first, MissingStatus.ACTIVE)
         assertEquals(MatchEventType.MISSING_REPORT_REGISTERED, (events.single() as MatchRequested).eventType)
+        assertEquals(setOf(MissingStatus.ACTIVE), service.getMine(1).map { it.report.status }.toSet())
     }
 
     @Test
-    fun `7_7 소프트 삭제 후 사진 정리, 이후 조회 404, 삭제 신고는 ACTIVE 1건에 안 걸린다`() {
+    fun `7_7 소프트 삭제 후 사진 정리, 이후 조회 404`() {
         val seq = create().toLong()
 
         service.delete(1, seq)
@@ -286,6 +293,5 @@ class MissingReportServiceTest {
         assertFails(MissingErrorCode.MISSING_REPORT_NOT_FOUND) { service.get(1, seq) }
         assertFails(MissingErrorCode.MISSING_REPORT_NOT_FOUND) { service.delete(1, seq) }
         assertFalse(service.getMine(1).any { it.report.missingReportSeq == seq.toInt() })
-        create()
     }
 }
