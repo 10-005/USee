@@ -2,7 +2,7 @@ export const simulationReports = [
   {
     id: 'choco-20261108',
     applicationId: 'A-1029-01',
-    animal: '초코 (말티즈)',
+    animal: '[개] 말티즈 · 초코',
     temperament: '친화적인 강아지',
     start: '2026.11.01 14:00',
     end: '2026.11.08 14:00',

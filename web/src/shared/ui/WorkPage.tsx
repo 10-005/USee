@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
-import { ShelterPageLayout } from '@/app/layouts/ShelterPageLayout';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import '@/shared/styles/work-pages.css';
 
@@ -24,42 +23,40 @@ export function WorkPage({
   hideTitle?: boolean;
 }) {
   return (
-    <ShelterPageLayout>
-      <div
-        className={`work-page ${narrow ? 'work-page--narrow' : ''} ${hideTitle ? 'work-page--list' : ''}`}
-      >
-        {back && (
-          <Link className="work-page__back" to={back}>
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path
-                d="m14 6-6 6 6 6"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            {backLabel}
-          </Link>
-        )}
-        {titleAction || titleDescription ? (
-          <div className="work-page__title-row">
-            {titleDescription ? (
-              <div className="work-page__title-group">
-                <h1>{title}</h1>
-                {titleDescription}
-              </div>
-            ) : (
+    <div
+      className={`work-page ${narrow ? 'work-page--narrow' : ''} ${hideTitle ? 'work-page--list' : ''}`}
+    >
+      {back && (
+        <Link className="work-page__back" to={back}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path
+              d="m14 6-6 6 6 6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          {backLabel}
+        </Link>
+      )}
+      {titleAction || titleDescription ? (
+        <div className="work-page__title-row">
+          {titleDescription ? (
+            <div className="work-page__title-group">
               <h1>{title}</h1>
-            )}
-            {titleAction}
-          </div>
-        ) : (
-          <h1 className={hideTitle ? 'shelter-sr-only' : undefined}>{title}</h1>
-        )}
-        {children}
-      </div>
-    </ShelterPageLayout>
+              {titleDescription}
+            </div>
+          ) : (
+            <h1>{title}</h1>
+          )}
+          {titleAction}
+        </div>
+      ) : (
+        <h1 className={hideTitle ? 'shelter-sr-only' : undefined}>{title}</h1>
+      )}
+      {children}
+    </div>
   );
 }
 export function RecordBadge({ status, children }: { status: string; children?: ReactNode }) {

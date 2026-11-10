@@ -1,3 +1,4 @@
+import { AnimalPhoto } from '@/shared/ui/AnimalPhoto';
 import locationIcon from '@/shared/assets/icons/location.svg';
 import calendarIcon from '@/shared/assets/icons/calendar-check.svg';
 import './shelter-ui.css';
@@ -35,7 +36,7 @@ export function AnimalCard({
   return (
     <button type="button" className="animal-card" onClick={onClick}>
       <span className="animal-card__image">
-        <img src={imageSrc} alt={imageAlt} />
+        <AnimalPhoto src={imageSrc} alt={imageAlt} />
         <span className={`animal-card__status animal-card__status--${status}`}>
           {statusLabels[status]}
         </span>

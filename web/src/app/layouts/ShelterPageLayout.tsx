@@ -1,10 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
 import { useProfile } from '@/entities/shelter/data';
+import { profileOptions } from '@/entities/shelter/data/profile';
+import { demoMode } from '@/shared/config/demo';
+import { useQuery } from '@tanstack/react-query';
 import { ShelterLayout } from '@/shared/ui/ShelterLayout';
 import { ShelterHeader } from '@/shared/ui/ShelterHeader';
+import { LiveChatSidebar } from './LiveChatSidebar';
 import { ChatSidebar } from '@/shared/ui/ChatSidebar';
-import shelterAvatar from '@/shared/assets/figma/shelter-avatar.png';
+import { ShelterPhoto } from '@/shared/ui/ShelterPhoto';
 import {
   useChatOpen,
   useSetChatOpen,
@@ -15,15 +19,42 @@ import {
 } from '@/entities/chat/data';
 import './shelter-page.css';
 
-export function ShelterPageLayout({ children }: { children: ReactNode }) {
+function DemoIdentity() {
   const profile = useProfile();
-  const navigate = useNavigate();
+  return <HeaderIdentity name={profile.name} image={profile.profileImage} />;
+}
+function LiveIdentity() {
+  const { data } = useQuery(profileOptions);
+  return <HeaderIdentity name={data?.name ?? '마이페이지'} image={data?.profileImage} />;
+}
+function HeaderIdentity({ name, image }: { name: string; image?: string }) {
+  return (
+    <Link to="/profile" className="profile-identity" aria-label="마이페이지">
+      <ShelterPhoto kind="profileImage" src={image} alt="" width="36" height="36" />
+      <span>{name}</span>
+    </Link>
+  );
+}
+function DemoChatSidebar() {
   const chatOpen = useChatOpen();
   const setChatOpen = useSetChatOpen();
   const selectedChat = useSelectedChatId();
   const showChatList = useShowChatList();
   const conversations = useConversations();
   const openConversation = useOpenConversation();
+  return (
+    <ChatSidebar
+      open={chatOpen}
+      onOpenChange={setChatOpen}
+      conversations={conversations}
+      selectedId={selectedChat}
+      onSelect={openConversation}
+      onBack={showChatList}
+    />
+  );
+}
+export function ShelterPageLayout({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
   const [showBackToTop, setShowBackToTop] = useState(false);
   useEffect(() => {
     const updateVisibility = () => setShowBackToTop(window.scrollY > 80);
@@ -64,25 +95,11 @@ export function ShelterPageLayout({ children }: { children: ReactNode }) {
                   <NavLink to="/reports">발견 신고 목록</NavLink>
                 </>
               }
-              profile={
-                <Link to="/profile" className="profile-identity" aria-label="마이페이지">
-                  <img src={profile.profileImage ?? shelterAvatar} alt="" width="36" height="36" />
-                  <span>{profile.name}</span>
-                </Link>
-              }
+              profile={demoMode ? <DemoIdentity /> : <LiveIdentity />}
             />
           </div>
         }
-        sidebar={
-          <ChatSidebar
-            open={chatOpen}
-            onOpenChange={setChatOpen}
-            conversations={conversations}
-            selectedId={selectedChat}
-            onSelect={openConversation}
-            onBack={showChatList}
-          />
-        }
+        sidebar={demoMode ? <DemoChatSidebar /> : <LiveChatSidebar />}
       >
         {children}
         {showBackToTop && (

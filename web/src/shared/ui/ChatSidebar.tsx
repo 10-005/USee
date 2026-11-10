@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import mascot from '@/shared/assets/chat-peek.png';
 import chevron from '@/shared/assets/icons/sidebar-chevron.svg';
 import { ChatRoom } from './ChatRoom';
@@ -18,6 +18,11 @@ export type ChatSidebarProps = {
   conversations: ChatSummary[];
   onSelect: (id: string) => void;
   selectedId?: string;
+  roomView?: ReactNode;
+  listFooter?: ReactNode;
+  listStatus?: ReactNode;
+  totalUnread?: number;
+  onFilterChange?: (unread: boolean) => void;
   onBack?: () => void;
 };
 
@@ -27,12 +32,18 @@ export function ChatSidebar({
   conversations,
   onSelect,
   selectedId,
+  roomView,
+  listFooter,
+  listStatus,
+  totalUnread,
+  onFilterChange,
   onBack,
 }: ChatSidebarProps) {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const panelId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
-  const unreadCount = conversations.reduce((sum, item) => sum + Math.max(0, item.unreadCount), 0);
+  const unreadCount =
+    totalUnread ?? conversations.reduce((sum, item) => sum + Math.max(0, item.unreadCount), 0);
   const visible = unreadOnly ? conversations.filter((item) => item.unreadCount > 0) : conversations;
   const selected = conversations.find((item) => item.id === selectedId);
   return (
@@ -64,57 +75,76 @@ export function ChatSidebar({
         <img className={open ? 'chat-sidebar__chevron--open' : ''} src={chevron} alt="" />
       </button>
       <div id={panelId} inert={!open} aria-hidden={!open} className="chat-sidebar__panel">
-        {selected && onBack ? (
-          <ChatRoom key={selected.id} chat={selected} onBack={onBack} />
-        ) : (
-          <>
-            <div className="chat-sidebar__filters" role="group" aria-label="채팅 필터">
-              <button type="button" aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>
-                전체
-              </button>
-              <button type="button" aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>
-                안 읽음 <span className="chat-unread">{unreadCount}</span>
-              </button>
-            </div>
-            {visible.length ? (
-              <ul className="chat-sidebar__list">
-                {visible.map((item) => (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      className="chat-summary"
-                      aria-pressed={selectedId === item.id}
-                      onClick={() => onSelect(item.id)}
-                    >
-                      <img src={item.avatarSrc} alt="" width="60" height="60" />
-                      <span className="chat-summary__body">
-                        <span className="chat-summary__line">
-                          <strong>{item.name}</strong>
-                          <time>{item.timeLabel}</time>
+        {roomView ??
+          (selected && onBack ? (
+            <ChatRoom key={selected.id} chat={selected} onBack={onBack} />
+          ) : (
+            <>
+              <div className="chat-sidebar__filters" role="group" aria-label="채팅 필터">
+                <button
+                  type="button"
+                  aria-pressed={!unreadOnly}
+                  onClick={() => {
+                    setUnreadOnly(false);
+                    onFilterChange?.(false);
+                  }}
+                >
+                  전체
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={unreadOnly}
+                  onClick={() => {
+                    setUnreadOnly(true);
+                    onFilterChange?.(true);
+                  }}
+                >
+                  안 읽음 <span className="chat-unread">{unreadCount}</span>
+                </button>
+              </div>
+              {listStatus}
+              {visible.length ? (
+                <ul className="chat-sidebar__list">
+                  {visible.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        className="chat-summary"
+                        aria-pressed={selectedId === item.id}
+                        onClick={() => onSelect(item.id)}
+                      >
+                        <img src={item.avatarSrc} alt="" width="60" height="60" />
+                        <span className="chat-summary__body">
+                          <span className="chat-summary__line">
+                            <strong>{item.name}</strong>
+                            <time>{item.timeLabel}</time>
+                          </span>
+                          <span className="chat-summary__line">
+                            <span className="chat-summary__preview">{item.preview}</span>
+                            {item.unreadCount > 0 && (
+                              <span
+                                className="chat-unread"
+                                aria-label={`안 읽음 ${item.unreadCount}개`}
+                              >
+                                {item.unreadCount}
+                              </span>
+                            )}
+                          </span>
                         </span>
-                        <span className="chat-summary__line">
-                          <span className="chat-summary__preview">{item.preview}</span>
-                          {item.unreadCount > 0 && (
-                            <span
-                              className="chat-unread"
-                              aria-label={`안 읽음 ${item.unreadCount}개`}
-                            >
-                              {item.unreadCount}
-                            </span>
-                          )}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="shelter-empty" role="status">
-                표시할 대화가 없습니다.
-              </p>
-            )}
-          </>
-        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                !listStatus && (
+                  <p className="shelter-empty" role="status">
+                    표시할 대화가 없습니다.
+                  </p>
+                )
+              )}
+              {listFooter}
+            </>
+          ))}
       </div>
     </aside>
   );

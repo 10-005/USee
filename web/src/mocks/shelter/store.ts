@@ -1,3 +1,4 @@
+import { shelterAnimalLabel } from '@/entities/shelter/animal-label';
 import { create } from 'zustand';
 import { demoAnimals, initialAdoptions, initialRescues } from './fixtures';
 import type { ShelterStore } from '@/entities/shelter/store-types';
@@ -19,7 +20,9 @@ export const useShelterDemo = create<ShelterStore>((set) => ({
   saveAnimal: (animal) =>
     set((s) => ({
       adoptions: s.adoptions.map((a) =>
-        a.animalId === animal.id ? { ...a, name: animal.name, image: animal.imageSrc } : a,
+        a.animalId === animal.id
+          ? { ...a, name: shelterAnimalLabel(animal), image: animal.imageSrc }
+          : a,
       ),
       animals: s.animals.some((a) => a.id === animal.id)
         ? s.animals.map((a) => (a.id === animal.id ? animal : a))

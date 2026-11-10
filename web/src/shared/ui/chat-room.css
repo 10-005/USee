@@ -347,3 +347,54 @@
 .chat-room__reasons input {
   accent-color: #fa705b;
 }
+.chat-room__header > .chat-room__profile-name {
+  justify-self: center;
+  max-width: 100%;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+}
+.chat-profile__trigger {
+  align-self: flex-start;
+  display: flex;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+.chat-profile__identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 4px;
+  overflow-wrap: anywhere;
+}
+.chat-profile__identity img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.chat-profile__applications h3 {
+  font-size: 14px;
+  margin: 20px 0 8px;
+}
+.chat-profile__applications a {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-top: 1px solid var(--ui-border);
+  color: inherit;
+  text-decoration: none;
+}
+.chat-profile__applications a:hover {
+  background: var(--action-soft-bg);
+}
+.chat-profile__applications span {
+  font-size: 13px;
+  color: var(--ui-muted);
+}

@@ -1,3 +1,4 @@
+import { AnimalPhoto } from '@/shared/ui/AnimalPhoto';
 import { Link } from 'react-router';
 import { InfoRows, RecordBadge } from '@/shared/ui/WorkPage';
 import type { Rescue } from '@/entities/shelter/model';
@@ -15,7 +16,7 @@ export function LinkedRescueCard({
       to={`/rescues/${rescue.id}`}
       aria-label={`${rescue.id} 구조 상세보기`}
     >
-      <img src={rescue.image} alt={rescue.name} />
+      <AnimalPhoto src={rescue.image} alt={rescue.name} />
       <div className="linked-rescue-card__content">
         <div className="linked-rescue-card__heading">
           <strong>{rescue.id}</strong>

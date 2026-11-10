@@ -1,5 +1,8 @@
+import { hasSession, sessionEvent } from '@/shared/api/session';
+import { useSyncExternalStore } from 'react';
 import { demoMode } from '@/shared/config/demo';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router';
+import { ShelterPageLayout } from '@/app/layouts/ShelterPageLayout';
 import { AppLayout } from '@/app/layouts/AppLayout';
 import { HomePage } from '@/pages/home/HomePage';
 import { NotFoundPage } from '@/pages/not-found/NotFoundPage';
@@ -28,37 +31,50 @@ const ShelterPreviewPage = import.meta.env.DEV
     )
   : null;
 
+function subscribeSession(update: () => void) {
+  window.addEventListener(sessionEvent, update);
+  return () => window.removeEventListener(sessionEvent, update);
+}
 export function App() {
   useLocation();
+  const authenticated = useSyncExternalStore(subscribeSession, hasSession);
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route
         element={
-          demoMode && sessionStorage.getItem('usee-demo-login') === 'true' ? (
+          (demoMode ? sessionStorage.getItem('usee-demo-login') === 'true' : authenticated) ? (
             <Outlet />
           ) : (
             <Navigate to="/login" replace />
           )
         }
       >
-        <Route index element={<HomePage />} />
-        <Route path="/animals" element={<AnimalsPage />} />
-        <Route path="/animals/new" element={<AnimalFormPage />} />
-        <Route path="/animals/:id" element={<AnimalDetailPage />} />
-        <Route path="/animals/:id/edit" element={<AnimalFormPage />} />
-        <Route path="/adoptions" element={<RecordsPage kind="adoptions" />} />
-        <Route path="/adoptions/:id" element={<AdoptionDetailPage />} />
         <Route
-          path="/adoptions/:id/simulation-reports/:reportId?"
-          element={<SimulationReportsPage />}
-        />
-        <Route path="/rescues" element={<RecordsPage kind="rescues" />} />
-        <Route path="/rescues/new" element={<RescueFormPage />} />
-        <Route path="/rescues/:id" element={<RescueDetailPage />} />
-        <Route path="/rescues/:id/edit" element={<RescueFormPage />} />
-        <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
+          element={
+            <ShelterPageLayout>
+              <Outlet />
+            </ShelterPageLayout>
+          }
+        >
+          <Route index element={<HomePage />} />
+          <Route path="/animals" element={<AnimalsPage />} />
+          <Route path="/animals/new" element={<AnimalFormPage />} />
+          <Route path="/animals/:id" element={<AnimalDetailPage />} />
+          <Route path="/animals/:id/edit" element={<AnimalFormPage />} />
+          <Route path="/adoptions" element={<RecordsPage kind="adoptions" />} />
+          <Route path="/adoptions/:id" element={<AdoptionDetailPage />} />
+          <Route
+            path="/adoptions/:id/simulation-reports/:reportId?"
+            element={<SimulationReportsPage />}
+          />
+          <Route path="/rescues" element={<RecordsPage kind="rescues" />} />
+          <Route path="/rescues/new" element={<RescueFormPage />} />
+          <Route path="/rescues/:id" element={<RescueDetailPage />} />
+          <Route path="/rescues/:id/edit" element={<RescueFormPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+        </Route>
         {UiPreviewPage && (
           <Route
             path="/dev/ui"

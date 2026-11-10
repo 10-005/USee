@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { logout } from '@/shared/api/session';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { profileOptions, updateProfile, type ProfileFiles } from '@/entities/shelter/data/profile';
+import { createImageUploader } from '@/shared/api/image-upload';
+import { LoadStateMessage } from '@/shared/ui/LoadState';
+import { demoMode } from '@/shared/config/demo';
 import { Link } from 'react-router';
 import { WorkPage, InfoRows } from '@/shared/ui/WorkPage';
 import { useProfile, useSaveProfile } from '@/entities/shelter/data';
@@ -6,9 +12,8 @@ import type { ShelterProfile } from '@/entities/shelter/model';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
-import banner from '@/shared/assets/figma/shelter-banner.png';
+import { ShelterPhoto } from '@/shared/ui/ShelterPhoto';
 import { isSupportedImage } from '@/shared/lib/image';
-import avatar from '@/shared/assets/figma/shelter-avatar.png';
 import './profile.css';
 
 type ImageKind = 'bannerImage' | 'profileImage';
@@ -21,9 +26,9 @@ function ProfileImage({
   onBusyChange,
 }: {
   kind: ImageKind;
-  src: string;
+  src?: string;
   editing: boolean;
-  onChange: (value: string) => void;
+  onChange: (value: string, file: File) => void;
   onBusyChange: (busy: boolean) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -45,7 +50,8 @@ function ProfileImage({
   const label = kind === 'bannerImage' ? '배경이미지' : '프로필이미지';
   return (
     <div className={`profile-photo profile-photo--${kind}`}>
-      <img
+      <ShelterPhoto
+        kind={kind}
         className={kind === 'bannerImage' ? 'profile-banner' : undefined}
         src={src}
         alt={label}
@@ -100,7 +106,7 @@ function ProfileImage({
               onBusyChange(true);
               const reader = new FileReader();
               readerRef.current = reader;
-              reader.onload = () => onChange(String(reader.result));
+              reader.onload = () => onChange(String(reader.result), file);
               reader.onerror = () => setError('이미지를 읽을 수 없습니다. 다시 선택해 주세요.');
               reader.onloadend = () => {
                 setBusy(false);
@@ -121,12 +127,58 @@ function ProfileImage({
 }
 
 export function ProfilePage() {
+  return demoMode ? <DemoProfile /> : <LiveProfile />;
+}
+function DemoProfile() {
   const profile = useProfile();
   const save = useSaveProfile();
+  return <ProfileView profile={profile} save={save} />;
+}
+function LiveProfile() {
+  const query = useQuery(profileOptions);
+  const cache = useQueryClient();
+  const [uploader] = useState(createImageUploader);
+  const profile = query.data;
+  if (!profile)
+    return (
+      <WorkPage title="마이페이지" narrow>
+        <LoadStateMessage
+          state={
+            query.error
+              ? { status: 'error', message: query.error.message, retry: () => void query.refetch() }
+              : { status: 'loading' }
+          }
+        >
+          {null}
+        </LoadStateMessage>
+        <Link to="/login" replace onClick={() => void logout().catch(() => {})}>
+          로그아웃하기
+        </Link>
+      </WorkPage>
+    );
+  return (
+    <ProfileView
+      profile={profile}
+      save={async (next, files) => {
+        const updated = await updateProfile(profile, next, files, uploader.confirm);
+        await cache.cancelQueries({ queryKey: profileOptions.queryKey });
+        cache.setQueryData(profileOptions.queryKey, updated);
+      }}
+    />
+  );
+}
+function ProfileView({
+  profile,
+  save,
+}: {
+  profile: ShelterProfile;
+  save: (profile: ShelterProfile, files: ProfileFiles) => Promise<unknown> | void;
+}) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [images, setImages] = useState<Partial<Record<ImageKind, string>>>({});
+  const [files, setFiles] = useState<ProfileFiles>({});
   const [loading, setLoading] = useState<Partial<Record<ImageKind, boolean>>>({});
   const imageBusy = Object.values(loading).some(Boolean);
   const fields: [Exclude<keyof ShelterProfile, 'bannerImage' | 'profileImage'>, string][] = [
@@ -146,7 +198,7 @@ export function ProfilePage() {
     setSaving(true);
     setSaveError('');
     try {
-      await save(next);
+      await save(next, files);
       setEditing(false);
     } catch {
       setSaveError('저장하지 못했습니다. 다시 시도해 주세요.');
@@ -161,18 +213,24 @@ export function ProfilePage() {
         <ProfileImage
           key={`banner-${editing}`}
           kind="bannerImage"
-          editing={editing}
-          src={(editing ? images.bannerImage : undefined) ?? profile.bannerImage ?? banner}
-          onChange={(value) => setImages((current) => ({ ...current, bannerImage: value }))}
+          editing={editing && !saving}
+          src={(editing ? images.bannerImage : undefined) ?? profile.bannerImage}
+          onChange={(value, file) => {
+            setImages((current) => ({ ...current, bannerImage: value }));
+            setFiles((current) => ({ ...current, bannerImage: file }));
+          }}
           onBusyChange={(value) => setLoading((current) => ({ ...current, bannerImage: value }))}
         />
         <div className="profile-identity">
           <ProfileImage
             key={`profile-${editing}`}
             kind="profileImage"
-            editing={editing}
-            src={(editing ? images.profileImage : undefined) ?? profile.profileImage ?? avatar}
-            onChange={(value) => setImages((current) => ({ ...current, profileImage: value }))}
+            editing={editing && !saving}
+            src={(editing ? images.profileImage : undefined) ?? profile.profileImage}
+            onChange={(value, file) => {
+              setImages((current) => ({ ...current, profileImage: value }));
+              setFiles((current) => ({ ...current, profileImage: file }));
+            }}
             onBusyChange={(value) => setLoading((current) => ({ ...current, profileImage: value }))}
           />
           <strong>{profile.name}</strong>
@@ -231,6 +289,7 @@ export function ProfilePage() {
                 size="small"
                 onClick={() => {
                   setImages({});
+                  setFiles({});
                   setLoading({});
                   setEditing(true);
                 }}
@@ -252,7 +311,10 @@ export function ProfilePage() {
             className="profile-logout"
             to="/login"
             replace
-            onClick={() => sessionStorage.removeItem('usee-demo-login')}
+            onClick={() => {
+              if (demoMode) sessionStorage.removeItem('usee-demo-login');
+              else void logout().catch(() => {});
+            }}
           >
             <svg
               aria-hidden="true"

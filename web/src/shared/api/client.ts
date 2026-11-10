@@ -8,7 +8,9 @@ function fieldErrors(value: unknown): FieldError[] {
   if (!Array.isArray(value)) return [];
   return value.filter(
     (item): item is FieldError =>
-      isRecord(item) && typeof item.field === 'string' && typeof item.reason === 'string',
+      isRecord(item) &&
+      (item.field === null || typeof item.field === 'string') &&
+      typeof item.reason === 'string',
   );
 }
 export class ApiError extends Error {
@@ -85,7 +87,7 @@ export async function requestJson<T>(
 
 export type ApiResult<T> =
   | { status: 204; data: undefined; traceId: string | null }
-  | { status: number; data: T; traceId: string; response: ApiResponse<T> };
+  | { status: number; data: T; traceId: string | null; response: ApiResponse<T> };
 
 /** 공통 봉투를 확인하고 data와 추적 정보를 반환합니다. data 자체는 엔드포인트에서 검증해야 합니다. */
 export async function requestApi<T>(
@@ -104,7 +106,7 @@ export async function requestApi<T>(
     !('data' in body) ||
     !Array.isArray(body.errors) ||
     fieldErrors(body.errors).length !== body.errors.length ||
-    typeof body.traceId !== 'string'
+    (body.traceId !== null && typeof body.traceId !== 'string')
   ) {
     throw new Error('API 응답이 공통 응답 형식과 일치하지 않습니다.');
   }

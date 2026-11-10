@@ -1,3 +1,4 @@
+import { shelterAnimalLabel } from '@/entities/shelter/animal-label';
 import { sampleAnimals } from './animals';
 import {
   adoptionStates,
@@ -24,7 +25,7 @@ export const demoAnimals: ShelterAnimalRecord[] = sampleAnimals.map((animal, ind
 export const initialAdoptions: Adoption[] = Array.from({ length: 24 }, (_, i) => ({
   id: `A-1029-${String(i + 1).padStart(2, '0')}`,
   animalId: `sample-${String((i % 24) + 1).padStart(2, '0')}`,
-  name: demoAnimals[i]?.name ?? '푸들',
+  name: shelterAnimalLabel(demoAnimals[i]!),
   image: demoAnimals[i]?.imageSrc ?? poodle,
   applicant: ['김민지', '이서준', '박지현', '최유진'][i % 4] ?? '김민지',
   date: `2026-10-${String(29 - i).padStart(2, '0')}`,

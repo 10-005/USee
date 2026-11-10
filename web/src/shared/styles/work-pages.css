@@ -75,6 +75,9 @@
   margin-top: 2px;
 }
 .rescue-detail-date {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   margin: 0;
   color: #72716c;
 }
@@ -284,7 +287,11 @@
   margin-bottom: 24px;
 }
 .work-page__title-row:has(+ .application-overview) {
+  flex-wrap: wrap;
   margin-bottom: 24px;
+}
+.work-page__title-row:has(+ .application-overview) > .page-actions {
+  margin-inline-start: auto;
 }
 .application-animal > img {
   width: 160px;
@@ -379,9 +386,9 @@
 .application-questions__number {
   color: #777671;
 }
-.application-questions .info-rows {
+.application-questions .info-rows,
+.application-question__empty {
   margin: 24px 0 8px 38px;
-  gap: 16px;
 }
 .application-questions .info-rows > div {
   grid-template-columns: 1fr;
@@ -495,20 +502,21 @@
 .animal-form .image-upload__add:has(input:disabled) {
   display: none;
 }
-.animal-form .page-actions .ui-button {
+.animal-form .page-actions .ui-button,
+.page-actions .work-delete-button {
   box-sizing: border-box;
   height: 44px;
   min-width: 84px;
   padding-block: 0;
   border-radius: 12px;
 }
-.animal-form .page-actions .animal-form__delete {
+.page-actions .work-delete-button {
   margin-right: auto;
   background: #fff;
   border-color: #fa705b;
   color: #fa705b;
 }
-.ui-button.animal-form__delete-confirm:not(:disabled) {
+.ui-button.work-delete-confirm:not(:disabled) {
   background: #fa705b;
   color: white;
 }
@@ -558,6 +566,26 @@
 }
 .rescue-detail-status .shelter-choice label {
   min-width: 0;
+}
+.rescue-detail-status > .info-rows {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f7f8f6;
+  border-radius: var(--ui-radius);
+}
+.rescue-detail-status > .info-rows > div {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+.rescue-detail-status > .info-rows dt {
+  color: #62665f;
+  font-size: 13px;
+  font-weight: 600;
+}
+.rescue-detail-status > .info-rows dd {
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: keep-all;
 }
 :is(.rescue-detail-status, .rescue-form) .shelter-choice + .ui-field {
   margin-top: 16px;
@@ -1024,4 +1052,21 @@ span.report-card__action {
 }
 .adoption-table .ui-table {
   min-width: 680px;
+}
+
+.rescue-edit-fields {
+  display: contents;
+}
+.ui-pagination.application-switcher {
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 24px;
+  font-variant-numeric: tabular-nums;
+}
+.application-switcher .ui-button {
+  display: grid;
+  place-items: center;
+}
+.application-switcher__next {
+  transform: rotate(180deg);
 }

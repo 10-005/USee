@@ -92,7 +92,9 @@ describe('보호동물 목록', () => {
   it('필터 변경 시 결과 개수가 바뀌고 채팅 사이드바를 열고 닫는다', () => {
     render(
       <MemoryRouter>
-        <AnimalsPage />
+        <ShelterPageLayout>
+          <AnimalsPage />
+        </ShelterPageLayout>
       </MemoryRouter>,
     );
     fireEvent.click(
@@ -112,3 +114,4 @@ describe('보호동물 목록', () => {
     );
   });
 });
+import { ShelterPageLayout } from '@/app/layouts/ShelterPageLayout';

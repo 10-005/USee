@@ -4,8 +4,8 @@ import { localDate } from './date';
 import { isSupportedImage } from './image';
 
 describe('API 연결 전 공통 처리', () => {
-  it('데모 모드는 기본 활성화하며 명시적으로 끌 수 있다', () => {
-    expect(isDemoMode(undefined)).toBe(true);
+  it('데모 모드는 명시적으로 활성화한다', () => {
+    expect(isDemoMode(undefined)).toBe(false);
     expect(isDemoMode('true')).toBe(true);
     expect(isDemoMode('false')).toBe(false);
   });
