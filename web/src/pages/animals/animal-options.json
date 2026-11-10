@@ -8,18 +8,8 @@
       "name": "개",
       "breeds": [
         {
-          "code": "000245",
-          "name": "고든 세터",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            }
-          ]
-        },
-        {
           "code": "000054",
-          "name": "골든 리트리버",
+          "name": "골든리트리버",
           "colors": [
             {
               "code": "000046",
@@ -53,7 +43,588 @@
               "code": "000025",
               "name": "크림색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000054"],
+          "originalBreedNames": ["골든 리트리버"],
+          "mergeType": "renamed",
+          "isModelClass": true
+        },
+        {
+          "code": null,
+          "name": "닥스훈트",
+          "colors": [
+            {
+              "code": "000028",
+              "name": "검은털"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000010",
+              "name": "빨간색"
+            },
+            {
+              "code": "000029",
+              "name": "얼룩무늬"
+            },
+            {
+              "code": "000026",
+              "name": "쵸콜릿색"
+            },
+            {
+              "code": "000025",
+              "name": "크림색"
+            },
+            {
+              "code": "000006",
+              "name": "흑갈색"
+            },
+            {
+              "code": "000020",
+              "name": "노란색"
+            },
+            {
+              "code": "000005",
+              "name": "황갈색"
+            },
+            {
+              "code": "000046",
+              "name": "갈색"
+            },
+            {
+              "code": "000070",
+              "name": "갈색&검정"
+            },
+            {
+              "code": "000027",
+              "name": "검정&황갈색"
+            },
+            {
+              "code": "000007",
+              "name": "검정색"
+            },
+            {
+              "code": "000013",
+              "name": "적갈색"
+            }
+          ],
+          "originalBreedCodes": ["000093", "000076", "000038"],
+          "originalBreedNames": ["래빗 닥스훈트", "미니어쳐 닥스훈트", "스탠다드 닥스훈트"],
+          "mergeType": "variety",
+          "isModelClass": true
+        },
+        {
+          "code": "000072",
+          "name": "말티즈",
+          "colors": [
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000025",
+              "name": "크림색"
+            },
+            {
+              "code": "000014",
+              "name": "회색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            }
+          ],
+          "originalBreedCodes": ["000072"],
+          "originalBreedNames": ["말티즈"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": null,
+          "name": "말티푸",
+          "colors": [],
+          "originalBreedCodes": [],
+          "originalBreedNames": [],
+          "mergeType": "model_only",
+          "isModelClass": true
+        },
+        {
+          "code": "000018",
+          "name": "비숑 프리제",
+          "colors": [
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000041",
+              "name": "살구색"
+            },
+            {
+              "code": "000030",
+              "name": "어두운회색"
+            },
+            {
+              "code": "000025",
+              "name": "크림색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            }
+          ],
+          "originalBreedCodes": ["000018"],
+          "originalBreedNames": ["비숑 프리제"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": "000100",
+          "name": "시바견",
+          "colors": [
+            {
+              "code": "000007",
+              "name": "검정색"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000072",
+              "name": "밝은 빨간색"
+            },
+            {
+              "code": "000010",
+              "name": "빨간색"
+            },
+            {
+              "code": "000009",
+              "name": "얼룩무늬"
+            },
+            {
+              "code": "000013",
+              "name": "적갈색"
+            },
+            {
+              "code": "000004",
+              "name": "호반색(호랑이무늬)"
+            },
+            {
+              "code": "000005",
+              "name": "황갈색"
+            },
+            {
+              "code": "000006",
+              "name": "흑갈색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            }
+          ],
+          "originalBreedCodes": ["000100"],
+          "originalBreedNames": ["시바"],
+          "mergeType": "renamed",
+          "isModelClass": true
+        },
+        {
+          "code": "000103",
+          "name": "시베리안 허스키",
+          "colors": [
+            {
+              "code": "000064",
+              "name": "GRAY&WHITE"
+            },
+            {
+              "code": "000019",
+              "name": "검정&흰색"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000072",
+              "name": "밝은 빨간색"
+            },
+            {
+              "code": "000060",
+              "name": "빨간색&흰색"
+            },
+            {
+              "code": "000065",
+              "name": "은색&흰색"
+            }
+          ],
+          "originalBreedCodes": ["000103"],
+          "originalBreedNames": ["시베리안 허스키"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": "000101",
+          "name": "시추",
+          "colors": [
+            {
+              "code": "000064",
+              "name": "GRAY&WHITE"
+            },
+            {
+              "code": "000070",
+              "name": "갈색&검정"
+            },
+            {
+              "code": "000022",
+              "name": "갈색&흰색"
+            },
+            {
+              "code": "000019",
+              "name": "검정&흰색"
+            },
+            {
+              "code": "000068",
+              "name": "금색&흰색"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000060",
+              "name": "빨간색&흰색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            },
+            {
+              "code": "000011",
+              "name": "흰색&갈색&탄"
+            }
+          ],
+          "originalBreedCodes": ["000101"],
+          "originalBreedNames": ["시츄"],
+          "mergeType": "renamed",
+          "isModelClass": true
+        },
+        {
+          "code": "000113",
+          "name": "요크셔테리어",
+          "colors": [
+            {
+              "code": "000055",
+              "name": "BLUE&GOLD"
+            },
+            {
+              "code": "000054",
+              "name": "BLUE&TAN"
+            },
+            {
+              "code": "000046",
+              "name": "갈색"
+            },
+            {
+              "code": "000070",
+              "name": "갈색&검정"
+            },
+            {
+              "code": "000085",
+              "name": "검정&금색"
+            },
+            {
+              "code": "000037",
+              "name": "검정&은색"
+            },
+            {
+              "code": "000007",
+              "name": "검정색"
+            },
+            {
+              "code": "000038",
+              "name": "금색"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000053",
+              "name": "어두운청색&황갈색"
+            },
+            {
+              "code": "000071",
+              "name": "은색"
+            },
+            {
+              "code": "000086",
+              "name": "은색&갈색"
+            },
+            {
+              "code": "000012",
+              "name": "하얀바탕에 한가지색 또는 두가지색의 명확한 반점"
+            }
+          ],
+          "originalBreedCodes": ["000113"],
+          "originalBreedNames": ["요크셔 테리어"],
+          "mergeType": "renamed",
+          "isModelClass": true
+        },
+        {
+          "code": null,
+          "name": "웰시코기",
+          "colors": [],
+          "originalBreedCodes": [],
+          "originalBreedNames": [],
+          "relatedOriginalBreedCodes": ["000205", "000108"],
+          "mergeType": "model_group",
+          "isModelClass": true
+        },
+        {
+          "code": "000062",
+          "name": "재패니즈 스피츠",
+          "colors": [
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000025",
+              "name": "크림색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            }
+          ],
+          "originalBreedCodes": ["000062"],
+          "originalBreedNames": ["재패니즈 스피츠"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": "000067",
+          "name": "진돗개",
+          "colors": [
+            {
+              "code": "000045",
+              "name": "TAN"
+            },
+            {
+              "code": "000007",
+              "name": "검정색"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000001",
+              "name": "붉고 엷은 황갈색"
+            },
+            {
+              "code": "000010",
+              "name": "빨간색"
+            },
+            {
+              "code": "000009",
+              "name": "얼룩무늬"
+            },
+            {
+              "code": "000008",
+              "name": "울프그레이"
+            },
+            {
+              "code": "000004",
+              "name": "호반색(호랑이무늬)"
+            },
+            {
+              "code": "000006",
+              "name": "흑갈색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            }
+          ],
+          "originalBreedCodes": ["000067"],
+          "originalBreedNames": ["진도견"],
+          "mergeType": "renamed",
+          "isModelClass": true
+        },
+        {
+          "code": "000032",
+          "name": "치와와",
+          "colors": [
+            {
+              "code": "000046",
+              "name": "갈색"
+            },
+            {
+              "code": "000070",
+              "name": "갈색&검정"
+            },
+            {
+              "code": "000022",
+              "name": "갈색&흰색"
+            },
+            {
+              "code": "000019",
+              "name": "검정&흰색"
+            },
+            {
+              "code": "000007",
+              "name": "검정색"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000002",
+              "name": "청색"
+            },
+            {
+              "code": "000026",
+              "name": "쵸콜릿색"
+            },
+            {
+              "code": "000025",
+              "name": "크림색"
+            },
+            {
+              "code": "000005",
+              "name": "황갈색"
+            },
+            {
+              "code": "000006",
+              "name": "흑갈색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            }
+          ],
+          "originalBreedCodes": ["000032"],
+          "originalBreedNames": ["치와와"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": "000089",
+          "name": "포메라니안",
+          "colors": [
+            {
+              "code": "000046",
+              "name": "갈색"
+            },
+            {
+              "code": "000027",
+              "name": "검정&황갈색"
+            },
+            {
+              "code": "000007",
+              "name": "검정색"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000001",
+              "name": "붉고 엷은 황갈색"
+            },
+            {
+              "code": "000010",
+              "name": "빨간색"
+            },
+            {
+              "code": "000083",
+              "name": "주황색"
+            },
+            {
+              "code": "000002",
+              "name": "청색"
+            },
+            {
+              "code": "000026",
+              "name": "쵸콜릿색"
+            },
+            {
+              "code": "000025",
+              "name": "크림색"
+            },
+            {
+              "code": "000042",
+              "name": "털끝검정"
+            },
+            {
+              "code": "000012",
+              "name": "하얀바탕에 한가지색 또는 두가지색의 명확한 반점"
+            },
+            {
+              "code": "000014",
+              "name": "회색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            }
+          ],
+          "originalBreedCodes": ["000089"],
+          "originalBreedNames": ["포메라니안"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": "000050",
+          "name": "프렌치불독",
+          "colors": [
+            {
+              "code": "000019",
+              "name": "검정&흰색"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000009",
+              "name": "얼룩무늬"
+            },
+            {
+              "code": "000025",
+              "name": "크림색"
+            },
+            {
+              "code": "000004",
+              "name": "호반색(호랑이무늬)"
+            },
+            {
+              "code": "000005",
+              "name": "황갈색"
+            }
+          ],
+          "originalBreedCodes": ["000050"],
+          "originalBreedNames": ["프렌치 불독"],
+          "mergeType": "renamed",
+          "isModelClass": true
+        },
+        {
+          "code": "000245",
+          "name": "고든 세터",
+          "colors": [
+            {
+              "code": "000069",
+              "name": "기타"
+            }
+          ],
+          "originalBreedCodes": ["000245"],
+          "originalBreedNames": ["고든 세터"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000056",
@@ -107,7 +678,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000056"],
+          "originalBreedNames": ["그레이 하운드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000055",
@@ -149,10 +724,14 @@
               "code": "000039",
               "name": "흰색&검은반점"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000055"],
+          "originalBreedNames": ["그레이트 덴"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
-          "code": "000118",
+          "code": null,
           "name": "그레이트 피레니즈",
           "colors": [
             {
@@ -179,7 +758,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000118", "000092"],
+          "originalBreedNames": ["그레이트 피레니즈", "피레니안 마운틴 독"],
+          "mergeType": "alias",
+          "isModelClass": false
         },
         {
           "code": "000249",
@@ -189,7 +772,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000249"],
+          "originalBreedNames": ["그리펀 벨지언"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000115",
@@ -467,7 +1054,11 @@
               "code": "000051",
               "name": "흰색&황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000115"],
+          "originalBreedNames": ["기타"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000037",
@@ -485,7 +1076,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000037"],
+          "originalBreedNames": ["꼬똥 드 뚤레아"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000081",
@@ -527,10 +1122,14 @@
               "code": "000014",
               "name": "회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000081"],
+          "originalBreedNames": ["네오폴리탄 마스티프"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
-          "code": "000204",
+          "code": null,
           "name": "노르포크 테리어",
           "colors": [
             {
@@ -548,8 +1147,32 @@
             {
               "code": "000014",
               "name": "회색"
+            },
+            {
+              "code": "000057",
+              "name": "GRIZZLE"
+            },
+            {
+              "code": "000107",
+              "name": "갈색 얼룩무늬"
+            },
+            {
+              "code": "000061",
+              "name": "검정 황갈색&흰색"
+            },
+            {
+              "code": "000010",
+              "name": "빨간색"
+            },
+            {
+              "code": "000056",
+              "name": "옅은 황색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000204", "00216"],
+          "originalBreedNames": ["노르포크 테리어", "노퍽 테리어"],
+          "mergeType": "alias",
+          "isModelClass": false
         },
         {
           "code": "000083",
@@ -583,33 +1206,11 @@
               "code": "000014",
               "name": "회색"
             }
-          ]
-        },
-        {
-          "code": "00216",
-          "name": "노퍽 테리어",
-          "colors": [
-            {
-              "code": "000057",
-              "name": "GRIZZLE"
-            },
-            {
-              "code": "000107",
-              "name": "갈색 얼룩무늬"
-            },
-            {
-              "code": "000061",
-              "name": "검정 황갈색&흰색"
-            },
-            {
-              "code": "000010",
-              "name": "빨간색"
-            },
-            {
-              "code": "000056",
-              "name": "옅은 황색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000083"],
+          "originalBreedNames": ["노리치 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000082",
@@ -635,7 +1236,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000082"],
+          "originalBreedNames": ["뉴펀들랜드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000039",
@@ -653,7 +1258,11 @@
               "code": "000017",
               "name": "엷은 황갈색&흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000039"],
+          "originalBreedNames": ["달마시안"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000040",
@@ -675,48 +1284,14 @@
               "code": "000036",
               "name": "흑색&회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000040"],
+          "originalBreedNames": ["댄디 딘몬트 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
-          "code": "000043",
-          "name": "도고 까니리오",
-          "colors": [
-            {
-              "code": "000077",
-              "name": "검은색&황갈색"
-            },
-            {
-              "code": "000027",
-              "name": "검정&황갈색"
-            },
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000004",
-              "name": "호반색(호랑이무늬)"
-            },
-            {
-              "code": "000005",
-              "name": "황갈색"
-            },
-            {
-              "code": "000075",
-              "name": "황갈색&적갈색"
-            },
-            {
-              "code": "000006",
-              "name": "흑갈색"
-            }
-          ]
-        },
-        {
-          "code": "000042",
+          "code": null,
           "name": "도고 아르젠티노",
           "colors": [
             {
@@ -730,13 +1305,7 @@
             {
               "code": "000003",
               "name": "흰색"
-            }
-          ]
-        },
-        {
-          "code": "000153",
-          "name": "도고 아르젠티노",
-          "colors": [
+            },
             {
               "code": "000073",
               "name": "밝은 금색"
@@ -748,12 +1317,12 @@
             {
               "code": "000025",
               "name": "크림색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000042", "000153"],
+          "originalBreedNames": ["도고 아르젠티노", "도고 아르젠티노"],
+          "mergeType": "duplicate",
+          "isModelClass": false
         },
         {
           "code": "000041",
@@ -791,7 +1360,11 @@
               "code": "000002",
               "name": "청색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000041"],
+          "originalBreedNames": ["도베르만"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000120",
@@ -809,7 +1382,11 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000120"],
+          "originalBreedNames": ["도사"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000219",
@@ -831,7 +1408,11 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000219"],
+          "originalBreedNames": ["도사 믹스견"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000155",
@@ -857,7 +1438,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000155"],
+          "originalBreedNames": ["동경견"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000247",
@@ -867,7 +1452,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000247"],
+          "originalBreedNames": ["라고토 로마그놀로"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000069",
@@ -909,7 +1498,11 @@
               "code": "000025",
               "name": "크림색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000069"],
+          "originalBreedNames": ["라브라도 리트리버"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000071",
@@ -939,7 +1532,11 @@
               "code": "000014",
               "name": "회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000071"],
+          "originalBreedNames": ["라사 압소"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000142",
@@ -981,41 +1578,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
-        },
-        {
-          "code": "000093",
-          "name": "래빗 닥스훈트",
-          "colors": [
-            {
-              "code": "000028",
-              "name": "검은털"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000010",
-              "name": "빨간색"
-            },
-            {
-              "code": "000029",
-              "name": "얼룩무늬"
-            },
-            {
-              "code": "000026",
-              "name": "쵸콜릿색"
-            },
-            {
-              "code": "000025",
-              "name": "크림색"
-            },
-            {
-              "code": "000006",
-              "name": "흑갈색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000142"],
+          "originalBreedNames": ["라이카"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000167",
@@ -1029,7 +1596,11 @@
               "code": "000039",
               "name": "흰색&검은반점"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000167"],
+          "originalBreedNames": ["랫 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000251",
@@ -1039,7 +1610,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000251"],
+          "originalBreedNames": ["러시안 토이"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000228",
@@ -1049,7 +1624,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000228"],
+          "originalBreedNames": ["러프콜리"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000070",
@@ -1095,7 +1674,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000070"],
+          "originalBreedNames": ["레이크랜드 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000166",
@@ -1109,10 +1692,14 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000166"],
+          "originalBreedNames": ["로디지안 리즈백"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
-          "code": "000121",
+          "code": null,
           "name": "로트와일러",
           "colors": [
             {
@@ -1162,20 +1749,10 @@
             {
               "code": "000012",
               "name": "하얀바탕에 한가지색 또는 두가지색의 명확한 반점"
-            }
-          ]
-        },
-        {
-          "code": "000094",
-          "name": "로트와일러",
-          "colors": [
+            },
             {
               "code": "000007",
               "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
             },
             {
               "code": "000005",
@@ -1185,7 +1762,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000121", "000094"],
+          "originalBreedNames": ["로트와일러", "로트와일러"],
+          "mergeType": "duplicate",
+          "isModelClass": false
         },
         {
           "code": "000223",
@@ -1239,25 +1820,11 @@
               "code": "000012",
               "name": "하얀바탕에 한가지색 또는 두가지색의 명확한 반점"
             }
-          ]
-        },
-        {
-          "code": "000152",
-          "name": "마리노이즈",
-          "colors": [
-            {
-              "code": "000013",
-              "name": "적갈색"
-            },
-            {
-              "code": "000005",
-              "name": "황갈색"
-            },
-            {
-              "code": "000006",
-              "name": "흑갈색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000223"],
+          "originalBreedNames": ["로트와일러 믹스견"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000073",
@@ -1291,59 +1858,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
-        },
-        {
-          "code": "000146",
-          "name": "말라뮤트",
-          "colors": [
-            {
-              "code": "000052",
-              "name": "GRAY&BLACK"
-            },
-            {
-              "code": "000087",
-              "name": "갈색&회색"
-            },
-            {
-              "code": "000019",
-              "name": "검정&흰색"
-            },
-            {
-              "code": "000010",
-              "name": "빨간색"
-            },
-            {
-              "code": "000089",
-              "name": "회색&흰색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
-        },
-        {
-          "code": "000072",
-          "name": "말티즈",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000025",
-              "name": "크림색"
-            },
-            {
-              "code": "000014",
-              "name": "회색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000073"],
+          "originalBreedNames": ["마스티프"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000159",
@@ -1369,49 +1888,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
-        },
-        {
-          "code": "000076",
-          "name": "미니어쳐 닥스훈트",
-          "colors": [
-            {
-              "code": "000028",
-              "name": "검은털"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000020",
-              "name": "노란색"
-            },
-            {
-              "code": "000010",
-              "name": "빨간색"
-            },
-            {
-              "code": "000029",
-              "name": "얼룩무늬"
-            },
-            {
-              "code": "000026",
-              "name": "쵸콜릿색"
-            },
-            {
-              "code": "000025",
-              "name": "크림색"
-            },
-            {
-              "code": "000005",
-              "name": "황갈색"
-            },
-            {
-              "code": "000006",
-              "name": "흑갈색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000159"],
+          "originalBreedNames": ["맨체스터테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000075",
@@ -1453,7 +1934,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000075"],
+          "originalBreedNames": ["미니어쳐 불 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000079",
@@ -1495,49 +1980,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
-        },
-        {
-          "code": "000078",
-          "name": "미니어쳐 푸들",
-          "colors": [
-            {
-              "code": "000058",
-              "name": "APRICOT"
-            },
-            {
-              "code": "000059",
-              "name": "RED FAWN"
-            },
-            {
-              "code": "000046",
-              "name": "갈색"
-            },
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000030",
-              "name": "어두운회색"
-            },
-            {
-              "code": "000002",
-              "name": "청색"
-            },
-            {
-              "code": "000014",
-              "name": "회색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000079"],
+          "originalBreedNames": ["미니어쳐 슈나우저"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000077",
@@ -1579,53 +2026,11 @@
               "code": "000075",
               "name": "황갈색&적갈색"
             }
-          ]
-        },
-        {
-          "code": "000074",
-          "name": "미디엄 푸들",
-          "colors": [
-            {
-              "code": "000058",
-              "name": "APRICOT"
-            },
-            {
-              "code": "000059",
-              "name": "RED FAWN"
-            },
-            {
-              "code": "000046",
-              "name": "갈색"
-            },
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000041",
-              "name": "살구색"
-            },
-            {
-              "code": "000030",
-              "name": "어두운회색"
-            },
-            {
-              "code": "000002",
-              "name": "청색"
-            },
-            {
-              "code": "000014",
-              "name": "회색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000077"],
+          "originalBreedNames": ["미니어쳐 핀셔"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000080",
@@ -1659,7 +2064,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000080"],
+          "originalBreedNames": ["미텔 스피츠"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000114",
@@ -1941,7 +2350,11 @@
               "code": "000051",
               "name": "흰색&황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000114"],
+          "originalBreedNames": ["믹스견"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000133",
@@ -1971,7 +2384,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000133"],
+          "originalBreedNames": ["바센지"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000012",
@@ -2001,7 +2418,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000012"],
+          "originalBreedNames": ["바셋 하운드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000017",
@@ -2027,7 +2448,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000017"],
+          "originalBreedNames": ["버니즈 마운틴 독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000015",
@@ -2073,7 +2498,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000015"],
+          "originalBreedNames": ["베들링턴 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000157",
@@ -2091,11 +2520,95 @@
               "code": "00096",
               "name": "노랑&검정"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000157"],
+          "originalBreedNames": ["벨기에 쉽독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
-          "code": "000148",
-          "name": "벨기에 테뷰런",
+          "code": "000016",
+          "name": "벨지안 셰퍼드 독",
+          "colors": [
+            {
+              "code": "000007",
+              "name": "검정색"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000013",
+              "name": "적갈색"
+            },
+            {
+              "code": "000005",
+              "name": "황갈색"
+            }
+          ],
+          "originalBreedCodes": ["000016"],
+          "originalBreedNames": ["벨지안 셰퍼드 독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
+        },
+        {
+          "code": "000164",
+          "name": "벨지안 셰퍼드 독(그로넨달)",
+          "colors": [
+            {
+              "code": "000007",
+              "name": "검정색"
+            }
+          ],
+          "originalBreedCodes": ["000164"],
+          "originalBreedNames": ["벨지안 셰퍼드 독(그로넨달)"],
+          "mergeType": "unchanged",
+          "isModelClass": false
+        },
+        {
+          "code": "000225",
+          "name": "벨지안 셰퍼드 독(라케노이즈)",
+          "colors": [
+            {
+              "code": "000069",
+              "name": "기타"
+            }
+          ],
+          "originalBreedCodes": ["000225"],
+          "originalBreedNames": ["벨지안 셰퍼드 독(라케노이즈)"],
+          "mergeType": "unchanged",
+          "isModelClass": false
+        },
+        {
+          "code": null,
+          "name": "벨지안 셰퍼드 독(말리노이즈)",
+          "colors": [
+            {
+              "code": "000013",
+              "name": "적갈색"
+            },
+            {
+              "code": "000005",
+              "name": "황갈색"
+            },
+            {
+              "code": "000006",
+              "name": "흑갈색"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            }
+          ],
+          "originalBreedCodes": ["000152", "000226"],
+          "originalBreedNames": ["마리노이즈", "벨지안 셰퍼드 독(마리노이즈)"],
+          "mergeType": "alias",
+          "isModelClass": false
+        },
+        {
+          "code": null,
+          "name": "벨지안 셰퍼드 독(테르뷰렌)",
           "colors": [
             {
               "code": "000070",
@@ -2136,70 +2649,16 @@
             {
               "code": "000006",
               "name": "흑갈색"
-            }
-          ]
-        },
-        {
-          "code": "000016",
-          "name": "벨지안 셰퍼드 독",
-          "colors": [
-            {
-              "code": "000007",
-              "name": "검정색"
             },
             {
               "code": "000069",
               "name": "기타"
-            },
-            {
-              "code": "000013",
-              "name": "적갈색"
-            },
-            {
-              "code": "000005",
-              "name": "황갈색"
             }
-          ]
-        },
-        {
-          "code": "000164",
-          "name": "벨지안 셰퍼드 독(그로넨달)",
-          "colors": [
-            {
-              "code": "000007",
-              "name": "검정색"
-            }
-          ]
-        },
-        {
-          "code": "000225",
-          "name": "벨지안 셰퍼드 독(라케노이즈)",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            }
-          ]
-        },
-        {
-          "code": "000226",
-          "name": "벨지안 셰퍼드 독(마리노이즈)",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            }
-          ]
-        },
-        {
-          "code": "000227",
-          "name": "벨지안 셰퍼드 독(테르뷰렌)",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000148", "000227"],
+          "originalBreedNames": ["벨기에 테뷰런", "벨지안 셰퍼드 독(테르뷰렌)"],
+          "mergeType": "alias",
+          "isModelClass": false
         },
         {
           "code": "000020",
@@ -2237,7 +2696,11 @@
               "code": "00088",
               "name": "흰색&회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000020"],
+          "originalBreedNames": ["보더 콜리"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000021",
@@ -2259,7 +2722,11 @@
               "code": "000017",
               "name": "엷은 황갈색&흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000021"],
+          "originalBreedNames": ["보르조이"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000022",
@@ -2285,7 +2752,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000022"],
+          "originalBreedNames": ["보스턴 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000024",
@@ -2323,7 +2794,11 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000024"],
+          "originalBreedNames": ["복서"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000208",
@@ -2333,7 +2808,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000208"],
+          "originalBreedNames": ["볼로네즈"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000023",
@@ -2367,7 +2846,11 @@
               "code": "000036",
               "name": "흑색&회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000023"],
+          "originalBreedNames": ["부비에 데 플랑드르"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000026",
@@ -2409,7 +2892,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000026"],
+          "originalBreedNames": ["불 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000027",
@@ -2447,7 +2934,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000027"],
+          "originalBreedNames": ["불독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000169",
@@ -2465,7 +2956,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000169"],
+          "originalBreedNames": ["브뤼셀그리펀"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000025",
@@ -2503,7 +2998,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000025"],
+          "originalBreedNames": ["브리타니 스파니엘"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000019",
@@ -2517,7 +3016,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000019"],
+          "originalBreedNames": ["블랙 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000013",
@@ -2539,33 +3042,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
-        },
-        {
-          "code": "000018",
-          "name": "비숑 프리제",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000041",
-              "name": "살구색"
-            },
-            {
-              "code": "000030",
-              "name": "어두운회색"
-            },
-            {
-              "code": "000025",
-              "name": "크림색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000013"],
+          "originalBreedNames": ["비글"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000014",
@@ -2599,7 +3080,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000014"],
+          "originalBreedNames": ["비어디드 콜리"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000162",
@@ -2625,49 +3110,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
-        },
-        {
-          "code": "000085",
-          "name": "빠삐용(콘티넨탈 토이 스파니엘)",
-          "colors": [
-            {
-              "code": "000046",
-              "name": "갈색"
-            },
-            {
-              "code": "000022",
-              "name": "갈색&흰색"
-            },
-            {
-              "code": "000019",
-              "name": "검정&흰색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000017",
-              "name": "엷은 황갈색&흰색"
-            },
-            {
-              "code": "000033",
-              "name": "적갈&흰색"
-            },
-            {
-              "code": "000016",
-              "name": "호반색&흰색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            },
-            {
-              "code": "000011",
-              "name": "흰색&갈색&탄"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000162"],
+          "originalBreedNames": ["비즐라"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000096",
@@ -2685,7 +3132,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000096"],
+          "originalBreedNames": ["사모예드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000095",
@@ -2731,7 +3182,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000095"],
+          "originalBreedNames": ["살루키"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000001",
@@ -2793,7 +3248,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000001"],
+          "originalBreedNames": ["삽살개"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000034",
@@ -2823,7 +3282,11 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000034"],
+          "originalBreedNames": ["샤페이"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000104",
@@ -2853,11 +3316,15 @@
               "code": "000004",
               "name": "호반색(호랑이무늬)"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000104"],
+          "originalBreedNames": ["세인트 버나드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
-          "code": "000031",
-          "name": "센트럴 아시안 오브차카",
+          "code": null,
+          "name": "센트럴 아시안 셰퍼드",
           "colors": [
             {
               "code": "000022",
@@ -2891,7 +3358,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000031", "000238"],
+          "originalBreedNames": ["센트럴 아시안 오브차카", "중앙아시안 셰퍼드"],
+          "mergeType": "alias",
+          "isModelClass": false
         },
         {
           "code": "000099",
@@ -2941,7 +3412,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000099"],
+          "originalBreedNames": ["셔틀랜드 쉽독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000122",
@@ -2979,7 +3454,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000122"],
+          "originalBreedNames": ["셰퍼드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000123",
@@ -3033,7 +3512,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000123"],
+          "originalBreedNames": ["슈나우져"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000229",
@@ -3043,7 +3526,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000229"],
+          "originalBreedNames": ["스무스콜리"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000097",
@@ -3077,7 +3564,11 @@
               "code": "000014",
               "name": "회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000097"],
+          "originalBreedNames": ["스코티쉬 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000132",
@@ -3115,7 +3606,11 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000132"],
+          "originalBreedNames": ["스코티시 디어하운드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000233",
@@ -3125,7 +3620,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000233"],
+          "originalBreedNames": ["스키퍼키"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000154",
@@ -3139,7 +3638,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000154"],
+          "originalBreedNames": ["스태퍼드셔 불 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000222",
@@ -3153,103 +3656,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
-        },
-        {
-          "code": "000038",
-          "name": "스탠다드 닥스훈트",
-          "colors": [
-            {
-              "code": "000046",
-              "name": "갈색"
-            },
-            {
-              "code": "000070",
-              "name": "갈색&검정"
-            },
-            {
-              "code": "000028",
-              "name": "검은털"
-            },
-            {
-              "code": "000027",
-              "name": "검정&황갈색"
-            },
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000010",
-              "name": "빨간색"
-            },
-            {
-              "code": "000029",
-              "name": "얼룩무늬"
-            },
-            {
-              "code": "000013",
-              "name": "적갈색"
-            },
-            {
-              "code": "000026",
-              "name": "쵸콜릿색"
-            },
-            {
-              "code": "000025",
-              "name": "크림색"
-            },
-            {
-              "code": "000005",
-              "name": "황갈색"
-            },
-            {
-              "code": "000006",
-              "name": "흑갈색"
-            }
-          ]
-        },
-        {
-          "code": "000105",
-          "name": "스탠다드 푸들",
-          "colors": [
-            {
-              "code": "000058",
-              "name": "APRICOT"
-            },
-            {
-              "code": "000059",
-              "name": "RED FAWN"
-            },
-            {
-              "code": "000046",
-              "name": "갈색"
-            },
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000002",
-              "name": "청색"
-            },
-            {
-              "code": "000014",
-              "name": "회색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000222"],
+          "originalBreedNames": ["스태퍼드셔 불 테리어 믹스견"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000124",
@@ -3279,7 +3690,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000124"],
+          "originalBreedNames": ["스피츠"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000253",
@@ -3289,83 +3704,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
-        },
-        {
-          "code": "000100",
-          "name": "시바",
-          "colors": [
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000072",
-              "name": "밝은 빨간색"
-            },
-            {
-              "code": "000010",
-              "name": "빨간색"
-            },
-            {
-              "code": "000009",
-              "name": "얼룩무늬"
-            },
-            {
-              "code": "000013",
-              "name": "적갈색"
-            },
-            {
-              "code": "000004",
-              "name": "호반색(호랑이무늬)"
-            },
-            {
-              "code": "000005",
-              "name": "황갈색"
-            },
-            {
-              "code": "000006",
-              "name": "흑갈색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
-        },
-        {
-          "code": "000103",
-          "name": "시베리안 허스키",
-          "colors": [
-            {
-              "code": "000064",
-              "name": "GRAY&WHITE"
-            },
-            {
-              "code": "000019",
-              "name": "검정&흰색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000072",
-              "name": "밝은 빨간색"
-            },
-            {
-              "code": "000060",
-              "name": "빨간색&흰색"
-            },
-            {
-              "code": "000065",
-              "name": "은색&흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000253"],
+          "originalBreedNames": ["슬루기"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000151",
@@ -3403,7 +3746,11 @@
               "code": "000016",
               "name": "호반색&흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000151"],
+          "originalBreedNames": ["시베리안라이카"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000139",
@@ -3413,49 +3760,11 @@
               "code": "000046",
               "name": "갈색"
             }
-          ]
-        },
-        {
-          "code": "000101",
-          "name": "시츄",
-          "colors": [
-            {
-              "code": "000064",
-              "name": "GRAY&WHITE"
-            },
-            {
-              "code": "000070",
-              "name": "갈색&검정"
-            },
-            {
-              "code": "000022",
-              "name": "갈색&흰색"
-            },
-            {
-              "code": "000019",
-              "name": "검정&흰색"
-            },
-            {
-              "code": "000068",
-              "name": "금색&흰색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000060",
-              "name": "빨간색&흰색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            },
-            {
-              "code": "000011",
-              "name": "흰색&갈색&탄"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000139"],
+          "originalBreedNames": ["시잉프랑세즈"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000102",
@@ -3489,7 +3798,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000102"],
+          "originalBreedNames": ["시코쿠"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000098",
@@ -3507,7 +3820,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000098"],
+          "originalBreedNames": ["실리햄 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000136",
@@ -3541,7 +3858,11 @@
               "code": "000051",
               "name": "흰색&황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000136"],
+          "originalBreedNames": ["실키테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000202",
@@ -3579,7 +3900,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000202"],
+          "originalBreedNames": ["아나톨리안 셰퍼드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000160",
@@ -3601,7 +3926,11 @@
               "code": "000039",
               "name": "흰색&검은반점"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000160"],
+          "originalBreedNames": ["아메리칸 불독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000203",
@@ -3635,7 +3964,11 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000203"],
+          "originalBreedNames": ["아메리칸 스태퍼드셔 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000221",
@@ -3669,7 +4002,11 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000221"],
+          "originalBreedNames": ["아메리칸 스태퍼드셔 테리어 믹스견"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000008",
@@ -3699,7 +4036,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000008"],
+          "originalBreedNames": ["아메리칸 아키다"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000131",
@@ -3733,7 +4074,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000131"],
+          "originalBreedNames": ["아메리칸 에스키모"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000009",
@@ -3767,7 +4112,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000009"],
+          "originalBreedNames": ["아메리칸 코카 스파니엘"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000119",
@@ -3789,7 +4138,11 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000119"],
+          "originalBreedNames": ["아메리칸 핏불 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000220",
@@ -3811,7 +4164,11 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000220"],
+          "originalBreedNames": ["아메리칸 핏불 테리어 믹스견"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000150",
@@ -3837,7 +4194,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000150"],
+          "originalBreedNames": ["아메리칸불리"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000210",
@@ -3863,7 +4224,11 @@
               "code": "000018",
               "name": "주황&흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000210"],
+          "originalBreedNames": ["아이리쉬 레드 앤 화이트 세터"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000057",
@@ -3893,7 +4258,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000057"],
+          "originalBreedNames": ["아이리쉬 세터"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000059",
@@ -3915,7 +4284,11 @@
               "code": "000042",
               "name": "털끝검정"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000059"],
+          "originalBreedNames": ["아이리쉬 소프트 코티드 휘튼 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000058",
@@ -3953,7 +4326,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000058"],
+          "originalBreedNames": ["아이리쉬 울프 하운드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000252",
@@ -3963,7 +4340,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000252"],
+          "originalBreedNames": ["아자와크"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000006",
@@ -4001,7 +4382,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000006"],
+          "originalBreedNames": ["아키다"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000237",
@@ -4011,7 +4396,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000237"],
+          "originalBreedNames": ["아펜핀셔"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000004",
@@ -4061,19 +4450,43 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000004"],
+          "originalBreedNames": ["아프간 하운드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
-          "code": "000007",
+          "code": null,
           "name": "알라스칸 말라뮤트",
           "colors": [
             {
-              "code": "000022",
-              "name": "갈색&흰색"
+              "code": "000052",
+              "name": "GRAY&BLACK"
+            },
+            {
+              "code": "000087",
+              "name": "갈색&회색"
             },
             {
               "code": "000019",
               "name": "검정&흰색"
+            },
+            {
+              "code": "000010",
+              "name": "빨간색"
+            },
+            {
+              "code": "000089",
+              "name": "회색&흰색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            },
+            {
+              "code": "000022",
+              "name": "갈색&흰색"
             },
             {
               "code": "000007",
@@ -4090,12 +4503,12 @@
             {
               "code": "000014",
               "name": "회색"
-            },
-            {
-              "code": "000089",
-              "name": "회색&흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000146", "000007"],
+          "originalBreedNames": ["말라뮤트", "알라스칸 말라뮤트"],
+          "mergeType": "alias",
+          "isModelClass": false
         },
         {
           "code": "000005",
@@ -4121,7 +4534,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000005"],
+          "originalBreedNames": ["에어델 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000143",
@@ -4135,7 +4552,11 @@
               "code": "000019",
               "name": "검정&흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000143"],
+          "originalBreedNames": ["오브차카"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000011",
@@ -4165,11 +4586,15 @@
               "code": "000024",
               "name": "회색(회청색)바탕에 검정얼룩무늬"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000011"],
+          "originalBreedNames": ["오스트랄리안 셰퍼드 독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
-          "code": "000010",
-          "name": "오스트랄리안 캐틀 독",
+          "code": null,
+          "name": "오스트레일리안 캐틀 독",
           "colors": [
             {
               "code": "000007",
@@ -4195,17 +4620,11 @@
               "code": "000002",
               "name": "청색"
             }
-          ]
-        },
-        {
-          "code": "000236",
-          "name": "오스트레일리안 케틀독",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000010", "000236"],
+          "originalBreedNames": ["오스트랄리안 캐틀 독", "오스트레일리안 케틀독"],
+          "mergeType": "alias",
+          "isModelClass": false
         },
         {
           "code": "000217",
@@ -4231,7 +4650,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000217"],
+          "originalBreedNames": ["오스트레일리안 켈피"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000137",
@@ -4269,7 +4692,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000137"],
+          "originalBreedNames": ["올드 잉글리쉬 불독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000084",
@@ -4299,7 +4726,11 @@
               "code": "000063",
               "name": "청회색&흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000084"],
+          "originalBreedNames": ["올드 잉글리쉬 쉽독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000163",
@@ -4325,65 +4756,11 @@
               "code": "000014",
               "name": "회색"
             }
-          ]
-        },
-        {
-          "code": "000113",
-          "name": "요크셔 테리어",
-          "colors": [
-            {
-              "code": "000055",
-              "name": "BLUE&GOLD"
-            },
-            {
-              "code": "000054",
-              "name": "BLUE&TAN"
-            },
-            {
-              "code": "000046",
-              "name": "갈색"
-            },
-            {
-              "code": "000070",
-              "name": "갈색&검정"
-            },
-            {
-              "code": "000085",
-              "name": "검정&금색"
-            },
-            {
-              "code": "000037",
-              "name": "검정&은색"
-            },
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000038",
-              "name": "금색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000053",
-              "name": "어두운청색&황갈색"
-            },
-            {
-              "code": "000071",
-              "name": "은색"
-            },
-            {
-              "code": "000086",
-              "name": "은색&갈색"
-            },
-            {
-              "code": "000012",
-              "name": "하얀바탕에 한가지색 또는 두가지색의 명확한 반점"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000163"],
+          "originalBreedNames": ["와이마라너"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000149",
@@ -4393,7 +4770,11 @@
               "code": "000008",
               "name": "울프그레이"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000149"],
+          "originalBreedNames": ["울프독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "211",
@@ -4415,7 +4796,11 @@
               "code": "000014",
               "name": "회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["211"],
+          "originalBreedNames": ["웨스트 시베리언 라이카"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000110",
@@ -4429,7 +4814,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000110"],
+          "originalBreedNames": ["웨스트하이랜드화이트테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000246",
@@ -4439,7 +4828,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000246"],
+          "originalBreedNames": ["웰시 스프링어 스패니얼"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000205",
@@ -4473,7 +4866,11 @@
               "code": "000009",
               "name": "얼룩무늬"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000205"],
+          "originalBreedNames": ["웰시 코기 카디건"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000108",
@@ -4523,7 +4920,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000108"],
+          "originalBreedNames": ["웰시 코기 펨브로크"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000109",
@@ -4549,7 +4950,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000109"],
+          "originalBreedNames": ["웰시 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000232",
@@ -4559,7 +4964,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000232"],
+          "originalBreedNames": ["유쿠시안 라이카"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000231",
@@ -4569,7 +4978,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000231"],
+          "originalBreedNames": ["이스트 시베리언 라이카"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000060",
@@ -4607,7 +5020,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000060"],
+          "originalBreedNames": ["이탈리안 그레이 하운드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000046",
@@ -4649,7 +5066,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000046"],
+          "originalBreedNames": ["잉글리쉬 세터"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000047",
@@ -4691,7 +5112,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000047"],
+          "originalBreedNames": ["잉글리쉬 스프링거 스파니엘"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000044",
@@ -4745,7 +5170,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000044"],
+          "originalBreedNames": ["잉글리쉬 코카 스파니엘"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000045",
@@ -4767,7 +5196,11 @@
               "code": "000018",
               "name": "주황&흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000045"],
+          "originalBreedNames": ["잉글리쉬 포인터"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000053",
@@ -4793,25 +5226,45 @@
               "code": "000036",
               "name": "흑색&회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000053"],
+          "originalBreedNames": ["자이언트 슈나우져"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
-          "code": "000062",
-          "name": "재패니즈 스피츠",
+          "code": null,
+          "name": "재패니즈 친",
           "colors": [
             {
               "code": "000069",
               "name": "기타"
             },
             {
-              "code": "000025",
-              "name": "크림색"
+              "code": "000022",
+              "name": "갈색&흰색"
             },
             {
-              "code": "000003",
-              "name": "흰색"
+              "code": "000019",
+              "name": "검정&흰색"
+            },
+            {
+              "code": "000001",
+              "name": "붉고 엷은 황갈색"
+            },
+            {
+              "code": "000018",
+              "name": "주황&흰색"
+            },
+            {
+              "code": "000005",
+              "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000250", "000129"],
+          "originalBreedNames": ["제페니스 친", "제페니즈칭"],
+          "mergeType": "alias",
+          "isModelClass": false
         },
         {
           "code": "000061",
@@ -4845,7 +5298,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000061"],
+          "originalBreedNames": ["잭 러셀 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000052",
@@ -4879,7 +5336,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000052"],
+          "originalBreedNames": ["저먼 셰퍼드 독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000230",
@@ -4889,7 +5350,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000230"],
+          "originalBreedNames": ["저먼 쇼트헤어드 포인터"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000165",
@@ -4931,7 +5396,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000165"],
+          "originalBreedNames": ["저먼 와이어헤어드 포인터"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000051",
@@ -4949,7 +5418,11 @@
               "code": "000035",
               "name": "적갈&검정&흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000051"],
+          "originalBreedNames": ["저먼 포인터"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "215",
@@ -4959,7 +5432,11 @@
               "code": "000007",
               "name": "검정색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["215"],
+          "originalBreedNames": ["저먼 헌팅 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000156",
@@ -4981,103 +5458,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
-        },
-        {
-          "code": "000250",
-          "name": "제페니스 친",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            }
-          ]
-        },
-        {
-          "code": "000129",
-          "name": "제페니즈칭",
-          "colors": [
-            {
-              "code": "000022",
-              "name": "갈색&흰색"
-            },
-            {
-              "code": "000019",
-              "name": "검정&흰색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000001",
-              "name": "붉고 엷은 황갈색"
-            },
-            {
-              "code": "000018",
-              "name": "주황&흰색"
-            },
-            {
-              "code": "000005",
-              "name": "황갈색"
-            }
-          ]
-        },
-        {
-          "code": "000238",
-          "name": "중앙아시안 셰퍼드",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            }
-          ]
-        },
-        {
-          "code": "000067",
-          "name": "진도견",
-          "colors": [
-            {
-              "code": "000045",
-              "name": "TAN"
-            },
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000001",
-              "name": "붉고 엷은 황갈색"
-            },
-            {
-              "code": "000010",
-              "name": "빨간색"
-            },
-            {
-              "code": "000009",
-              "name": "얼룩무늬"
-            },
-            {
-              "code": "000008",
-              "name": "울프그레이"
-            },
-            {
-              "code": "000004",
-              "name": "호반색(호랑이무늬)"
-            },
-            {
-              "code": "000006",
-              "name": "흑갈색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000156"],
+          "originalBreedNames": ["제주개"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000035",
@@ -5123,7 +5508,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000035"],
+          "originalBreedNames": ["차우차우"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000033",
@@ -5161,7 +5550,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000033"],
+          "originalBreedNames": ["차이니즈 크레스티드 독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000234",
@@ -5171,61 +5564,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
-        },
-        {
-          "code": "000032",
-          "name": "치와와",
-          "colors": [
-            {
-              "code": "000046",
-              "name": "갈색"
-            },
-            {
-              "code": "000070",
-              "name": "갈색&검정"
-            },
-            {
-              "code": "000022",
-              "name": "갈색&흰색"
-            },
-            {
-              "code": "000019",
-              "name": "검정&흰색"
-            },
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000002",
-              "name": "청색"
-            },
-            {
-              "code": "000026",
-              "name": "쵸콜릿색"
-            },
-            {
-              "code": "000025",
-              "name": "크림색"
-            },
-            {
-              "code": "000005",
-              "name": "황갈색"
-            },
-            {
-              "code": "000006",
-              "name": "흑갈색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000234"],
+          "originalBreedNames": ["체코슬로바이칸 울프독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000028",
@@ -5267,7 +5610,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000028"],
+          "originalBreedNames": ["카네 코르소"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000158",
@@ -5281,7 +5628,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000158"],
+          "originalBreedNames": ["카레리안 베어독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000144",
@@ -5299,7 +5650,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000144"],
+          "originalBreedNames": ["카이훗"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000239",
@@ -5309,7 +5664,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000239"],
+          "originalBreedNames": ["캉갈 셰퍼드 독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000030",
@@ -5347,7 +5706,65 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000030"],
+          "originalBreedNames": ["캐벌리어 킹 찰스 스파니엘"],
+          "mergeType": "unchanged",
+          "isModelClass": false
+        },
+        {
+          "code": null,
+          "name": "컨티넨탈 토이 스파니엘(파피용·팔렌)",
+          "colors": [
+            {
+              "code": "000046",
+              "name": "갈색"
+            },
+            {
+              "code": "000022",
+              "name": "갈색&흰색"
+            },
+            {
+              "code": "000019",
+              "name": "검정&흰색"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000017",
+              "name": "엷은 황갈색&흰색"
+            },
+            {
+              "code": "000033",
+              "name": "적갈&흰색"
+            },
+            {
+              "code": "000016",
+              "name": "호반색&흰색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            },
+            {
+              "code": "000011",
+              "name": "흰색&갈색&탄"
+            },
+            {
+              "code": "000060",
+              "name": "빨간색&흰색"
+            },
+            {
+              "code": "000042",
+              "name": "털끝검정"
+            }
+          ],
+          "originalBreedCodes": ["000085", "000088"],
+          "originalBreedNames": ["빠삐용(콘티넨탈 토이 스파니엘)", "팔렌(콘티넨탈 토이 스파니엘)"],
+          "mergeType": "variety",
+          "isModelClass": false
         },
         {
           "code": "000242",
@@ -5357,7 +5774,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000242"],
+          "originalBreedNames": ["케나디언 에스키모 독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000029",
@@ -5375,10 +5796,14 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000029"],
+          "originalBreedNames": ["케니스펜더"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
-          "code": "000064",
+          "code": null,
           "name": "케리 블루 테리어",
           "colors": [
             {
@@ -5401,17 +5826,11 @@
               "code": "000082",
               "name": "청회색"
             }
-          ]
-        },
-        {
-          "code": "000241",
-          "name": "케리블루 테리어",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000064", "000241"],
+          "originalBreedNames": ["케리 블루 테리어", "케리블루 테리어"],
+          "mergeType": "alias",
+          "isModelClass": false
         },
         {
           "code": "000207",
@@ -5441,7 +5860,11 @@
               "code": "000014",
               "name": "회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000207"],
+          "originalBreedNames": ["케언 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000002",
@@ -5479,7 +5902,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000002"],
+          "originalBreedNames": ["코리아 트라이 하운드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000068",
@@ -5509,7 +5936,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000068"],
+          "originalBreedNames": ["코리안 마스티프"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000125",
@@ -5555,7 +5986,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000125"],
+          "originalBreedNames": ["코카 스파니엘"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000141",
@@ -5589,7 +6024,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000141"],
+          "originalBreedNames": ["코카 푸"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000145",
@@ -5603,7 +6042,11 @@
               "code": "000014",
               "name": "회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000145"],
+          "originalBreedNames": ["코카시안 오브차카(코카시안 셰퍼드 독)"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000036",
@@ -5645,7 +6088,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000036"],
+          "originalBreedNames": ["콜리"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000066",
@@ -5659,7 +6106,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000066"],
+          "originalBreedNames": ["클라인스피츠"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000065",
@@ -5685,7 +6136,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000065"],
+          "originalBreedNames": ["키슈"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000063",
@@ -5711,7 +6166,11 @@
               "code": "000014",
               "name": "회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000063"],
+          "originalBreedNames": ["키스 훈드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000243",
@@ -5721,7 +6180,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000243"],
+          "originalBreedNames": ["타이 리지벡 독"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000140",
@@ -5739,53 +6202,11 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
-        },
-        {
-          "code": "000107",
-          "name": "토이 푸들",
-          "colors": [
-            {
-              "code": "000058",
-              "name": "APRICOT"
-            },
-            {
-              "code": "000059",
-              "name": "RED FAWN"
-            },
-            {
-              "code": "000046",
-              "name": "갈색"
-            },
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000002",
-              "name": "청색"
-            },
-            {
-              "code": "000026",
-              "name": "쵸콜릿색"
-            },
-            {
-              "code": "000025",
-              "name": "크림색"
-            },
-            {
-              "code": "000014",
-              "name": "회색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000140"],
+          "originalBreedNames": ["토이 맨체스터 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000106",
@@ -5815,7 +6236,11 @@
               "code": "000014",
               "name": "회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000106"],
+          "originalBreedNames": ["티베탄 마스티프"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000209",
@@ -5833,7 +6258,11 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000209"],
+          "originalBreedNames": ["파라오 하운드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000086",
@@ -5855,29 +6284,11 @@
               "code": "000017",
               "name": "엷은 황갈색&흰색"
             }
-          ]
-        },
-        {
-          "code": "000088",
-          "name": "팔렌(콘티넨탈 토이 스파니엘)",
-          "colors": [
-            {
-              "code": "000019",
-              "name": "검정&흰색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000060",
-              "name": "빨간색&흰색"
-            },
-            {
-              "code": "000042",
-              "name": "털끝검정"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000086"],
+          "originalBreedNames": ["파슨 러셀 테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000090",
@@ -5903,7 +6314,11 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000090"],
+          "originalBreedNames": ["퍼그"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000087",
@@ -5945,7 +6360,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000087"],
+          "originalBreedNames": ["페키니즈"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000138",
@@ -5967,7 +6386,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000138"],
+          "originalBreedNames": ["페터데일테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000248",
@@ -5977,69 +6400,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
-        },
-        {
-          "code": "000089",
-          "name": "포메라니안",
-          "colors": [
-            {
-              "code": "000046",
-              "name": "갈색"
-            },
-            {
-              "code": "000027",
-              "name": "검정&황갈색"
-            },
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000001",
-              "name": "붉고 엷은 황갈색"
-            },
-            {
-              "code": "000010",
-              "name": "빨간색"
-            },
-            {
-              "code": "000083",
-              "name": "주황색"
-            },
-            {
-              "code": "000002",
-              "name": "청색"
-            },
-            {
-              "code": "000026",
-              "name": "쵸콜릿색"
-            },
-            {
-              "code": "000025",
-              "name": "크림색"
-            },
-            {
-              "code": "000042",
-              "name": "털끝검정"
-            },
-            {
-              "code": "000012",
-              "name": "하얀바탕에 한가지색 또는 두가지색의 명확한 반점"
-            },
-            {
-              "code": "000014",
-              "name": "회색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000248"],
+          "originalBreedNames": ["포르투갈 워터 도그"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000126",
@@ -6085,7 +6450,11 @@
               "code": "000014",
               "name": "회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000126"],
+          "originalBreedNames": ["포인터"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000240",
@@ -6095,7 +6464,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000240"],
+          "originalBreedNames": ["폭스 테리어(스무스)"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000112",
@@ -6113,7 +6486,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000112"],
+          "originalBreedNames": ["폭스 테리어(와이어)"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000127",
@@ -6163,19 +6540,27 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000127"],
+          "originalBreedNames": ["폭스테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
-          "code": "000128",
+          "code": null,
           "name": "푸들",
           "colors": [
             {
-              "code": "000046",
-              "name": "갈색"
+              "code": "000058",
+              "name": "APRICOT"
             },
             {
-              "code": "000019",
-              "name": "검정&흰색"
+              "code": "000059",
+              "name": "RED FAWN"
+            },
+            {
+              "code": "000046",
+              "name": "갈색"
             },
             {
               "code": "000007",
@@ -6186,20 +6571,24 @@
               "name": "기타"
             },
             {
-              "code": "000001",
-              "name": "붉고 엷은 황갈색"
+              "code": "000030",
+              "name": "어두운회색"
+            },
+            {
+              "code": "000002",
+              "name": "청색"
+            },
+            {
+              "code": "000014",
+              "name": "회색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
             },
             {
               "code": "000041",
               "name": "살구색"
-            },
-            {
-              "code": "000017",
-              "name": "엷은 황갈색&흰색"
-            },
-            {
-              "code": "000018",
-              "name": "주황&흰색"
             },
             {
               "code": "000026",
@@ -6210,22 +6599,40 @@
               "name": "크림색"
             },
             {
+              "code": "000019",
+              "name": "검정&흰색"
+            },
+            {
+              "code": "000001",
+              "name": "붉고 엷은 황갈색"
+            },
+            {
+              "code": "000017",
+              "name": "엷은 황갈색&흰색"
+            },
+            {
+              "code": "000018",
+              "name": "주황&흰색"
+            },
+            {
               "code": "000016",
               "name": "호반색&흰색"
             },
             {
-              "code": "000014",
-              "name": "회색"
-            },
-            {
               "code": "000006",
               "name": "흑갈색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000078", "000074", "000105", "000107", "000128"],
+          "originalBreedNames": [
+            "미니어쳐 푸들",
+            "미디엄 푸들",
+            "스탠다드 푸들",
+            "토이 푸들",
+            "푸들"
+          ],
+          "mergeType": "variety",
+          "isModelClass": false
         },
         {
           "code": "000091",
@@ -6247,7 +6654,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000091"],
+          "originalBreedNames": ["풀리"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000003",
@@ -6293,53 +6704,31 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000003"],
+          "originalBreedNames": ["풍산견"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
-          "code": "000161",
-          "name": "프레사까나리오",
+          "code": null,
+          "name": "프레사 카나리오",
           "colors": [
-            {
-              "code": "000070",
-              "name": "갈색&검정"
-            },
             {
               "code": "000077",
               "name": "검은색&황갈색"
+            },
+            {
+              "code": "000027",
+              "name": "검정&황갈색"
             },
             {
               "code": "000007",
               "name": "검정색"
             },
             {
-              "code": "000076",
-              "name": "적갈색&밝은갈색"
-            },
-            {
-              "code": "000075",
-              "name": "황갈색&적갈색"
-            }
-          ]
-        },
-        {
-          "code": "000050",
-          "name": "프렌치 불독",
-          "colors": [
-            {
-              "code": "000019",
-              "name": "검정&흰색"
-            },
-            {
               "code": "000069",
               "name": "기타"
-            },
-            {
-              "code": "000009",
-              "name": "얼룩무늬"
-            },
-            {
-              "code": "000025",
-              "name": "크림색"
             },
             {
               "code": "000004",
@@ -6348,8 +6737,28 @@
             {
               "code": "000005",
               "name": "황갈색"
+            },
+            {
+              "code": "000075",
+              "name": "황갈색&적갈색"
+            },
+            {
+              "code": "000006",
+              "name": "흑갈색"
+            },
+            {
+              "code": "000070",
+              "name": "갈색&검정"
+            },
+            {
+              "code": "000076",
+              "name": "적갈색&밝은갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000043", "000161"],
+          "originalBreedNames": ["도고 까니리오", "프레사까나리오"],
+          "mergeType": "renamed",
+          "isModelClass": false
         },
         {
           "code": "000168",
@@ -6363,7 +6772,11 @@
               "code": "000019",
               "name": "검정&흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000168"],
+          "originalBreedNames": ["프렌치 브리타니"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000244",
@@ -6373,7 +6786,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000244"],
+          "originalBreedNames": ["프티 바세 그리퐁 방댕"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000049",
@@ -6395,7 +6812,11 @@
               "code": "000004",
               "name": "호반색(호랑이무늬)"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000049"],
+          "originalBreedNames": ["플랫 코티드 리트리버"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000147",
@@ -6413,21 +6834,11 @@
               "code": "000006",
               "name": "흑갈색"
             }
-          ]
-        },
-        {
-          "code": "000092",
-          "name": "피레니안 마운틴 독",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000147"],
+          "originalBreedNames": ["플롯하운드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000048",
@@ -6473,7 +6884,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000048"],
+          "originalBreedNames": ["필라 브라질레이로"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000135",
@@ -6519,7 +6934,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000135"],
+          "originalBreedNames": ["핏불테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000224",
@@ -6565,7 +6984,11 @@
               "code": "000011",
               "name": "흰색&갈색&탄"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000224"],
+          "originalBreedNames": ["핏불테리어 믹스견"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000206",
@@ -6607,7 +7030,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000206"],
+          "originalBreedNames": ["허배너스"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000235",
@@ -6617,7 +7044,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000235"],
+          "originalBreedNames": ["화이트 스위스 세퍼드"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000130",
@@ -6631,7 +7062,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000130"],
+          "originalBreedNames": ["화이트리트리버"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000134",
@@ -6641,7 +7076,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000134"],
+          "originalBreedNames": ["화이트테리어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000111",
@@ -6679,7 +7118,11 @@
               "code": "000005",
               "name": "황갈색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000111"],
+          "originalBreedNames": ["휘펫"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         }
       ]
     },
@@ -6687,6 +7130,371 @@
       "code": "422400",
       "name": "고양이",
       "breeds": [
+        {
+          "code": "000170",
+          "name": "노르웨이숲",
+          "colors": [
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000101",
+              "name": "흰색/줄무늬"
+            }
+          ],
+          "originalBreedCodes": ["000170"],
+          "originalBreedNames": ["노르웨이 숲"],
+          "mergeType": "renamed",
+          "isModelClass": true
+        },
+        {
+          "code": "00213",
+          "name": "랙돌",
+          "colors": [
+            {
+              "code": "000069",
+              "name": "기타"
+            }
+          ],
+          "originalBreedCodes": ["00213"],
+          "originalBreedNames": ["레그돌"],
+          "mergeType": "renamed",
+          "isModelClass": true
+        },
+        {
+          "code": "000172",
+          "name": "러시안 블루",
+          "colors": [
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "00098",
+              "name": "파란색"
+            },
+            {
+              "code": "000103",
+              "name": "푸른 회색"
+            }
+          ],
+          "originalBreedCodes": ["000172"],
+          "originalBreedNames": ["러시안 블루"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": "000175",
+          "name": "먼치킨",
+          "colors": [
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            }
+          ],
+          "originalBreedCodes": ["000175"],
+          "originalBreedNames": ["먼치킨"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": "000176",
+          "name": "메인쿤",
+          "colors": [
+            {
+              "code": "000007",
+              "name": "검정색"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000001",
+              "name": "붉고 엷은 황갈색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            }
+          ],
+          "originalBreedCodes": ["000176"],
+          "originalBreedNames": ["메인쿤"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": "000179",
+          "name": "벵갈",
+          "colors": [
+            {
+              "code": "000106",
+              "name": "갈색/갈색 무늬"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            }
+          ],
+          "originalBreedCodes": ["000179"],
+          "originalBreedNames": ["벵갈"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": "000181",
+          "name": "브리티시 쇼트헤어",
+          "colors": [
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000082",
+              "name": "청회색"
+            }
+          ],
+          "originalBreedCodes": ["000181"],
+          "originalBreedNames": ["브리티시 쇼트헤어"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": "000184",
+          "name": "샴",
+          "colors": [
+            {
+              "code": "000113",
+              "name": "고동색말단"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000078",
+              "name": "엷은 황갈색"
+            },
+            {
+              "code": "000112",
+              "name": "청회색말단"
+            },
+            {
+              "code": "000114",
+              "name": "크림/옅은분홍색말단"
+            },
+            {
+              "code": "000111",
+              "name": "크림색/암갈색 말단"
+            },
+            {
+              "code": "000110",
+              "name": "회백색"
+            }
+          ],
+          "originalBreedCodes": ["000184"],
+          "originalBreedNames": ["샴"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": null,
+          "name": "스코티시 스트레이트",
+          "colors": [],
+          "originalBreedCodes": [],
+          "originalBreedNames": [],
+          "mergeType": "model_only",
+          "isModelClass": true
+        },
+        {
+          "code": null,
+          "name": "스코티시 폴드",
+          "colors": [
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            },
+            {
+              "code": "000046",
+              "name": "갈색"
+            },
+            {
+              "code": "000007",
+              "name": "검정색"
+            },
+            {
+              "code": "000025",
+              "name": "크림색"
+            },
+            {
+              "code": "000014",
+              "name": "회색"
+            }
+          ],
+          "originalBreedCodes": ["000188", "000199"],
+          "originalBreedNames": ["스코티시폴드", "하일랜드 폴드"],
+          "mergeType": "variety",
+          "isModelClass": true
+        },
+        {
+          "code": "000192",
+          "name": "아메리칸 쇼트헤어",
+          "colors": [
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000117",
+              "name": "은색/검정색 줄무늬"
+            }
+          ],
+          "originalBreedCodes": ["000192"],
+          "originalBreedNames": ["아메리칸 쇼트헤어"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": "000193",
+          "name": "아비시니안",
+          "colors": [
+            {
+              "code": "000107",
+              "name": "갈색 얼룩무늬"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000118",
+              "name": "오렌지브라운/흑색"
+            }
+          ],
+          "originalBreedCodes": ["000193"],
+          "originalBreedNames": ["아비시니안"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": "000200",
+          "name": "코리안 숏헤어",
+          "colors": [
+            {
+              "code": "000058",
+              "name": "APRICOT"
+            },
+            {
+              "code": "000123",
+              "name": "검은색흰색황토색조합"
+            },
+            {
+              "code": "000007",
+              "name": "검정색"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000067",
+              "name": "레몬색&흰색"
+            },
+            {
+              "code": "000121",
+              "name": "평행·전체·부분줄무늬"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            },
+            {
+              "code": "000122",
+              "name": "흰색/검은색 얼룩무늬"
+            }
+          ],
+          "originalBreedCodes": ["000200"],
+          "originalBreedNames": ["한국 고양이"],
+          "mergeType": "renamed",
+          "isModelClass": true
+        },
+        {
+          "code": "000195",
+          "name": "터키시 앙고라",
+          "colors": [
+            {
+              "code": "000070",
+              "name": "갈색&검정"
+            },
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000010",
+              "name": "빨간색"
+            },
+            {
+              "code": "00098",
+              "name": "파란색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            }
+          ],
+          "originalBreedCodes": ["000195"],
+          "originalBreedNames": ["터키시 앙고라"],
+          "mergeType": "unchanged",
+          "isModelClass": true
+        },
+        {
+          "code": null,
+          "name": "페르시안",
+          "colors": [
+            {
+              "code": "000069",
+              "name": "기타"
+            },
+            {
+              "code": "000007",
+              "name": "검정색"
+            },
+            {
+              "code": "000001",
+              "name": "붉고 엷은 황갈색"
+            },
+            {
+              "code": "000002",
+              "name": "청색"
+            },
+            {
+              "code": "000119",
+              "name": "청황색"
+            },
+            {
+              "code": "000014",
+              "name": "회색"
+            },
+            {
+              "code": "000003",
+              "name": "흰색"
+            }
+          ],
+          "originalBreedCodes": ["00214", "000197"],
+          "originalBreedNames": ["페르시안", "페르시안-페르시안 친칠라"],
+          "mergeType": "variety",
+          "isModelClass": true
+        },
         {
           "code": "000116",
           "name": "고양이",
@@ -6731,7 +7539,11 @@
               "code": "000039",
               "name": "흰색&검은반점"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000116"],
+          "originalBreedNames": ["고양이"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000201",
@@ -6873,21 +7685,11 @@
               "code": "000101",
               "name": "흰색/줄무늬"
             }
-          ]
-        },
-        {
-          "code": "000170",
-          "name": "노르웨이 숲",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000101",
-              "name": "흰색/줄무늬"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000201"],
+          "originalBreedNames": ["기타"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000218",
@@ -6897,7 +7699,11 @@
               "code": "000082",
               "name": "청회색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000218"],
+          "originalBreedNames": ["니벨룽"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000171",
@@ -6919,35 +7725,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
-        },
-        {
-          "code": "000172",
-          "name": "러시안 블루",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "00098",
-              "name": "파란색"
-            },
-            {
-              "code": "000103",
-              "name": "푸른 회색"
-            }
-          ]
-        },
-        {
-          "code": "00213",
-          "name": "레그돌",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000171"],
+          "originalBreedNames": ["데본 렉스"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000173",
@@ -6977,7 +7759,11 @@
               "code": "00098",
               "name": "파란색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000173"],
+          "originalBreedNames": ["레그돌-라가머핀"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000174",
@@ -7007,43 +7793,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
-        },
-        {
-          "code": "000175",
-          "name": "먼치킨",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
-        },
-        {
-          "code": "000176",
-          "name": "메인쿤",
-          "colors": [
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000001",
-              "name": "붉고 엷은 황갈색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000174"],
+          "originalBreedNames": ["맹크스"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000212",
@@ -7065,7 +7819,11 @@
               "code": "000025",
               "name": "크림색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000212"],
+          "originalBreedNames": ["믹스묘"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000177",
@@ -7087,7 +7845,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000177"],
+          "originalBreedNames": ["발리네즈"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000178",
@@ -7109,21 +7871,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
-        },
-        {
-          "code": "000179",
-          "name": "벵갈",
-          "colors": [
-            {
-              "code": "000106",
-              "name": "갈색/갈색 무늬"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000178"],
+          "originalBreedNames": ["버만"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000180",
@@ -7137,7 +7889,11 @@
               "code": "000069",
               "name": "기타"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000180"],
+          "originalBreedNames": ["봄베이"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000216",
@@ -7163,21 +7919,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
-        },
-        {
-          "code": "000181",
-          "name": "브리티시 쇼트헤어",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000082",
-              "name": "청회색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000216"],
+          "originalBreedNames": ["브리티쉬롱헤어"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000182",
@@ -7203,7 +7949,11 @@
               "code": "000109",
               "name": "흑색반점"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000182"],
+          "originalBreedNames": ["사바나캣"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000183",
@@ -7217,41 +7967,11 @@
               "code": "000082",
               "name": "청회색"
             }
-          ]
-        },
-        {
-          "code": "000184",
-          "name": "샴",
-          "colors": [
-            {
-              "code": "000113",
-              "name": "고동색말단"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000078",
-              "name": "엷은 황갈색"
-            },
-            {
-              "code": "000112",
-              "name": "청회색말단"
-            },
-            {
-              "code": "000114",
-              "name": "크림/옅은분홍색말단"
-            },
-            {
-              "code": "000111",
-              "name": "크림색/암갈색 말단"
-            },
-            {
-              "code": "000110",
-              "name": "회백색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000183"],
+          "originalBreedNames": ["샤트룩스"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000185",
@@ -7281,7 +8001,11 @@
               "code": "000071",
               "name": "은색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000185"],
+          "originalBreedNames": ["셀커크 렉스"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000186",
@@ -7307,7 +8031,11 @@
               "code": "00098",
               "name": "파란색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000186"],
+          "originalBreedNames": ["소말리"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000187",
@@ -7325,21 +8053,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
-        },
-        {
-          "code": "000188",
-          "name": "스코티시폴드",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000187"],
+          "originalBreedNames": ["스노우 슈"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000189",
@@ -7357,7 +8075,11 @@
               "code": "000025",
               "name": "크림색"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000189"],
+          "originalBreedNames": ["스핑크스"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000190",
@@ -7371,7 +8093,11 @@
               "code": "000101",
               "name": "흰색/줄무늬"
             }
-          ]
+          ],
+          "originalBreedCodes": ["000190"],
+          "originalBreedNames": ["시베리안 포레스트"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000191",
@@ -7385,39 +8111,11 @@
               "code": "000001",
               "name": "붉고 엷은 황갈색"
             }
-          ]
-        },
-        {
-          "code": "000192",
-          "name": "아메리칸 쇼트헤어",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000117",
-              "name": "은색/검정색 줄무늬"
-            }
-          ]
-        },
-        {
-          "code": "000193",
-          "name": "아비시니안",
-          "colors": [
-            {
-              "code": "000107",
-              "name": "갈색 얼룩무늬"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000118",
-              "name": "오렌지브라운/흑색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000191"],
+          "originalBreedNames": ["싱가퓨라"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000194",
@@ -7439,33 +8137,11 @@
               "code": "000003",
               "name": "흰색"
             }
-          ]
-        },
-        {
-          "code": "000195",
-          "name": "터키시 앙고라",
-          "colors": [
-            {
-              "code": "000070",
-              "name": "갈색&검정"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000010",
-              "name": "빨간색"
-            },
-            {
-              "code": "00098",
-              "name": "파란색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000194"],
+          "originalBreedNames": ["재패니즈밥테일"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000196",
@@ -7491,51 +8167,11 @@
               "code": "00098",
               "name": "파란색"
             }
-          ]
-        },
-        {
-          "code": "00214",
-          "name": "페르시안",
-          "colors": [
-            {
-              "code": "000069",
-              "name": "기타"
-            }
-          ]
-        },
-        {
-          "code": "000197",
-          "name": "페르시안-페르시안 친칠라",
-          "colors": [
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000001",
-              "name": "붉고 엷은 황갈색"
-            },
-            {
-              "code": "000002",
-              "name": "청색"
-            },
-            {
-              "code": "000119",
-              "name": "청황색"
-            },
-            {
-              "code": "000014",
-              "name": "회색"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000196"],
+          "originalBreedNames": ["통키니즈"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         },
         {
           "code": "000198",
@@ -7553,71 +8189,11 @@
               "code": "000120",
               "name": "짙은 갈색"
             }
-          ]
-        },
-        {
-          "code": "000199",
-          "name": "하일랜드 폴드",
-          "colors": [
-            {
-              "code": "000046",
-              "name": "갈색"
-            },
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000025",
-              "name": "크림색"
-            },
-            {
-              "code": "000014",
-              "name": "회색"
-            }
-          ]
-        },
-        {
-          "code": "000200",
-          "name": "한국 고양이",
-          "colors": [
-            {
-              "code": "000058",
-              "name": "APRICOT"
-            },
-            {
-              "code": "000123",
-              "name": "검은색흰색황토색조합"
-            },
-            {
-              "code": "000007",
-              "name": "검정색"
-            },
-            {
-              "code": "000069",
-              "name": "기타"
-            },
-            {
-              "code": "000067",
-              "name": "레몬색&흰색"
-            },
-            {
-              "code": "000121",
-              "name": "평행·전체·부분줄무늬"
-            },
-            {
-              "code": "000003",
-              "name": "흰색"
-            },
-            {
-              "code": "000122",
-              "name": "흰색/검은색 얼룩무늬"
-            }
-          ]
+          ],
+          "originalBreedCodes": ["000198"],
+          "originalBreedNames": ["하바나 브라운"],
+          "mergeType": "unchanged",
+          "isModelClass": false
         }
       ]
     },
@@ -7638,5 +8214,358 @@
       ]
     }
   ],
-  "issues": []
+  "issues": [],
+  "description": "동일 품종/변종/동의어만 보수적으로 통합. 희귀 품종을 기타로 이동하지 않음. 모델 클래스 30종 보존.",
+  "mergePolicy": {
+    "allowed": [
+      "동일 품종 코드 중복 또는 명칭 차이",
+      "같은 품종의 공식 크기·피모·귀 모양 변종",
+      "공식 개명으로 발생한 동의어"
+    ],
+    "notAllowed": [
+      "외형이 비슷하지만 별개의 품종",
+      "인기·등록 빈도에 따른 삭제",
+      "희귀 품종을 기타에 편입",
+      "모델이 별도로 출력하는 클래스 병합"
+    ],
+    "codePolicy": "원본 품종을 그대로 보존한 경우 code 유지. 여러 코드를 통합한 경우 code=null; originalBreedCodes에 원본 코드 모두 기록. 새로 추가된 모델 범주도 code=null.",
+    "colorPolicy": "기존 색상은 변경하지 않고 원본 (code,name) 쌍의 합집합을 구성. 새로 추가한 모델 전용 항목은 색상 없음."
+  },
+  "modelClasses": {
+    "개": [
+      "말티즈",
+      "포메라니안",
+      "비숑 프리제",
+      "말티푸",
+      "시베리안 허스키",
+      "치와와",
+      "시추",
+      "시바견",
+      "웰시코기",
+      "골든리트리버",
+      "프렌치불독",
+      "닥스훈트",
+      "재패니즈 스피츠",
+      "요크셔테리어",
+      "진돗개"
+    ],
+    "고양이": [
+      "코리안 숏헤어",
+      "스코티시 폴드",
+      "러시안 블루",
+      "먼치킨",
+      "브리티시 쇼트헤어",
+      "페르시안",
+      "샴",
+      "아비시니안",
+      "터키시 앙고라",
+      "스코티시 스트레이트",
+      "아메리칸 쇼트헤어",
+      "랙돌",
+      "벵갈",
+      "노르웨이숲",
+      "메인쿤"
+    ]
+  },
+  "mergeAudit": [
+    {
+      "species": "개",
+      "name": "그레이트 피레니즈",
+      "mergedFrom": [
+        {
+          "code": "000118",
+          "name": "그레이트 피레니즈"
+        },
+        {
+          "code": "000092",
+          "name": "피레니안 마운틴 독"
+        }
+      ],
+      "type": "alias",
+      "reason": "Great Pyrenees / Pyrenean Mountain Dog 동의어"
+    },
+    {
+      "species": "개",
+      "name": "노르포크 테리어",
+      "mergedFrom": [
+        {
+          "code": "000204",
+          "name": "노르포크 테리어"
+        },
+        {
+          "code": "00216",
+          "name": "노퍽 테리어"
+        }
+      ],
+      "type": "alias",
+      "reason": "동일 품종의 다른 한글 표기"
+    },
+    {
+      "species": "개",
+      "name": "프레사 카나리오",
+      "mergedFrom": [
+        {
+          "code": "000043",
+          "name": "도고 까니리오"
+        },
+        {
+          "code": "000161",
+          "name": "프레사까나리오"
+        }
+      ],
+      "type": "renamed",
+      "reason": "Dogo Canario가 Presa Canario로 공식 개명됨"
+    },
+    {
+      "species": "개",
+      "name": "도고 아르젠티노",
+      "mergedFrom": [
+        {
+          "code": "000042",
+          "name": "도고 아르젠티노"
+        },
+        {
+          "code": "000153",
+          "name": "도고 아르젠티노"
+        }
+      ],
+      "type": "duplicate",
+      "reason": "같은 명칭으로 중복 등록된 코드"
+    },
+    {
+      "species": "개",
+      "name": "닥스훈트",
+      "mergedFrom": [
+        {
+          "code": "000093",
+          "name": "래빗 닥스훈트"
+        },
+        {
+          "code": "000076",
+          "name": "미니어쳐 닥스훈트"
+        },
+        {
+          "code": "000038",
+          "name": "스탠다드 닥스훈트"
+        }
+      ],
+      "type": "variety",
+      "reason": "동일 품종의 크기별 변종"
+    },
+    {
+      "species": "개",
+      "name": "로트와일러",
+      "mergedFrom": [
+        {
+          "code": "000121",
+          "name": "로트와일러"
+        },
+        {
+          "code": "000094",
+          "name": "로트와일러"
+        }
+      ],
+      "type": "duplicate",
+      "reason": "같은 명칭으로 중복 등록된 코드"
+    },
+    {
+      "species": "개",
+      "name": "벨지안 셰퍼드 독(말리노이즈)",
+      "mergedFrom": [
+        {
+          "code": "000152",
+          "name": "마리노이즈"
+        },
+        {
+          "code": "000226",
+          "name": "벨지안 셰퍼드 독(마리노이즈)"
+        }
+      ],
+      "type": "alias",
+      "reason": "벨지안 셰퍼드 말리노이즈의 표기 차이"
+    },
+    {
+      "species": "개",
+      "name": "알라스칸 말라뮤트",
+      "mergedFrom": [
+        {
+          "code": "000146",
+          "name": "말라뮤트"
+        },
+        {
+          "code": "000007",
+          "name": "알라스칸 말라뮤트"
+        }
+      ],
+      "type": "alias",
+      "reason": "동일 품종의 축약 표기"
+    },
+    {
+      "species": "개",
+      "name": "푸들",
+      "mergedFrom": [
+        {
+          "code": "000078",
+          "name": "미니어쳐 푸들"
+        },
+        {
+          "code": "000074",
+          "name": "미디엄 푸들"
+        },
+        {
+          "code": "000105",
+          "name": "스탠다드 푸들"
+        },
+        {
+          "code": "000107",
+          "name": "토이 푸들"
+        },
+        {
+          "code": "000128",
+          "name": "푸들"
+        }
+      ],
+      "type": "variety",
+      "reason": "동일 품종의 크기별 변종"
+    },
+    {
+      "species": "개",
+      "name": "벨지안 셰퍼드 독(테르뷰렌)",
+      "mergedFrom": [
+        {
+          "code": "000148",
+          "name": "벨기에 테뷰런"
+        },
+        {
+          "code": "000227",
+          "name": "벨지안 셰퍼드 독(테르뷰렌)"
+        }
+      ],
+      "type": "alias",
+      "reason": "벨지안 셰퍼드 테르뷰렌의 표기 차이"
+    },
+    {
+      "species": "개",
+      "name": "컨티넨탈 토이 스파니엘(파피용·팔렌)",
+      "mergedFrom": [
+        {
+          "code": "000085",
+          "name": "빠삐용(콘티넨탈 토이 스파니엘)"
+        },
+        {
+          "code": "000088",
+          "name": "팔렌(콘티넨탈 토이 스파니엘)"
+        }
+      ],
+      "type": "variety",
+      "reason": "FCI의 동일 품종 내 귀 모양별 변종"
+    },
+    {
+      "species": "개",
+      "name": "센트럴 아시안 셰퍼드",
+      "mergedFrom": [
+        {
+          "code": "000031",
+          "name": "센트럴 아시안 오브차카"
+        },
+        {
+          "code": "000238",
+          "name": "중앙아시안 셰퍼드"
+        }
+      ],
+      "type": "alias",
+      "reason": "Central Asian Shepherd Dog/Ovcharka 동의어"
+    },
+    {
+      "species": "개",
+      "name": "오스트레일리안 캐틀 독",
+      "mergedFrom": [
+        {
+          "code": "000010",
+          "name": "오스트랄리안 캐틀 독"
+        },
+        {
+          "code": "000236",
+          "name": "오스트레일리안 케틀독"
+        }
+      ],
+      "type": "alias",
+      "reason": "Australian Cattle Dog 다른 음역"
+    },
+    {
+      "species": "개",
+      "name": "재패니즈 친",
+      "mergedFrom": [
+        {
+          "code": "000250",
+          "name": "제페니스 친"
+        },
+        {
+          "code": "000129",
+          "name": "제페니즈칭"
+        }
+      ],
+      "type": "alias",
+      "reason": "Japanese Chin 다른 한글 표기"
+    },
+    {
+      "species": "개",
+      "name": "케리 블루 테리어",
+      "mergedFrom": [
+        {
+          "code": "000064",
+          "name": "케리 블루 테리어"
+        },
+        {
+          "code": "000241",
+          "name": "케리블루 테리어"
+        }
+      ],
+      "type": "alias",
+      "reason": "공백 표기만 다른 중복 품종"
+    },
+    {
+      "species": "고양이",
+      "name": "스코티시 폴드",
+      "mergedFrom": [
+        {
+          "code": "000188",
+          "name": "스코티시폴드"
+        },
+        {
+          "code": "000199",
+          "name": "하일랜드 폴드"
+        }
+      ],
+      "type": "variety",
+      "reason": "스코티시 폴드의 단모·장모 계열; 스코티시 스트레이트는 별도 유지"
+    },
+    {
+      "species": "고양이",
+      "name": "페르시안",
+      "mergedFrom": [
+        {
+          "code": "00214",
+          "name": "페르시안"
+        },
+        {
+          "code": "000197",
+          "name": "페르시안-페르시안 친칠라"
+        }
+      ],
+      "type": "variety",
+      "reason": "페르시안 내 친칠라 피모 변종"
+    }
+  ],
+  "originalBreedCount": {
+    "개": 215,
+    "고양이": 38,
+    "기타": 1
+  },
+  "newBreedCount": {
+    "개": 198,
+    "고양이": 37,
+    "기타": 1
+  },
+  "disclaimer": "공식 코드가 없는 모델 전용 클래스(말티푸, 웰시코기 범주, 스코티시 스트레이트)는 원본의 국가동물보호정보시스템 코드로 전송하면 안 됨. 웰시코기는 카디건/펨브로크를 임의로 합치지 않았음."
 }

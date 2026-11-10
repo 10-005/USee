@@ -30,14 +30,14 @@ import { Button } from '@/shared/ui/Button';
 import { LinkedRescueCard } from '@/pages/animals/LinkedRescueCard';
 import { Modal } from '@/shared/ui/Modal';
 import { animalStatuses } from './animal-statuses';
-import { breedLabel, breedsFor, catalogCombinations } from './breed-options';
+import { breedsFor, catalogCombinations } from './breed-options';
 import { localDate } from '@/shared/lib/date';
 import { readImageDataUrl } from '@/shared/lib/image';
 import pencil from '@/shared/assets/icons/edit-pencil.svg';
 
-function optionsWithOtherLast(names: string[]) {
+function optionsWithOtherFirst(names: string[]) {
   const options = new Set(names);
-  if (options.delete('기타')) options.add('기타');
+  if (options.delete('기타')) return ['기타', ...options];
   return [...options];
 }
 
@@ -205,34 +205,43 @@ function AnimalForm({
   const [species, setSpecies] = useState<ShelterAnimalRecord['species'] | ''>(
     animal?.species ?? '',
   );
-  const [breed, setBreed] = useState(() => {
-    if (live) return String(live.classification?.breedSeq ?? '');
-    if (!animal) return '';
-    const matches = breedsFor(animal.species).filter((item) => item.name === animal.name);
-    const saved =
-      matches.find((item) => item.code === animal.breedCode) ??
-      matches.find((item) => item.colors.some((c) => c.name === animal.color)) ??
-      matches[0];
-    return saved ? breedLabel(saved) : animal.name;
-  });
-  const [color, setColor] = useState(animal?.color ?? '');
-  const breeds = live ? [] : breedsFor(species);
-  const sourceBreed = breeds.find((item) => breedLabel(item) === breed);
-  const colorNames = sourceBreed?.colors.map((c) => c.name) ?? [];
-  if (color && animal?.color === color && !colorNames.includes(color)) colorNames.unshift(color);
+  const breeds = breedsFor(species);
   const liveOptions =
     live && catalogCombinations(species, live.catalog, live.classification?.combinationSeq);
-  const breedOptions = new Map<string, string>(
-    liveOptions
-      ? liveOptions.map((c) => [String(c.breedSeq), c.label])
-      : breeds.map((item) => [breedLabel(item), breedLabel(item)]),
-  );
-  if (!live && breed) breedOptions.set(breed, breed);
-  const sortedBreeds = [...breedOptions].sort(([, a], [, b]) =>
+  const [breed, setBreed] = useState(() => {
+    if (live)
+      return (
+        liveOptions?.find((row) => row.combinationSeq === live.classification?.combinationSeq)
+          ?.label ?? ''
+      );
+    if (!animal) return '';
+    return (
+      breeds.find(
+        (item) =>
+          item.name === animal.name ||
+          item.originalBreedNames?.includes(animal.name) ||
+          (animal.breedCode && item.originalBreedCodes?.includes(animal.breedCode)),
+      )?.name ?? animal.name
+    );
+  });
+  const [color, setColor] = useState(animal?.color ?? '');
+  const sourceBreed = breeds.find((item) => item.name === breed);
+  const colorNames = sourceBreed?.colors.map((c) => c.name) ?? [];
+  if (color && animal?.color === color && !colorNames.includes(color)) colorNames.unshift(color);
+  const breedOptions = new Set(breeds.map((item) => item.name));
+  if (breed) breedOptions.add(breed);
+  const sortedBreeds = [...breedOptions].sort((a, b) =>
     a === b ? 0 : a === '기타' ? -1 : b === '기타' ? 1 : koreanOrder.compare(a, b),
   );
-  const liveColors = liveOptions?.filter((c) => String(c.breedSeq) === breed);
-  const colors = optionsWithOtherLast(liveColors ? liveColors.map((c) => c.colorName) : colorNames);
+  const availableBreeds = new Set(
+    liveOptions
+      ? liveOptions.map((row) => row.label)
+      : breeds.filter((item) => item.colors.length).map((item) => item.name),
+  );
+  const liveColors = liveOptions?.filter((c) => c.label === breed);
+  const colors = optionsWithOtherFirst(
+    liveColors ? liveColors.map((c) => c.colorName) : colorNames,
+  );
   const combination =
     liveColors?.find(
       (c) => c.colorName === color && c.combinationSeq === live?.classification?.combinationSeq,
@@ -324,8 +333,8 @@ function AnimalForm({
         rescueId: rescue?.id ?? animal?.rescueId ?? (live?.rescueId || undefined),
         id: animal?.id ?? `animal-${crypto.randomUUID().slice(0, 8)}`,
         registeredAt: animal?.registeredAt ?? localDate(),
-        name: combination?.breedName ?? sourceBreed?.name ?? breed,
-        breedCode: sourceBreed?.code,
+        name: breed,
+        breedCode: sourceBreed?.code ?? undefined,
         species,
         sex,
         neutered,
@@ -446,9 +455,9 @@ function AnimalForm({
             <option value="" disabled>
               종류 선택
             </option>
+            <option value="other">기타</option>
             <option value="dog">개</option>
             <option value="cat">고양이</option>
-            <option value="other">기타</option>
           </SelectField>
           <SelectField
             className="shelter-filter--menu"
@@ -466,8 +475,12 @@ function AnimalForm({
             <option value="" disabled>
               {species ? '품종 선택' : '동물 종류를 먼저 선택해 주세요'}
             </option>
-            {sortedBreeds.map(([value, name]) => (
-              <option key={value} value={value}>
+            {sortedBreeds.map((name) => (
+              <option
+                key={name}
+                value={name}
+                disabled={!availableBreeds.has(name) && name !== breed}
+              >
                 {name}
               </option>
             ))}
