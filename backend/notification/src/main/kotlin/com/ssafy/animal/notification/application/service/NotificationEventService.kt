@@ -87,7 +87,9 @@ class NotificationEventService(
     }
 
     override fun onChatMessageSent(event: ChatMessageSent) {
+        // 저장형 알림 유형(NotificationType)이 아니라 FCM data에만 쓰는 구분값이다. notificationSeq 없음(Q516)
         val data = mapOf(
+            "notificationType" to CHAT_PUSH_TYPE,
             "roomSeq" to event.chatRoomSeq.toString(),
             "messageSeq" to event.messageSeq.toString(),
             "senderDisplayName" to event.senderDisplayName,
@@ -95,10 +97,11 @@ class NotificationEventService(
         )
         // 보낸 사람은 chat이 이미 뺐지만 한 번 더 거른다
         val candidates = event.recipientUserSeqs.filter { it != event.senderUserSeq }.map(Math::toIntExact)
-        // 채팅을 끈 수신자는 데이터 메시지도 보내지 않는다(Q510). 행이 없으면 켜짐
+        // 채팅을 끈 수신자에게는 보내지 않는다(Q510). 행이 없으면 켜짐
         val chatOff = settingRepository.findAll(candidates).filterNot { it.chatEnabled }.map { it.userSeq }.toSet()
         val recipients = candidates.filterNot { it in chatOff }
-        deviceTokenRepository.findActive(recipients).forEach { send(FcmMessage(it.fcmToken, null, null, data)) }
+        deviceTokenRepository.findActive(recipients)
+            .forEach { send(FcmMessage(it.fcmToken, event.senderDisplayName, event.preview, data)) }
     }
 
     /** 행이 없으면 기본값(전부 켜짐, Q511). 보호소 계정은 행을 만들 수 없어 항상 기본값이다 */
@@ -126,6 +129,7 @@ class NotificationEventService(
 
     companion object {
         const val DELETED_COMMENT_MESSAGE = "삭제된 댓글입니다"
+        const val CHAT_PUSH_TYPE = "CHAT"
 
         /** 17.8 저장형 알림 FCM data. 값이 없는 필드는 뺀다 */
         fun storedData(

@@ -125,14 +125,17 @@ class NotificationEventServiceTest {
     }
 
     @Test
-    fun `ChatMessageSent는 보낸 사람을 뺀 수신자에게 데이터 메시지만 보낸다`() {
+    fun `ChatMessageSent는 보낸 사람을 뺀 수신자에게 보낸 사람·미리보기를 제목·본문으로, CHAT 구분값과 함께 보낸다`() {
         service.onChatMessageSent(ChatMessageSent(3, 900, 18, "발견도우미", "안녕하세요", listOf(17, 18, 99)))
 
         val push = fcm.sent.single()
         assertEquals("token-17", push.token)
-        assertNull(push.title)
-        assertNull(push.body)
-        assertEquals(mapOf("roomSeq" to "3", "messageSeq" to "900", "senderDisplayName" to "발견도우미", "preview" to "안녕하세요"), push.data)
+        assertEquals("발견도우미", push.title)
+        assertEquals("안녕하세요", push.body)
+        assertEquals(
+            mapOf("notificationType" to "CHAT", "roomSeq" to "3", "messageSeq" to "900", "senderDisplayName" to "발견도우미", "preview" to "안녕하세요"),
+            push.data,
+        )
         assertTrue(notifications.rows.isEmpty())
     }
 
@@ -211,7 +214,7 @@ class NotificationEventServiceTest {
     }
 
     @Test
-    fun `채팅 알림을 끈 수신자에게는 데이터 메시지도 보내지 않는다`() {
+    fun `채팅 알림을 끈 수신자에게는 채팅 푸시를 보내지 않는다`() {
         tokens.rows += DeviceToken(19, "token-19")
         setting(17, NotificationSettingChange(chatEnabled = false))
 
