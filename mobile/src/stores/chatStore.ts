@@ -1,225 +1,444 @@
 import { create } from 'zustand';
-import { STORAGE_KEYS } from '../constants/storageKeys';
-import { getStoredValue, setStoredValue } from '../services/storage/jsonStorage';
-import { removeChatPhoto } from '../services/storage/chatPhotoStorage';
 
-export type ChatPhoto = { filename: string; width: number; height: number };
-type Content = { kind: 'text'; text: string } | { kind: 'photo'; photo: ChatPhoto };
+import {
+  chatSocket,
+  createChatRoom,
+  getChatMessages,
+  getChatRoom,
+  getChatRooms,
+  leaveChatRoom,
+  markChatRoomRead,
+  type ChatCounterpart,
+  type ChatMessageView,
+  type ChatTargetType,
+} from '../services/chat';
+import { confirmImage, uploadImageToPendingStorage } from '../services/images';
+import { useProfileStore } from './profileStore';
+
+export type ChatPhoto = {
+  byteSize: number;
+  contentType: 'image/jpeg' | 'image/png';
+  fileName: string;
+  height: number;
+  uri: string;
+  width: number;
+};
 export type PostType = 'adoption' | 'found' | 'lost';
 export type PostRef = { type: PostType; id: string };
+export type ChatPreview = { name: string; post: PostRef };
 export function samePost(a?: PostRef, b?: PostRef) {
   return a?.type === b?.type && a?.id === b?.id;
 }
-type Message = Content & { id: string; mine: boolean; sentAt: number; post?: PostRef };
-type Room = {
+type Message = {
+  id: string;
+  kind: 'text' | 'photo';
+  mine: boolean;
+  sentAt: number;
+  text?: string;
+  photo?: { height: number; uri: string; width: number };
+  post?: PostRef;
+  pending?: boolean;
+};
+export type ChatRoom = {
+  counterpart: ChatCounterpart;
   id: string;
   name: string;
   unreadCount: number;
   messages: Message[];
-  animalId?: string;
+  lastMessageDttm: number;
 };
 
-const now = Date.now();
-const initialRooms: Room[] = [
-  {
-    id: 'sample-chat-1',
-    name: '시샤',
-    unreadCount: 1,
-    animalId: 'animal-1',
-    messages: [
-      {
-        id: '1',
-        kind: 'text',
-        text: '아이 몇 개월인지 알 수 있을까요?',
-        mine: false,
-        sentAt: now - 3600000,
-      },
-    ],
-  },
-  {
-    id: 'sample-chat-2',
-    name: '민지',
-    unreadCount: 0,
-    messages: [
-      { id: '1', kind: 'text', text: '확인 감사합니다.', mine: false, sentAt: now - 7200000 },
-    ],
-  },
-];
-
-export type ChatPreview = { name: string; post: PostRef };
-
-// Convert rooms saved by earlier versions into a single timeline per fixture publisher.
-function migrateRooms(source: Room[]) {
-  const rooms = new Map<string, Room>();
-  for (const room of source) {
-    if (!room.messages.length) {continue;}
-    const match = /^post:(adoption|found|lost):(.+)$/.exec(room.id);
-    const sample = room.id === 'sample-chat-1';
-    let id = room.id;
-    let post: PostRef | undefined;
-    if (match) {
-      post = { type: match[1] as PostType, id: match[2] };
-      const author =
-        post.type === 'adoption' ? 'iksan-shelter' : room.name === '내 닉네임' ? 'self' : 'sisha';
-      id = `publisher:${author}`;
-    } else if (sample) {
-      id = 'publisher:sisha';
-      if (room.animalId) {post = { type: 'adoption', id: room.animalId };}
-    }
-    const previous = rooms.get(id);
-    if (!match && !sample && !previous) {
-      rooms.set(id, room);
-      continue;
-    }
-    const messages = [
-      ...(previous?.messages ?? []),
-      ...room.messages.map(message => ({
-        ...message,
-        post: message.post ?? post,
-      })),
-    ]
-      .sort((a, b) => a.sentAt - b.sentAt)
-      .map((message, index) => ({ ...message, id: String(index + 1) }));
-    rooms.set(id, {
-      id,
-      name: room.name,
-      unreadCount: (previous?.unreadCount ?? 0) + room.unreadCount,
-      messages,
-    });
-  }
-  return Array.from(rooms.values());
-}
 type ChatState = {
-  rooms: Room[];
   drafts: Record<string, string>;
+  error: string | null;
   loaded: boolean;
-  load: () => Promise<void>;
+  loading: boolean;
+  rooms: ChatRoom[];
+  ensureRoom: (id: string) => Promise<void>;
+  leave: (id: string) => Promise<void>;
+  load: (force?: boolean, unreadOnly?: boolean) => Promise<void>;
+  loadMoreRooms: (unreadOnly?: boolean) => Promise<void>;
+  loadMoreMessages: (id: string) => Promise<void>;
+  markRead: (id: string) => Promise<void>;
   openPostRoom: (
     type: PostType,
     postId: string,
     name: string,
-    publisherId: string,
+    targetSeq: string | number,
   ) => Promise<{ roomId: string; preview: ChatPreview }>;
-  markRead: (id: string) => Promise<void>;
-  setDraft: (id: string, text: string) => void;
+  openShelterRoom: (targetSeq: string | number) => Promise<{ roomId: string }>;
   send: (id: string, photo?: ChatPhoto, preview?: ChatPreview) => Promise<void>;
-  leave: (id: string) => Promise<void>;
+  setDraft: (id: string, text: string) => void;
 };
 
-// Serialize changes so a slow write cannot replace a newer conversation.
-let pending = Promise.resolve();
-function enqueue<T>(task: () => Promise<T>) {
-  const next = pending.then(task);
-  pending = next.then(
-    () => {},
-    () => {},
-  );
-  return next;
-}
+const subscriptions = new Map<string, () => void>();
+const messageCursors = new Map<string, number | undefined>();
+let roomCursor: number | undefined;
+const toMessage = (message: ChatMessageView): Message => ({
+  id: String(message.chatMessageSeq),
+  kind: message.messageType === 'IMAGE' ? 'photo' : 'text',
+  mine: message.senderUserSeq === useProfileStore.getState().profile.userSeq,
+  sentAt: message.regDttm ? new Date(message.regDttm).getTime() : Date.now(),
+  text: message.body ?? undefined,
+  photo: message.imageUrl ? { height: 1, uri: message.imageUrl, width: 1 } : undefined,
+  post:
+    message.sharedTargetType && message.sharedTargetSeq
+      ? {
+          id: String(message.sharedTargetSeq),
+          type:
+            message.sharedTargetType === 'MISSING'
+              ? 'lost'
+              : message.sharedTargetType === 'FOUND'
+              ? 'found'
+              : 'adoption',
+        }
+      : undefined,
+});
 
 export const useChatStore = create<ChatState>((set, get) => {
-  const load = async () => {
-    if (get().loaded) {
+  const subscribe = (roomId: string) => {
+    if (subscriptions.has(roomId)) {
       return;
     }
-    const stored = await getStoredValue<Room[]>(STORAGE_KEYS.CHAT_ROOMS);
-    const migratedRooms = migrateRooms(stored ?? initialRooms);
-    // Keep one unread fixture visible in development so the unread UI can be reviewed.
-    const rooms =
-      __DEV__ && migratedRooms.length > 0 && migratedRooms.every(room => room.unreadCount === 0)
-        ? migratedRooms.map((room, index) => (index === 0 ? { ...room, unreadCount: 1 } : room))
-        : migratedRooms;
-    if (
-      stored &&
-      (rooms.length !== stored.length || rooms.some((room, index) => room !== stored[index]))
-    ) {
-      await setStoredValue(STORAGE_KEYS.CHAT_ROOMS, rooms);
-    }
-    set({ rooms, loaded: true });
-  };
-  const commit = async (rooms: Room[]) => {
-    await setStoredValue(STORAGE_KEYS.CHAT_ROOMS, rooms);
-    set({ rooms });
+    subscriptions.set(
+      roomId,
+      chatSocket.subscribe(Number(roomId), incoming => {
+        const message = toMessage(incoming);
+        set(state => ({
+          rooms: state.rooms
+            .map(room =>
+              room.id === roomId
+                ? {
+                    ...room,
+                    lastMessageDttm: message.sentAt,
+                    messages: [
+                      ...room.messages.filter(item =>
+                        incoming.clientMessageId
+                          ? item.id !== incoming.clientMessageId
+                          : item.id !== message.id,
+                      ),
+                      message,
+                    ].sort((a, b) => a.sentAt - b.sentAt),
+                    unreadCount: message.mine ? room.unreadCount : room.unreadCount + 1,
+                  }
+                : room,
+            )
+            .sort((a, b) => b.lastMessageDttm - a.lastMessageDttm),
+        }));
+      }),
+    );
   };
   return {
-    rooms: [],
     drafts: {},
+    error: null,
     loaded: false,
-    load: () => enqueue(load),
-    openPostRoom: (type, postId, name, publisherId) =>
-      enqueue(async () => {
-        await load();
-        return {
-          roomId: `publisher:${publisherId}`,
-          preview: { name, post: { type, id: postId } },
-        };
-      }),
-    setDraft: (id, text) => set(state => ({ drafts: { ...state.drafts, [id]: text } })),
-    markRead: id =>
-      enqueue(async () => {
-        await load();
-        const { rooms } = get();
-        if (rooms.find(room => room.id === id)?.unreadCount) {
-          await commit(rooms.map(room => (room.id === id ? { ...room, unreadCount: 0 } : room)));
-        }
-      }),
-    send: (id, photo, preview) => {
-      const draft = get().drafts[id] ?? '';
-      if (!photo && !draft.trim()) {
-        return Promise.resolve();
+    loading: false,
+    rooms: [],
+    load: async (force = false, unreadOnly = false) => {
+      if (get().loading || (get().loaded && !force)) {
+        return;
       }
-      if (!photo) {
-        get().setDraft(id, '');
-      }
-      return enqueue(async () => {
-        await load();
-        const { rooms } = get();
-        const room: Room | undefined =
-          rooms.find(item => item.id === id) ??
-          (preview && { id, name: preview.name, unreadCount: 0, messages: [] });
-        if (!room) {
-          throw new Error('채팅방을 찾을 수 없어요.');
-        }
-        const content: Content = photo
-          ? { kind: 'photo', photo }
-          : { kind: 'text', text: draft.trim() };
-        const message: Message = {
-          ...content,
-          post: preview?.post ?? room.messages[room.messages.length - 1]?.post,
-          id: String(room.messages.length + 1),
-          mine: true,
-          sentAt: Date.now(),
-        };
-        await commit([
-          { ...room, messages: [...room.messages, message] },
-          ...rooms.filter(item => item.id !== id),
-        ]);
-      }).catch(error => {
-        if (!photo && !get().drafts[id] && (preview || get().rooms.some(room => room.id === id))) {
-          get().setDraft(id, draft);
-        }
+      set({ error: null, loading: true });
+      try {
+        const page = await getChatRooms(unreadOnly);
+        const rooms: ChatRoom[] = page.content.map(item => ({
+          counterpart: item.counterpart,
+          id: String(item.chatRoomSeq),
+          lastMessageDttm: item.lastMessageDttm ? new Date(item.lastMessageDttm).getTime() : 0,
+          messages: [
+            {
+              id: String(item.lastMessage.chatMessageSeq),
+              kind: item.lastMessage.messageType === 'IMAGE' ? 'photo' : 'text',
+              mine: false,
+              sentAt: item.lastMessageDttm ? new Date(item.lastMessageDttm).getTime() : 0,
+              text:
+                item.lastMessage.body ??
+                (item.lastMessage.messageType === 'IMAGE'
+                  ? '사진을 보냈어요'
+                  : '게시글을 공유했어요'),
+            },
+          ],
+          name: item.counterpart.displayName,
+          unreadCount: item.unreadCount,
+        }));
+        roomCursor = page.nextBeforeLastMessageSeq ?? undefined;
+        set(state => {
+          const mergedRooms = rooms.map(serverRoom => {
+            const currentRoom = state.rooms.find(room => room.id === serverRoom.id);
+            if (!currentRoom || currentRoom.lastMessageDttm < serverRoom.lastMessageDttm) {
+              return serverRoom;
+            }
+            return {
+              ...serverRoom,
+              lastMessageDttm: currentRoom.lastMessageDttm,
+              messages: currentRoom.messages,
+            };
+          });
+          const locallyOpenedRooms = state.rooms.filter(
+            room => !rooms.some(serverRoom => serverRoom.id === room.id),
+          );
+          return {
+            loaded: true,
+            rooms: [...mergedRooms, ...locallyOpenedRooms].sort(
+              (a, b) => b.lastMessageDttm - a.lastMessageDttm,
+            ),
+          };
+        });
+      } catch (error) {
+        set({ error: error instanceof Error ? error.message : '대화 내역을 불러오지 못했어요.' });
         throw error;
-      });
+      } finally {
+        set({ loading: false });
+      }
     },
-    leave: id =>
-      enqueue(async () => {
-        await load();
-        const { rooms } = get();
-        const room = rooms.find(item => item.id === id);
-        if (!room) {
+    loadMoreRooms: async (unreadOnly = false) => {
+      if (!roomCursor || get().loading) {
+        return;
+      }
+      set({ loading: true });
+      try {
+        const page = await getChatRooms(unreadOnly, roomCursor);
+        roomCursor = page.nextBeforeLastMessageSeq ?? undefined;
+        const nextRooms: ChatRoom[] = page.content.map(item => ({
+          counterpart: item.counterpart,
+          id: String(item.chatRoomSeq),
+          lastMessageDttm: item.lastMessageDttm ? new Date(item.lastMessageDttm).getTime() : 0,
+          messages: [
+            {
+              id: String(item.lastMessage.chatMessageSeq),
+              kind: item.lastMessage.messageType === 'IMAGE' ? 'photo' : 'text',
+              mine: false,
+              sentAt: item.lastMessageDttm ? new Date(item.lastMessageDttm).getTime() : 0,
+              text:
+                item.lastMessage.body ??
+                (item.lastMessage.messageType === 'IMAGE'
+                  ? '사진을 보냈어요'
+                  : '게시글을 공유했어요'),
+            },
+          ],
+          name: item.counterpart.displayName,
+          unreadCount: item.unreadCount,
+        }));
+        set(state => ({
+          rooms: [
+            ...state.rooms,
+            ...nextRooms.filter(next => !state.rooms.some(room => room.id === next.id)),
+          ],
+        }));
+      } finally {
+        set({ loading: false });
+      }
+    },
+    ensureRoom: async id => {
+      const roomSeq = Number(id);
+      await useProfileStore.getState().loadProfile();
+      const [detail, page] = await Promise.all([getChatRoom(roomSeq), getChatMessages(roomSeq)]);
+      messageCursors.set(id, page.nextBeforeMessageSeq ?? undefined);
+      const serverMessages = page.content.map(toMessage);
+      set(state => {
+        const currentRoom = state.rooms.find(item => item.id === id);
+        const confirmedMessages = new Map(
+          (currentRoom?.messages ?? [])
+            .filter(message => !message.pending)
+            .map(message => [message.id, message]),
+        );
+        serverMessages.forEach(message => confirmedMessages.set(message.id, message));
+        const unmatchedPending = (currentRoom?.messages ?? []).filter(
+          pendingMessage =>
+            pendingMessage.pending &&
+            !serverMessages.some(
+              serverMessage =>
+                serverMessage.mine &&
+                serverMessage.kind === pendingMessage.kind &&
+                serverMessage.text === pendingMessage.text &&
+                Math.abs(serverMessage.sentAt - pendingMessage.sentAt) < 120_000,
+            ),
+        );
+        const messages = [...confirmedMessages.values(), ...unmatchedPending].sort(
+          (a, b) => a.sentAt - b.sentAt,
+        );
+        const room: ChatRoom = {
+          counterpart: detail.counterpart,
+          id,
+          lastMessageDttm: messages.at(-1)?.sentAt ?? currentRoom?.lastMessageDttm ?? 0,
+          messages,
+          name: detail.counterpart.displayName,
+          unreadCount: detail.unreadCount,
+        };
+        return { rooms: [room, ...state.rooms.filter(item => item.id !== id)] };
+      });
+      subscribe(id);
+    },
+    loadMoreMessages: async id => {
+      const cursor = messageCursors.get(id);
+      if (!cursor) {
+        return;
+      }
+      const page = await getChatMessages(Number(id), cursor);
+      messageCursors.set(id, page.nextBeforeMessageSeq ?? undefined);
+      set(state => ({
+        rooms: state.rooms.map(room =>
+          room.id === id
+            ? {
+                ...room,
+                messages: [...page.content.map(toMessage), ...room.messages].sort(
+                  (a, b) => a.sentAt - b.sentAt,
+                ),
+              }
+            : room,
+        ),
+      }));
+    },
+    openPostRoom: async (type, postId, name, targetSeqValue) => {
+      const targetSeq = Number(targetSeqValue);
+      if (!Number.isFinite(targetSeq) || targetSeq <= 0) {
+        throw new Error('대화 상대 정보가 올바르지 않습니다.');
+      }
+      const targetType: ChatTargetType = type === 'adoption' ? 'SHELTER' : 'USER';
+      const created = await createChatRoom(targetType, targetSeq);
+      return { roomId: String(created.chatRoomSeq), preview: { name, post: { type, id: postId } } };
+    },
+    openShelterRoom: async targetSeqValue => {
+      const targetSeq = Number(targetSeqValue);
+      if (!Number.isFinite(targetSeq) || targetSeq <= 0) {
+        throw new Error('보호소 정보가 올바르지 않습니다.');
+      }
+      const created = await createChatRoom('SHELTER', targetSeq);
+      return { roomId: String(created.chatRoomSeq) };
+    },
+    setDraft: (id, text) => set(state => ({ drafts: { ...state.drafts, [id]: text } })),
+    markRead: async id => {
+      const room = get().rooms.find(item => item.id === id);
+      const latest = room?.messages.at(-1);
+      if (!latest || latest.pending || !room?.unreadCount) {
+        return;
+      }
+      await markChatRoomRead(Number(id), Number(latest.id));
+      set(state => ({
+        rooms: state.rooms.map(item => (item.id === id ? { ...item, unreadCount: 0 } : item)),
+      }));
+    },
+    send: async (id, photo, preview) => {
+      const body = get().drafts[id]?.trim();
+      if (!photo && !body) {
+        return;
+      }
+      const clientMessageId = `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      let imageSeq: number | undefined;
+      if (photo) {
+        const issued = await uploadImageToPendingStorage(photo);
+        imageSeq = (await confirmImage(issued.imageKey)).imageSeq;
+      }
+      const optimistic: Message = {
+        id: clientMessageId,
+        kind: photo ? 'photo' : 'text',
+        mine: true,
+        pending: true,
+        post: preview?.post,
+        sentAt: Date.now(),
+        text: body,
+        photo: photo ? { height: photo.height, uri: photo.uri, width: photo.width } : undefined,
+      };
+      set(state => ({
+        drafts: photo ? state.drafts : { ...state.drafts, [id]: '' },
+        rooms: state.rooms
+          .map(room =>
+            room.id === id
+              ? {
+                  ...room,
+                  lastMessageDttm: optimistic.sentAt,
+                  messages: [...room.messages, optimistic],
+                }
+              : room,
+          )
+          .sort((a, b) => b.lastMessageDttm - a.lastMessageDttm),
+      }));
+      subscribe(id);
+      try {
+        await chatSocket.send(Number(id), {
+          body: body || undefined,
+          clientMessageId,
+          imageSeq,
+          messageType: photo ? 'IMAGE' : preview?.post ? 'SHARED_POST' : 'TEXT',
+          sharedTargetSeq: preview?.post ? Number(preview.post.id) : undefined,
+          sharedTargetType: preview?.post
+            ? preview.post.type === 'lost'
+              ? 'MISSING'
+              : preview.post.type === 'found'
+              ? 'FOUND'
+              : 'SHELTER_ANIMAL'
+            : undefined,
+        });
+      } catch (error) {
+        const verification = await getChatMessages(Number(id)).catch(() => null);
+        const currentUserSeq = useProfileStore.getState().profile.userSeq;
+        const confirmed = verification?.content.find(message => {
+          if (message.senderUserSeq !== currentUserSeq) {
+            return false;
+          }
+          if (message.regDttm && new Date(message.regDttm).getTime() < optimistic.sentAt - 10_000) {
+            return false;
+          }
+          if (photo) {
+            return message.messageType === 'IMAGE' && message.imageSeq === imageSeq;
+          }
+          if (preview?.post) {
+            const targetType =
+              preview.post.type === 'lost'
+                ? 'MISSING'
+                : preview.post.type === 'found'
+                ? 'FOUND'
+                : 'SHELTER_ANIMAL';
+            return (
+              message.messageType === 'SHARED_POST' &&
+              message.body === body &&
+              message.sharedTargetType === targetType &&
+              message.sharedTargetSeq === Number(preview.post.id)
+            );
+          }
+          return message.messageType === 'TEXT' && message.body === body;
+        });
+        if (confirmed) {
+          const confirmedMessage = toMessage(confirmed);
+          set(state => ({
+            rooms: state.rooms.map(room =>
+              room.id === id
+                ? {
+                    ...room,
+                    lastMessageDttm: confirmedMessage.sentAt,
+                    messages: [
+                      ...room.messages.filter(message => message.id !== clientMessageId),
+                      confirmedMessage,
+                    ].sort((a, b) => a.sentAt - b.sentAt),
+                  }
+                : room,
+            ),
+          }));
           return;
         }
-        await commit(rooms.filter(item => item.id !== id));
-        set(state => {
-          const drafts = { ...state.drafts };
-          delete drafts[id];
-          return { drafts };
-        });
-        await Promise.allSettled(
-          room.messages.flatMap(message =>
-            message.kind === 'photo' ? [removeChatPhoto(message.photo.filename)] : [],
+        set(state => ({
+          drafts: photo ? state.drafts : { ...state.drafts, [id]: body ?? '' },
+          rooms: state.rooms.map(room =>
+            room.id === id
+              ? {
+                  ...room,
+                  messages: room.messages.filter(message => message.id !== clientMessageId),
+                }
+              : room,
           ),
-        );
-      }),
+        }));
+        throw error;
+      }
+    },
+    leave: async id => {
+      await leaveChatRoom(Number(id));
+      subscriptions.get(id)?.();
+      subscriptions.delete(id);
+      set(state => {
+        const drafts = { ...state.drafts };
+        delete drafts[id];
+        return { drafts, rooms: state.rooms.filter(room => room.id !== id) };
+      });
+    },
   };
 });
