@@ -15,11 +15,14 @@ import com.ssafy.animal.notification.application.port.out.FcmMessage
 import com.ssafy.animal.notification.application.port.out.FcmSender
 import com.ssafy.animal.notification.application.port.out.InvalidFcmTokenException
 import com.ssafy.animal.notification.application.port.out.NotificationRepository
+import com.ssafy.animal.notification.application.port.out.NotificationSettingRepository
 import com.ssafy.animal.notification.domain.Notification
+import com.ssafy.animal.notification.domain.NotificationSetting
 import com.ssafy.animal.notification.domain.title
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Clock
 import java.time.OffsetDateTime
 
 @Service
@@ -27,6 +30,8 @@ class NotificationEventService(
     private val notificationRepository: NotificationRepository,
     private val deviceTokenRepository: DeviceTokenRepository,
     private val fcmSender: FcmSender,
+    private val settingRepository: NotificationSettingRepository,
+    private val clock: Clock,
 ) : NotificationEventUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -44,6 +49,8 @@ class NotificationEventService(
                 parentCommentSeq = event.parentCommentSeq,
             ),
         )
+        // 설정을 꺼도 알림함 저장은 그대로 하고 FCM만 생략한다(Q510)
+        if (!settingOf(event.recipientUserSeq).allows(event.notificationType)) return
         push(
             event.recipientUserSeq, event.notificationType.title, event.message,
             storedData(saved.notificationSeq!!, event.notificationType, event.targetType, event.targetSeq, event.commentSeq, event.parentCommentSeq),
@@ -51,6 +58,7 @@ class NotificationEventService(
     }
 
     override fun onNotificationCreated(event: NotificationCreated) {
+        if (!settingOf(event.recipientUserSeq).allows(event.notificationType)) return
         push(
             event.recipientUserSeq, event.notificationType.title, event.message,
             storedData(event.notificationSeq, event.notificationType, event.targetType, event.targetSeq, null, null),
@@ -62,7 +70,9 @@ class NotificationEventService(
         notificationRepository.replaceCommentMessage(event.targetType, event.commentSeq, DELETED_COMMENT_MESSAGE)
     }
 
+    /** 모의 입양을 껐거나 방해금지 시간이면 버린다(나중에 보내지 않음, Q514) */
     override fun onSimulationPushRequested(event: SimulationPushRequested) {
+        if (!settingOf(event.userSeq).allowsSimulation(OffsetDateTime.now(clock))) return
         push(event.userSeq, event.title, event.body, mapOf("target" to "SIMULATION"))
     }
 
@@ -84,8 +94,17 @@ class NotificationEventService(
             "preview" to event.preview,
         )
         // 보낸 사람은 chat이 이미 뺐지만 한 번 더 거른다
-        val recipients = event.recipientUserSeqs.filter { it != event.senderUserSeq }.map(Math::toIntExact)
+        val candidates = event.recipientUserSeqs.filter { it != event.senderUserSeq }.map(Math::toIntExact)
+        // 채팅을 끈 수신자는 데이터 메시지도 보내지 않는다(Q510). 행이 없으면 켜짐
+        val chatOff = settingRepository.findAll(candidates).filterNot { it.chatEnabled }.map { it.userSeq }.toSet()
+        val recipients = candidates.filterNot { it in chatOff }
         deviceTokenRepository.findActive(recipients).forEach { send(FcmMessage(it.fcmToken, null, null, data)) }
+    }
+
+    /** 행이 없으면 기본값(전부 켜짐, Q511). 보호소 계정은 행을 만들 수 없어 항상 기본값이다 */
+    private fun settingOf(userSeq: Long): NotificationSetting {
+        val user = Math.toIntExact(userSeq)
+        return settingRepository.find(user) ?: NotificationSetting(user)
     }
 
     private fun push(userSeq: Long, title: String, body: String, data: Map<String, String>) {

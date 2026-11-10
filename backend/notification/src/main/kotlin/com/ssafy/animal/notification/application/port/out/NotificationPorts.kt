@@ -4,6 +4,7 @@ import com.ssafy.animal.common.event.NotificationType
 import com.ssafy.animal.common.event.TargetType
 import com.ssafy.animal.notification.domain.DeviceToken
 import com.ssafy.animal.notification.domain.Notification
+import com.ssafy.animal.notification.domain.NotificationSetting
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import java.time.OffsetDateTime
@@ -40,6 +41,16 @@ interface DeviceTokenRepository {
 
     /** 이 계정의 이 토큰만 비활성화 */
     fun deactivateUserToken(userSeq: Int, fcmToken: String, now: OffsetDateTime): Int
+}
+
+/** user_notification_settings(Q510~Q515). 행이 없으면 null이고 호출 쪽이 기본값으로 본다 */
+interface NotificationSettingRepository {
+    fun find(userSeq: Int): NotificationSetting?
+
+    fun findAll(userSeqs: Collection<Int>): List<NotificationSetting>
+
+    /** 행이 없으면 기본값으로 만들고(동시 생성은 ON CONFLICT로 흡수), 그 행을 잠가 읽는다. 트랜잭션 안에서 부른다 */
+    fun getOrCreateForUpdate(userSeq: Int): NotificationSetting
 }
 
 /** Q433 쓰기 재확인용 users 읽기(core 스키마 읽기 전용) */
