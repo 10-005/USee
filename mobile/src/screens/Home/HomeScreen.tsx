@@ -477,6 +477,22 @@ export function HomeScreen({ navigation, route }: Props) {
     </View>
   );
 
+  const registrationMenu = registrationMenuOpen ? (
+    <RegistrationMenu
+      bottom={insets.bottom + 84}
+      onClose={() => setRegistrationMenuOpen(false)}
+      onSelectFound={() => {
+        setRegistrationMenuOpen(false);
+        navigation.navigate('PetRegistration', { flow: 'found-report' });
+      }}
+      onSelectLost={() => {
+        setRegistrationMenuOpen(false);
+        resetLostReportDraft();
+        navigation.navigate('LostReportPetSelection');
+      }}
+    />
+  ) : null;
+
   if (selectedTab === 'chat') {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -487,6 +503,7 @@ export function HomeScreen({ navigation, route }: Props) {
           session={shortcutSession}
         />
         {navigationBar}
+        {registrationMenu}
       </SafeAreaView>
     );
   }
@@ -658,21 +675,7 @@ export function HomeScreen({ navigation, route }: Props) {
         />
       ) : null}
       {activeFilter || reportFilterOpen ? null : navigationBar}
-      {registrationMenuOpen && !activeFilter ? (
-        <RegistrationMenu
-          bottom={insets.bottom + 84}
-          onClose={() => setRegistrationMenuOpen(false)}
-          onSelectFound={() => {
-            setRegistrationMenuOpen(false);
-            navigation.navigate('PetRegistration', { flow: 'found-report' });
-          }}
-          onSelectLost={() => {
-            setRegistrationMenuOpen(false);
-            resetLostReportDraft();
-            navigation.navigate('LostReportPetSelection');
-          }}
-        />
-      ) : null}
+      {!activeFilter ? registrationMenu : null}
       {selectedTab === 'adoption' ? (
         <AdoptionFilterSheet
           activeFilter={activeFilter}
