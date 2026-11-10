@@ -1,10 +1,21 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
-import { getActiveMockAdoption, startMockAdoption } from '../mockAdoptionStorage';
+import { invalidateSimulationReports } from '../../simulation/reports';
+import {
+  clearMockAdoptionWalk,
+  getActiveMockAdoption,
+  saveMockAdoptionWalk,
+  startMockAdoption,
+} from '../mockAdoptionStorage';
+
+jest.mock('../../simulation/reports', () => ({
+  invalidateSimulationReports: jest.fn(),
+}));
 
 describe('mock adoption weekly session', () => {
   beforeEach(async () => {
     jest.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000);
+    jest.mocked(invalidateSimulationReports).mockClear();
     await AsyncStorage.clear();
   });
   afterEach(() => jest.restoreAllMocks());
@@ -17,10 +28,12 @@ describe('mock adoption weekly session', () => {
     );
     jest.spyOn(Date, 'now').mockReturnValue(session.expiresAt - 1);
     await expect(getActiveMockAdoption()).resolves.toEqual(session);
+    expect(invalidateSimulationReports).not.toHaveBeenCalled();
     // Returning to setup must never reset the active week's amount or expiry.
     await expect(startMockAdoption('cat-2', 25000)).resolves.toEqual(session);
     jest.spyOn(Date, 'now').mockReturnValue(session.expiresAt);
     await expect(getActiveMockAdoption()).resolves.toBeNull();
+    expect(invalidateSimulationReports).toHaveBeenCalledTimes(1);
     expect(await AsyncStorage.getItem(STORAGE_KEYS.MOCK_ADOPTION_SESSION)).toBeNull();
     await expect(startMockAdoption('cat-2', 25000)).resolves.toMatchObject({
       petId: 'cat-2',
@@ -32,6 +45,49 @@ describe('mock adoption weekly session', () => {
   it.each([9999, 100000001, NaN, 10000.5])('rejects invalid stored budget %s', async amount => {
     await expect(startMockAdoption('dog-1', amount)).rejects.toThrow();
     expect(await AsyncStorage.getItem(STORAGE_KEYS.MOCK_ADOPTION_SESSION)).toBeNull();
+  });
+
+  it('stores the walk that starts during the active session', async () => {
+    const session = await startMockAdoption('dog-1', 35000, '초코', 3001);
+    await saveMockAdoptionWalk(8001);
+
+    await expect(getActiveMockAdoption()).resolves.toEqual({ ...session, walkSeq: 8001 });
+  });
+
+  it('removes only the walk id after the walk ends', async () => {
+    const session = await startMockAdoption('dog-1', 35000, '초코', 3001, 8001);
+    await clearMockAdoptionWalk();
+
+    await expect(getActiveMockAdoption()).resolves.toEqual({
+      version: session.version,
+      petId: session.petId,
+      petName: session.petName,
+      weeklyBudget: session.weeklyBudget,
+      startedAt: session.startedAt,
+      expiresAt: session.expiresAt,
+      sessionSeq: session.sessionSeq,
+    });
+  });
+
+  it('persists the server walk with the session', async () => {
+    const session = await startMockAdoption('dog-1', 35000, '초코', 3001, 8001);
+    expect(session.walkSeq).toBe(8001);
+    await expect(getActiveMockAdoption()).resolves.toMatchObject({
+      sessionSeq: 3001,
+      walkSeq: 8001,
+    });
+  });
+
+  it('replaces the saved week when the server creates a new session', async () => {
+    await startMockAdoption('dog-1', 35000, '초코', 3001);
+    const next = await startMockAdoption('cat-2', 40000, '나비', 3002);
+    expect(next).toMatchObject({
+      petId: 'cat-2',
+      petName: '나비',
+      weeklyBudget: 40000,
+      sessionSeq: 3002,
+    });
+    await expect(getActiveMockAdoption()).resolves.toEqual(next);
   });
 
   it('persists a selected name across restarts without overwriting the active session', async () => {

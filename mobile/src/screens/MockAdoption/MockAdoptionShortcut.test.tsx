@@ -22,18 +22,22 @@ afterEach(() => {
 test('hides the shortcut without an active session', async () => {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(<MockAdoptionShortcut bottom={104} onOpen={jest.fn()} />);
+    renderer = ReactTestRenderer.create(
+      <MockAdoptionShortcut bottom={104} onOpen={jest.fn()} session={null} />,
+    );
   });
   expect(renderer.toJSON()).toBeNull();
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
 test('shows the selected pet and opens its activity screen', async () => {
-  await startMockAdoption('cat-2', 35000, '나비');
+  const session = await startMockAdoption('cat-2', 35000, '나비');
   const onOpen = jest.fn();
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(<MockAdoptionShortcut bottom={104} onOpen={onOpen} />);
+    renderer = ReactTestRenderer.create(
+      <MockAdoptionShortcut bottom={104} onOpen={onOpen} session={session} />,
+    );
   });
   expect(
     renderer.root.findAllByProps({ source: mockAdoptionPets[7].image }).length,
@@ -52,7 +56,9 @@ test('hides at the exact seven-day boundary while the screen stays open', async 
   jest.setSystemTime(session.expiresAt - 1);
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(<MockAdoptionShortcut bottom={104} onOpen={jest.fn()} />);
+    renderer = ReactTestRenderer.create(
+      <MockAdoptionShortcut bottom={104} onOpen={jest.fn()} session={session} />,
+    );
   });
   expect(renderer.toJSON()).not.toBeNull();
   await ReactTestRenderer.act(() => jest.advanceTimersByTime(1));
@@ -65,7 +71,9 @@ test('rechecks expiry before navigating', async () => {
   const onOpen = jest.fn();
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(<MockAdoptionShortcut bottom={104} onOpen={onOpen} />);
+    renderer = ReactTestRenderer.create(
+      <MockAdoptionShortcut bottom={104} onOpen={onOpen} session={session} />,
+    );
   });
   jest.setSystemTime(session.expiresAt);
   await ReactTestRenderer.act(async () => {

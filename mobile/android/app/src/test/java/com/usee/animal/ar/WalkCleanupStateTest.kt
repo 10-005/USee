@@ -6,7 +6,7 @@ import org.junit.Test
 class WalkCleanupStateTest {
   @Test fun originalPoopStaysHiddenBetweenCollectionAnimationAndInventoryConfirmation() {
     val state = WalkCleanupState()
-    state.update(30f, true)
+    state.request()
     assertTrue(state.shouldShowPoop(false, 0L, false))
     assertTrue(state.shouldShowPoop(true, 349L, false))
     assertFalse(state.shouldShowPoop(true, 350L, false))
@@ -19,30 +19,29 @@ class WalkCleanupStateTest {
 
   @Test fun failedInventorySaveCanRestorePoopForAnotherAttempt() {
     val state = WalkCleanupState()
-    state.update(30f, true)
+    state.request()
     assertFalse(state.shouldShowPoop(false, 850L, true))
     // A rejected confirmation clears the request without marking the event collected.
     assertTrue(state.shouldShowPoop(false, 850L, false))
     assertTrue(state.canCollect(1f))
   }
-  @Test fun waitsForThirtySecondsAndConfirmedObstacle() {
+  @Test fun doesNotPoopOnATimer() {
     val state = WalkCleanupState()
     assertFalse(state.update(29f, true))
-    assertFalse(state.update(1f, false))
-    assertTrue(state.update(1f, true))
-    assertFalse(state.update(500f, true))
+    assertFalse(state.update(30f, true))
+    assertFalse(state.pending)
   }
 
-  @Test fun triggersAtThirtySecondsWhenObstacleIsPresent() {
+  @Test fun requestsPoopOnce() {
     val state = WalkCleanupState()
-    assertFalse(state.update(29f, true))
-    assertTrue(state.update(1f, true))
-    assertFalse(state.update(1f, true))
+    assertTrue(state.request())
+    assertFalse(state.request())
+    assertFalse(state.update(30f, true))
   }
 
   @Test fun bagReturnsWhenWalkingBackAndStaysGoneAfterCollection() {
     val state = WalkCleanupState()
-    state.update(30f, true)
+    state.request()
     assertTrue(state.canCollect(1.99f))
     assertFalse(state.canCollect(2f))
     assertFalse(state.canCollect(3f))

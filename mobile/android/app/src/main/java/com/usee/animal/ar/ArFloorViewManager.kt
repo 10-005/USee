@@ -46,6 +46,11 @@ class ArFloorViewManager : SimpleViewManager<ArFloorView>() {
   @ReactProp(name = "bagAvailable", defaultBoolean = false)
   fun setBagAvailable(view: ArFloorView, available: Boolean) { view.setBagAvailable(available) }
 
+  @ReactProp(name = "poopRequest", defaultInt = 0)
+  fun setPoopRequest(view: ArFloorView, request: Int) {
+    view.requestPoop(request)
+  }
+
   @ReactProp(name = "cleanupResponse")
   fun setCleanupResponse(view: ArFloorView, response: String?) { view.confirmCleanup(response.orEmpty()) }
 

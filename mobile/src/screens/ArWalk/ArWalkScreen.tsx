@@ -1,5 +1,6 @@
 import { useHeaderHeight } from '@react-navigation/elements';
-import { useIsFocused } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,7 +17,32 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCameraPermission } from 'react-native-vision-camera';
 import { useShopStore } from '../../stores/shopStore';
 import { AppDialog } from '../../components/common/AppDialog';
-import { findProduct, money } from '../../services/shop/catalog';
+import { availableProducts, findProduct, money } from '../../services/shop/catalog';
+import { findCareSupply } from '../../services/shop/consumption';
+import { ApiClientError } from '../../services/api';
+import { SimulationWalkAction } from '../../services/simulation/actions';
+import {
+  getPurchaseErrorMessage,
+  purchaseSimulationItems,
+} from '../../services/simulation/purchase';
+import type { SimulationEvent } from '../../services/simulation/events';
+import {
+  getSimulationWalkActionErrorMessage,
+  getSimulationWalkEndErrorMessage,
+  getSimulationWalkStartErrorMessage,
+  isFinishedWalkError,
+  isWalkPoopEvent,
+  performSimulationWalkAction,
+  sendSimulationWalkHeartbeat,
+  startSimulationWalk,
+} from '../../services/simulation/walk';
+import { endActiveSimulationWalk } from '../../services/simulation/walkLifecycle';
+import {
+  getActiveMockAdoption,
+  saveMockAdoptionWalk,
+} from '../../services/storage/mockAdoptionStorage';
+import { mockAdoptionPets } from '../MockAdoption/data';
+import { SuddenEventDialog } from '../MockAdoption/SuddenEventDialog';
 import type { RootStackParamList } from '../../app/navigation/types';
 
 import { styles } from './ArWalkScreen.styles';
@@ -42,6 +68,13 @@ const STARTUP_ERRORS: Partial<Record<FloorTrackingStatus, string>> = {
 const waterBowl = require('../../assets/images/mock-adoption/img_full_water_bowl.png');
 const dogTreat = require('../../assets/images/mock-adoption/img_dog_treats.png');
 
+function walkBagProduct() {
+  return (
+    availableProducts('dog').find(product => product.serverCategory === 'POOP_BAG') ??
+    findProduct('bags')
+  );
+}
+
 function WalkTreat({ onThrow }: { onThrow: (dx: number, dy: number) => void }) {
   const offset = useRef(new Animated.ValueXY()).current;
   const latestThrow = useRef(onThrow);
@@ -52,8 +85,11 @@ function WalkTreat({ onThrow }: { onThrow: (dx: number, dy: number) => void }) {
       onStartShouldSetPanResponder: () => true,
       onPanResponderMove: (_, { dx, dy }) => offset.setValue({ x: dx, y: dy }),
       onPanResponderRelease: (_, { dx, dy }) => {
-        if (dy <= -40) latestThrow.current(dx, dy);
-        else reset();
+        if (dy <= -40) {
+          latestThrow.current(dx, dy);
+        } else {
+          reset();
+        }
       },
       onPanResponderTerminate: reset,
     });
@@ -66,7 +102,9 @@ function WalkTreat({ onThrow }: { onThrow: (dx: number, dy: number) => void }) {
       accessibilityLabel="간식 잡아서 위로 던지기"
       accessibilityActions={[{ name: 'activate', label: '간식 던지기' }]}
       onAccessibilityAction={({ nativeEvent }) => {
-        if (nativeEvent.actionName === 'activate') onThrow(0, -60);
+        if (nativeEvent.actionName === 'activate') {
+          onThrow(0, -60);
+        }
       }}
       style={styles.careButton}
     >
@@ -82,11 +120,15 @@ function WalkTreat({ onThrow }: { onThrow: (dx: number, dy: number) => void }) {
 export function ArWalkScreen({
   route,
 }: { route?: { params?: RootStackParamList['ArWalk'] } } = {}) {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'ArWalk'>>();
   const shop = useShopStore();
+  const endingWalk = useRef(false);
+  const [ending, setEnding] = useState(false);
+  const walkStart = useRef<Promise<void>>(Promise.resolve());
   const [bagPurchaseVisible, setBagPurchaseVisible] = useState(false);
   const [bagPurchaseError, setBagPurchaseError] = useState('');
   const purchasingBags = useRef(false);
-  const bagProduct = findProduct('bags');
+  const bagProduct = walkBagProduct();
   const openBagPurchase = () => {
     purchasingBags.current = false;
     setBagPurchaseError('');
@@ -97,13 +139,60 @@ export function ArWalkScreen({
       return;
     }
     purchasingBags.current = true;
-    const error = useShopStore.getState().buyWalkBags();
-    if (error) {
-      purchasingBags.current = false;
-      setBagPurchaseError(error);
-    } else {
+    const finish = (error: string | null) => {
+      if (error) {
+        purchasingBags.current = false;
+        setBagPurchaseError(error);
+        return;
+      }
       setBagPurchaseVisible(false);
+    };
+    const product = walkBagProduct();
+    const state = useShopStore.getState();
+    if (!state.ready) {
+      finish('쇼핑 정보를 불러오는 중이에요.');
+      return;
     }
+    if (Date.now() >= state.expiresAt) {
+      finish('모의 입양 기간이 종료되었어요.');
+      return;
+    }
+    if (!product) {
+      finish('배변봉투 상품 정보를 불러오지 못했어요.');
+      return;
+    }
+    if (state.budget - state.spent < product.price) {
+      finish('남은 예산이 부족해요.');
+      return;
+    }
+    getActiveMockAdoption()
+      .then(active => {
+        if (!active?.sessionSeq || !product.itemSeq) {
+          finish(useShopStore.getState().buyWalkBags());
+          return undefined;
+        }
+        return purchaseSimulationItems(active.sessionSeq, [
+          { itemSeq: product.itemSeq, quantity: 1 },
+        ]).then(result => {
+          const line = result.purchases[0];
+          finish(
+            line
+              ? useShopStore.getState().applyServerPurchase(product.id, line)
+              : '구매하지 못했어요. 다시 시도해주세요.',
+          );
+        });
+      })
+      .catch(error => {
+        finish(
+          error instanceof ApiClientError
+            ? getPurchaseErrorMessage(error)
+            : '구매하지 못했어요. 다시 시도해주세요.',
+        );
+      });
+  };
+  const consumeWalkBag = () => {
+    const product = walkBagProduct();
+    return product ? useShopStore.getState().consume({ [product.id]: 1 }) : false;
   };
   const [cleanupResponse, setCleanupResponse] = useState('');
   const lastCleanupRequest = useRef(0);
@@ -119,20 +208,78 @@ export function ArWalkScreen({
   const careRequestId = useRef(0);
   const viewport = useRef({ width: 0, height: 0 });
   const careBottom = insets.bottom + 24;
+  const [walkEvent, setWalkEvent] = useState<SimulationEvent | null>(null);
+  const serverWalk = useRef<{ sessionSeq: number; walkSeq: number } | null>(null);
+  const dismissedWalkEvents = useRef(new Set<number>());
+  const poopEventRef = useRef<SimulationEvent | null>(null);
+  const closeResolvedWalkEvent = (occurrenceSeq?: number) => {
+    if (!occurrenceSeq) {
+      return;
+    }
+    dismissedWalkEvents.current.add(occurrenceSeq);
+    if (poopEventRef.current?.occurrenceSeq === occurrenceSeq) {
+      poopEventRef.current = null;
+    }
+    setWalkEvent(current => (current?.occurrenceSeq === occurrenceSeq ? null : current));
+  };
   const sendCare = (action: 'drink' | 'eat', dx = 0, dy = 0) => {
     const { width, height } = viewport.current;
-    if (width <= 0 || height <= 0) return;
+    if (width <= 0 || height <= 0) {
+      return;
+    }
     const dockOffset = (styles.careButton.width + styles.careActions.gap) / 2;
     const x = (width / 2 + (action === 'drink' ? -dockOffset : dockOffset) + dx) / width;
     const y = (height - careBottom - styles.careButton.height / 2 + dy) / height;
     const clamp = (value: number) => Math.max(0, Math.min(1, value));
-    setCareRequest(`${++careRequestId.current}:${action}:${clamp(x)}:${clamp(y)}`);
+    const place = () => {
+      setCareRequest(`${++careRequestId.current}:${action}:${clamp(x)}:${clamp(y)}`);
+    };
+    const remote = serverWalk.current;
+    if (!remote) {
+      place();
+      return;
+    }
+    if (action === 'drink') {
+      performSimulationWalkAction(remote.sessionSeq, remote.walkSeq, {
+        actionCode: SimulationWalkAction.GiveWater,
+      })
+        .then(result => {
+          closeResolvedWalkEvent(result.resolvedEvent?.occurrenceSeq);
+          place();
+        })
+        .catch(error => {
+          Alert.alert('산책', getSimulationWalkActionErrorMessage(error));
+        });
+      return;
+    }
+    const snack = findCareSupply('dog', 'treat');
+    if (!snack?.itemSeq) {
+      Alert.alert('산책', '간식이 필요해요!');
+      return;
+    }
+    performSimulationWalkAction(remote.sessionSeq, remote.walkSeq, {
+      actionCode: SimulationWalkAction.GiveSnack,
+      itemSeq: snack.itemSeq,
+    })
+      .then(result => {
+        useShopStore.getState().consume({ [snack.id]: 1 });
+        closeResolvedWalkEvent(result.resolvedEvent?.occurrenceSeq);
+        place();
+      })
+      .catch(error => {
+        Alert.alert('산책', getSimulationWalkActionErrorMessage(error));
+      });
   };
   const [showTraversalDebug, setShowTraversalDebug] = useState(false);
   const [hasSeenDog, setHasSeenDog] = useState(false);
   const [loadingDots, setLoadingDots] = useState(2);
   const [walkStartedAt, setWalkStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [poopRequest, setPoopRequest] = useState(0);
+  const [walkPetId, setWalkPetId] = useState<string | null>(null);
+  const walkPet = mockAdoptionPets.find(pet => pet.id === walkPetId);
+  const serverWalkRequested = useRef(false);
+  const armedPoop = useRef<number | null>(null);
   const walkRoute = useWalkRoute(isFocused && walkStartedAt !== null);
   const voice = useWalkVoice(
     isFocused && hasPermission && status === 'anchored' && !bagPurchaseVisible,
@@ -151,6 +298,98 @@ export function ArWalkScreen({
       setCareRequest('');
     }
   }, [isFocused, hasPermission]);
+
+  useEffect(() => {
+    if (walkStartedAt === null || serverWalkRequested.current) {
+      return;
+    }
+    serverWalkRequested.current = true;
+    let mounted = true;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const starting = (async () => {
+      const active = await getActiveMockAdoption();
+      if (!mounted || !active?.sessionSeq) {
+        return;
+      }
+      setWalkPetId(active.petId);
+      let walkSeq = active.walkSeq;
+      let intervalSeconds = 60;
+      if (!walkSeq) {
+        const started = await startSimulationWalk(active.sessionSeq);
+        if (!mounted) {
+          return;
+        }
+        await saveMockAdoptionWalk(started.walkSeq);
+        walkSeq = started.walkSeq;
+        intervalSeconds = started.heartbeatIntervalSeconds;
+      }
+      const sessionSeq = active.sessionSeq;
+      serverWalk.current = { sessionSeq, walkSeq };
+      const beat = async () => {
+        try {
+          const result = await sendSimulationWalkHeartbeat(sessionSeq, walkSeq);
+          if (!mounted) {
+            return;
+          }
+          const event = result.newEvent ?? result.pendingEvent;
+          if (!event || dismissedWalkEvents.current.has(event.occurrenceSeq)) {
+            return;
+          }
+          setWalkEvent(event);
+          if (isWalkPoopEvent(event) && armedPoop.current !== event.occurrenceSeq) {
+            armedPoop.current = event.occurrenceSeq;
+            poopEventRef.current = event;
+            setPoopRequest(value => value + 1);
+          }
+        } catch (error) {
+          if (mounted && isFinishedWalkError(error)) {
+            if (timer) {
+              clearInterval(timer);
+            }
+            Alert.alert('산책', getSimulationWalkEndErrorMessage(error));
+          }
+        }
+      };
+      if (!mounted) {
+        return;
+      }
+      timer = setInterval(() => {
+        beat().catch(() => undefined);
+      }, intervalSeconds * 1000);
+    })().catch(error => {
+      if (mounted) {
+        Alert.alert('산책', getSimulationWalkStartErrorMessage(error));
+      }
+    });
+    walkStart.current = starting;
+    return () => {
+      mounted = false;
+      if (timer) {
+        clearInterval(timer);
+      }
+    };
+  }, [walkStartedAt]);
+
+  useEffect(() => {
+    return navigation.addListener('beforeRemove', event => {
+      event.preventDefault();
+      if (endingWalk.current) {
+        return;
+      }
+      endingWalk.current = true;
+      setEnding(true);
+      walkStart.current
+        .then(() => endActiveSimulationWalk())
+        .then(() => {
+          navigation.dispatch(event.data.action);
+        })
+        .catch(error => {
+          endingWalk.current = false;
+          setEnding(false);
+          Alert.alert('산책', getSimulationWalkEndErrorMessage(error));
+        });
+    });
+  }, [navigation]);
 
   useEffect(() => {
     if (walkStartedAt === null) {
@@ -185,8 +424,34 @@ export function ArWalkScreen({
     setCanGiveCare(isFocused && next.status === 'anchored' && next.canGiveCare === true);
     if (next.cleanupRequestId && next.cleanupRequestId !== lastCleanupRequest.current) {
       lastCleanupRequest.current = next.cleanupRequestId;
-      const consumed = useShopStore.getState().consume({ bags: 1 });
-      setCleanupResponse(`${next.cleanupRequestId}:${consumed ? 1 : 0}`);
+      const requestId = next.cleanupRequestId;
+      const respond = (consumed: boolean) => {
+        setCleanupResponse(`${requestId}:${consumed ? 1 : 0}`);
+      };
+      const poopEvent = poopEventRef.current;
+      if (!poopEvent) {
+        respond(consumeWalkBag());
+      } else {
+        getActiveMockAdoption()
+          .then(active => {
+            if (!active?.sessionSeq || !active.walkSeq) {
+              respond(consumeWalkBag());
+              return undefined;
+            }
+            return performSimulationWalkAction(active.sessionSeq, active.walkSeq, {
+              actionCode: SimulationWalkAction.CleanUpPoop,
+            }).then(result => {
+              closeResolvedWalkEvent(
+                result.resolvedEvent?.occurrenceSeq ?? poopEvent.occurrenceSeq,
+              );
+              respond(consumeWalkBag());
+            });
+          })
+          .catch(error => {
+            respond(false);
+            Alert.alert('산책', getSimulationWalkActionErrorMessage(error));
+          });
+      }
     }
     if (next.visible && next.onScreen) {
       setHasSeenDog(true);
@@ -222,9 +487,21 @@ export function ArWalkScreen({
           style={styles.camera}
           onTracking={onTracking}
           onWalkPose={event => walkRoute.onPose(event.nativeEvent)}
-          compassRegion={walkRoute.mapPosition ? `${walkRoute.mapPosition.latitude.toFixed(1)},${walkRoute.mapPosition.longitude.toFixed(1)}` : undefined}
-          bagAvailable={shop.ready && Date.now() < shop.expiresAt && (shop.inventory.bags ?? 0) > 0}
+          compassRegion={
+            walkRoute.mapPosition
+              ? `${walkRoute.mapPosition.latitude.toFixed(
+                  1,
+                )},${walkRoute.mapPosition.longitude.toFixed(1)}`
+              : undefined
+          }
+          bagAvailable={
+            shop.ready &&
+            Date.now() < shop.expiresAt &&
+            !!bagProduct &&
+            (shop.inventory[bagProduct.id] ?? 0) > 0
+          }
           cleanupResponse={cleanupResponse}
+          poopRequest={poopRequest}
           onBagPurchase={openBagPurchase}
           actionRequest={voice.actionRequest}
           careRequest={careRequest}
@@ -342,6 +619,17 @@ export function ArWalkScreen({
           {voice.message ? <VoiceGlowText text={voice.message} /> : <VoiceListeningDots />}
         </View>
       )}
+      {walkPet && walkEvent ? (
+        <SuddenEventDialog
+          event={walkEvent}
+          image={walkPet.image}
+          petName={route?.params?.petName || walkPet.name}
+          onClose={() => {
+            dismissedWalkEvents.current.add(walkEvent.occurrenceSeq);
+            setWalkEvent(null);
+          }}
+        />
+      ) : null}
       {bagPurchaseVisible && (
         <AppDialog
           title="배변봉투 구매"
@@ -363,6 +651,12 @@ export function ArWalkScreen({
           onClose={() => setBagPurchaseVisible(false)}
         />
       )}
+      {ending ? (
+        <View accessibilityLabel="산책 종료 중" style={styles.endingOverlay}>
+          <ActivityIndicator color="#FFFFFF" size="large" />
+          <Text style={styles.loadingText}>산책을 종료하는 중이에요.</Text>
+        </View>
+      ) : null}
     </View>
   );
 }

@@ -37,9 +37,20 @@ import SearchActiveIcon from '../../assets/icons/navigation/search-active.svg';
 import SearchIcon from '../../assets/icons/navigation/search.svg';
 import { BottomNavigation, RegistrationMenu } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
+import {
+  applyActiveSimulation,
+  getActiveSimulation,
+} from '../../services/simulation/activeSession';
+import {
+  isSimulationAutoEnded,
+  subscribeSimulationEnded,
+} from '../../services/simulation/sessionEnd';
+import {
+  getActiveMockAdoption,
+  type MockAdoptionSession,
+} from '../../services/storage/mockAdoptionStorage';
 import { useProfileStore } from '../../stores/profileStore';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
-import { MockAdoptionOverviewScreen } from '../MockAdoption/MockAdoptionOverviewScreen';
 import { MockAdoptionShortcut } from '../MockAdoption/MockAdoptionShortcut';
 import { colors, radius, typography } from '../../theme';
 import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
@@ -135,9 +146,25 @@ export function HomeScreen({ navigation, route }: Props) {
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
   const loadProfile = useProfileStore(state => state.loadProfile);
   const resetLostReportDraft = useLostReportDraftStore(state => state.resetDraft);
-  const [selectedTab, setSelectedTab] = useState<
-    (typeof navigationItems)[number]['key'] | 'mockAdoption'
-  >(route.params?.initialTab ?? 'adoption');
+  const [selectedTab, setSelectedTab] = useState<(typeof navigationItems)[number]['key']>(
+    route.params?.initialTab ?? 'adoption',
+  );
+  const [shortcutSession, setShortcutSession] = useState<MockAdoptionSession | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    getActiveSimulation()
+      .then(active => applyActiveSimulation(active))
+      .catch(error => (isSimulationAutoEnded(error) ? null : getActiveMockAdoption()))
+      .then(value => {
+        if (mounted) {
+          setShortcutSession(value ?? null);
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+  useEffect(() => subscribeSimulationEnded(() => setShortcutSession(null)), []);
   const animals = useMemo(() => {
     const filtered = adoptionAnimals.filter(item => {
       const queryMatched = `${item.name} ${item.location} ${item.summary}`
@@ -339,8 +366,6 @@ export function HomeScreen({ navigation, route }: Props) {
     </Pressable>
   );
 
-  const openMockAdoption = () => setSelectedTab('mockAdoption');
-
   const navigationBar = (
     <View style={[styles.navigationWrap, { bottom: insets.bottom + 16 }]}>
       <BottomNavigation
@@ -367,24 +392,15 @@ export function HomeScreen({ navigation, route }: Props) {
     </View>
   );
 
-  if (selectedTab === 'mockAdoption' || selectedTab === 'chat') {
+  if (selectedTab === 'chat') {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        {selectedTab === 'chat' ? (
-          <ChatListScreen onOpenRoom={roomId => navigation.navigate('ChatRoom', { roomId })} />
-        ) : (
-          <MockAdoptionOverviewScreen
-            onBack={() => setSelectedTab('mypage')}
-            onStart={() => navigation.navigate('MockAdoptionSelection')}
-            onResume={petId => navigation.navigate('MockAdoptionActivity', { petId })}
-          />
-        )}
-        {selectedTab === 'chat' ? (
-          <MockAdoptionShortcut
-            bottom={insets.bottom + 104}
-            onOpen={petId => navigation.navigate('MockAdoptionActivity', { petId })}
-          />
-        ) : null}
+        <ChatListScreen onOpenRoom={roomId => navigation.navigate('ChatRoom', { roomId })} />
+        <MockAdoptionShortcut
+          bottom={insets.bottom + 104}
+          onOpen={petId => navigation.navigate('MockAdoptionActivity', { petId })}
+          session={shortcutSession}
+        />
         {navigationBar}
       </SafeAreaView>
     );
@@ -394,7 +410,7 @@ export function HomeScreen({ navigation, route }: Props) {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       {selectedTab === 'mypage' ? (
         <MyPageScreen
-          onOpenMockAdoption={openMockAdoption}
+          onOpenMockAdoption={() => navigation.navigate('MockAdoptionOverview')}
           onOpenMyPosts={() => navigation.navigate('MyPosts')}
           onOpenAdoptionApplications={() => navigation.navigate('AdoptionApplicationList')}
           onOpenPets={() => navigation.navigate('PetList')}
@@ -532,6 +548,7 @@ export function HomeScreen({ navigation, route }: Props) {
         <MockAdoptionShortcut
           bottom={insets.bottom + 104}
           onOpen={petId => navigation.navigate('MockAdoptionActivity', { petId })}
+          session={shortcutSession}
         />
       ) : null}
       {activeFilter || reportFilterOpen ? null : navigationBar}

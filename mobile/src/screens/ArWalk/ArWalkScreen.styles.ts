@@ -22,6 +22,14 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 28,
     gap: 12,
   },
+  endingOverlay: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(17, 17, 17, 0.72)',
+    paddingHorizontal: 28,
+    gap: 12,
+  },
   loadingText: {
     color: '#FFFFFF',
     fontSize: 16,

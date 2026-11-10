@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -5,27 +6,103 @@ import type { RootStackParamList } from '../../app/navigation/types';
 import { AppHeader, Button, SkeletonBlock, SkeletonGroup } from '../../components/common';
 import { ProductArt } from '../../components/shop/ProductArt';
 import { shopStyles as s } from '../../components/shop/shopStyles';
-import { products, money } from '../../services/shop/catalog';
+import { ApiClientError } from '../../services/api';
+import { products, money, type Product } from '../../services/shop/catalog';
+import {
+  getInventoryErrorMessage,
+  getSimulationInventory,
+  type InventoryItem,
+  type SimulationInventory,
+} from '../../services/simulation/inventory';
 import { useShopStore } from '../../stores/shopStore';
 import { useShopSession } from './useShopSession';
 import { colors } from '../../theme';
 
+const categoryLabel: Record<InventoryItem['category'], string> = {
+  FOOD_BOWL: '식사',
+  WATER_BOWL: '식사',
+  FOOD: '식사',
+  SNACK: '간식',
+  TOY: '놀이',
+  FURNITURE: '가구',
+  LEASH: '생활',
+  GROOMING_KIT: '위생',
+  LITTER_BOX: '위생',
+  LITTER: '위생',
+  SHAMPOO: '위생',
+  MEDICINE: '생활',
+  POOP_BAG: '위생',
+  CATNIP: '놀이',
+};
+
+function displayProduct(item: InventoryItem): Product {
+  return {
+    id: String(item.itemSeq),
+    name: item.itemName,
+    qty: 1,
+    unit: '개',
+    species: 'all',
+    kind: item.isConsumable ? 'consumable' : 'durable',
+    category: categoryLabel[item.category],
+    description: '',
+    sprite: 0,
+    price: 1,
+    placement: item.isConsumable ? 'inventory' : 'room',
+    imageUrl: item.imageUrl,
+    itemSeq: item.itemSeq,
+    serverCategory: item.category,
+    market: { gamePrice: 1, basis: '', sources: [] },
+  };
+}
+
 type Props = NativeStackScreenProps<RootStackParamList, 'ShopInventory'>;
 export function InventoryScreen({ navigation, route }: Props) {
   const { petId } = route.params;
-  const { status, retry } = useShopSession(petId);
+  const { session, status, retry } = useShopSession(petId);
   const shop = useShopStore();
+  const [remoteInventory, setRemoteInventory] = useState<SimulationInventory | null>(null);
+  const [remoteError, setRemoteError] = useState<string>();
+  const [attempt, setAttempt] = useState(0);
   const purchased = products.filter(p => shop.ownedItems.some(item => item.productId === p.id));
+  useEffect(() => {
+    if (status !== 'ready' || !session?.sessionSeq) {
+      return undefined;
+    }
+    let active = true;
+    setRemoteInventory(null);
+    setRemoteError(undefined);
+    getSimulationInventory(session.sessionSeq)
+      .then(inventory => {
+        if (active) {
+          setRemoteInventory(inventory);
+        }
+      })
+      .catch(error => {
+        if (active) {
+          setRemoteError(
+            error instanceof ApiClientError
+              ? getInventoryErrorMessage(error)
+              : '보유 물품을 불러오지 못했어요. 다시 시도해주세요.',
+          );
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [attempt, session?.sessionSeq, status]);
+  const reloadRemote = () => setAttempt(current => current + 1);
   return (
     <SafeAreaView style={s.screen}>
       <AppHeader title="보유 목록" onBackPress={() => navigation.goBack()} />
-      {status === 'loading' ? (
+      {status === 'loading' || (session?.sessionSeq && !remoteInventory && !remoteError) ? (
         <InventorySkeleton />
-      ) : status === 'error' ? (
+      ) : status === 'error' || remoteError ? (
         <View style={s.empty}>
-          <Text style={s.body}>보유 물품을 불러오지 못했어요.</Text>
-          <Button onPress={retry}>다시 시도</Button>
+          <Text style={s.body}>{remoteError ?? '보유 물품을 불러오지 못했어요.'}</Text>
+          <Button onPress={session?.sessionSeq ? reloadRemote : retry}>다시 시도</Button>
         </View>
+      ) : remoteInventory ? (
+        <ServerInventory petId={petId} inventory={remoteInventory} navigation={navigation} />
       ) : (
         <ScrollView contentContainerStyle={s.content}>
           <View style={s.banner}>
@@ -94,6 +171,67 @@ export function InventoryScreen({ navigation, route }: Props) {
         </ScrollView>
       )}
     </SafeAreaView>
+  );
+}
+
+function ServerInventory({
+  petId,
+  inventory,
+  navigation,
+}: {
+  petId: string;
+  inventory: SimulationInventory;
+  navigation: Props['navigation'];
+}) {
+  const rows = inventory.items.map(item => ({
+    key: `item-${item.itemSeq}`,
+    name: item.itemName,
+    detail: item.isConsumable && item.quantity === 0 ? '다 썼음' : `보유 ${item.quantity}개`,
+    depleted: item.isConsumable && item.quantity === 0,
+    productId: String(item.itemSeq),
+    product: displayProduct(item),
+  }));
+  return (
+    <ScrollView contentContainerStyle={s.content}>
+      <View style={s.banner}>
+        <View style={s.between}>
+          <Text style={s.label}>남은 금액</Text>
+          <Text style={s.green}>{money(inventory.balance)}</Text>
+        </View>
+        <Text style={s.body}>{`예상 예산 ${money(inventory.expectedCost)}`}</Text>
+      </View>
+      {!rows.length ? (
+        <View style={s.empty}>
+          <Text style={s.label}>아직 구매한 물건이 없어요</Text>
+          <Text style={s.body}>장바구니에서 구매하면 여기에 표시돼요.</Text>
+          <Button onPress={() => navigation.navigate('PetShop', { petId })}>상점 둘러보기</Button>
+        </View>
+      ) : (
+        rows.map(row => (
+          <View key={row.key} style={styles.card}>
+            <View style={s.row}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${row.name} 상세 보기`}
+                style={styles.image}
+                onPress={() => {
+                  if (!row.productId) {
+                    return;
+                  }
+                  navigation.navigate('ShopProductDetail', { petId, productId: row.productId });
+                }}
+              >
+                <ProductArt product={row.product} />
+              </Pressable>
+              <View style={s.flex}>
+                <Text style={s.label}>{row.name}</Text>
+                <Text style={[s.body, row.depleted && styles.depleted]}>{row.detail}</Text>
+              </View>
+            </View>
+          </View>
+        ))
+      )}
+    </ScrollView>
   );
 }
 

@@ -13,13 +13,13 @@ import { colors, typography } from '../../theme';
 import CloseIcon from '../../assets/icons/common/cancel.svg';
 
 export const petStatItems = [
-  { key: 'hunger', label: '배고픔', english: 'Hunger' },
-  { key: 'hydration', label: '목마름', english: 'Hydration' },
-  { key: 'clean', label: '청결', english: 'Clean' },
-  { key: 'friendship', label: '친밀도', english: 'Friendship' },
-  { key: 'stress', label: '스트레스', english: 'Stress' },
+  { key: 'satiety', label: '포만감', english: 'Satiety' },
+  { key: 'hydration', label: '수분', english: 'Hydration' },
+  { key: 'cleanliness', label: '청결도', english: 'Cleanliness' },
+  { key: 'bond', label: '친밀도', english: 'Bond' },
+  { key: 'calmness', label: '안정감', english: 'Calmness' },
   { key: 'health', label: '건강', english: 'Health' },
-  { key: 'activity', label: '활동', english: 'Activity' },
+  { key: 'energy', label: '활력', english: 'Energy' },
 ] as const;
 
 export type PetStats = Record<(typeof petStatItems)[number]['key'], number | null>;
@@ -28,10 +28,19 @@ type Props = {
   visible: boolean;
   petName: string;
   stats?: Partial<PetStats>;
+  loading?: boolean;
+  notice?: string;
   onClose: () => void;
 };
 
-export function PetStatsDialog({ visible, petName, stats = {}, onClose }: Props) {
+export function PetStatsDialog({
+  visible,
+  petName,
+  stats = {},
+  loading = false,
+  notice,
+  onClose,
+}: Props) {
   const { width, height } = useWindowDimensions();
   const [cardSize, setCardSize] = useState({ width: 0, height: 0 });
   return (
@@ -117,35 +126,49 @@ export function PetStatsDialog({ visible, petName, stats = {}, onClose }: Props)
                       <Text style={styles.statLabel}>{item.label}</Text>
                       <Text style={styles.english}>{item.english}</Text>
                     </View>
-                    <Text style={[styles.value, { color: valueColor }]}>
-                      {value === null ? '—' : value}
-                      <Text style={styles.maximum}> / 100</Text>
-                    </Text>
+                    {loading ? (
+                      <View style={styles.skeletonValue} />
+                    ) : (
+                      <Text style={[styles.value, { color: valueColor }]}>
+                        {value === null ? '—' : value}
+                        <Text style={styles.maximum}> / 100</Text>
+                      </Text>
+                    )}
                   </View>
-                  <View
-                    accessibilityRole="progressbar"
-                    accessibilityLabel={item.label}
-                    accessibilityValue={
-                      value === null ? { text: '상태 정보 없음' } : { min: 0, max: 100, now: value }
-                    }
-                    style={styles.track}
-                  >
-                    {value !== null ? (
-                      <View
-                        style={[
-                          styles.fill,
-                          {
-                            width: `${value}%`,
-                            backgroundColor: valueColor,
-                          },
-                        ]}
-                      />
-                    ) : null}
-                  </View>
+                  {loading ? (
+                    <View
+                      accessibilityLabel={`${item.label} 불러오는 중`}
+                      style={styles.skeletonTrack}
+                    />
+                  ) : (
+                    <View
+                      accessibilityRole="progressbar"
+                      accessibilityLabel={item.label}
+                      accessibilityValue={
+                        value === null
+                          ? { text: '상태 정보 없음' }
+                          : { min: 0, max: 100, now: value }
+                      }
+                      style={styles.track}
+                    >
+                      {value !== null ? (
+                        <View
+                          style={[
+                            styles.fill,
+                            {
+                              width: `${value}%`,
+                              backgroundColor: valueColor,
+                            },
+                          ]}
+                        />
+                      ) : null}
+                    </View>
+                  )}
                 </View>
               );
             })}
-            {petStatItems.every(item => stats[item.key] == null) ? (
+            {notice ? <Text style={styles.empty}>{notice}</Text> : null}
+            {!loading && !notice && petStatItems.every(item => stats[item.key] == null) ? (
               <Text style={styles.empty}>아직 상태 정보가 없어요.</Text>
             ) : null}
           </ScrollView>
@@ -217,6 +240,17 @@ const styles = StyleSheet.create({
   english: { ...typography.captionRegular10, fontSize: 11, lineHeight: 15, color: '#738579' },
   value: { ...typography.bodySemiBold16, color: '#425C49', fontVariant: ['tabular-nums'] },
   maximum: { ...typography.captionRegular10, color: '#7D8F82' },
+  skeletonValue: {
+    width: 52,
+    height: 16,
+    borderRadius: 6,
+    backgroundColor: 'rgba(82,111,89,0.16)',
+  },
+  skeletonTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(82,111,89,0.16)',
+  },
   track: {
     height: 8,
     borderRadius: 4,
