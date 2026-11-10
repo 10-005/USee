@@ -1,5 +1,6 @@
 import { ApiClientError } from '../api/errors';
 import {
+  acknowledgeSimulationReport,
   clearSimulationReports,
   getSimulationReport,
   getSimulationReportErrorMessage,
@@ -69,6 +70,26 @@ test('requests the signed-in reports once and keeps that list until invalidated'
   await expect(loadSimulationReports({ get })).resolves.toEqual({
     reports: [newer, older],
     freshSessionSeqs: [3002],
+  });
+  expect(get).toHaveBeenCalledTimes(2);
+});
+
+test('removes the new mark after that report is opened', async () => {
+  const get = jest
+    .fn()
+    .mockResolvedValueOnce(envelope([older]))
+    .mockResolvedValueOnce(envelope([newer, older]));
+
+  await loadSimulationReports({ get });
+  invalidateSimulationReports();
+  await expect(loadSimulationReports({ get })).resolves.toMatchObject({
+    freshSessionSeqs: [3002],
+  });
+
+  acknowledgeSimulationReport(3002);
+  await expect(loadSimulationReports({ get })).resolves.toMatchObject({
+    reports: [newer, older],
+    freshSessionSeqs: [],
   });
   expect(get).toHaveBeenCalledTimes(2);
 });

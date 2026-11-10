@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
-import { AppHeader, Button, DetailScreenSkeleton } from '../../components/common';
+import { AppHeader, Button, SkeletonBlock, SkeletonGroup } from '../../components/common';
 import {
+  acknowledgeSimulationReport,
   getSimulationReport,
   getSimulationReportErrorMessage,
   type SimulationReportDetail,
@@ -13,7 +14,7 @@ import {
 } from '../../services/simulation/reports';
 import { colors, radius, typography } from '../../theme';
 import { mockAdoptionPets } from './data';
-import { CategorySpending, DailySpending, FinalStateChart } from './reportCharts';
+import { CategorySpending, DailySpending, FinalStateChart, GradientFill } from './reportCharts';
 import {
   budgetGap,
   REPORT_PERSONALITY_LABEL,
@@ -23,6 +24,7 @@ import {
 } from './reportLabels';
 
 const SUMMARY_REFRESH_MS = 10_000;
+const SKELETON_BARS = [112, 72, 128, 36, 96, 24, 64];
 const STATUS_TONE: Record<SimulationReportStatus, { background: string; color: string }> = {
   IN_PROGRESS: { background: '#EAF3FF', color: '#115BCC' },
   COMPLETED: { background: '#E8F5EE', color: '#036666' },
@@ -70,13 +72,11 @@ function SummaryCard({ report }: { report: SimulationReportDetail }) {
           </View>
         </View>
       </View>
-      <Text style={styles.meta}>{`${species} · ${report.breed.breedName}`}</Text>
-      <Text style={styles.meta}>
-        {`${REPORT_PERSONALITY_LABEL[report.personality]} · ${reportPeriod(
-          report.startedDttm,
-          report.endedDttm,
-        )}`}
-      </Text>
+      <View style={styles.identity}>
+        <Text style={styles.breed}>{`${species} · ${report.breed.breedName}`}</Text>
+        <Text style={styles.period}>{reportPeriod(report.startedDttm, report.endedDttm)}</Text>
+        <Text style={styles.personality}>{REPORT_PERSONALITY_LABEL[report.personality]}</Text>
+      </View>
       <Text accessibilityLiveRegion="polite" style={styles.summary}>
         {report.summary ?? '요약 준비 중'}
       </Text>
@@ -91,20 +91,40 @@ function SpendingCard({ report }: { report: SimulationReportDetail }) {
       <Text accessibilityRole="header" style={styles.sectionTitle}>
         지출 분석
       </Text>
-      <Text style={styles.total}>{won(report.totalSpent)}</Text>
-      <Text style={styles.meta}>
-        {`예상 ${won(report.expectedCost)} · `}
-        <Text style={gap.over ? styles.overBudget : undefined}>{gap.label}</Text>
-      </Text>
+      <View style={styles.totalBlock}>
+        <Text style={styles.total}>{won(report.totalSpent)}</Text>
+        <Text style={styles.budgetLine}>
+          {`예상 ${won(report.expectedCost)} · `}
+          <Text style={styles[gap.tone]}>{gap.label}</Text>
+        </Text>
+      </View>
       <Text accessibilityRole="header" style={styles.subTitle}>
         카테고리별 지출
       </Text>
       <CategorySpending spent={report.spentByCategory} total={report.totalSpent} />
-      <Text accessibilityRole="header" style={styles.subTitle}>
+      <Text accessibilityRole="header" style={[styles.subTitle, styles.dailyHeading]}>
         일별 지출
       </Text>
       <DailySpending daily={report.dailySpent} />
     </View>
+  );
+}
+
+function EventFill({ rate }: { rate: number }) {
+  const progress = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: rate,
+      duration: 520,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [progress, rate]);
+  const width = progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+  return (
+    <Animated.View style={[styles.eventFill, { width }]}>
+      <GradientFill id="event-resolve" from="#56AB91" to="#14746F" horizontal />
+    </Animated.View>
   );
 }
 
@@ -123,8 +143,9 @@ function CareCard({ report }: { report: SimulationReportDetail }) {
         돌봄 활동
       </Text>
       <View style={styles.careRow}>
-        {stats.map(item => (
+        {stats.map((item, index) => (
           <View key={item.label} style={styles.careItem}>
+            <GradientFill id={`care-${index}`} from="#EDF8F1" to="#F8FBF9" />
             <Text style={styles.careLabel}>{item.label}</Text>
             <Text style={styles.careValue}>{item.value}</Text>
           </View>
@@ -136,14 +157,100 @@ function CareCard({ report }: { report: SimulationReportDetail }) {
           accessibilityLabel={`해결 ${report.eventResolvedCount}건, 미해결 ${unresolved}건`}
           style={styles.eventTrack}
         >
-          <View style={[styles.eventFill, { width: `${rate * 100}%` }]} />
+          <EventFill rate={rate} />
         </View>
         <View style={styles.eventLabels}>
-          <Text style={styles.eventLabel}>{`해결 ${report.eventResolvedCount}건`}</Text>
-          <Text style={styles.eventLabel}>{`미해결 ${unresolved}건`}</Text>
+          <Text
+            style={[styles.eventLabel, styles.solved]}
+          >{`해결 ${report.eventResolvedCount}건`}</Text>
+          <Text style={[styles.eventLabel, unresolved > 0 ? styles.unsolved : null]}>
+            {`미해결 ${unresolved}건`}
+          </Text>
         </View>
       </View>
     </View>
+  );
+}
+
+function ReportSkeleton() {
+  return (
+    <SkeletonGroup accessibilityLabel="리포트 불러오는 중" style={styles.skeleton}>
+      <View style={styles.card}>
+        <SkeletonBlock style={styles.skeletonKicker} />
+        <View style={styles.summaryHeader}>
+          <SkeletonBlock style={styles.skeletonPet} />
+          <View style={styles.skeletonNameCol}>
+            <SkeletonBlock style={styles.skeletonName} />
+            <SkeletonBlock style={styles.skeletonBadge} />
+          </View>
+        </View>
+        <View style={styles.identity}>
+          <SkeletonBlock style={styles.skeletonBreed} />
+          <SkeletonBlock style={styles.skeletonPeriod} />
+          <SkeletonBlock style={styles.skeletonPersonality} />
+        </View>
+        <View style={styles.skeletonSummary}>
+          <SkeletonBlock style={styles.skeletonLine} />
+          <SkeletonBlock style={styles.skeletonLine} />
+          <SkeletonBlock style={styles.skeletonLineShort} />
+        </View>
+      </View>
+      <View style={styles.card}>
+        <SkeletonBlock style={styles.skeletonSection} />
+        <SkeletonBlock style={styles.skeletonTotal} />
+        <SkeletonBlock style={styles.skeletonBudget} />
+        <SkeletonBlock style={styles.skeletonSub} />
+        <SkeletonBlock style={styles.skeletonChart} />
+        <View style={styles.skeletonLegend}>
+          {[0, 1, 2].map(row => (
+            <View key={row} style={styles.skeletonLegendRow}>
+              <SkeletonBlock style={styles.skeletonSwatch} />
+              <SkeletonBlock style={styles.skeletonLegendLabel} />
+              <SkeletonBlock style={styles.skeletonLegendAmount} />
+            </View>
+          ))}
+        </View>
+        <SkeletonBlock style={[styles.skeletonSub, styles.skeletonDailyHeading]} />
+        <View style={styles.skeletonDaily}>
+          <View style={styles.skeletonAxis}>
+            {[0, 1, 2, 3, 4].map(tick => (
+              <SkeletonBlock key={tick} style={styles.skeletonAxisTick} />
+            ))}
+          </View>
+          <View style={styles.skeletonBars}>
+            {SKELETON_BARS.map(height => (
+              <View key={height} style={styles.skeletonBarCol}>
+                <SkeletonBlock style={[styles.skeletonBar, { height }]} />
+                <SkeletonBlock style={styles.skeletonDay} />
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+      <View style={styles.card}>
+        <SkeletonBlock style={styles.skeletonSectionShort} />
+        <SkeletonBlock style={styles.skeletonChart} />
+      </View>
+      <View style={styles.card}>
+        <SkeletonBlock style={styles.skeletonSection} />
+        <View style={styles.careRow}>
+          {[0, 1, 2].map(item => (
+            <View key={item} style={styles.careItem}>
+              <SkeletonBlock style={styles.skeletonCareLabel} />
+              <SkeletonBlock style={styles.skeletonCareValue} />
+            </View>
+          ))}
+        </View>
+        <View style={styles.eventBox}>
+          <SkeletonBlock style={styles.skeletonSub} />
+          <SkeletonBlock style={styles.skeletonEventTrack} />
+          <View style={styles.eventLabels}>
+            <SkeletonBlock style={styles.skeletonEventLabel} />
+            <SkeletonBlock style={styles.skeletonEventLabel} />
+          </View>
+        </View>
+      </View>
+    </SkeletonGroup>
   );
 }
 
@@ -201,6 +308,10 @@ export function MockAdoptionReportScreen({ navigation, route }: Props) {
   }, [load]);
 
   useEffect(() => {
+    acknowledgeSimulationReport(sessionSeq);
+  }, [sessionSeq]);
+
+  useEffect(() => {
     return () => {
       requestId.current += 1;
     };
@@ -227,7 +338,14 @@ export function MockAdoptionReportScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
       <AppHeader title="리포트 상세" onBackPress={navigation.goBack} />
-      {loading ? <DetailScreenSkeleton accessibilityLabel="리포트 불러오는 중" /> : null}
+      {loading ? (
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <ReportSkeleton />
+        </ScrollView>
+      ) : null}
       {!loading && (error || !report) ? (
         <View style={styles.status}>
           <Text style={styles.statusText}>
@@ -252,41 +370,61 @@ export function MockAdoptionReportScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.gray10 },
-  content: { gap: 16, paddingHorizontal: 20, paddingTop: 16 },
+  content: { gap: 20, paddingHorizontal: 20, paddingTop: 20 },
   card: {
     backgroundColor: colors.white,
     borderColor: '#E2E5EB',
     borderRadius: 16,
     borderWidth: 1,
-    gap: 12,
-    padding: 20,
+    gap: 16,
+    padding: 22,
   },
-  kicker: { ...typography.captionSemiBold12, color: colors.gray500 },
-  summaryHeader: { alignItems: 'center', flexDirection: 'row', gap: 12 },
-  petImage: { height: 64, width: 64 },
+  kicker: { ...typography.captionSemiBold12, color: colors.green400 },
+  summaryHeader: { alignItems: 'center', flexDirection: 'row', gap: 14 },
+  petImage: { height: 72, width: 72 },
   nameBlock: { alignItems: 'center', flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  animalName: { ...typography.titleBold18, color: colors.black, flexShrink: 1 },
-  badge: { borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 3 },
+  animalName: {
+    color: colors.black,
+    flexShrink: 1,
+    fontFamily: 'Pretendard-Bold',
+    fontSize: 26,
+    lineHeight: 34,
+  },
+  badge: { borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
   badgeText: { ...typography.captionSemiBold12 },
-  meta: { ...typography.bodyRegular14, color: colors.gray600, lineHeight: 20 },
+  identity: { gap: 6 },
+  breed: { ...typography.bodySemiBold16, color: colors.gray800 },
+  period: { ...typography.bodyRegular14, color: colors.gray500, lineHeight: 20 },
+  personality: { ...typography.bodySemiBold16, color: '#14746F' },
   summary: {
-    ...typography.bodyRegular14,
+    ...typography.bodyRegular16,
     borderTopColor: '#EBEAE5',
     borderTopWidth: 1,
     color: colors.gray700,
-    lineHeight: 22,
-    paddingTop: 16,
+    lineHeight: 26,
+    marginTop: 4,
+    paddingTop: 18,
   },
-  sectionTitle: { ...typography.titleBold18, color: colors.black, fontSize: 20, lineHeight: 26 },
-  subTitle: { ...typography.bodySemiBold16, color: colors.gray800, marginTop: 4 },
-  total: {
+  sectionTitle: {
     color: colors.black,
     fontFamily: 'Pretendard-Bold',
-    fontSize: 30,
-    lineHeight: 38,
+    fontSize: 22,
+    lineHeight: 28,
   },
-  overBudget: { color: '#FA705B', fontFamily: 'Pretendard-Bold' },
-  careRow: { flexDirection: 'row', gap: 8 },
+  subTitle: { ...typography.bodySemiBold16, color: colors.gray800, fontSize: 17, lineHeight: 22 },
+  dailyHeading: { marginTop: 20 },
+  totalBlock: { gap: 4 },
+  total: {
+    color: '#036666',
+    fontFamily: 'Pretendard-Bold',
+    fontSize: 36,
+    lineHeight: 44,
+  },
+  budgetLine: { ...typography.bodyRegular16, color: colors.gray600, lineHeight: 24 },
+  over: { color: '#FA705B', fontFamily: 'Pretendard-Bold', fontSize: 16 },
+  saved: { color: colors.green400, fontFamily: 'Pretendard-Bold', fontSize: 16 },
+  even: { color: colors.gray700, fontFamily: 'Pretendard-Bold', fontSize: 16 },
+  careRow: { flexDirection: 'row', gap: 10 },
   careItem: {
     backgroundColor: '#F8FBF9',
     borderColor: '#DFEDE5',
@@ -294,6 +432,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flex: 1,
     gap: 8,
+    overflow: 'hidden',
     paddingHorizontal: 10,
     paddingVertical: 14,
   },
@@ -301,21 +440,64 @@ const styles = StyleSheet.create({
   careValue: {
     color: '#036666',
     fontFamily: 'Pretendard-Bold',
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 26,
+    lineHeight: 32,
   },
   eventBox: {
     borderColor: '#DFEDE5',
     borderRadius: 12,
     borderWidth: 1,
-    gap: 12,
-    marginTop: 4,
+    gap: 14,
+    marginTop: 6,
     padding: 16,
   },
   eventTrack: { backgroundColor: '#EAF1ED', borderRadius: 99, height: 9, overflow: 'hidden' },
-  eventFill: { backgroundColor: '#14746F', borderRadius: 99, height: '100%' },
+  eventFill: { borderRadius: 99, height: '100%', overflow: 'hidden' },
   eventLabels: { flexDirection: 'row', justifyContent: 'space-between' },
   eventLabel: { ...typography.bodyRegular14, color: '#435E54' },
+  solved: { color: '#036666', fontFamily: 'Pretendard-Bold' },
+  unsolved: { color: colors.danger, fontFamily: 'Pretendard-Bold' },
   status: { gap: 16, padding: 24 },
   statusText: { ...typography.bodyRegular16, color: colors.gray600, lineHeight: 24 },
+  skeleton: { gap: 20 },
+  skeletonKicker: { height: 12, width: 92 },
+  skeletonPet: { borderRadius: 12, height: 72, width: 72 },
+  skeletonNameCol: { flex: 1, gap: 10 },
+  skeletonName: { height: 26, width: '62%' },
+  skeletonBadge: { borderRadius: radius.pill, height: 22, width: 64 },
+  skeletonBreed: { height: 16, width: '46%' },
+  skeletonPeriod: { height: 14, width: '78%' },
+  skeletonPersonality: { height: 16, width: '34%' },
+  skeletonSummary: {
+    borderTopColor: '#EBEAE5',
+    borderTopWidth: 1,
+    gap: 10,
+    marginTop: 4,
+    paddingTop: 18,
+  },
+  skeletonLine: { height: 16, width: '100%' },
+  skeletonLineShort: { height: 16, width: '68%' },
+  skeletonSection: { height: 22, width: 108 },
+  skeletonSectionShort: { height: 22, width: 88 },
+  skeletonTotal: { height: 36, width: 148 },
+  skeletonBudget: { height: 16, width: '64%' },
+  skeletonSub: { height: 17, width: 124 },
+  skeletonChart: { alignSelf: 'center', borderRadius: 110, height: 220, width: 220 },
+  skeletonLegend: { gap: 12 },
+  skeletonLegendRow: { alignItems: 'center', flexDirection: 'row', gap: 8, minHeight: 28 },
+  skeletonSwatch: { borderRadius: 3, height: 10, width: 10 },
+  skeletonLegendLabel: { flex: 1, height: 14 },
+  skeletonLegendAmount: { height: 14, width: 68 },
+  skeletonDailyHeading: { marginTop: 20 },
+  skeletonDaily: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  skeletonAxis: { height: 148, justifyContent: 'space-between', width: 36 },
+  skeletonAxisTick: { height: 8, width: '100%' },
+  skeletonBars: { alignItems: 'flex-end', flex: 1, flexDirection: 'row', height: 168 },
+  skeletonBarCol: { alignItems: 'center', flex: 1, justifyContent: 'flex-end' },
+  skeletonBar: { borderTopLeftRadius: 8, borderTopRightRadius: 8, width: 18 },
+  skeletonDay: { height: 10, marginTop: 10, width: 22 },
+  skeletonCareLabel: { height: 14, width: '78%' },
+  skeletonCareValue: { height: 26, width: '62%' },
+  skeletonEventTrack: { borderRadius: 99, height: 9, width: '100%' },
+  skeletonEventLabel: { height: 14, width: 72 },
 });

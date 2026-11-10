@@ -433,6 +433,23 @@ function readStoredReports(): StoredReports | null {
   return { list, stale: row.stale };
 }
 
+export function acknowledgeSimulationReport(sessionSeq: number): void {
+  if (!isPositiveId(sessionSeq)) {
+    return;
+  }
+  const stored = readStoredReports();
+  if (!stored || !stored.list.freshSessionSeqs.includes(sessionSeq)) {
+    return;
+  }
+  writeSimulationReportRow(
+    JSON.stringify({
+      reports: stored.list.reports,
+      freshSessionSeqs: stored.list.freshSessionSeqs.filter(id => id !== sessionSeq),
+    }),
+    stored.stale,
+  );
+}
+
 export function invalidateSimulationReports(): void {
   markSimulationReportRowStale();
 }

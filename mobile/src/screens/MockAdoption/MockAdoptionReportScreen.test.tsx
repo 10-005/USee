@@ -17,6 +17,7 @@ const screenProps = {
 } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionReport'>;
 
 jest.mock('../../services/simulation/reports', () => ({
+  acknowledgeSimulationReport: jest.fn(),
   getSimulationReport: jest.fn(),
   getSimulationReportErrorMessage: () => '리포트를 불러오지 못했어요. 다시 시도해주세요.',
 }));
@@ -103,10 +104,9 @@ test('shows the finished report sections from the web report layout', async () =
   expect(renderer.root.findAllByProps({ children: '중도 포기' }).length).toBeGreaterThan(0);
   expect(renderer.root.findAllByProps({ children: '개 · 말티즈' }).length).toBeGreaterThan(0);
   expect(
-    renderer.root.findAllByProps({
-      children: '사람 친화적 · 2026.11.01 14:00 ~ 2026.11.03 10:20',
-    }).length,
+    renderer.root.findAllByProps({ children: '2026.11.01 14:00 ~ 2026.11.03 10:20' }).length,
   ).toBeGreaterThan(0);
+  expect(renderer.root.findAllByProps({ children: '사람 친화적' }).length).toBeGreaterThan(0);
   expect(
     renderer.root.findAllByProps({ children: '2일째에 돌봄을 그만뒀어요.' }).length,
   ).toBeGreaterThan(0);
@@ -117,8 +117,22 @@ test('shows the finished report sections from the web report layout', async () =
   expect(
     renderer.root.findAllByProps({ accessibilityLabel: `선택한 지출 사료 ${won(21200)}` }).length,
   ).toBeGreaterThan(0);
+  expect(renderer.root.findAllByProps({ children: '1일차 지출' }).length).toBeGreaterThan(0);
+  expect(renderer.root.findAllByProps({ children: won(31200) }).length).toBeGreaterThan(0);
+  const firstDay = renderer.root.findByProps({
+    accessibilityLabel: `1일차 지출 ${won(31200)}`,
+  });
   expect(
-    renderer.root.findAllByProps({ children: '1일차 지출 ' + won(31200) }).length,
+    firstDay.findAll(node => {
+      const style = StyleSheet.flatten(node.props.style);
+      return (
+        typeof style?.width === 'number' &&
+        style.width >= 12 &&
+        typeof style?.height === 'number' &&
+        style.height >= 10 &&
+        style.height < 168
+      );
+    }).length,
   ).toBeGreaterThan(0);
   expect(renderer.root.findAllByProps({ children: '12회' }).length).toBeGreaterThan(0);
   expect(renderer.root.findAllByProps({ children: '3회' }).length).toBeGreaterThan(0);
@@ -136,9 +150,8 @@ test('shows the finished report sections from the web report layout', async () =
   await ReactTestRenderer.act(() => {
     renderer.root.findByProps({ accessibilityLabel: `2일차 지출 ${won(21600)}` }).props.onPress();
   });
-  expect(
-    renderer.root.findAllByProps({ children: `2일차 지출 ${won(21600)}` }).length,
-  ).toBeGreaterThan(0);
+  expect(renderer.root.findAllByProps({ children: '2일차 지출' }).length).toBeGreaterThan(0);
+  expect(renderer.root.findAllByProps({ children: won(21600) }).length).toBeGreaterThan(0);
 
   await ReactTestRenderer.act(() => {
     renderer.root.findByProps({ accessibilityLabel: '뒤로 가기' }).props.onPress();
@@ -165,6 +178,46 @@ test('marks spending over the expected cost', async () => {
   const renderer = await renderReport();
   const over = renderer.root.findByProps({ children: `${won(20000)} 초과` });
   expect(StyleSheet.flatten(over.props.style).color).toBe('#FA705B');
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('shows a report-shaped skeleton while the detail is loading', async () => {
+  let resolveReport: (value: SimulationReportDetail) => void = () => undefined;
+  jest.mocked(getSimulationReport).mockImplementation(
+    () =>
+      new Promise(resolve => {
+        resolveReport = resolve;
+      }),
+  );
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionReportScreen {...screenProps} />);
+  });
+
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: '리포트 불러오는 중' }).length,
+  ).toBeGreaterThan(0);
+  const host = (node: ReactTestRenderer.ReactTestInstance) => typeof node.type === 'string';
+  expect(
+    renderer.root.findAll(
+      node =>
+        host(node) &&
+        StyleSheet.flatten(node.props.style)?.width === 220 &&
+        StyleSheet.flatten(node.props.style)?.height === 220,
+    ).length,
+  ).toBe(2);
+  expect(
+    renderer.root.findAll(node => host(node) && StyleSheet.flatten(node.props.style)?.width === 18)
+      .length,
+  ).toBe(7);
+
+  await ReactTestRenderer.act(async () => {
+    resolveReport(detail);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  expect(renderer.root.findAllByProps({ children: '초코' }).length).toBeGreaterThan(0);
+  expect(renderer.root.findAllByProps({ accessibilityLabel: '리포트 불러오는 중' }).length).toBe(0);
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 

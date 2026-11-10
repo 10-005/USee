@@ -1,6 +1,18 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Line, Polygon, Path, Text as SvgText } from 'react-native-svg';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, {
+  Circle,
+  Defs,
+  G,
+  Line,
+  LinearGradient,
+  Path,
+  Polygon,
+  RadialGradient,
+  Rect,
+  Stop,
+  Text as SvgText,
+} from 'react-native-svg';
 
 import { colors, typography } from '../../theme';
 import {
@@ -26,6 +38,11 @@ const EXPENSE_PALETTE = [
 ];
 const STAT_COLOR = { low: '#A63828', medium: '#89500E', high: '#036666' };
 const RADAR = { cx: 140, cy: 126, radius: 72, labelRadius: 108 };
+const TRACK = 168;
+const BAR_WIDTH = 18;
+const BAR_FOCUS_MS = 200;
+const easeOut = Easing.out(Easing.cubic);
+const AnimatedG = Animated.createAnimatedComponent(G);
 
 function polar(angle: number, radius: number) {
   return {
@@ -56,6 +73,90 @@ function donutPath(start: number, end: number) {
   ].join(' ');
 }
 
+function move(value: Animated.Value, to: number, duration: number) {
+  Animated.timing(value, {
+    toValue: to,
+    duration,
+    easing: easeOut,
+    useNativeDriver: false,
+  }).start();
+}
+
+export function GradientFill({
+  id,
+  from,
+  to,
+  horizontal = false,
+}: {
+  id: string;
+  from: string;
+  to: string;
+  horizontal?: boolean;
+}) {
+  return (
+    <Svg
+      pointerEvents="none"
+      style={StyleSheet.absoluteFill}
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+    >
+      <Defs>
+        <LinearGradient
+          id={id}
+          x1="0"
+          y1="0"
+          x2={horizontal ? '1' : '0.45'}
+          y2={horizontal ? '0' : '1'}
+        >
+          <Stop offset="0%" stopColor={from} />
+          <Stop offset="100%" stopColor={to} />
+        </LinearGradient>
+      </Defs>
+      <Rect x="0" y="0" width="100" height="100" fill={`url(#${id})`} />
+    </Svg>
+  );
+}
+
+function ExpenseSlice({
+  active,
+  color,
+  d,
+  dx,
+  dy,
+  gradientId,
+  onPress,
+}: {
+  active: boolean;
+  color: string;
+  d: string;
+  dx: number;
+  dy: number;
+  gradientId: string;
+  onPress: () => void;
+}) {
+  const progress = useRef(new Animated.Value(active ? 1 : 0)).current;
+  useEffect(() => {
+    move(progress, active ? 1 : 0, 240);
+  }, [active, progress]);
+  const translateX = progress.interpolate({ inputRange: [0, 1], outputRange: [0, dx] });
+  const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [0, dy] });
+  const opacity = progress.interpolate({ inputRange: [0, 1], outputRange: [0.87, 1] });
+
+  return (
+    <AnimatedG opacity={opacity} translateX={translateX} translateY={translateY}>
+      {active ? <Path d={d} fill={color} fillOpacity={0.18} transform="translate(0, 3)" /> : null}
+      <Path
+        d={d}
+        fill={`url(#${gradientId})`}
+        stroke="#FFFFFF"
+        strokeLinejoin="round"
+        strokeWidth={1.4}
+        onPress={onPress}
+      />
+    </AnimatedG>
+  );
+}
+
 export function CategorySpending({
   spent,
   total,
@@ -76,28 +177,44 @@ export function CategorySpending({
       ...item,
       color: EXPENSE_PALETTE[index % EXPENSE_PALETTE.length],
       path: donutPath(start, angle),
-      offset: `translate(${(Math.cos(middle) * 7).toFixed(2)}, ${(Math.sin(middle) * 7).toFixed(
-        2,
-      )})`,
+      dx: Math.cos(middle) * 7,
+      dy: Math.sin(middle) * 7,
     };
   });
 
   return (
     <View style={styles.breakdown}>
       <View style={styles.figure}>
-        <Svg viewBox="0 0 200 200" width="100%" height="100%">
+        <Svg overflow="visible" viewBox="0 0 200 200" width="100%" height="100%">
+          <Defs>
+            {slices.map(item => (
+              <RadialGradient
+                key={item.key}
+                id={`expense-${item.key}`}
+                cx="100"
+                cy="100"
+                r="84"
+                gradientUnits="userSpaceOnUse"
+              >
+                <Stop offset="0%" stopColor={item.color} />
+                <Stop offset="75%" stopColor={item.color} />
+                <Stop offset="91%" stopColor={item.color} stopOpacity={0.85} />
+                <Stop offset="100%" stopColor={item.color} stopOpacity={0.72} />
+              </RadialGradient>
+            ))}
+          </Defs>
           {total === 0 ? (
             <Circle cx="100" cy="100" r="70" fill="none" stroke="#EBEAE5" strokeWidth={28} />
           ) : null}
           {slices.map(item => (
-            <Path
+            <ExpenseSlice
               key={item.key}
+              active={item.key === active?.key}
+              color={item.color}
               d={item.path}
-              fill={item.color}
-              stroke="#FFFFFF"
-              strokeWidth={1.4}
-              opacity={item.key === active?.key ? 1 : 0.87}
-              transform={item.key === active?.key ? item.offset : undefined}
+              dx={item.dx}
+              dy={item.dy}
+              gradientId={`expense-${item.key}`}
               onPress={() => setSelected(item.key)}
             />
           ))}
@@ -133,8 +250,12 @@ export function CategorySpending({
               style={[styles.legendItem, pressed && styles.legendItemActive]}
             >
               <View style={[styles.swatch, { backgroundColor: item.color }]} />
-              <Text style={styles.legendLabel}>{item.label}</Text>
-              <Text style={styles.legendAmount}>{won(item.amount)}</Text>
+              <Text style={[styles.legendLabel, pressed && styles.legendLabelActive]}>
+                {item.label}
+              </Text>
+              <Text style={[styles.legendAmount, pressed && styles.legendAmountActive]}>
+                {won(item.amount)}
+              </Text>
             </Pressable>
           );
         })}
@@ -143,17 +264,100 @@ export function CategorySpending({
   );
 }
 
+function DailyBar({
+  amount,
+  index,
+  last,
+  onPress,
+  scale,
+  selected,
+}: {
+  amount: number;
+  index: number;
+  last: boolean;
+  onPress: () => void;
+  scale: number;
+  selected: boolean;
+}) {
+  const barHeight =
+    scale > 0 && amount > 0 ? Math.max(10, Math.min(TRACK, (amount / scale) * TRACK)) : 0;
+  const focus = useRef(new Animated.Value(selected ? 1 : 0)).current;
+  useEffect(() => {
+    move(focus, selected ? 1 : 0, BAR_FOCUS_MS);
+  }, [focus, selected]);
+  const tipShift = focus.interpolate({ inputRange: [0, 1], outputRange: [4, 0] });
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${index + 1}일차 지출 ${won(amount)}`}
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={[styles.barColumn, selected && styles.barColumnSelected]}
+    >
+      <View style={styles.barTrack}>
+        <View style={styles.barSlot}>
+          <View collapsable={false} style={[styles.bar, { height: barHeight }]}>
+            <View style={[styles.barFill, { height: barHeight }]}>
+              {barHeight > 0 ? (
+                <Svg width={BAR_WIDTH} height={barHeight}>
+                  <Defs>
+                    <LinearGradient id={`day-${index}-base`} x1="0" y1="0" x2="0" y2="1">
+                      <Stop offset="0%" stopColor="#7DCFB0" />
+                      <Stop offset="100%" stopColor="#CDE8DC" />
+                    </LinearGradient>
+                  </Defs>
+                  <Rect width={BAR_WIDTH} height={barHeight} fill={`url(#day-${index}-base)`} />
+                </Svg>
+              ) : null}
+              {barHeight > 0 ? (
+                <Animated.View pointerEvents="none" style={[styles.barShade, { opacity: focus }]}>
+                  <Svg width={BAR_WIDTH} height={barHeight}>
+                    <Defs>
+                      <LinearGradient id={`day-${index}-on`} x1="0" y1="0" x2="0" y2="1">
+                        <Stop offset="0%" stopColor="#248277" />
+                        <Stop offset="78%" stopColor="#99E2B4" />
+                        <Stop offset="100%" stopColor="#F5FAF7" />
+                      </LinearGradient>
+                    </Defs>
+                    <Rect width={BAR_WIDTH} height={barHeight} fill={`url(#day-${index}-on)`} />
+                  </Svg>
+                </Animated.View>
+              ) : null}
+            </View>
+            <Animated.View style={[styles.barDot, { opacity: focus }]} />
+            {selected ? (
+              <Animated.View
+                style={[
+                  styles.tip,
+                  last ? styles.tipEnd : styles.tipCenter,
+                  { opacity: focus, transform: [{ translateY: tipShift }] },
+                ]}
+              >
+                <Text style={styles.tipLabel}>{`${index + 1}일차 지출`}</Text>
+                <Text style={styles.tipAmount}>{won(amount)}</Text>
+              </Animated.View>
+            ) : null}
+          </View>
+        </View>
+      </View>
+      <Text style={[styles.dayLabel, selected && styles.dayLabelSelected]}>{`${
+        index + 1
+      }일차`}</Text>
+    </Pressable>
+  );
+}
+
 export function DailySpending({ daily }: { daily: Record<string, number> }) {
   const amounts = reportDailyAmounts(daily);
   const step = dailyAxisStep(amounts);
   const peak = Math.max(0, ...amounts);
-  const [selected, setSelected] = useState(amounts.indexOf(peak));
+  const [selected, setSelected] = useState(Math.max(0, amounts.indexOf(peak)));
   const active = selected >= 0 && selected < amounts.length ? selected : 0;
   const scale = step * 4;
 
   return (
     <View style={styles.daily}>
-      <Text style={styles.dayCaption}>{`${active + 1}일차 지출 ${won(amounts[active])}`}</Text>
       <View style={styles.dailyRow}>
         <View style={styles.axis}>
           {[4, 3, 2, 1, 0].map(tick => (
@@ -163,31 +367,22 @@ export function DailySpending({ daily }: { daily: Record<string, number> }) {
           ))}
         </View>
         <View style={styles.bars}>
-          {amounts.map((amount, index) => {
-            const pressed = active === index;
-            const height = scale > 0 ? Math.min(100, (amount / scale) * 100) : 0;
-            return (
-              <Pressable
-                key={String(index)}
-                accessibilityRole="button"
-                accessibilityLabel={`${index + 1}일차 지출 ${won(amount)}`}
-                accessibilityState={{ selected: pressed }}
-                onPress={() => setSelected(index)}
-                style={styles.barColumn}
-              >
-                <View style={styles.barTrack}>
-                  <View
-                    style={[
-                      styles.bar,
-                      { height: `${height}%` },
-                      pressed ? styles.barSelected : null,
-                    ]}
-                  />
-                </View>
-                <Text style={styles.dayLabel}>{`${index + 1}일차`}</Text>
-              </Pressable>
-            );
-          })}
+          <View pointerEvents="none" style={styles.grid}>
+            {[0, 1, 2, 3].map(line => (
+              <View key={line} style={[styles.gridLine, { top: (line * TRACK) / 4 }]} />
+            ))}
+          </View>
+          {amounts.map((amount, index) => (
+            <DailyBar
+              key={String(index)}
+              amount={amount}
+              index={index}
+              last={index === amounts.length - 1}
+              onPress={() => setSelected(index)}
+              scale={scale}
+              selected={active === index}
+            />
+          ))}
         </View>
       </View>
     </View>
@@ -219,6 +414,15 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
 
   return (
     <View style={styles.radarPanel}>
+      <Svg pointerEvents="none" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
+        <Defs>
+          <RadialGradient id="radar-panel" cx="50%" cy="40%" r="75%">
+            <Stop offset="0%" stopColor="#FAFCFB" />
+            <Stop offset="100%" stopColor="#EDF4F0" />
+          </RadialGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#radar-panel)" />
+      </Svg>
       <Svg
         accessibilityLabel={summary}
         accessibilityRole="image"
@@ -226,15 +430,14 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
         width="100%"
         height={230}
       >
+        <Defs>
+          <LinearGradient id="radar-value" x1="0%" y1="0%" x2="100%" y2="100%">
+            <Stop offset="0%" stopColor="#469D89" />
+            <Stop offset="100%" stopColor="#036666" />
+          </LinearGradient>
+        </Defs>
         {[RADAR.radius + 10, RADAR.radius * 0.77, RADAR.radius * 0.42].map(radius => (
-          <Circle
-            key={radius}
-            cx={RADAR.cx}
-            cy={RADAR.cy}
-            r={radius}
-            fill="#FFFFFF"
-            stroke="#E7F0EB"
-          />
+          <Circle key={radius} cx={RADAR.cx} cy={RADAR.cy} r={radius} fill="#FFFFFF" />
         ))}
         {baselinePoints.map((point, index) => (
           <Line
@@ -256,10 +459,10 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
         />
         <Polygon
           points={outline}
-          fill="#469D89"
-          fillOpacity={0.16}
-          stroke="#036666"
-          strokeWidth={1.4}
+          fill="url(#radar-value)"
+          fillOpacity={0.08}
+          stroke="url(#radar-value)"
+          strokeWidth={1.2}
           strokeLinejoin="round"
         />
         {points.map(item => (
@@ -304,8 +507,8 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
 }
 
 const styles = StyleSheet.create({
-  breakdown: { gap: 12 },
-  figure: { alignSelf: 'center', height: 220, width: 220 },
+  breakdown: { gap: 18 },
+  figure: { alignSelf: 'center', height: 220, overflow: 'visible', width: 220 },
   figureCaption: {
     alignItems: 'center',
     height: 220,
@@ -315,14 +518,19 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
   },
-  figureLabel: { ...typography.captionSemiBold12, color: '#245C48' },
+  figureLabel: { ...typography.bodySemiBold16, color: '#245C48', fontSize: 14, lineHeight: 18 },
   figureAmount: {
-    color: '#245C48',
+    color: '#036666',
     fontFamily: 'Pretendard-Bold',
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 20,
+    lineHeight: 26,
   },
-  figureShare: { ...typography.captionSemiBold12, color: '#245C48' },
+  figureShare: {
+    color: '#14746F',
+    fontFamily: 'Pretendard-Bold',
+    fontSize: 14,
+    lineHeight: 18,
+  },
   legendItem: {
     alignItems: 'center',
     borderColor: colors.transparent,
@@ -336,39 +544,83 @@ const styles = StyleSheet.create({
   legendItemActive: { backgroundColor: '#E8F5EE', borderColor: '#B7DDCA' },
   swatch: { borderRadius: 3, height: 10, width: 10 },
   legendLabel: { ...typography.bodyRegular14, color: colors.gray700, flex: 1 },
+  legendLabelActive: { color: '#245C48', fontFamily: 'Pretendard-SemiBold' },
   legendAmount: { ...typography.bodyRegular14, color: colors.gray700 },
-  daily: { gap: 12 },
-  dayCaption: { ...typography.bodySemiBold16, color: colors.gray800 },
+  legendAmountActive: { color: '#036666', fontFamily: 'Pretendard-Bold', fontSize: 15 },
+  daily: { paddingTop: 56 },
   dailyRow: { flexDirection: 'row', gap: 8 },
-  axis: { height: 148, justifyContent: 'space-between' },
+  axis: { flexShrink: 0, height: TRACK, justifyContent: 'space-between', width: 58 },
   axisLabel: { ...typography.captionRegular10, color: colors.gray500, textAlign: 'right' },
-  bars: {
-    borderBottomColor: '#EDF1EF',
-    borderBottomWidth: 1,
-    flex: 1,
-    flexDirection: 'row',
-  },
-  barColumn: { flex: 1, minWidth: 0 },
-  barTrack: { height: 148, justifyContent: 'flex-end', alignItems: 'center' },
-  bar: {
-    backgroundColor: '#CDE8DC',
+  bars: { flex: 1, flexDirection: 'row', position: 'relative' },
+  grid: { height: TRACK, left: 0, position: 'absolute', right: 0, top: 0 },
+  gridLine: { backgroundColor: '#EDF1EF', height: 1, left: 0, position: 'absolute', right: 0 },
+  barColumn: { alignItems: 'center', flex: 1, overflow: 'visible' },
+  barColumnSelected: { zIndex: 1 },
+  barTrack: { height: TRACK, overflow: 'visible', width: '100%' },
+  barSlot: {
+    backgroundColor: '#E7F2EC',
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
-    maxWidth: 28,
-    width: '70%',
+    height: TRACK,
+    justifyContent: 'flex-end',
+    overflow: 'visible',
+    width: BAR_WIDTH,
   },
-  barSelected: { backgroundColor: '#248277' },
+  bar: { overflow: 'visible', width: BAR_WIDTH },
+  barFill: {
+    backgroundColor: '#8FCFB0',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    overflow: 'hidden',
+    width: BAR_WIDTH,
+  },
+  barShade: { ...StyleSheet.absoluteFillObject },
+  barDot: {
+    backgroundColor: '#248277',
+    borderColor: colors.white,
+    borderRadius: 5,
+    borderWidth: 2,
+    height: 9,
+    left: (BAR_WIDTH - 9) / 2,
+    position: 'absolute',
+    top: -5,
+    width: 9,
+  },
+  tip: {
+    backgroundColor: colors.white,
+    borderColor: '#E2EBE6',
+    borderRadius: 8,
+    borderWidth: 1,
+    bottom: '100%',
+    gap: 2,
+    marginBottom: 9,
+    minWidth: 88,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    position: 'absolute',
+  },
+  tipCenter: { left: '50%', marginLeft: -44 },
+  tipEnd: { right: 0 },
+  tipLabel: { ...typography.captionRegular10, color: colors.gray600 },
+  tipAmount: {
+    color: '#036666',
+    fontFamily: 'Pretendard-Bold',
+    fontSize: 14,
+    lineHeight: 18,
+  },
   dayLabel: {
     ...typography.captionSemiBold12,
     color: colors.gray500,
-    marginTop: 8,
+    marginTop: 10,
     textAlign: 'center',
   },
+  dayLabelSelected: { color: '#248277' },
   radarPanel: {
-    backgroundColor: '#F4FAF7',
     borderRadius: 14,
+    overflow: 'hidden',
     paddingBottom: 12,
     paddingTop: 8,
+    position: 'relative',
   },
   radarLegend: { flexDirection: 'row', gap: 16, justifyContent: 'center' },
   radarKey: { alignItems: 'center', flexDirection: 'row', gap: 6 },

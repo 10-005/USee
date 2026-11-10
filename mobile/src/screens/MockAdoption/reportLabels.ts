@@ -70,14 +70,14 @@ export function dailyAxisStep(amounts: number[]): number {
   return Math.max(1000, Math.ceil(peak / 4 / 5000) * 5000);
 }
 
-export function budgetGap(difference: number): { label: string; over: boolean } {
+export function budgetGap(difference: number): { label: string; tone: 'over' | 'saved' | 'even' } {
   if (difference < 0) {
-    return { label: `${won(-difference)} 초과`, over: true };
+    return { label: `${won(-difference)} 초과`, tone: 'over' };
   }
   if (difference > 0) {
-    return { label: `${won(difference)} 절약`, over: false };
+    return { label: `${won(difference)} 절약`, tone: 'saved' };
   }
-  return { label: '예산과 일치', over: false };
+  return { label: '예산과 일치', tone: 'even' };
 }
 
 export function reportDateTime(value: string): string {

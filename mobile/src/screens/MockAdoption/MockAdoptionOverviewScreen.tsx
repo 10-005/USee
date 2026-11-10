@@ -224,7 +224,7 @@ export function MockAdoptionOverviewScreen({ navigation }: Props) {
           </Button>
           <View style={styles.sectionHeading}>
             <Text accessibilityRole="header" style={styles.sectionTitle}>
-              받은 레포트
+              받은 리포트
             </Text>
             <Text style={styles.count}>{reports.length}</Text>
           </View>
@@ -236,7 +236,7 @@ export function MockAdoptionOverviewScreen({ navigation }: Props) {
               <Button onPress={() => readReports(true)}>다시 불러오기</Button>
             </View>
           ) : !reports.length ? (
-            <Text style={styles.summary}>아직 받은 레포트가 없어요.</Text>
+            <Text style={styles.summary}>아직 받은 리포트가 없어요.</Text>
           ) : (
             reports.map(report => {
               const species = report.breed.speciesType === 'CAT' ? '고양이' : '개';
