@@ -91,6 +91,15 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
       </MemoryRouter>
     </AppProviders>,
   );
+  await waitFor(() => expect(broker.subscriptions.has('/user/queue/room-updates')).toBe(true));
+  act(() =>
+    broker.subscriptions.get('/user/queue/room-updates')!({
+      body: JSON.stringify({ type: 'MESSAGE', room, totalUnreadMessageCount: 3 }),
+    }),
+  );
+  expect(
+    await screen.findByRole('button', { name: '채팅 열기, 안 읽은 메시지 3개' }),
+  ).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: /채팅 열기/ }));
   fireEvent.click(await screen.findByRole('button', { name: /신청자/ }));
   expect(await screen.findByText('첫 문의')).toBeVisible();
@@ -109,8 +118,18 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
     act(() => broker.subscriptions.get('/topic/rooms/9')!({ body: JSON.stringify(message) }));
   receive(old);
   expect(screen.getAllByText('첫 문의')).toHaveLength(1);
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
   receive({ ...old, chatMessageSeq: 16, body: '방문 가능한가요?' });
   expect(screen.getByText('방문 가능한가요?')).toBeVisible();
+  const readLatest = () =>
+    fetchMock.mock.calls.some(
+      ([input, options]) =>
+        input.endsWith('/read') && options.body === JSON.stringify({ lastReadMessageSeq: 16 }),
+    );
+  expect(readLatest()).toBe(false);
+  visibility.mockReturnValue('visible');
+  fireEvent(document, new Event('visibilitychange'));
+  await waitFor(() => expect(readLatest()).toBe(true));
   const input = screen.getByRole('textbox', { name: '메시지' });
   fireEvent.change(input, { target: { value: '네, 가능합니다.' } });
   fireEvent.click(screen.getByRole('button', { name: '메시지 보내기' }));

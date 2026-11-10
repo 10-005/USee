@@ -229,12 +229,23 @@ function LiveRoom({
   const latest = ordered.at(-1)?.chatMessageSeq;
   useEffect(() => {
     if (!latest) return;
-    void chatRequest('/rooms/' + id + '/read', {
-      method: 'PATCH',
-      json: { lastReadMessageSeq: latest },
-    })
-      .then(() => cache.invalidateQueries({ queryKey: ['chat', 'unread'] }))
-      .catch(() => {});
+    function markVisibleRoomRead() {
+      if (document.visibilityState !== 'visible') return;
+      void chatRequest('/rooms/' + id + '/read', {
+        method: 'PATCH',
+        json: { lastReadMessageSeq: latest },
+      })
+        .then(() => {
+          if (!connection?.client.connected) {
+            void cache.invalidateQueries({ queryKey: ['chat', 'rooms'] });
+            void cache.invalidateQueries({ queryKey: ['chat', 'unread'] });
+          }
+        })
+        .catch(() => {});
+    }
+    markVisibleRoomRead();
+    document.addEventListener('visibilitychange', markVisibleRoomRead);
+    return () => document.removeEventListener('visibilitychange', markVisibleRoomRead);
   }, [id, latest, cache, connection]);
 
   function send(payload: Record<string, unknown>) {
