@@ -25,6 +25,21 @@ test('shows seven unknown stats and supports all dialog dismissal paths', async 
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
+test('shows skeleton rows until the stats arrive', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <PetStatsDialog visible loading petName="시바 이누" onClose={jest.fn()} />,
+    );
+  });
+  expect(
+    renderer!.root.findAllByProps({ accessibilityLabel: '포만감 불러오는 중' }).length,
+  ).toBeGreaterThan(0);
+  expect(renderer!.root.findAllByProps({ accessibilityLabel: '포만감' })).toHaveLength(0);
+  expect(renderer!.root.findAllByProps({ children: '아직 상태 정보가 없어요.' })).toHaveLength(0);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
 test('supports actual zero and hundred values, clamps invalid bounds, leaves missing data unknown', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {

@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiClientError } from '../../services/api';
 import { abandonSimulation } from '../../services/simulation/abandon';
 import { applyActiveSimulation } from '../../services/simulation/activeSession';
+import { getSimulationStats, type SimulationStats } from '../../services/simulation/stats';
 import { performCareAction } from '../../services/simulation/care';
 import {
   SimulationEventStatus,
@@ -42,6 +43,14 @@ jest.mock('../../services/simulation/care', () => {
 jest.mock('../../services/simulation/reports', () => ({
   invalidateSimulationReports: jest.fn(),
 }));
+
+jest.mock('../../services/simulation/stats', () => {
+  const actual = jest.requireActual('../../services/simulation/stats');
+  return {
+    ...actual,
+    getSimulationStats: jest.fn(),
+  };
+});
 
 jest.mock('../../services/simulation/abandon', () => {
   const actual = jest.requireActual('../../services/simulation/abandon');
@@ -777,4 +786,103 @@ test('bath fades out and back in for two seconds each while blocking input', asy
   await ReactTestRenderer.act(() => renderer.unmount());
   timing.mockRestore();
   jest.useRealTimers();
+});
+
+const fetchedStats = {
+  satiety: 64,
+  hydration: 58,
+  cleanliness: 77,
+  bond: 31,
+  calmness: 46,
+  health: 90,
+  energy: 55,
+  calculatedDttm: '2026-11-01T17:00:00+09:00',
+};
+
+test('shows a skeleton and then the fetched stats when the dog is pressed', async () => {
+  await AsyncStorage.clear();
+  await startMockAdoption('dog-1', 50000, '초코', 3001);
+  let resolveStats: (value: SimulationStats) => void = () => undefined;
+  jest.mocked(getSimulationStats).mockReset();
+  jest.mocked(getSimulationStats).mockImplementation(
+    () =>
+      new Promise(resolve => {
+        resolveStats = resolve;
+      }),
+  );
+  const props = {
+    navigation: { navigate: jest.fn(), goBack: jest.fn() },
+    route: { key: 'stats', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.root
+      .findAll(node => typeof node.props.onLayout === 'function')[0]
+      .props.onLayout({
+        nativeEvent: { layout: { width: 390, height: 844 } },
+      });
+  });
+  await ReactTestRenderer.act(() => renderer.root.findByType('RoomPet' as never).props.onPress());
+  expect(getSimulationStats).toHaveBeenCalledWith(3001);
+  expect(renderer.root.findByType(PetStatsDialog).props.loading).toBe(true);
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: '포만감 불러오는 중' }).length,
+  ).toBeGreaterThan(0);
+  await ReactTestRenderer.act(async () => {
+    resolveStats({ sessionSeq: 3001, status: 'IN_PROGRESS', stats: fetchedStats });
+    await Promise.resolve();
+  });
+  expect(renderer.root.findByType(PetStatsDialog).props.loading).toBe(false);
+  expect(renderer.root.findByType(PetStatsDialog).props.stats).toMatchObject({ satiety: 64 });
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: '포만감' })[0].props.accessibilityValue,
+  ).toEqual({
+    min: 0,
+    max: 100,
+    now: 64,
+  });
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('leaves the activity when the fetched session has already ended', async () => {
+  await AsyncStorage.clear();
+  await startMockAdoption('dog-1', 50000, '초코', 3001);
+  jest.mocked(getSimulationStats).mockReset();
+  jest.mocked(getSimulationStats).mockResolvedValue({
+    sessionSeq: 3001,
+    status: 'FAILED',
+    stats: fetchedStats,
+  });
+  const navigate = jest.fn();
+  const props = {
+    navigation: { navigate, goBack: jest.fn() },
+    route: { key: 'ended-stats', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() => {
+    renderer.root
+      .findAll(node => typeof node.props.onLayout === 'function')[0]
+      .props.onLayout({
+        nativeEvent: { layout: { width: 390, height: 844 } },
+      });
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType('RoomPet' as never).props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  expect(renderer.root.findByType(PetStatsDialog).props.visible).toBe(false);
+  expect(navigate).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => renderer.root.findByType('RoomPet' as never).props.onHidden());
+  expect(navigate).toHaveBeenCalledWith('Home', { tab: 'mockAdoption' });
+  expect(await getActiveMockAdoption()).toBeNull();
+  await ReactTestRenderer.act(() => renderer.unmount());
 });

@@ -26,9 +26,17 @@ import {
   careRequest,
   getCareActionErrorMessage,
   performCareAction,
+  type CareStats,
 } from '../../services/simulation/care';
-import { readCurrentActiveSimulation } from '../../services/simulation/activeSession';
+import {
+  applyActiveSimulation,
+  readCurrentActiveSimulation,
+} from '../../services/simulation/activeSession';
 import { invalidateSimulationReports } from '../../services/simulation/reports';
+import {
+  getSimulationStats,
+  getSimulationStatsErrorMessage,
+} from '../../services/simulation/stats';
 import { endMockAdoption, getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { mockAdoptionPets } from './data';
 import { RoomPet } from './RoomPet';
@@ -86,11 +94,12 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const showToy = synced ? synced.equipment.toy : hasToy;
   const hasGroomingKit = owns('hygiene') || ownsServer('GROOMING_KIT');
   const hasLeash =
-    pet?.category !== 'dog' ||
-    !!synced?.equipment.leash ||
-    owns('harness') ||
-    ownsServer('LEASH');
+    pet?.category !== 'dog' || !!synced?.equipment.leash || owns('harness') || ownsServer('LEASH');
   const [statsVisible, setStatsVisible] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [petStats, setPetStats] = useState<CareStats>();
+  const [statsNotice, setStatsNotice] = useState<string>();
+  const statsRequest = useRef(0);
   const [hospitalVisible, setHospitalVisible] = useState(false);
   const [closedVetSeq, setClosedVetSeq] = useState<number | null>(null);
   const hospitalEvents = (shop.hospitalEvents ?? []).filter(
@@ -468,9 +477,52 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
             setCare(null);
           }}
           onPress={() => {
-            if (!careBusy.current && !bathingRef.current) {
-              setStatsVisible(true);
+            if (careBusy.current || bathingRef.current) {
+              return;
             }
+            const requestId = ++statsRequest.current;
+            setStatsNotice(undefined);
+            setStatsVisible(true);
+            if (!session?.sessionSeq) {
+              setPetStats(synced?.stats);
+              setStatsLoading(false);
+              return;
+            }
+            setPetStats(undefined);
+            setStatsLoading(true);
+            getSimulationStats(session.sessionSeq)
+              .then(result => {
+                if (statsRequest.current !== requestId) {
+                  return;
+                }
+                if (result.status === 'IN_PROGRESS') {
+                  setPetStats(result.stats);
+                  setStatsLoading(false);
+                  return;
+                }
+                applyActiveSimulation(null)
+                  .then(() => {
+                    if (statsRequest.current !== requestId) {
+                      return;
+                    }
+                    setStatsLoading(false);
+                    hideThenNavigate(() => navigation.navigate('Home', { tab: 'mockAdoption' }));
+                  })
+                  .catch(() => {
+                    if (statsRequest.current !== requestId) {
+                      return;
+                    }
+                    setStatsLoading(false);
+                    setStatsNotice('상태를 불러오지 못했어요. 다시 시도해주세요.');
+                  });
+              })
+              .catch(error => {
+                if (statsRequest.current !== requestId) {
+                  return;
+                }
+                setStatsLoading(false);
+                setStatsNotice(getSimulationStatsErrorMessage(error));
+              });
           }}
           leaving={leaving}
           onHidden={onPetHidden}
@@ -871,8 +923,14 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         <PetStatsDialog
           visible={statsVisible}
           petName={session?.petName ?? pet.name}
-          stats={synced?.stats}
-          onClose={() => setStatsVisible(false)}
+          stats={petStats}
+          loading={statsLoading}
+          notice={statsNotice}
+          onClose={() => {
+            statsRequest.current += 1;
+            setStatsLoading(false);
+            setStatsVisible(false);
+          }}
         />
       ) : null}
     </View>
