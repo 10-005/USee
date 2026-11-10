@@ -9,39 +9,51 @@
 - 서버 토큰 등록 API는 아직 없어 자동 전송하지 않는다. 로그인 사용자별 등록·로그아웃 해제는 API 확정 후 연결해야 한다.
 - iOS는 GoogleService-Info.plist 및 APNs 설정이 없어 이번 수신 초기화에서 제외한다.
 
-## 모의입양 메시지 규격
+## 수신 메시지
 
-아래는 앱 측 임시 규격이다. 서버 규격 확정 시 어댑터를 수정해야 한다.
-`data` 값은 모두 문자열이며 `sessionStartedAt`은 해당 로컬 입양 회차의 시작 시각(Unix 밀리초), `petId`는 로컬 동물 ID와 일치해야 한다.
-서버 회차 ID를 로컬 회차로 임의 대체하지 않는다.
+`data` 값은 문자열이다. 제목·본문은 `notification`을 사용하고, 없으면 `data`의 같은 키를 사용한다.
+`src/services/notifications/pushMessage.ts`가 메시지를 해석하고, `subscribePushMessages`로 전달한다.
+구독자가 없으면 다음 구독 때 전달한다. 알 수 없는 타입이나 제목·본문이 없는 메시지는 무시한다.
+화면 이동과 목록 저장, 시뮬레이션 API 호출은 이 단계에서 하지 않는다.
+
+서버 알림:
 
 ```json
 {
-  "message": {
-    "token": "DEVICE_FCM_TOKEN",
-    "android": { "priority": "high" },
-    "notification": {
-      "title": "모의입양 돌발 이벤트",
-      "body": "반려동물의 상태를 확인해주세요."
-    },
-    "data": {
-      "type": "mock_adoption_event",
-      "eventId": "unique-event-id",
-      "petId": "dog-5",
-      "sessionStartedAt": "1700000000000",
-      "kind": "illness",
-      "title": "{petName}가 아픕니다!",
-      "body": "{petName}를 동물병원에 데려가주세요!"
-    }
+  "notification": {
+    "title": "회원님의 게시글에 댓글이 달렸어요",
+    "body": "dev105님이 댓글을 남겼어요: 인동시장 근처에서 비슷한 강아지를 봤어요"
+  },
+  "data": {
+    "notificationSeq": "1203",
+    "notificationType": "COMMENT",
+    "targetType": "MISSING",
+    "targetSeq": "101",
+    "commentSeq": "55"
   }
 }
 ```
 
-모의입양 이벤트는 기존 저장소에 저장하고 다음 활동 화면 진입 때 팝업으로 표시한다.
-알림 수신·클릭이 중복되어도 같은 이벤트는 한 번만 표시한다.
-`eventId`가 없으면 FCM messageId, data의 제목·본문이 없으면 notification 값을 사용한다.
-식별자·제목·본문·유효한 회차 시각이 없거나 잘못된 이벤트는 무시한다.
-그 외 type의 메시지는 현재 모의입양 저장소에 추가하지 않는다.
+`notificationType`은 `COMMENT`, `COMMENT_REPLY`, `AI_MATCH`, `ADOPTION_SUBMITTED`,
+`ADOPTION_APPROVED`, `ADOPTION_REJECTED`, `ADOPTION_COMPLETED`, `SHELTER`, `SYSTEM`이다.
+`commentSeq`는 댓글 계열에서만 있을 수 있다.
+
+모의입양 알림은 돌발 이벤트, 7일 종료, 건강 중단이 같은 데이터로 온다.
+회차나 이벤트 종류는 포함되지 않으므로 앱은 시뮬레이션 갱신 신호로만 다룬다.
+
+```json
+{
+  "notification": {
+    "title": "초코에게 무슨 일이 생겼어요",
+    "body": "물그릇을 엎었어요. 들어와서 살펴봐 주세요."
+  },
+  "data": { "target": "SIMULATION" }
+}
+```
+
+목적지는 `resolveNotificationDestination`이 정한다.
+`MISSING` 댓글은 실종 상세, 그 외 댓글과 `SHELTER`는 발견 상세, 입양 상태는 신청 이력이다.
+`AI_MATCH`와 `SYSTEM`은 목적지를 정하지 않는다.
 
 백그라운드 notification 메시지는 OS가 알림으로 표시한다. 포그라운드 시스템 알림 배너와
 data-only 로컬 알림 표시는 구현하지 않았다. data-only 백그라운드 전송은 Android high priority가 필요하다.
@@ -50,9 +62,8 @@ data-only 로컬 알림 표시는 구현하지 않았다. data-only 백그라운
 
 1. Android 앱을 재빌드·설치하고 한 번 실행하여 알림 권한을 허용한다.
 2. 디버거에서 `getStoredFcmToken()`을 호출해 테스트 기기 토큰을 확인한다.
-3. 현재 입양 회차 값으로 위 메시지를 HTTP v1 API에서 전송한다.
-4. 포그라운드 수신 후 활동 화면 재진입, 백그라운드 수신 후 알림 클릭을 각각 확인한다.
-5. 같은 eventId 재전송 시 중복 팝업이 없는지, 질병 이벤트의 병원 빨간 점이 치료 완료까지 유지되는지 확인한다.
+3. 위 메시지 중 하나를 HTTP v1 API에서 전송한다.
+4. 포그라운드 수신과 백그라운드 알림 클릭이 같은 해석 경로를 타는지 확인한다.
 
 실제 발송 검증에는 Firebase 발송 권한과 Google Play services가 있는 기기 또는 에뮬레이터가 필요하다.
 앱을 설정에서 강제 종료한 경우 다시 실행해야 수신할 수 있다.
