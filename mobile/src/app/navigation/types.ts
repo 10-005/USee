@@ -22,7 +22,7 @@ export type RootStackParamList = {
   Home:
     | {
         initialReportTab?: 'found' | 'lost';
-        initialTab?: 'search';
+        initialTab?: 'chat' | 'search';
       }
     | undefined;
   FoundReportDetail: { highlightCommentId?: string; reportId: string };

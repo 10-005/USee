@@ -35,7 +35,7 @@
 ```
 
 `notificationType`은 `COMMENT`, `COMMENT_REPLY`, `AI_MATCH`, `ADOPTION_SUBMITTED`,
-`ADOPTION_APPROVED`, `ADOPTION_REJECTED`, `ADOPTION_COMPLETED`, `SHELTER`, `SYSTEM`이다.
+`ADOPTION_APPROVED`, `ADOPTION_REJECTED`, `ADOPTION_COMPLETED`, `SHELTER`, `SYSTEM`, `CHAT`이다.
 `commentSeq`는 댓글 계열에서만 있을 수 있다.
 
 모의입양 알림은 돌발 이벤트, 7일 종료, 건강 중단이 같은 데이터로 온다.
@@ -53,7 +53,7 @@
 
 목적지는 `resolveNotificationDestination`이 정한다.
 `MISSING` 댓글은 실종 상세, 그 외 댓글과 `SHELTER`는 발견 상세, 입양 상태는 신청 이력이다.
-`AI_MATCH`와 `SYSTEM`은 목적지를 정하지 않는다.
+`CHAT`은 알림 목록에 넣지 않고 채팅 탭으로 보낸다. `AI_MATCH`와 `SYSTEM`은 목적지를 정하지 않는다.
 
 백그라운드 notification 메시지는 OS가 알림으로 표시한다. 포그라운드 시스템 알림 배너와
 data-only 로컬 알림 표시는 구현하지 않았다. data-only 백그라운드 전송은 Android high priority가 필요하다.

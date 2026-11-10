@@ -1,6 +1,6 @@
 import type { RemoteMessage } from '@react-native-firebase/messaging';
 
-import { resolveNotificationDestination } from '../pushDestination';
+import { appearsInNotificationList, resolveNotificationDestination } from '../pushDestination';
 import { parsePushMessage, SERVER_NOTIFICATION_TYPES } from '../pushMessage';
 import { handleRemoteMessage, subscribePushMessages } from '../remoteMessage';
 
@@ -129,6 +129,17 @@ describe('resolveNotificationDestination', () => {
       )!;
       expect(resolveNotificationDestination(parsed)).toBeNull();
     }
+  });
+
+  it('채팅 알림은 목록에 넣지 않고 채팅 탭으로 보낸다', () => {
+    const parsed = parsePushMessage(
+      messageWith({ notificationSeq: '7', notificationType: 'CHAT' }),
+    )!;
+    const listed = parsePushMessage(commentMessage)!;
+
+    expect(resolveNotificationDestination(parsed)).toEqual({ initialTab: 'chat', name: 'Home' });
+    expect(appearsInNotificationList(parsed)).toBe(false);
+    expect(appearsInNotificationList(listed)).toBe(true);
   });
 
   it('모의입양 메시지는 시뮬레이션 갱신 신호로 보낸다', () => {

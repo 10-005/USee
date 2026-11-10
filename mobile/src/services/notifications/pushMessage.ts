@@ -12,6 +12,7 @@ export const SERVER_NOTIFICATION_TYPES = [
   'ADOPTION_COMPLETED',
   'SHELTER',
   'SYSTEM',
+  'CHAT',
 ] as const;
 
 export type ServerNotificationType = (typeof SERVER_NOTIFICATION_TYPES)[number];

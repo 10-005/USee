@@ -12,6 +12,7 @@ export type NotificationDestination =
       name: 'FoundReportDetail' | 'LostReportDetail';
       reportId: string;
     }
+  | { initialTab: 'chat'; name: 'Home' }
   | { name: 'Simulation' };
 
 const commentTypes = new Set<ServerPushMessage['notificationType']>(['COMMENT', 'COMMENT_REPLY']);
@@ -27,6 +28,10 @@ export function resolveNotificationDestination(
 ): NotificationDestination | null {
   if (message.kind === 'simulation') {
     return { name: 'Simulation' };
+  }
+
+  if (message.notificationType === 'CHAT') {
+    return { initialTab: 'chat', name: 'Home' };
   }
 
   if (!message.targetSeq) {
@@ -50,4 +55,8 @@ export function resolveNotificationDestination(
   }
 
   return null;
+}
+
+export function appearsInNotificationList(message: ParsedPushMessage): boolean {
+  return message.kind === 'server' && message.notificationType !== 'CHAT';
 }
