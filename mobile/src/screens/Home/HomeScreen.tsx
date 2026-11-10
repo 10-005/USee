@@ -406,7 +406,7 @@ export function HomeScreen({ navigation, route }: Props) {
         style={[styles.cardImage, { height: cardWidth, width: cardWidth }]}
       />
       <Pressable
-        accessibilityLabel={`${item.name} 북마크 ${
+        accessibilityLabel={`[${item.species}]${item.name} 북마크 ${
           bookmarkedIds.includes(item.id) ? '해제' : '등록'
         }`}
         accessibilityRole="button"
@@ -424,13 +424,13 @@ export function HomeScreen({ navigation, route }: Props) {
         style={[
           styles.statusBadge,
           { top: cardWidth - 24 },
-          item.status === '종료' && styles.endedBadge,
+          (item.status === '종료' || item.isAdoptionUnavailable) && styles.endedBadge,
         ]}
       >
         <Text style={styles.statusText}>{item.status}</Text>
       </View>
       <Text numberOfLines={1} style={styles.cardTitle}>
-        {item.name}
+        [{item.species}]{item.name}
       </Text>
       <View style={styles.cardMetaRow}>
         <MapIcon />

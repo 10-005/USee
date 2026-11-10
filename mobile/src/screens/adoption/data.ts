@@ -11,6 +11,7 @@ export type AdoptionAnimal = {
   summary: string;
   description: string;
   districtCode?: string | null;
+  isAdoptionUnavailable?: boolean;
   status: '보호' | '종료';
 };
 

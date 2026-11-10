@@ -32,6 +32,8 @@ export const mapShelterAnimalCard = (animal: ShelterAnimalCard): AdoptionAnimal 
     ? { uri: animal.representativeImageUrl }
     : require('../assets/images/adoption/animal-dog-white.png'),
   location: animal.shelter?.shelterName ?? '보호소 정보 없음',
+  isAdoptionUnavailable:
+    animal.protectionStatus === 'PROTECTING' && animal.adoptionStatus !== 'AVAILABLE',
   name: animal.classification?.breedName ?? '보호동물',
   neutered: animal.isNeutered,
   species: animal.classification?.speciesName ?? '기타',
