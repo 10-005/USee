@@ -636,6 +636,34 @@ test.each([
   await AsyncStorage.clear();
 });
 
+test('dims the walk until a harness and leash are owned', async () => {
+  await AsyncStorage.clear();
+  const navigate = jest.fn();
+  const session = await startMockAdoption('dog-1', 35000, '초코', 3001);
+  useShopStore.getState().open(session);
+  const props = {
+    navigation: { goBack: jest.fn(), navigate },
+    route: { key: 'walk', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  const walk = () => renderer.root.findAllByProps({ accessibilityLabel: 'AR 산책하기' })[0];
+  expect(StyleSheet.flatten(walk().props.style({ pressed: false })).opacity).toBe(0.4);
+  await ReactTestRenderer.act(() => walk().props.onPress());
+  expect(
+    renderer.root.findAllByProps({ children: '하네스와 리드줄이 필요해요!' }).length,
+  ).toBeGreaterThan(0);
+  expect(navigate).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => {
+    useShopStore.getState().setQuantity('harness', 1, 'dog');
+    useShopStore.getState().checkout('dog');
+  });
+  expect(StyleSheet.flatten(walk().props.style({ pressed: false })).opacity).toBeUndefined();
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
 test('dims bathing until a grooming kit is owned', async () => {
   await AsyncStorage.clear();
   jest.mocked(performCareAction).mockReset();

@@ -85,6 +85,11 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     : owns('litterBox') || ownsServer('LITTER_BOX');
   const showToy = synced ? synced.equipment.toy : hasToy;
   const hasGroomingKit = owns('hygiene') || ownsServer('GROOMING_KIT');
+  const hasLeash =
+    pet?.category !== 'dog' ||
+    !!synced?.equipment.leash ||
+    owns('harness') ||
+    ownsServer('LEASH');
   const [statsVisible, setStatsVisible] = useState(false);
   const [hospitalVisible, setHospitalVisible] = useState(false);
   const [closedVetSeq, setClosedVetSeq] = useState<number | null>(null);
@@ -578,9 +583,17 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="AR 산책하기"
-                style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  pet?.category === 'dog' && !hasLeash && styles.dimmed,
+                  pressed && styles.pressed,
+                ]}
                 disabled={busy || leaving}
                 onPress={() => {
+                  if (pet?.category === 'dog' && !hasLeash) {
+                    showToast('하네스와 리드줄이 필요해요!');
+                    return;
+                  }
                   hideThenNavigate(() => {
                     walkPending.current = true;
                     navigation.navigate('ArWalk', { petName: session?.petName ?? '' });
