@@ -178,31 +178,14 @@ function ServerInventory({
   inventory: SimulationInventory;
   navigation: Props['navigation'];
 }) {
-  const rows = [
-    ...inventory.equipment.map(item => ({
-      key: `equipment-${item.key}`,
-      name: item.label,
-      detail: '보유 중',
-      depleted: false,
-      productId: item.itemSeq ? String(item.itemSeq) : undefined,
-      product: displayProduct({
-        itemSeq: item.itemSeq ?? 1,
-        itemName: item.label,
-        category: 'TOY',
-        isConsumable: false,
-        quantity: 1,
-        imageUrl: item.imageUrl ?? null,
-      }),
-    })),
-    ...inventory.items.map(item => ({
-      key: `item-${item.itemSeq}`,
-      name: item.itemName,
-      detail: item.isConsumable && item.quantity === 0 ? '다 썼음' : `보유 ${item.quantity}개`,
-      depleted: item.isConsumable && item.quantity === 0,
-      productId: String(item.itemSeq),
-      product: displayProduct(item),
-    })),
-  ];
+  const rows = inventory.items.map(item => ({
+    key: `item-${item.itemSeq}`,
+    name: item.itemName,
+    detail: item.isConsumable && item.quantity === 0 ? '다 썼음' : `보유 ${item.quantity}개`,
+    depleted: item.isConsumable && item.quantity === 0,
+    productId: String(item.itemSeq),
+    product: displayProduct(item),
+  }));
   return (
     <ScrollView contentContainerStyle={s.content}>
       <View style={s.banner}>

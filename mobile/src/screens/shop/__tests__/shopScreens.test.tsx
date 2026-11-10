@@ -192,8 +192,27 @@ it('shows the server inventory, balance and a used-up consumable', async () => {
   jest.mocked(getSimulationInventory).mockResolvedValue({
     balance: 110000,
     expectedCost: 150000,
-    equipment: [{ key: 'FOOD_BOWL', label: '밥그릇' }],
+    equipment: [
+      { key: 'foodBowl', label: '밥그릇' },
+      { key: 'waterBowl', label: '물그릇' },
+    ],
     items: [
+      {
+        itemSeq: 1,
+        itemName: '밥그릇',
+        category: 'FOOD_BOWL',
+        isConsumable: false,
+        quantity: 1,
+        imageUrl: null,
+      },
+      {
+        itemSeq: 2,
+        itemName: '물그릇',
+        category: 'WATER_BOWL',
+        isConsumable: false,
+        quantity: 1,
+        imageUrl: null,
+      },
       {
         itemSeq: 11,
         itemName: '건식 사료 1kg',
@@ -226,7 +245,15 @@ it('shows the server inventory, balance and a used-up consumable', async () => {
   expect(getSimulationInventory).toHaveBeenCalledWith(3001);
   expect(screen.root.findByProps({ children: '110,000원' })).toBeDefined();
   expect(screen.root.findByProps({ children: '예상 예산 150,000원' })).toBeDefined();
-  expect(screen.root.findByProps({ children: '밥그릇' })).toBeDefined();
+  const detailButtons = (name: string) =>
+    screen.root.findAll(
+      node =>
+        node.props.accessibilityRole === 'button' &&
+        node.props.accessibilityLabel === `${name} 상세 보기`,
+    );
+  expect(detailButtons('건식 사료 1kg').length).toBeGreaterThan(0);
+  expect(detailButtons('밥그릇')).toHaveLength(detailButtons('건식 사료 1kg').length);
+  expect(detailButtons('물그릇')).toHaveLength(detailButtons('건식 사료 1kg').length);
   expect(screen.root.findByProps({ children: '보유 5개' })).toBeDefined();
   expect(screen.root.findByProps({ children: '다 썼음' })).toBeDefined();
   act(() => screen.unmount());
