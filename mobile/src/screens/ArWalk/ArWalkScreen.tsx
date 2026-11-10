@@ -120,6 +120,7 @@ export function ArWalkScreen({
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'ArWalk'>>();
   const shop = useShopStore();
   const endingWalk = useRef(false);
+  const [ending, setEnding] = useState(false);
   const walkStart = useRef<Promise<void>>(Promise.resolve());
   const [bagPurchaseVisible, setBagPurchaseVisible] = useState(false);
   const [bagPurchaseError, setBagPurchaseError] = useState('');
@@ -319,11 +320,12 @@ export function ArWalkScreen({
 
   useEffect(() => {
     return navigation.addListener('beforeRemove', event => {
+      event.preventDefault();
       if (endingWalk.current) {
         return;
       }
-      event.preventDefault();
       endingWalk.current = true;
+      setEnding(true);
       walkStart.current
         .then(() => endActiveSimulationWalk())
         .then(() => {
@@ -331,6 +333,7 @@ export function ArWalkScreen({
         })
         .catch(error => {
           endingWalk.current = false;
+          setEnding(false);
           Alert.alert('산책', getSimulationWalkEndErrorMessage(error));
         });
     });
@@ -592,6 +595,12 @@ export function ArWalkScreen({
           onClose={() => setBagPurchaseVisible(false)}
         />
       )}
+      {ending ? (
+        <View accessibilityLabel="산책 종료 중" style={styles.endingOverlay}>
+          <ActivityIndicator color="#FFFFFF" size="large" />
+          <Text style={styles.loadingText}>산책을 종료하는 중이에요.</Text>
+        </View>
+      ) : null}
     </View>
   );
 }

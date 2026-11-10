@@ -561,6 +561,49 @@ test('ends the server walk before leaving the walk screen', async () => {
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
+test('covers the walk until the end request returns and ignores another leave', async () => {
+  let finish = () => undefined;
+  jest.mocked(endActiveSimulationWalk).mockImplementation(
+    () =>
+      new Promise(resolve => {
+        finish = () => resolve();
+      }),
+  );
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<ArWalkScreen />);
+  });
+  const action = { type: 'GO_BACK' };
+  const leave = (preventDefault = jest.fn()) => {
+    mockWalkNavigation.listeners.get('beforeRemove')?.({
+      preventDefault,
+      data: { action },
+    });
+    return preventDefault;
+  };
+  await ReactTestRenderer.act(async () => {
+    leave();
+    await Promise.resolve();
+  });
+  expect(endActiveSimulationWalk).toHaveBeenCalledTimes(1);
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: '산책 종료 중' }).length,
+  ).toBeGreaterThan(0);
+  expect(mockWalkNavigation.dispatch).not.toHaveBeenCalled();
+  const secondPrevent = jest.fn();
+  await ReactTestRenderer.act(() => {
+    leave(secondPrevent);
+  });
+  expect(secondPrevent).toHaveBeenCalledTimes(1);
+  expect(endActiveSimulationWalk).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(async () => {
+    finish();
+    await Promise.resolve();
+  });
+  expect(mockWalkNavigation.dispatch).toHaveBeenCalledWith(action);
+  await ReactTestRenderer.act(() => renderer.unmount());
+});
+
 test('stays on the walk screen when the walk cannot be ended', async () => {
   jest.mocked(endActiveSimulationWalk).mockRejectedValue(new Error('offline'));
   const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
@@ -577,6 +620,7 @@ test('stays on the walk screen when the walk cannot be ended', async () => {
   });
   expect(alert).toHaveBeenCalledWith('산책', '산책을 종료하지 못했어요. 다시 시도해주세요.');
   expect(mockWalkNavigation.dispatch).not.toHaveBeenCalled();
+  expect(renderer.root.findAllByProps({ accessibilityLabel: '산책 종료 중' })).toHaveLength(0);
   alert.mockRestore();
   await ReactTestRenderer.act(() => renderer.unmount());
 });
