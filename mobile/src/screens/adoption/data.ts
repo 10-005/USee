@@ -4,12 +4,13 @@ export type AdoptionAnimal = {
   id: string;
   image: ImageSourcePropType;
   name: string;
-  neutered: boolean;
+  neutered: boolean | null;
   species: string;
   location: string;
   date: string;
   summary: string;
   description: string;
+  districtCode?: string | null;
   status: '보호' | '종료';
 };
 
