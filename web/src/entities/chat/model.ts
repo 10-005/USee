@@ -8,8 +8,9 @@ export type Conversation = {
   unreadCount: number;
 };
 
+export type PostKind = 'SHELTER_ANIMAL' | 'MISSING' | 'FOUND';
 export type ChatMessage =
-  | { id: string; type: 'post'; animalId: string }
+  | { id: string; type: 'post'; targetId: string; targetType: PostKind }
   | {
       id: string;
       type: 'message';

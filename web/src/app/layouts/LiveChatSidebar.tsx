@@ -22,6 +22,8 @@ import avatar from '@/shared/assets/figma/chat-avatar.png';
 import { createImageUploader } from '@/shared/api/image-upload';
 import { refreshChatToken, shelterRequest } from '@/shared/api/session';
 
+import { SharedReportPost } from './SharedReportPost';
+
 function SharedAnimalPost({ id }: { id: string }) {
   const animal = useQuery({ ...animalDetailOptions(id), select: detailRecord });
   if (animal.data) return <ChatAnimalPost animal={animal.data} />;
@@ -157,10 +159,17 @@ function displayMessage(m: Message, other: number | null): ChatMessage {
   if (
     m.messageType === 'SHARED_POST' &&
     !m.sharedPostUnavailable &&
-    m.sharedTargetType === 'SHELTER_ANIMAL' &&
+    (m.sharedTargetType === 'SHELTER_ANIMAL' ||
+      m.sharedTargetType === 'MISSING' ||
+      m.sharedTargetType === 'FOUND') &&
     m.sharedTargetSeq
   )
-    return { type: 'post', id: String(m.chatMessageSeq), animalId: String(m.sharedTargetSeq) };
+    return {
+      type: 'post',
+      id: String(m.chatMessageSeq),
+      targetType: m.sharedTargetType,
+      targetId: String(m.sharedTargetSeq),
+    };
   return {
     type: 'message',
     id: String(m.chatMessageSeq),
@@ -239,25 +248,44 @@ function LiveRoom({
   for (const m of incoming) byId.set(m.chatMessageSeq, m);
   const ordered = Array.from(byId.values()).sort((a, b) => a.chatMessageSeq - b.chatMessageSeq);
   const latest = ordered.at(-1)?.chatMessageSeq;
+  const acknowledged = useRef(0);
   useEffect(() => {
-    if (!latest) return;
-    function markVisibleRoomRead() {
-      if (document.visibilityState !== 'visible') return;
-      void chatRequest('/rooms/' + id + '/read', {
-        method: 'PATCH',
-        json: { lastReadMessageSeq: latest },
-      })
-        .then(() => {
-          if (!connection?.client.connected) {
-            void cache.invalidateQueries({ queryKey: ['chat', 'rooms'] });
-            void cache.invalidateQueries({ queryKey: ['chat', 'unread'] });
-          }
-        })
-        .catch(() => {});
+    if (!latest || latest <= acknowledged.current) return;
+    const seq = latest;
+    const controller = new AbortController();
+    let busy = false;
+    let attempts = 0;
+    let timer: number | undefined;
+    async function markVisibleRoomRead() {
+      if (document.visibilityState !== 'visible' || busy || seq <= acknowledged.current) return;
+      window.clearTimeout(timer);
+      busy = true;
+      try {
+        await chatRequest('/rooms/' + id + '/read', {
+          method: 'PATCH',
+          signal: controller.signal,
+          json: { lastReadMessageSeq: seq },
+        });
+        if (controller.signal.aborted) return;
+        acknowledged.current = seq;
+        void cache.invalidateQueries({ queryKey: ['chat', 'rooms'] });
+        void cache.invalidateQueries({ queryKey: ['chat', 'unread'] });
+      } catch {
+        if (controller.signal.aborted) return;
+        if (++attempts <= 2) timer = window.setTimeout(markVisibleRoomRead, 1000 * attempts);
+      } finally {
+        busy = false;
+      }
     }
-    markVisibleRoomRead();
+    void markVisibleRoomRead();
     document.addEventListener('visibilitychange', markVisibleRoomRead);
-    return () => document.removeEventListener('visibilitychange', markVisibleRoomRead);
+    window.addEventListener('online', markVisibleRoomRead);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', markVisibleRoomRead);
+      window.removeEventListener('online', markVisibleRoomRead);
+    };
   }, [id, latest, cache, connection]);
 
   function send(payload: Record<string, unknown>) {
@@ -315,7 +343,13 @@ function LiveRoom({
       }
       sendText={(content) => send({ type: 'TEXT', content })}
       sendPhoto={async (file) => send({ type: 'IMAGE', imageSeq: await upload.confirm(file) })}
-      renderPost={(seq) => <SharedAnimalPost id={seq} />}
+      renderPost={(seq, kind) =>
+        kind === 'SHELTER_ANIMAL' ? (
+          <SharedAnimalPost id={seq} />
+        ) : (
+          <SharedReportPost id={seq} kind={kind} />
+        )
+      }
       leave={async () => {
         await chatRequest('/rooms/' + id + '/leave', { method: 'POST' });
         cache.removeQueries({ queryKey: historyOptions(id).queryKey });

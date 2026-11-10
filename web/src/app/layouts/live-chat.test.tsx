@@ -27,6 +27,8 @@ vi.mock('@stomp/stompjs', () => ({
   },
 }));
 afterEach(() => {
+  Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
+  Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
   vi.unstubAllGlobals();
   sessionStorage.clear();
   broker.subscriptions.clear();
@@ -50,6 +52,7 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
     messageType: 'TEXT',
     body: '첫 문의',
   };
+  let failReadOnce = false;
   const fetchMock = vi.fn(async (input: string, options: RequestInit) => {
     expect(new Headers(options.headers).get('Authorization')).toBe('Bearer test');
     const path = new URL(input, 'http://localhost').pathname;
@@ -68,7 +71,21 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
         regDttm: '2026-11-10',
         rescueInfo: {},
       };
-    else if (path.endsWith('/unread-count')) data = { totalUnreadMessageCount: 1 };
+    else if (/\/(missing|found)-reports\/42$/.test(path))
+      data = {
+        classification: { speciesName: '개', breedName: '진돗개', colorName: '흰색' },
+        status: 'ACTIVE',
+        gender: 'UNKNOWN',
+        address: '구미',
+        occurredDttm: '2026-11-10T12:00:00+09:00',
+        description: path.includes('missing-reports') ? '빨간 목줄' : '공원에서 발견',
+        representativeImageUrl: '/dog.jpg',
+        images: [],
+      };
+    else if (path.endsWith('/read') && failReadOnce) {
+      failReadOnce = false;
+      throw new Error('offline');
+    } else if (path.endsWith('/unread-count')) data = { totalUnreadMessageCount: 1 };
     else if (path.endsWith('/read')) data = { unreadCount: 0 };
     else if (path === '/api/chat/v1/chats/rooms/9/counterpart') {
       data = {
@@ -139,9 +156,20 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
         input.endsWith('/read') && options.body === JSON.stringify({ lastReadMessageSeq: 16 }),
     );
   expect(readLatest()).toBe(false);
+  failReadOnce = true;
   visibility.mockReturnValue('visible');
   fireEvent(document, new Event('visibilitychange'));
   await waitFor(() => expect(readLatest()).toBe(true));
+  await waitFor(
+    () =>
+      expect(
+        fetchMock.mock.calls.filter(
+          ([url, opts]) =>
+            url.endsWith('/read') && opts.body === JSON.stringify({ lastReadMessageSeq: 16 }),
+        ),
+      ).toHaveLength(2),
+    { timeout: 3000 },
+  );
   const input = screen.getByRole('textbox', { name: '메시지' });
   fireEvent.change(input, { target: { value: '네, 가능합니다.' } });
   fireEvent.click(screen.getByRole('button', { name: '메시지 보내기' }));
@@ -169,4 +197,32 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
   });
   expect(card).toHaveAttribute('href', '/animals/42');
   expect(card.querySelector('img')).toHaveAttribute('src', '/maltese.jpg');
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    },
+  });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.removeAttribute('open');
+    },
+  });
+  for (const [i, kind, label, description] of [
+    [19, 'MISSING', '실종', '빨간 목줄'],
+    [20, 'FOUND', '발견', '공원에서 발견'],
+  ] as const) {
+    receive({
+      ...old,
+      chatMessageSeq: i,
+      messageType: 'SHARED_POST',
+      sharedTargetType: kind,
+      sharedTargetSeq: 42,
+    });
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(label + '.*원문 보기') }));
+    expect(screen.getByRole('dialog', { name: label + ' 신고 원문' })).toBeVisible();
+    expect(screen.getByText(description)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: '닫기' }));
+  }
 });

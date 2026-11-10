@@ -26,7 +26,14 @@ export const useDemoChat = create<DemoChatState>((set) => ({
       chat.id,
       [
         ...(chat.id === 'sample-chat-1'
-          ? [{ id: `${chat.id}-post`, type: 'post' as const, animalId: 'sample-01' }]
+          ? [
+              {
+                id: `${chat.id}-post`,
+                type: 'post' as const,
+                targetId: 'sample-01',
+                targetType: 'SHELTER_ANIMAL' as const,
+              },
+            ]
           : []),
         {
           id: `${chat.id}-hello`,

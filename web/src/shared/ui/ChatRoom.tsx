@@ -79,7 +79,7 @@ export function ChatRoomView({
   sendPhoto: (file: File) => Promise<void>;
   leave: () => void | Promise<void>;
   report?: (reason: string) => Promise<void>;
-  renderPost: (id: string) => ReactNode;
+  renderPost: (id: string, kind: Extract<ChatMessage, { type: 'post' }>['targetType']) => ReactNode;
   renderProfile?: (
     close: () => void,
     identity: (displayName?: string, avatarSrc?: string) => ReactNode,
@@ -222,7 +222,7 @@ export function ChatRoomView({
           {historyControls}
           {messages.map((message) =>
             message.type === 'post' ? (
-              <div key={message.id}>{renderPost(message.animalId)}</div>
+              <div key={message.id}>{renderPost(message.targetId, message.targetType)}</div>
             ) : (
               <div className={`chat-message chat-message--${message.sender}`} key={message.id}>
                 {message.sender === 'other' && (
