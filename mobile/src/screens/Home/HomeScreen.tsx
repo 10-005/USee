@@ -84,15 +84,10 @@ const filterItems: Array<{ key: FilterKey; label: string }> = [
   { key: 'neutered', label: '중성화여부' },
   { key: 'sort', label: '최신순' },
 ];
-const today = new Date();
-const todayLabel = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(
-  2,
-  '0',
-)}.${String(today.getDate()).padStart(2, '0')}`;
 const initialFilters: AdoptionFilters = {
   gender: '전체',
   neutered: '전체',
-  period: `전체|${todayLabel}`,
+  period: '전체',
   region: '전체',
   sort: '최신순',
   species: '전체',
