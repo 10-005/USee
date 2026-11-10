@@ -208,14 +208,22 @@ describe('예시 업무 흐름', () => {
     });
     fireEvent.change(screen.getByLabelText('동물 종류 *'), { target: { value: 'dog' } });
     const breedField = screen.getByLabelText<HTMLSelectElement>('품종 *');
-    expect([...breedField.options].at(-1)?.value).toBe('기타');
-    expect([...breedField.options].filter((o) => o.text === '도고 아르젠티노')).toHaveLength(1);
-    fireEvent.change(breedField, { target: { value: '도고 아르젠티노' } });
+    expect(breedField.options[1]?.value).toBe('기타');
+    expect(
+      [...breedField.options]
+        .map((o) => o.text)
+        .filter((name) => name.startsWith('도고 아르젠티노')),
+    ).toEqual(['도고 아르젠티노 (000042)', '도고 아르젠티노 (000153)']);
+    fireEvent.change(breedField, { target: { value: '도고 아르젠티노 (000042)' } });
     expect(
       [...screen.getByLabelText<HTMLSelectElement>('색상 *').options].map((o) => o.value),
-    ).toEqual(['', '은색&흰색', '흰색', '밝은 금색', '살구색', '크림색', '기타']);
+    ).toEqual(['', '은색&흰색', '흰색', '기타']);
+    fireEvent.change(breedField, { target: { value: '도고 아르젠티노 (000153)' } });
+    expect(
+      [...screen.getByLabelText<HTMLSelectElement>('색상 *').options].map((o) => o.value),
+    ).toEqual(['', '밝은 금색', '살구색', '크림색', '흰색']);
     fireEvent.change(screen.getByLabelText('동물 종류 *'), { target: { value: 'cat' } });
-    expect([...breedField.options].at(-1)?.value).toBe('기타');
+    expect(breedField.options[1]?.value).toBe('기타');
     fireEvent.change(screen.getByLabelText('품종 *'), { target: { value: '러시안 블루' } });
     expect(
       Array.from(screen.getByLabelText<HTMLSelectElement>('색상 *').options, (o) => o.value),

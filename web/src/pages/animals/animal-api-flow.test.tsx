@@ -74,7 +74,7 @@ it('담당 발견 신고를 구조 접수·완료한 뒤 같은 구조 번호로
     breedSeq: 32,
     breedName: '샴',
     colorSeq: 11,
-    colorName: '회색',
+    colorName: '회백색',
   };
   const detail = {
     animalSeq: 23,
@@ -277,7 +277,7 @@ it('담당 발견 신고를 구조 접수·완료한 뒤 같은 구조 번호로
   });
   fireEvent.change(screen.getByLabelText('동물 종류 *'), { target: { value: 'cat' } });
   fireEvent.change(screen.getByLabelText('품종 *'), { target: { value: '32' } });
-  fireEvent.change(screen.getByLabelText('색상 *'), { target: { value: '회색' } });
+  fireEvent.change(screen.getByLabelText('색상 *'), { target: { value: '회백색' } });
   fireEvent.change(screen.getByLabelText('성별 *'), { target: { value: 'female' } });
   fireEvent.click(screen.getByRole('radio', { name: '미완료' }));
   fireEvent.click(screen.getByLabelText('공고기간 *'));

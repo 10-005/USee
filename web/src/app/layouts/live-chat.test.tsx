@@ -58,18 +58,20 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
     else if (path.endsWith('/messages')) data = { content: [old], hasNext: false };
     else if (path.endsWith('/unread-count')) data = { totalUnreadMessageCount: 1 };
     else if (path.endsWith('/read')) data = { unreadCount: 0 };
-    else if (path.endsWith('/adoption-applications/received')) {
-      data = { content: [{ applicationSeq: 71 }, { applicationSeq: 72 }], hasNext: false };
-    } else if (path.endsWith('/71') || path.endsWith('/72')) {
-      const mine = path.endsWith('/71');
+    else if (path === '/api/chat/v1/chats/rooms/9/counterpart') {
       data = {
-        applicationSeq: mine ? 71 : 72,
-        userSeq: mine ? 2 : 3,
-        applicant: { name: '신청자' },
-        questions: [],
-        answers: {},
-        status: 'SUBMITTED',
-        animalSummary: { animalSeq: 10, speciesName: '개', breedName: '말티즈' },
+        nickname: '회원닉네임',
+        realName: '김가람',
+        profileImage: null,
+        applications: [
+          {
+            applicationSeq: 71,
+            speciesName: '개',
+            breedName: '말티즈',
+            status: 'SUBMITTED',
+            submittedDttm: null,
+          },
+        ],
       };
     } else throw new Error(path);
     return Response.json({
@@ -98,6 +100,7 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
     '/adoptions/71',
   );
   expect(screen.queryByRole('link', { name: /신청 72번/ })).toBeNull();
+  expect(screen.getByText('회원닉네임 (김가람)')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: '닫기' }));
   fireEvent.click(screen.getByRole('button', { name: '신청자 상대방 정보' }));
   fireEvent.click(await screen.findByRole('link', { name: /신청 71번/ }));

@@ -66,7 +66,7 @@ export function ChatRoomView({
   leave,
   report,
   renderPost,
-  renderApplications,
+  renderProfile,
   historyControls,
   connectionNotice,
 }: {
@@ -80,11 +80,33 @@ export function ChatRoomView({
   leave: () => void | Promise<void>;
   report?: (reason: string) => Promise<void>;
   renderPost: (id: string) => ReactNode;
-  renderApplications?: (close: () => void) => ReactNode;
+  renderProfile?: (
+    close: () => void,
+    identity: (displayName?: string, avatarSrc?: string) => ReactNode,
+  ) => ReactNode;
   historyControls?: ReactNode;
   connectionNotice?: string;
 }) {
   const [busy, setBusy] = useState(false);
+  const identity = (displayName = chat.name, avatarSrc = chat.avatarSrc) => (
+    <>
+      <div className="chat-dialog__heading">
+        <h2 id="chat-dialog-title">상대방 정보</h2>
+        <button
+          type="button"
+          className="chat-dialog__close"
+          aria-label="닫기"
+          onClick={closeDialog}
+        >
+          ×
+        </button>
+      </div>
+      <div className="chat-profile__identity">
+        <img src={avatarSrc} alt="" />
+        <strong>{displayName}</strong>
+      </div>
+    </>
+  );
   const [menu, setMenu] = useState(false);
   const [dialog, setDialog] = useState<'report' | 'leave' | 'profile'>();
   const [reason, setReason] = useState('');
@@ -316,33 +338,25 @@ export function ChatRoomView({
               }
             }}
           >
-            <div className="chat-dialog__heading">
-              <h2 id="chat-dialog-title">
-                {dialog === 'profile'
-                  ? '상대방 정보'
-                  : dialog === 'report'
-                    ? '사용자 신고'
-                    : '채팅방을 나가시겠습니까?'}
-              </h2>
-              {dialog !== 'leave' && (
-                <button
-                  type="button"
-                  className="chat-dialog__close"
-                  aria-label="닫기"
-                  onClick={closeDialog}
-                >
-                  ×
-                </button>
-              )}
-            </div>
+            {dialog !== 'profile' && (
+              <div className="chat-dialog__heading">
+                <h2 id="chat-dialog-title">
+                  {dialog === 'report' ? '사용자 신고' : '채팅방을 나가시겠습니까?'}
+                </h2>
+                {dialog !== 'leave' && (
+                  <button
+                    type="button"
+                    className="chat-dialog__close"
+                    aria-label="닫기"
+                    onClick={closeDialog}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            )}{' '}
             {dialog === 'profile' ? (
-              <>
-                <div className="chat-profile__identity">
-                  <img src={chat.avatarSrc} alt="" />
-                  <strong>{chat.name}</strong>
-                </div>
-                {renderApplications?.(() => setDialog(undefined))}
-              </>
+              renderProfile?.(() => setDialog(undefined), identity) || identity()
             ) : (
               <>
                 <p>
