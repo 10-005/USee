@@ -277,8 +277,17 @@ export function AdoptionApplicationReviewScreen({ navigation, route }: Props) {
               {application.animalSummary?.breedName ?? '품종 정보 없음'}
             </Text>
             <Text style={styles.animalMeta}>
-              {[application.animalSummary?.age, application.animalSummary?.gender,
-                application.animalSummary?.weight].filter(Boolean).join(' | ') || '-'}
+              {[
+                application.animalSummary?.age,
+                application.animalSummary?.gender === 'MALE'
+                  ? '수컷'
+                  : application.animalSummary?.gender === 'FEMALE'
+                    ? '암컷'
+                    : '모름',
+                application.animalSummary?.weight,
+              ]
+                .filter(Boolean)
+                .join(' | ') || '-'}
             </Text>
             <Text style={styles.animalMeta}>
               중성화 여부{' '}

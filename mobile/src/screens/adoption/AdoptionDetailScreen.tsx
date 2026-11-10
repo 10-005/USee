@@ -158,7 +158,7 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
           style={styles.heroImage}
         />
         <View style={styles.titleRow}>
-          <View style={styles.badge}>
+          <View style={[styles.badge, !canApply && styles.unavailableBadge]}>
             <Text style={styles.badgeText}>{isClosed ? '보호종료' : '보호중'}</Text>
           </View>
           <Text style={styles.title}>
@@ -270,11 +270,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   badge: {
-    backgroundColor: '#FA705B',
+    backgroundColor: colors.green100,
     borderRadius: radius.pill,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
+  unavailableBadge: { backgroundColor: colors.gray400 },
   badgeText: { ...typography.bodyRegular14, color: colors.white },
   title: { ...typography.titleSemiBold18, color: colors.black, flex: 1 },
   bookmark: {
