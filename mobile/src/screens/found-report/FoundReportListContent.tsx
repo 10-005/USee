@@ -1,6 +1,8 @@
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Animated,
   Easing,
   FlatList,
@@ -32,6 +34,7 @@ import { useMissingReportStore } from '../../stores/missingReportStore';
 import { useCatalogStore } from '../../stores/catalogStore';
 import { useReportStatusStore } from '../../stores/reportStatusStore';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
+import { bookmarkKey, type BookmarkTargetType } from '../../services/bookmarks';
 import {
   AdoptionFilterSheet,
   type AdoptionFilters,
@@ -142,8 +145,15 @@ export function FoundReportListContent({
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
   const [filters, setFilters] = useState(initialFilters);
   const statusById = useReportStatusStore(state => state.statusById);
-  const bookmarkedIds = useAdoptionBookmarkStore(state => state.bookmarkedIds);
+  const bookmarkKeys = useAdoptionBookmarkStore(state => state.bookmarkKeys);
+  const loadBookmarks = useAdoptionBookmarkStore(state => state.loadBookmarks);
+  const pendingBookmarkKeys = useAdoptionBookmarkStore(state => state.pendingKeys);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
+  const bookmarkType: BookmarkTargetType = activeTab === 'lost' ? 'MISSING' : 'FOUND';
+
+  useEffect(() => {
+    loadBookmarks(bookmarkType).catch(() => undefined);
+  }, [bookmarkType, loadBookmarks]);
   const deletedFoundReportIds = useFoundReportEditStore(state => state.deletedIds);
   const foundReportEdits = useFoundReportEditStore(state => state.editsById);
   const deletedLostReportIds = useLostReportEditStore(state => state.deletedIds);
@@ -413,7 +423,11 @@ export function FoundReportListContent({
     return value === '전체' ? fallback : value;
   };
 
-  const renderReport = ({ item }: { item: Report }) => (
+  const renderReport = ({ item }: { item: Report }) => {
+    const key = bookmarkKey(bookmarkType, item.id);
+    const bookmarkPending = pendingBookmarkKeys.includes(key);
+    const bookmarked = bookmarkKeys.includes(key);
+    return (
     <Pressable
       accessibilityLabel={`${item.name} ${activeTab === 'found' ? '발견 제보' : '실종 신고'} 상세`}
       accessibilityRole="button"
@@ -431,18 +445,27 @@ export function FoundReportListContent({
       <Image source={item.images[0]} style={[styles.cardImage, { height: cardWidth }]} />
       <Pressable
         accessibilityLabel={`${item.name} 북마크 ${
-          bookmarkedIds.includes(item.id) ? '해제' : '등록'
+          bookmarked ? '해제' : '등록'
         }`}
         accessibilityRole="button"
-        accessibilityState={{ selected: bookmarkedIds.includes(item.id) }}
+        accessibilityState={{ busy: bookmarkPending, disabled: bookmarkPending, selected: bookmarked }}
+        disabled={bookmarkPending}
         hitSlop={8}
         onPress={event => {
           event.stopPropagation();
-          toggleBookmark(item.id);
+          toggleBookmark(bookmarkType, item.id).catch(() =>
+            Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
+          );
         }}
         style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
       >
-        {bookmarkedIds.includes(item.id) ? <BookmarkActiveIcon /> : <BookmarkIcon />}
+        {bookmarkPending ? (
+          <ActivityIndicator color={colors.green400} size="small" />
+        ) : bookmarked ? (
+          <BookmarkActiveIcon />
+        ) : (
+          <BookmarkIcon />
+        )}
       </Pressable>
       <View
         style={[
@@ -477,7 +500,8 @@ export function FoundReportListContent({
         {item.description}
       </Text>
     </Pressable>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>

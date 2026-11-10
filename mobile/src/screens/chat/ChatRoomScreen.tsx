@@ -37,7 +37,6 @@ import {
   ContentReportModal,
   type ContentReportTarget,
 } from '../../components/report/ContentReportModal';
-import { useContentReportStore } from '../../stores/contentReportStore';
 import DotsIcon from '../../assets/icons/common/dots-vertical.svg';
 import PlusIcon from '../../assets/icons/common/plus.svg';
 
@@ -125,15 +124,26 @@ export function ChatRoomScreen({ route, navigation }: Props) {
   }, [photoMenuOpen]);
   const nickname = room?.name ?? preview?.name;
   const reportTarget = useMemo<ContentReportTarget | null>(
-    () =>
-      action === 'report' && nickname
-        ? { id: 'chat-user:' + roomId, nickname, type: 'user' }
-        : null,
+    () => {
+      const userSeq = Number(/^publisher:(\d+)$/.exec(roomId)?.[1]);
+      return action === 'report' && nickname && Number.isFinite(userSeq)
+        ? {
+            id: 'chat-user:' + userSeq,
+            nickname,
+            targetSeq: userSeq,
+            targetType: 'USER',
+            type: 'user',
+          }
+        : null;
+    },
     [action, roomId, nickname],
   );
-  const reported = useContentReportStore(state =>
-    state.reports.some(item => item.targetId === reportTarget?.id),
-  );
+  useEffect(() => {
+    if (action === 'report' && nickname && !reportTarget) {
+      Alert.alert('사용자를 신고할 수 없어요', '상대 회원 정보를 확인할 수 없습니다.');
+      setAction(undefined);
+    }
+  }, [action, nickname, reportTarget]);
   const { width } = useWindowDimensions();
   const photoMax = Math.min(260, width * 0.63);
   const newestFirst = useMemo(() => room?.messages.slice().reverse() ?? [], [room?.messages]);
@@ -378,16 +388,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
       )}
       <ContentReportModal
         target={reportTarget}
-        alreadyReported={reported}
         onClose={() => setAction(undefined)}
-        onSubmit={reason => {
-          if (reportTarget) {
-            useContentReportStore
-              .getState()
-              .addReport({ reason, targetId: reportTarget.id, targetType: reportTarget.type });
-          }
-          setAction(undefined);
-        }}
       />
       {action && action !== 'report' && (
         <ChatActions
