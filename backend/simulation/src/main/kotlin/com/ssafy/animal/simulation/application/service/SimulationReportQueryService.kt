@@ -62,7 +62,8 @@ class SimulationReportQueryService(
         progress.catchUp(session)
         if (!session.isInProgress) return endedReport(session)
         // 중간 리포트: 같은 형식으로 계산만 하고 저장하지 않는다(summary 항상 null)
-        return SessionReportView(session, breedOf(session), reportCalculator.calculate(session), isFinal = false)
+        val report = reportCalculator.calculate(session)
+        return SessionReportView(session, breedOf(session), report, reportCalculator.care(session, report), isFinal = false)
     }
 
     private fun endedReport(session: SimulationSession?): SessionReportView {
@@ -70,7 +71,7 @@ class SimulationReportQueryService(
         val report = checkNotNull(reportRepository.findBySessionSeq(checkNotNull(session.sessionSeq))) {
             "종료된 세션에 리포트가 없습니다: sessionSeq=${session.sessionSeq}"
         }
-        return SessionReportView(session, breedOf(session), report)
+        return SessionReportView(session, breedOf(session), report, reportCalculator.care(session, report))
     }
 
     private fun breedOf(session: SimulationSession) =

@@ -60,6 +60,10 @@ internal object SimulationDocExamples {
     const val STATS_JSON =
         """{"satiety":64,"hydration":58,"cleanliness":77,"bond":31,"calmness":46,"health":90,"energy":55,"calculatedDttm":"2026-11-01T17:00:00+09:00"}"""
 
+    /** 아래 포기 리포트의 일차별 돌봄 집계(Q517). 2일째 포기라 3~7일차는 0(앱은 빈칸) */
+    const val ABANDONED_CARE_JSON =
+        """"evaluatedDays":2,"careGuideline":{"FEED":3,"WATER":3,"CLEAN_LITTER":2,"PLAY":2,"WALK":1},"dailyCare":{"1":{"FEED":3,"WATER":2,"CLEAN_LITTER":1,"PLAY":1,"WALK":0},"2":{"FEED":2,"WATER":1,"CLEAN_LITTER":1,"PLAY":1,"WALK":0},"3":{"FEED":0,"WATER":0,"CLEAN_LITTER":0,"PLAY":0,"WALK":0},"4":{"FEED":0,"WATER":0,"CLEAN_LITTER":0,"PLAY":0,"WALK":0},"5":{"FEED":0,"WATER":0,"CLEAN_LITTER":0,"PLAY":0,"WALK":0},"6":{"FEED":0,"WATER":0,"CLEAN_LITTER":0,"PLAY":0,"WALK":0},"7":{"FEED":0,"WATER":0,"CLEAN_LITTER":0,"PLAY":0,"WALK":0}}"""
+
     /** 포기로 끝난 세션의 저장 리포트(18.5 data.report·18.18 data). 종료 직후라 summary는 null */
     const val ABANDONED_REPORT_JSON =
         """{"sessionSeq":3001,"status":"ABANDONED","isFinal":true,"animalName":"초코","breed":""" + BREED_JSON +
@@ -69,7 +73,7 @@ internal object SimulationDocExamples {
             """"FOOD":21200,"SNACK":0,"LITTER":0,"SHAMPOO":0,"MEDICINE":0,"POOP_BAG":0,"CATNIP":0,"EVENT":11600},""" +
             """"dailySpent":{"1":31200,"2":21600,"3":0,"4":0,"5":0,"6":0,"7":0},""" +
             """"finalStats":{"satiety":55,"hydration":60,"cleanliness":70,"bond":42,"calmness":52,"health":84,"energy":58},""" +
-            """"actionCount":12,"eventCount":0,"eventResolvedCount":0,"walkCount":0,"summary":null}"""
+            """"actionCount":12,"eventCount":0,"eventResolvedCount":0,"walkCount":0,"summary":null,""" + ABANDONED_CARE_JSON + "}"
 
     /** 세션 상세(18.1·18.2·18.4 data) */
     const val SESSION_DETAIL_JSON =

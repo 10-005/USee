@@ -10,6 +10,8 @@ import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.port.out.CatalogSpeciesCode
 import com.ssafy.animal.simulation.application.port.out.UserInfo
 import com.ssafy.animal.simulation.domain.Personality
+import com.ssafy.animal.simulation.domain.ActionCode
+import com.ssafy.animal.simulation.domain.CareFixtures
 import com.ssafy.animal.simulation.domain.ReportAggregator
 import com.ssafy.animal.simulation.domain.ReportSource
 import com.ssafy.animal.simulation.domain.SessionStatus
@@ -64,7 +66,11 @@ class SimulationReportControllerTest {
     @Test
     fun `18_18은 USER 토큰의 회원 번호·역할로 중간 리포트를 돌려준다`() {
         val session = session()
-        given(reportQueryUseCase.getReport(17, Role.USER, 3001L)).willReturn(SessionReportView(session, maltese, report(session), isFinal = false))
+        val care = CareFixtures.care(
+            startedAt, evaluatedDays = 2,
+            logs = listOf(CareFixtures.log(ActionCode.FEED, startedAt.plusHours(1)), CareFixtures.log(ActionCode.GIVE_WATER, startedAt.plusDays(1))),
+        )
+        given(reportQueryUseCase.getReport(17, Role.USER, 3001L)).willReturn(SessionReportView(session, maltese, report(session), care, isFinal = false))
 
         mockMvc.get("/api/simulation/v1/simulations/3001/report") { header(HttpHeaders.AUTHORIZATION, WebTestTokens.USER) }.andExpect {
             status { isOk() }
@@ -83,19 +89,48 @@ class SimulationReportControllerTest {
             jsonPath("$.data.eventCount") { value(2) }
             jsonPath("$.data.eventResolvedCount") { value(1) }
             jsonPath("$.data.summary") { value(null) }
+            jsonPath("$.data.evaluatedDays") { value(2) }
+            jsonPath("$.data.careGuideline.FEED") { value(3) }
+            jsonPath("$.data.careGuideline.WALK") { value(1) }
+            jsonPath("$.data.dailyCare.1.FEED") { value(1) }
+            jsonPath("$.data.dailyCare.2.WATER") { value(1) }
+            jsonPath("$.data.dailyCare.7.WALK") { value(0) }
         }
     }
 
     @Test
     fun `18_18은 SHELTER 토큰이면 보호소 역할로 종료 리포트를 조회한다`() {
         val session = session().apply { end(SessionStatus.COMPLETED, startedAt.plusDays(7)) }
-        given(reportQueryUseCase.getReport(77, Role.SHELTER, 3001L)).willReturn(SessionReportView(session, maltese, report(session)))
+        given(reportQueryUseCase.getReport(77, Role.SHELTER, 3001L)).willReturn(SessionReportView(session, maltese, report(session), CareFixtures.care(startedAt)))
 
         mockMvc.get("/api/simulation/v1/simulations/3001/report") { header(HttpHeaders.AUTHORIZATION, WebTestTokens.SHELTER) }.andExpect {
             status { isOk() }
             jsonPath("$.data.status") { value("COMPLETED") }
             jsonPath("$.data.isFinal") { value(true) }
             jsonPath("$.data.endedDttm") { value("2026-11-08T14:00:00+09:00") }
+            jsonPath("$.data.evaluatedDays") { value(7) }
+            jsonPath("$.data.dailyCare.7.FEED") { value(0) }
+        }
+    }
+
+    @Test
+    fun `18_18 고양이 세션의 권장 횟수와 일차별 돌봄에는 WALK 키가 없다`() {
+        val session = SimulationSession.start(
+            userSeq = 17, breedSeq = 31, animalName = "나비", speciesType = SpeciesType.CAT, personality = Personality.TIMID,
+            expectedCost = 120_000, startedAt = startedAt, endsAt = startedAt.plusDays(7), initialStats = CareFixtures.STATS,
+        ).also { ReflectionTestUtils.setField(it, "sessionSeq", 3001L) }.apply { end(SessionStatus.ABANDONED, startedAt.plusDays(2)) }
+        val care = CareFixtures.care(
+            startedAt, species = SpeciesType.CAT, evaluatedDays = 3, logs = listOf(CareFixtures.log(ActionCode.GIVE_CATNIP, startedAt.plusHours(2))),
+        )
+        given(reportQueryUseCase.getReport(17, Role.USER, 3001L)).willReturn(SessionReportView(session, maltese, report(session), care))
+
+        mockMvc.get("/api/simulation/v1/simulations/3001/report") { header(HttpHeaders.AUTHORIZATION, WebTestTokens.USER) }.andExpect {
+            status { isOk() }
+            jsonPath("$.data.evaluatedDays") { value(3) }
+            jsonPath("$.data.careGuideline.PLAY") { value(2) }
+            jsonPath("$.data.careGuideline.WALK") { doesNotExist() }
+            jsonPath("$.data.dailyCare.1.PLAY") { value(1) }
+            jsonPath("$.data.dailyCare.1.WALK") { doesNotExist() }
         }
     }
 

@@ -49,7 +49,10 @@ class SimulationReportController(
             "- `summary`는 종료 직후 null이며 잠시 뒤 채워진다. 앱은 \"요약 준비 중\"으로 표시하다가 다시 조회한다. " +
             "종료 푸시는 요약이 채워진 뒤 보내므로 푸시로 들어오면 완성된 리포트를 본다.\n" +
             "- `spentByCategory`는 물품 분류 14종 + 진료비 `EVENT` 15개 키, `dailySpent`는 `\"1\"`~`\"7\"` 일차 키를 모두 채운다(0 포함).\n" +
-            "- `actionCount`는 돌봄·산책 행동 수, `eventCount`는 발생한 돌발 이벤트 수(해결 + 만료), `walkCount`는 고양이 세션이면 0.",
+            "- `actionCount`는 돌봄·산책 행동 수, `eventCount`는 발생한 돌발 이벤트 수(해결 + 만료), `walkCount`는 고양이 세션이면 0.\n" +
+            "- `summary`는 일반 텍스트이고 문단은 빈 줄로 나뉜다(LLM 요약 세 문단 또는 규칙 문구 한 문단). 줄바꿈을 살려 그리고 문단 수를 가정하지 않는다.\n" +
+            "- `evaluatedDays`·`careGuideline`·`dailyCare`(Q517)는 저장하지 않고 조회할 때 행동 이력에서 계산한다. 표는 `careGuideline` 키를 행, " +
+            "`\"1\"`~`\"7\"`을 열로 그리고 일차 > `evaluatedDays`면 빈칸, 횟수 ≥ 권장이면 충족, 0이면 없음, 그 사이는 부족. 고양이 세션은 `WALK` 키가 없다.",
     )
     @ApiResponses(
         ApiResponse(
@@ -270,7 +273,10 @@ class SimulationReportController(
         const val USER_SEQ_TYPE_MISMATCH =
             """{"status":400,"code":"COMMON_INVALID_INPUT","message":"입력값이 올바르지 않습니다.","data":null,"errors":[{"field":"userSeq","reason":"타입이 올바르지 않습니다."}],"traceId":"4f2c9e1a7b3d4c5e"}"""
 
-        const val SUMMARY_TEXT = "2일째에 돌봄을 그만뒀어요. 예상보다 97,200원 덜 썼고, 가장 많이 쓴 곳은 사료(21,200원)예요."
+        const val SUMMARY_TEXT =
+            "2일째에 초코의 돌봄을 그만뒀어요. 첫날 기구를 갖추고 밥을 세 번 챙겼어요.\\n\\n" +
+                "1일차에 밥 3번을 권장 횟수대로 줬고 사료를 미리 사 둬서 예산도 여유 있게 썼어요.\\n\\n" +
+                "2일차에는 물과 놀이가 권장보다 적었어요. 하루 물 3번, 놀이 2번을 목표로 해 보면 좋아요."
         const val FINAL_SUCCESS =
             """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":""" +
                 """{"sessionSeq":3001,"status":"ABANDONED","isFinal":true,"animalName":"초코","breed":""" + SimulationDocExamples.BREED_JSON +
@@ -280,7 +286,8 @@ class SimulationReportController(
                 """"FOOD":21200,"SNACK":0,"LITTER":0,"SHAMPOO":0,"MEDICINE":0,"POOP_BAG":0,"CATNIP":0,"EVENT":11600},""" +
                 """"dailySpent":{"1":31200,"2":21600,"3":0,"4":0,"5":0,"6":0,"7":0},""" +
                 """"finalStats":{"satiety":55,"hydration":60,"cleanliness":70,"bond":42,"calmness":52,"health":84,"energy":58},""" +
-                """"actionCount":12,"eventCount":0,"eventResolvedCount":0,"walkCount":0,"summary":"""" + SUMMARY_TEXT + """"}""" +
+                """"actionCount":12,"eventCount":0,"eventResolvedCount":0,"walkCount":0,"summary":"""" + SUMMARY_TEXT + """",""" +
+                SimulationDocExamples.ABANDONED_CARE_JSON + "}" +
                 ""","errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val FINAL_PENDING_SUMMARY =
             """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":""" + ABANDONED_REPORT_JSON +
@@ -294,7 +301,8 @@ class SimulationReportController(
                 """"FOOD":0,"SNACK":0,"LITTER":0,"SHAMPOO":0,"MEDICINE":0,"POOP_BAG":0,"CATNIP":0,"EVENT":0},""" +
                 """"dailySpent":{"1":20000,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0},""" +
                 """"finalStats":{"satiety":62,"hydration":55,"cleanliness":76,"bond":29,"calmness":44,"health":90,"energy":51},""" +
-                """"actionCount":3,"eventCount":0,"eventResolvedCount":0,"walkCount":0,"summary":null}""" +
+                """"actionCount":3,"eventCount":0,"eventResolvedCount":0,"walkCount":0,"summary":null,""" +
+                """"evaluatedDays":1,"careGuideline":{"FEED":3,"WATER":3,"CLEAN_LITTER":2,"PLAY":2,"WALK":1},"dailyCare":{"1":{"FEED":1,"WATER":1,"CLEAN_LITTER":0,"PLAY":1,"WALK":0},"2":{"FEED":0,"WATER":0,"CLEAN_LITTER":0,"PLAY":0,"WALK":0},"3":{"FEED":0,"WATER":0,"CLEAN_LITTER":0,"PLAY":0,"WALK":0},"4":{"FEED":0,"WATER":0,"CLEAN_LITTER":0,"PLAY":0,"WALK":0},"5":{"FEED":0,"WATER":0,"CLEAN_LITTER":0,"PLAY":0,"WALK":0},"6":{"FEED":0,"WATER":0,"CLEAN_LITTER":0,"PLAY":0,"WALK":0},"7":{"FEED":0,"WATER":0,"CLEAN_LITTER":0,"PLAY":0,"WALK":0}}}""" +
                 ""","errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
     }
 }
