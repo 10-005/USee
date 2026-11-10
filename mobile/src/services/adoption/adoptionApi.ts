@@ -117,6 +117,8 @@ export type AdoptionApplicationFormRequest = {
   visitHopeDate?: string | null;
 };
 
+export type SaveAdoptionDraftRequest = Omit<AdoptionApplicationFormRequest, 'animalSeq'>;
+
 export type AdoptionAnimalSummary = {
   age: string | null;
   animalSeq: number;
@@ -238,10 +240,7 @@ export async function createAdoptionDraft(form: AdoptionApplicationFormRequest) 
   return response.data.data;
 }
 
-export async function saveAdoptionDraft(
-  applicationSeq: number,
-  form: AdoptionApplicationFormRequest,
-) {
+export async function saveAdoptionDraft(applicationSeq: number, form: SaveAdoptionDraftRequest) {
   const response = await apiClient.patch<
     ApiResponse<{ applicationSeq: number; savedQuestionCount: number; status: 'DRAFT' }>
   >(`/adoption-applications/${applicationSeq}`, form);
