@@ -88,7 +88,7 @@ export function siblingOptions(animalId = '') {
   return queryOptions({
     queryKey: ['adoptions', 'sibling-animals', animalId],
     enabled: Boolean(animalId),
-    queryFn: async ({ signal, client }) => {
+    queryFn: async ({ signal }) => {
       const ids = new Set<string>();
       const params = new URLSearchParams({
         animalSeq: animalId,
@@ -104,20 +104,7 @@ export function siblingOptions(animalId = '') {
         }
         if (!data.content.length || page + 1 >= data.totalPages || data.hasNext === false) break;
       }
-      if (ids.size < 2) return [];
-      // The received list can show the current breed for every application,
-      // while individual details show different animal snapshots.
-      const siblings: Pick<Adoption, 'id' | 'name'>[] = [];
-      const candidates = [...ids];
-      for (let offset = 0; offset < candidates.length; offset += 4) {
-        signal.throwIfAborted();
-        const batch = candidates.slice(offset, offset + 4);
-        const details = await Promise.all(batch.map((id) => client.fetchQuery(detailOptions(id))));
-        for (const { record } of details) {
-          if (record.animalId === animalId) siblings.push({ id: record.id, name: record.name });
-        }
-      }
-      return siblings;
+      return [...ids];
     },
   });
 }
