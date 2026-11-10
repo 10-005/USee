@@ -428,7 +428,7 @@ export function ChatRoomView({
   );
 }
 
-function ChatAnimalPost({ animal }: { animal?: AnimalRecord }) {
+export function ChatAnimalPost({ animal }: { animal?: AnimalRecord }) {
   if (!animal)
     return <p className="chat-post--missing">연결된 보호동물 게시글을 찾을 수 없어요.</p>;
   return (
@@ -436,7 +436,13 @@ function ChatAnimalPost({ animal }: { animal?: AnimalRecord }) {
       <AnimalPhoto src={animal.imageSrc} alt="" />
       <span className="chat-post__content">
         <span className="chat-post__heading">
-          <span className="chat-post__badge">보호</span>
+          <span className="chat-post__badge">
+            {
+              { protected: '보호', closed: '종료', returned: '반환', adopted: '입양' }[
+                animal.status
+              ]
+            }
+          </span>
           <strong>{shelterAnimalLabel(animal)}</strong>
         </span>
         <span className="chat-post__summary">{animal.summary}</span>
