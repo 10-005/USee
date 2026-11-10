@@ -12,3 +12,9 @@ export async function registerDeviceToken(fcmToken: string): Promise<DeviceToken
   );
   return response.data.data;
 }
+
+export async function deactivateDeviceToken(fcmToken: string): Promise<void> {
+  await notificationClient.delete('/notifications/device-tokens/current', {
+    data: { fcmToken },
+  });
+}

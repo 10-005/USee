@@ -32,6 +32,8 @@ import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
 import { useAuthStore } from '../../stores/authStore';
 import { getApiErrorDisplayMessage } from '../../services/api';
+import { deactivateDeviceTokenIfSignedIn } from '../../services/notifications/deviceTokenRegistration';
+import { getStoredFcmToken } from '../../services/notifications/firebaseMessaging';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 type AccountModal = 'logout' | 'withdraw' | null;
@@ -72,6 +74,17 @@ export function SettingsScreen({ navigation }: Props) {
       setNotificationsAllowed(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (notificationsAllowed) {
+      return;
+    }
+    getStoredFcmToken()
+      .then(token => deactivateDeviceTokenIfSignedIn(token))
+      .catch(() => {
+        console.warn('[FCM] 기기 토큰 해제에 실패했습니다.');
+      });
+  }, [notificationsAllowed]);
 
   useEffect(() => {
     readNotificationPermission();
