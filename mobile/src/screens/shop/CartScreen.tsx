@@ -98,7 +98,7 @@ export function CartScreen({ navigation, route }: Props) {
     const state = useShopStore.getState();
     const selectedIds = state.selectedIds.filter(id => state.cart[id]);
     const serverItems = selectedIds.map(id => findProduct(id));
-    if (!session?.sessionSeq || serverItems.every(item => !item?.itemSeq)) {
+    if (!session?.sessionSeq) {
       const error = state.checkout(pet.category);
       if (error) {
         showPurchaseResult(error);

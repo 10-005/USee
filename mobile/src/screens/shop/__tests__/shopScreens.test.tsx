@@ -364,6 +364,38 @@ it('changes cart quantity and completes a confirmed mock purchase', () => {
   act(() => screen.unmount());
 });
 
+it('does not purchase on the device when a server session has no item number', () => {
+  mockShopSession.session = { sessionSeq: 3001 };
+  useShopStore.getState().setQuantity('food', 1, 'dog');
+  let screen!: renderer.ReactTestRenderer;
+  act(() => {
+    screen = renderer.create(
+      wrap(
+        <CartScreen
+          navigation={{ popTo: jest.fn() } as never}
+          route={{ key: 'cart', name: 'ShopCart', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  act(() =>
+    screen.root
+      .findAll(
+        node =>
+          node.props.accessibilityRole === 'button' &&
+          node.props.onPress &&
+          node.findAllByProps({ children: '1종 모의 구매하기' }).length > 0,
+      )[0]
+      .props.onPress(),
+  );
+  act(() => screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress());
+  expect(purchaseSimulationItem).not.toHaveBeenCalled();
+  expect(screen.root.findByProps({ children: '구매할 수 없는 상품이 있어요.' })).toBeDefined();
+  expect(useShopStore.getState().spent).toBe(0);
+  expect(useShopStore.getState().cart.food).toBe(1);
+  act(() => screen.unmount());
+});
+
 const serverFood = {
   id: '11',
   name: '건식 사료 1kg',
