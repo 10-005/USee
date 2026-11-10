@@ -1,5 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -17,14 +18,19 @@ import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import DateIcon from '../../assets/icons/common/date.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
-import { AppHeader } from '../../components/common';
+import { AppHeader, SkeletonBlock, SkeletonGroup } from '../../components/common';
+import { getApiErrorDisplayMessage } from '../../services/api';
+import {
+  getMyFoundReports,
+  type FoundReportSummary,
+} from '../../services/foundReports/foundReportApi';
+import {
+  getMyMissingReports,
+  type MissingReportSummary,
+} from '../../services/missingReports';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
-import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
-import { useLostReportEditStore } from '../../stores/lostReportEditStore';
-import { useReportStatusStore } from '../../stores/reportStatusStore';
 import { colors, radius, typography } from '../../theme';
-import { foundReports } from '../found-report/data';
-import { lostReports } from '../lost-report/data';
+import { formatKoreanAddress } from '../../utils/address';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MyPosts'>;
 type MyPostTab = 'found' | 'lost';
@@ -45,43 +51,76 @@ const tabs: Array<{ key: MyPostTab; label: string }> = [
   { key: 'lost', label: '실종' },
 ];
 
+const fallbackImage = require('../../assets/images/mypage/img_pet_card.png');
+
+const genderLabel = (gender: FoundReportSummary['gender']) =>
+  gender === 'MALE' ? '수컷' : gender === 'FEMALE' ? '암컷' : '모름';
+
+const summaryText = (report: FoundReportSummary | MissingReportSummary) =>
+  [
+    report.age ?? '나이 모름',
+    genderLabel(report.gender),
+    report.classification?.colorName ?? '털색 모름',
+    report.weight ?? '몸무게 모름',
+  ].join(' | ');
+
+export const mapMyFoundPost = (report: FoundReportSummary): MyPost => ({
+  date: report.occurredDttm.slice(0, 10),
+  description: '',
+  id: String(report.foundReportSeq),
+  image: report.representativeImageUrl ? { uri: report.representativeImageUrl } : fallbackImage,
+  location: formatKoreanAddress(report.address),
+  name: report.classification?.breedName ?? '발견 동물',
+  status: report.status === 'CLOSED' ? '종료' : '제보',
+  summary: summaryText(report),
+});
+
+export const mapMyMissingPost = (report: MissingReportSummary): MyPost => ({
+  date: report.occurredDttm.slice(0, 10),
+  description: '',
+  id: String(report.missingReportSeq),
+  image: report.representativeImageUrl ? { uri: report.representativeImageUrl } : fallbackImage,
+  location: formatKoreanAddress(report.address),
+  name: report.classification?.breedName ?? '실종 동물',
+  status: report.status === 'CLOSED' ? '종료' : '실종',
+  summary: summaryText(report),
+});
+
 export function MyPostsScreen({ navigation }: Props) {
   const { width } = useWindowDimensions();
   const cardWidth = (width - 52) / 2;
   const [activeTab, setActiveTab] = useState<MyPostTab>('found');
+  const [postsByTab, setPostsByTab] = useState<Record<MyPostTab, MyPost[]>>({
+    found: [],
+    lost: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const bookmarkedIds = useAdoptionBookmarkStore(state => state.bookmarkedIds);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
-  const deletedFoundIds = useFoundReportEditStore(state => state.deletedIds);
-  const foundEdits = useFoundReportEditStore(state => state.editsById);
-  const deletedLostIds = useLostReportEditStore(state => state.deletedIds);
-  const lostEdits = useLostReportEditStore(state => state.editsById);
-  const statusById = useReportStatusStore(state => state.statusById);
+  const posts = postsByTab[activeTab];
 
-  const posts = useMemo<MyPost[]>(() => {
-    const isFound = activeTab === 'found';
-    const source = isFound ? foundReports : lostReports;
-    const deletedIds = isFound ? deletedFoundIds : deletedLostIds;
-    const edits = isFound ? foundEdits : lostEdits;
+  const loadPosts = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const nextPosts =
+        activeTab === 'found'
+          ? (await getMyFoundReports()).map(mapMyFoundPost)
+          : (await getMyMissingReports()).map(mapMyMissingPost);
+      setPostsByTab(current => ({ ...current, [activeTab]: nextPosts }));
+    } catch (loadError) {
+      setError(getApiErrorDisplayMessage(loadError, '내 게시글을 불러오지 못했어요.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab]);
 
-    return source
-      .filter(report => report.isMine && !deletedIds.includes(report.id))
-      .map(report => {
-        const current = { ...report, ...edits[report.id] };
-        const completed =
-          statusById[report.id] === 'completed' ||
-          (!statusById[report.id] && (current.status === '완료' || current.status === '종료'));
-        return {
-          date: current.date,
-          description: current.description,
-          id: current.id,
-          image: current.images[0],
-          location: current.location,
-          name: current.name,
-          status: completed ? '종료' : isFound ? '제보' : '실종',
-          summary: `${current.age} | ${current.gender} | ${current.color} | ${current.weight}`,
-        };
-      });
-  }, [activeTab, deletedFoundIds, deletedLostIds, foundEdits, lostEdits, statusById]);
+  useFocusEffect(
+    useCallback(() => {
+      loadPosts().catch(() => undefined);
+    }, [loadPosts]),
+  );
 
   const renderPost = ({ item }: { item: MyPost }) => {
     const bookmarked = bookmarkedIds.includes(item.id);
@@ -100,7 +139,7 @@ export function MyPostsScreen({ navigation }: Props) {
           pressed && styles.pressed,
         ]}
       >
-        <Image source={item.image} style={[styles.cardImage, { height: cardWidth }]} />
+        <MyPostImage size={cardWidth} source={item.image} />
         <Pressable
           accessibilityLabel={`${item.name} 북마크 ${bookmarked ? '해제' : '등록'}`}
           accessibilityRole="button"
@@ -141,9 +180,11 @@ export function MyPostsScreen({ navigation }: Props) {
         <Text numberOfLines={1} style={styles.summary}>
           {item.summary}
         </Text>
-        <Text numberOfLines={1} style={styles.description}>
-          {item.description}
-        </Text>
+        {item.description ? (
+          <Text numberOfLines={1} style={styles.description}>
+            {item.description}
+          </Text>
+        ) : null}
       </Pressable>
     );
   };
@@ -168,7 +209,17 @@ export function MyPostsScreen({ navigation }: Props) {
           );
         })}
       </View>
-      <FlatList
+      {loading ? (
+        <MyPostsSkeleton cardWidth={cardWidth} />
+      ) : error ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyTitle}>{error}</Text>
+          <Pressable accessibilityRole="button" onPress={loadPosts} style={styles.retryButton}>
+            <Text style={styles.retryText}>다시 시도</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <FlatList
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>작성한 게시글이 없어요</Text>
@@ -184,8 +235,43 @@ export function MyPostsScreen({ navigation }: Props) {
         numColumns={2}
         renderItem={renderPost}
         showsVerticalScrollIndicator={false}
-      />
+        />
+      )}
     </SafeAreaView>
+  );
+}
+
+function MyPostsSkeleton({ cardWidth }: { cardWidth: number }) {
+  return (
+    <SkeletonGroup accessibilityLabel="내 게시글 불러오는 중" style={styles.skeletonList}>
+      {[0, 1, 2, 3].map(index => (
+        <View key={index} style={{ width: cardWidth }}>
+          <SkeletonBlock style={{ height: cardWidth, width: cardWidth }} />
+          <SkeletonBlock style={styles.skeletonTitle} />
+          <SkeletonBlock style={styles.skeletonLine} />
+          <SkeletonBlock style={styles.skeletonShortLine} />
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
+}
+
+function MyPostImage({ size, source }: { size: number; source: ImageSourcePropType }) {
+  const remote = typeof source === 'object' && source !== null && 'uri' in source;
+  const [loading, setLoading] = useState(remote);
+
+  return (
+    <View style={[styles.cardImage, { height: size }]}>
+      <Image
+        onError={() => setLoading(false)}
+        onLoadEnd={() => setLoading(false)}
+        onLoadStart={() => remote && setLoading(true)}
+        resizeMode="cover"
+        source={source}
+        style={styles.cardImageContent}
+      />
+      {loading ? <SkeletonBlock style={styles.cardImageSkeleton} /> : null}
+    </View>
   );
 }
 
@@ -200,7 +286,15 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 20, paddingTop: 21 },
   columns: { gap: 12 },
   card: { marginBottom: 18 },
-  cardImage: { borderRadius: radius.sm, width: '100%' },
+  cardImage: { borderRadius: radius.sm, overflow: 'hidden', width: '100%' },
+  cardImageContent: { height: '100%', width: '100%' },
+  cardImageSkeleton: {
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
   bookmarkButton: {
     alignItems: 'center',
     height: 24,
@@ -233,5 +327,21 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingBottom: 100 },
   emptyTitle: { ...typography.titleSemiBold18, color: colors.gray600 },
   emptyBody: { ...typography.bodyRegular14, color: colors.gray400, marginTop: 8 },
+  retryButton: { marginTop: 16, paddingHorizontal: 20, paddingVertical: 10 },
+  retryText: {
+    ...typography.bodyRegular14,
+    color: colors.green400,
+    fontFamily: 'Pretendard-SemiBold',
+  },
+  skeletonList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 21,
+  },
+  skeletonTitle: { height: 20, marginTop: 8, width: '70%' },
+  skeletonLine: { height: 14, marginTop: 8, width: '100%' },
+  skeletonShortLine: { height: 14, marginTop: 6, width: '76%' },
   pressed: { opacity: 0.7 },
 });
