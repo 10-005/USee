@@ -67,4 +67,34 @@ describe('createApiClient', () => {
     });
     refreshPost.mockRestore();
   });
+
+  it('clears the session when the access token is invalid', async () => {
+    const consoleWarn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const onAuthenticationFailure = jest.fn();
+    const client = createApiClient({
+      baseURL: 'https://api.example.test',
+      getAccessToken: () => 'invalid-access',
+      refresh: {
+        endpoint: '/auth/refresh',
+        getRefreshToken: () => 'refresh-token',
+        onAuthenticationFailure,
+        onTokensRefreshed: jest.fn(),
+      },
+    });
+    client.defaults.adapter = async config => {
+      throw new AxiosError('invalid', 'ERR_BAD_REQUEST', config, undefined, {
+        config,
+        data: { code: 'AUTH_TOKEN_INVALID', errors: [], message: 'invalid' },
+        headers: {},
+        status: 401,
+        statusText: 'Unauthorized',
+      });
+    };
+
+    await expect(client.get('/users/me')).rejects.toMatchObject({
+      code: 'AUTH_TOKEN_INVALID',
+    });
+    expect(onAuthenticationFailure).toHaveBeenCalledTimes(1);
+    consoleWarn.mockRestore();
+  });
 });

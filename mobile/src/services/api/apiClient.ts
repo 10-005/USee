@@ -33,39 +33,51 @@ export function createApiClient({
 
   let refreshPromise: Promise<AuthTokens> | null = null;
 
-  client.interceptors.response.use(response => response, async error => {
-    const request = error.config as (InternalAxiosRequestConfig & { _authRetry?: boolean }) | undefined;
-    const responseData = error.response?.data as ApiErrorResponse | undefined;
+  client.interceptors.response.use(
+    response => response,
+    async error => {
+      const request = error.config as
+        | (InternalAxiosRequestConfig & { _authRetry?: boolean })
+        | undefined;
+      const responseData = error.response?.data as ApiErrorResponse | undefined;
 
-    if (
-      refresh &&
-      request &&
-      !request._authRetry &&
-      responseData?.code === 'AUTH_TOKEN_EXPIRED'
-    ) {
-      request._authRetry = true;
+      if (
+        refresh &&
+        request &&
+        !request._authRetry &&
+        responseData?.code === 'AUTH_TOKEN_EXPIRED'
+      ) {
+        request._authRetry = true;
 
-      try {
-        refreshPromise ??= refreshTokens(baseURL, timeout, refresh);
-        const tokens = await refreshPromise;
-        request.headers.set('Authorization', `Bearer ${tokens.accessToken}`);
-        return await client.request(request);
-      } catch (refreshError) {
-        const apiError = toApiClientError(refreshError);
-        if (apiError.status === 401 || apiError.status === 403) {
-          await refresh.onAuthenticationFailure();
+        try {
+          refreshPromise ??= refreshTokens(baseURL, timeout, refresh);
+          const tokens = await refreshPromise;
+          request.headers.set('Authorization', `Bearer ${tokens.accessToken}`);
+          return await client.request(request);
+        } catch (refreshError) {
+          const apiError = toApiClientError(refreshError);
+          if (apiError.status === 401 || apiError.status === 403) {
+            await refresh.onAuthenticationFailure();
+          }
+          logApiError(apiError);
+          return Promise.reject(apiError);
+        } finally {
+          refreshPromise = null;
         }
-        logApiError(apiError);
-        return Promise.reject(apiError);
-      } finally {
-        refreshPromise = null;
       }
-    }
 
-    const apiError = toApiClientError(error);
-    logApiError(apiError);
-    return Promise.reject(apiError);
-  });
+      if (
+        refresh &&
+        (responseData?.code === 'AUTH_TOKEN_INVALID' || responseData?.code === 'AUTH_UNAUTHORIZED')
+      ) {
+        await refresh.onAuthenticationFailure();
+      }
+
+      const apiError = toApiClientError(error);
+      logApiError(apiError);
+      return Promise.reject(apiError);
+    },
+  );
 
   return client;
 }
@@ -77,7 +89,10 @@ async function refreshTokens(
 ): Promise<AuthTokens> {
   const refreshToken = await refresh.getRefreshToken();
   if (!refreshToken) {
-    throw new ApiClientError({ code: 'AUTH_INVALID_REFRESH_TOKEN', message: '로그인이 필요합니다.' });
+    throw new ApiClientError({
+      code: 'AUTH_INVALID_REFRESH_TOKEN',
+      message: '로그인이 필요합니다.',
+    });
   }
 
   const response = await axios.post<ApiResponse<AuthTokens>>(

@@ -1,9 +1,9 @@
-import type { ApiResponse, AuthTokens } from '../api';
+import type { AccountRole, ApiResponse, AuthTokens } from '../api';
 import { apiClient } from '../api/client';
 
 export type AuthUser = {
   nickname: string;
-  role: 'USER' | 'SHELTER';
+  role: AccountRole;
   userSeq: number;
 };
 
@@ -34,9 +34,7 @@ export async function verifyKakaoToken(kakaoAccessToken: string): Promise<KakaoV
   return response.data.data;
 }
 
-export async function registerKakao(
-  request: KakaoRegisterRequest,
-): Promise<KakaoRegisterResponse> {
+export async function registerKakao(request: KakaoRegisterRequest): Promise<KakaoRegisterResponse> {
   const response = await apiClient.post<ApiResponse<KakaoRegisterResponse>>(
     '/auth/kakao/register',
     request,

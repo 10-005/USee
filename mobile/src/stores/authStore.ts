@@ -29,6 +29,7 @@ type AuthState = {
   logout: () => Promise<void>;
   register: (input: RegistrationInput) => Promise<void>;
   registrationToken: string | null;
+  syncUser: (user: AuthUser) => void;
   user: AuthUser | null;
   withdraw: () => Promise<void>;
 };
@@ -64,6 +65,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (!result.accessToken || !result.refreshToken || !result.user) {
         throw new Error('로그인 응답이 올바르지 않습니다.');
+      }
+      if (result.user.role !== 'USER') {
+        throw new Error('일반회원 계정만 모바일 앱을 이용할 수 있어요.');
       }
 
       await saveAuthSession({
@@ -105,6 +109,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ error: null, isLoading: true });
     try {
       const result = await registerKakao({ ...input, registrationToken });
+      if (result.role !== 'USER') {
+        throw new Error('일반회원 계정만 모바일 앱을 이용할 수 있어요.');
+      }
       await saveAuthSession({ accessToken: result.accessToken, refreshToken: result.refreshToken });
       set({
         isLoading: false,
@@ -117,6 +124,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
   registrationToken: null,
+  syncUser: user => set({ user }),
   user: null,
   withdraw: async () => {
     set({ error: null, isLoading: true });

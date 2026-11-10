@@ -6,5 +6,6 @@ export type {
   ApiError,
   ApiErrorResponse,
   ApiResponse,
+  AccountRole,
   AuthTokens,
 } from './types';

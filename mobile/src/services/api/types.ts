@@ -40,3 +40,5 @@ export type AuthTokens = {
   accessToken: string;
   refreshToken: string;
 };
+
+export type AccountRole = 'USER' | 'SHELTER' | 'ADMIN';
