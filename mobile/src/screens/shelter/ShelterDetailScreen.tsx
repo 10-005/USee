@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Clipboard from '@react-native-clipboard/clipboard';
-import { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
@@ -9,19 +9,22 @@ import BadgeIcon from '../../assets/icons/common/badge.svg';
 import LeftArrowIcon from '../../assets/icons/common/left-arrow.svg';
 import MapIcon from '../../assets/icons/common/map.svg';
 import PhoneIcon from '../../assets/icons/common/phone.svg';
-import { Button } from '../../components/common';
+import { Button, DetailScreenSkeleton } from '../../components/common';
+import { getShelter, type ShelterDetail } from '../../services/adoption';
+import { getApiErrorDisplayMessage } from '../../services/api';
+import { useChatStore } from '../../stores/chatStore';
 import { colors, typography } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ShelterDetail'>;
 const MAX_FONT_SIZE_MULTIPLIER = 1.15;
 
-const shelterDescription =
-  '안녕하세요 박범준보호소입니다. 보호동물이 안전하게 가족을 기다릴 수 있도록 돌보고 있습니다. 입양을 희망하시는 분께서는 보호동물의 성격과 건강 상태를 충분히 확인해 주세요. 방문 상담을 통해 동물과 직접 만나고 가족 구성원 모두의 동의를 확인한 뒤 입양을 진행하고 있습니다. 입양 상담과 방문 일정은 채팅으로 문의해 주세요.';
-
-export function ShelterDetailScreen({ navigation }: Props) {
+export function ShelterDetailScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const [copiedField, setCopiedField] = useState<'address' | 'phone' | null>(null);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [shelter, setShelter] = useState<ShelterDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -33,6 +36,22 @@ export function ShelterDetailScreen({ navigation }: Props) {
     [],
   );
 
+  const loadShelter = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      setShelter(await getShelter(Number(route.params.shelterId)));
+    } catch (loadError) {
+      setError(getApiErrorDisplayMessage(loadError, '보호센터 정보를 불러오지 못했어요.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [route.params.shelterId]);
+
+  useEffect(() => {
+    loadShelter().catch(() => undefined);
+  }, [loadShelter]);
+
   const copyToClipboard = (field: 'address' | 'phone', value: string) => {
     Clipboard.setString(value);
     setCopiedField(field);
@@ -41,6 +60,44 @@ export function ShelterDetailScreen({ navigation }: Props) {
     }
     copyTimer.current = setTimeout(() => setCopiedField(null), 1500);
   };
+
+  const openChat = async () => {
+    if (!shelter) {
+      return;
+    }
+    try {
+      const params = await useChatStore
+        .getState()
+        .openPostRoom(
+          'adoption',
+          route.params.shelterId,
+          shelter.shelterName,
+          route.params.shelterId,
+        );
+      navigation.navigate('ChatRoom', params);
+    } catch {
+      Alert.alert('채팅', '채팅방을 열 수 없어요. 다시 시도해 주세요.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView edges={[]} style={styles.safeArea}>
+        <DetailScreenSkeleton accessibilityLabel="보호센터 정보 불러오는 중" />
+      </SafeAreaView>
+    );
+  }
+
+  if (!shelter) {
+    return (
+      <SafeAreaView edges={[]} style={styles.safeArea}>
+        <View style={styles.errorState}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Button onPress={loadShelter}>다시 시도</Button>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView edges={[]} style={styles.safeArea}>
@@ -51,13 +108,21 @@ export function ShelterDetailScreen({ navigation }: Props) {
       >
         <Image
           resizeMode="cover"
-          source={require('../../assets/images/adoption/shelter-cover.png')}
+          source={
+            shelter.backgroundImage?.imageUrl
+              ? { uri: shelter.backgroundImage.imageUrl }
+              : require('../../assets/images/adoption/shelter-cover.png')
+          }
           style={styles.coverImage}
         />
         <View style={styles.contentCard}>
           <Image
             resizeMode="cover"
-            source={require('../../assets/images/adoption/shelter-avatar.jpeg')}
+            source={
+              shelter.profileImage?.imageUrl
+                ? { uri: shelter.profileImage.imageUrl }
+                : require('../../assets/images/adoption/shelter-avatar.jpeg')
+            }
             style={styles.avatar}
           />
           <View style={styles.shelterNameRow}>
@@ -68,7 +133,7 @@ export function ShelterDetailScreen({ navigation }: Props) {
               numberOfLines={1}
               style={styles.shelterName}
             >
-              박범준동물보호소
+              {shelter.shelterName}
             </Text>
             <BadgeIcon />
           </View>
@@ -84,15 +149,13 @@ export function ShelterDetailScreen({ navigation }: Props) {
                 numberOfLines={1}
                 style={styles.contactText}
               >
-                전북특별자치도 익산시 삼기면 황금 342-17
+                {shelter.address}
               </Text>
               <Pressable
                 accessibilityLabel="보호센터 주소 복사"
                 accessibilityRole="button"
                 hitSlop={8}
-                onPress={() =>
-                  copyToClipboard('address', '전북특별자치도 익산시 삼기면 황금 342-17')
-                }
+                onPress={() => copyToClipboard('address', shelter.address)}
               >
                 <Text maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER} style={styles.copyText}>
                   {copiedField === 'address' ? '복사됨' : '복사'}
@@ -103,14 +166,20 @@ export function ShelterDetailScreen({ navigation }: Props) {
               <View style={[styles.icon, styles.phoneIcon]}>
                 <PhoneIcon />
               </View>
-              <Text maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER} style={styles.contactText}>
-                063-855-1214
+              <Text
+                adjustsFontSizeToFit
+                maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER}
+                minimumFontScale={0.8}
+                numberOfLines={1}
+                style={styles.contactText}
+              >
+                {shelter.phone}
               </Text>
               <Pressable
                 accessibilityLabel="보호센터 전화번호 복사"
                 accessibilityRole="button"
                 hitSlop={8}
-                onPress={() => copyToClipboard('phone', '063-855-1214')}
+                onPress={() => copyToClipboard('phone', shelter.phone)}
               >
                 <Text maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER} style={styles.copyText}>
                   {copiedField === 'phone' ? '복사됨' : '복사'}
@@ -119,26 +188,42 @@ export function ShelterDetailScreen({ navigation }: Props) {
             </View>
             <View style={styles.infoRow}>
               <Text
+                adjustsFontSizeToFit
                 maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER}
+                minimumFontScale={0.8}
                 numberOfLines={1}
                 style={styles.infoLabel}
               >
                 운영시간
               </Text>
-              <Text maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER} style={styles.infoValue}>
-                09:00~18:00
+              <Text
+                adjustsFontSizeToFit
+                maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER}
+                minimumFontScale={0.72}
+                numberOfLines={1}
+                style={styles.infoValue}
+              >
+                {shelter.operatingHours ?? '-'}
               </Text>
             </View>
             <View style={styles.infoRow}>
               <Text
+                adjustsFontSizeToFit
                 maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER}
+                minimumFontScale={0.8}
                 numberOfLines={1}
                 style={styles.infoLabel}
               >
                 휴무일
               </Text>
-              <Text maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER} style={styles.infoValue}>
-                일월 휴무
+              <Text
+                adjustsFontSizeToFit
+                maxFontSizeMultiplier={MAX_FONT_SIZE_MULTIPLIER}
+                minimumFontScale={0.72}
+                numberOfLines={1}
+                style={styles.infoValue}
+              >
+                {shelter.closedDays ?? '-'}
               </Text>
             </View>
           </View>
@@ -151,7 +236,7 @@ export function ShelterDetailScreen({ navigation }: Props) {
             numberOfLines={descriptionExpanded ? undefined : 4}
             style={styles.description}
           >
-            {shelterDescription}
+            {shelter.description ?? '-'}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -170,7 +255,7 @@ export function ShelterDetailScreen({ navigation }: Props) {
         </View>
       </ScrollView>
       <View style={[styles.actionContainer, { paddingBottom: insets.bottom + 16 }]}>
-        <Button>채팅 보내기</Button>
+        <Button onPress={openChat}>채팅 보내기</Button>
       </View>
       <Pressable
         accessibilityLabel="뒤로가기"
@@ -187,6 +272,8 @@ export function ShelterDetailScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.white, flex: 1 },
+  errorState: { alignItems: 'center', flex: 1, gap: 16, justifyContent: 'center', padding: 24 },
+  errorText: { ...typography.bodyRegular14, color: colors.gray600, textAlign: 'center' },
   scrollContent: { flexGrow: 1 },
   coverImage: { height: 412, width: '100%' },
   backButton: {
@@ -231,15 +318,15 @@ const styles = StyleSheet.create({
   icon: { alignItems: 'center', height: 20, justifyContent: 'center', width: 20 },
   mapIcon: { opacity: 0.36 },
   phoneIcon: { opacity: 0.55 },
-  contactText: { ...typography.bodyRegular16, color: colors.black, flex: 1, minWidth: 0 },
+  contactText: { ...typography.bodyRegular14, color: colors.black, flex: 1, minWidth: 0 },
   copyText: {
-    ...typography.bodyRegular16,
+    ...typography.bodyRegular14,
     color: colors.green400,
     textDecorationLine: 'underline',
   },
   infoRow: { alignItems: 'center', flexDirection: 'row', gap: 13 },
-  infoLabel: { ...typography.bodyRegular16, color: colors.gray300, width: 64 },
-  infoValue: { ...typography.bodyRegular16, color: colors.black, flexShrink: 1 },
+  infoLabel: { ...typography.bodyRegular14, color: colors.gray300, width: 58 },
+  infoValue: { ...typography.bodyRegular14, color: colors.black, flex: 1, minWidth: 0 },
   divider: { backgroundColor: colors.gray200, height: 1, marginVertical: 26 },
   sectionTitle: { ...typography.bodySemiBold16, color: colors.black },
   description: { ...typography.bodyRegular16, color: colors.gray600, marginTop: 20 },
@@ -250,11 +337,9 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   actionContainer: {
-    backgroundColor: colors.white,
     bottom: 0,
     left: 0,
     paddingHorizontal: 26,
-    paddingTop: 8,
     position: 'absolute',
     right: 0,
   },

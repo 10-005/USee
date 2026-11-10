@@ -35,8 +35,15 @@ import MyPageIcon from '../../assets/icons/navigation/mypage.svg';
 import PlusIcon from '../../assets/icons/navigation/plus.svg';
 import SearchActiveIcon from '../../assets/icons/navigation/search-active.svg';
 import SearchIcon from '../../assets/icons/navigation/search.svg';
-import { BottomNavigation, RegistrationMenu } from '../../components/common';
+import {
+  BottomNavigation,
+  RegistrationMenu,
+  SkeletonBlock,
+  SkeletonGroup,
+} from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
+import { useAdoptionAnimalStore } from '../../stores/adoptionAnimalStore';
+import { useCatalogStore } from '../../stores/catalogStore';
 import {
   applyActiveSimulation,
   getActiveSimulation,
@@ -53,11 +60,16 @@ import { useProfileStore } from '../../stores/profileStore';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
 import { MockAdoptionShortcut } from '../MockAdoption/MockAdoptionShortcut';
 import { colors, radius, typography } from '../../theme';
-import { adoptionAnimals, type AdoptionAnimal } from '../adoption/data';
+import type { AdoptionAnimal } from '../adoption/data';
 import { MyPageScreen } from '../MyPage/MyPageScreen';
 import { FoundReportListContent } from '../found-report/FoundReportListContent';
 import { ChatListScreen } from '../chat/ChatListScreen';
-import { AdoptionFilterSheet, type AdoptionFilters, type FilterKey } from './AdoptionFilterSheet';
+import {
+  AdoptionFilterSheet,
+  type AdoptionFilters,
+  type FilterKey,
+  type TwoColumnFilterOptions,
+} from './AdoptionFilterSheet';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 const filterItems: Array<{ key: FilterKey; label: string }> = [
@@ -144,6 +156,16 @@ export function HomeScreen({ navigation, route }: Props) {
   const [filterValues, setFilterValues] = useState(initialFilters);
   const bookmarkedIds = useAdoptionBookmarkStore(state => state.bookmarkedIds);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
+  const apiAnimals = useAdoptionAnimalStore(state => state.animals);
+  const fetchAnimals = useAdoptionAnimalStore(state => state.fetchAnimals);
+  const animalsLoading = useAdoptionAnimalStore(state => state.isLoading);
+  const animalsError = useAdoptionAnimalStore(state => state.error);
+  const districts = useCatalogStore(state => state.districts);
+  const speciesCatalog = useCatalogStore(state => state.species);
+  const breedsBySpecies = useCatalogStore(state => state.breedsBySpecies);
+  const loadDistricts = useCatalogStore(state => state.loadDistricts);
+  const loadSpecies = useCatalogStore(state => state.loadSpecies);
+  const loadBreeds = useCatalogStore(state => state.loadBreeds);
   const loadProfile = useProfileStore(state => state.loadProfile);
   const resetLostReportDraft = useLostReportDraftStore(state => state.resetDraft);
   const [selectedTab, setSelectedTab] = useState<(typeof navigationItems)[number]['key']>(
@@ -165,35 +187,98 @@ export function HomeScreen({ navigation, route }: Props) {
     };
   }, []);
   useEffect(() => subscribeSimulationEnded(() => setShortcutSession(null)), []);
-  const animals = useMemo(() => {
-    const filtered = adoptionAnimals.filter(item => {
-      const queryMatched = `${item.name} ${item.location} ${item.summary}`
-        .toLowerCase()
-        .includes(query.toLowerCase());
-      const region = filterValues.region.split(' > ')[0];
-      const [periodStart = '전체', periodEnd = ''] = filterValues.period.split('|');
-      const startDate = periodStart.replaceAll('.', '-');
-      const endDate = periodEnd.replaceAll('.', '-');
-      const periodMatched =
-        (periodStart === '전체' || item.date >= startDate) && (!endDate || item.date <= endDate);
-      return (
-        queryMatched &&
-        periodMatched &&
-        (region === '전체' || item.location.startsWith(region.replace(/(특별시|광역시)$/, '시'))) &&
-        (filterValues.species === '전체' ||
-          item.species === filterValues.species.split(' > ')[0]) &&
-        (filterValues.status === '전체' || item.status === filterValues.status) &&
-        (filterValues.gender === '전체' || item.summary.includes(filterValues.gender)) &&
-        (filterValues.neutered === '전체' ||
-          item.neutered === (filterValues.neutered === '중성화 O'))
-      );
+  useEffect(() => {
+    if (selectedTab === 'adoption') {
+      loadDistricts().catch(() => undefined);
+      loadSpecies().catch(() => undefined);
+    }
+  }, [loadDistricts, loadSpecies, selectedTab]);
+
+  useEffect(() => {
+    if (selectedTab === 'adoption' && speciesCatalog.length > 0) {
+      Promise.all(speciesCatalog.map(item => loadBreeds(item.speciesSeq))).catch(() => undefined);
+    }
+  }, [loadBreeds, selectedTab, speciesCatalog]);
+
+  const regionOptions = useMemo<TwoColumnFilterOptions>(() => {
+    const grouped: TwoColumnFilterOptions = { 전체: [] };
+    districts.forEach(district => {
+      grouped[district.sidoName] ??= ['전체'];
+      if (!grouped[district.sidoName].includes(district.sigunguName)) {
+        grouped[district.sidoName].push(district.sigunguName);
+      }
     });
-    return [...filtered].sort((first, second) =>
-      filterValues.sort === '최신순'
-        ? second.date.localeCompare(first.date)
-        : first.date.localeCompare(second.date),
+    return grouped;
+  }, [districts]);
+
+  const speciesOptions = useMemo<TwoColumnFilterOptions>(() => {
+    const options: TwoColumnFilterOptions = { 전체: [] };
+    speciesCatalog.forEach(item => {
+      options[item.speciesName] = [
+        '전체',
+        ...(breedsBySpecies[item.speciesSeq] ?? []).map(breed => breed.breedName),
+      ];
+    });
+    return options;
+  }, [breedsBySpecies, speciesCatalog]);
+
+  const adoptionSearchParams = useMemo(() => {
+    const [periodStart = '전체', periodEnd = ''] = filterValues.period.split('|');
+    const [sidoName, sigunguName] = filterValues.region.split(' > ');
+    const speciesName = filterValues.species.split(' > ')[0];
+    const district = sigunguName
+      ? districts.find(item => item.sidoName === sidoName && item.sigunguName === sigunguName)
+      : undefined;
+    const selectedSpecies = speciesCatalog.find(item => item.speciesName === speciesName);
+    return {
+      districtCode: district?.districtCode,
+      gender:
+        filterValues.gender === '수컷'
+          ? ('MALE' as const)
+          : filterValues.gender === '암컷'
+          ? ('FEMALE' as const)
+          : undefined,
+      isNeutered:
+        filterValues.neutered === '중성화 O'
+          ? true
+          : filterValues.neutered === '중성화 X'
+          ? false
+          : undefined,
+      keyword: query.trim() || undefined,
+      regFrom: periodStart === '전체' ? undefined : periodStart.replaceAll('.', '-'),
+      regTo: periodEnd ? periodEnd.replaceAll('.', '-') : undefined,
+      sort: filterValues.sort === '오래된 순' ? 'regDttm,asc' : 'regDttm,desc',
+      speciesSeq: selectedSpecies?.speciesSeq,
+    };
+  }, [districts, filterValues, query, speciesCatalog]);
+
+  useEffect(() => {
+    if (selectedTab !== 'adoption') {
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetchAnimals(adoptionSearchParams).catch(() => undefined);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [adoptionSearchParams, fetchAnimals, selectedTab]);
+
+  const animals = useMemo(() => {
+    const [sidoName, sigunguName] = filterValues.region.split(' > ');
+    const sidoCodes = new Set(
+      districts.filter(item => item.sidoName === sidoName).map(item => item.districtCode),
     );
-  }, [filterValues, query]);
+    const selectedBreed = filterValues.species.split(' > ')[1];
+    return apiAnimals.filter(item => {
+      const matchesRegion =
+        sidoName === '전체' ||
+        Boolean(sigunguName) ||
+        Boolean(item.districtCode && sidoCodes.has(item.districtCode));
+      const matchesBreed =
+        !selectedBreed || selectedBreed === '전체' || item.name === selectedBreed;
+      const matchesStatus = filterValues.status === '전체' || item.status === filterValues.status;
+      return matchesRegion && matchesBreed && matchesStatus;
+    });
+  }, [apiAnimals, districts, filterValues.region, filterValues.species, filterValues.status]);
   const listKey = `${query}-${Object.values(filterValues).join('-')}`;
 
   const updateControlsVisibility = useCallback(
@@ -321,7 +406,7 @@ export function HomeScreen({ navigation, route }: Props) {
         style={[styles.cardImage, { height: cardWidth, width: cardWidth }]}
       />
       <Pressable
-        accessibilityLabel={`${item.name} 북마크 ${
+        accessibilityLabel={`[${item.species}]${item.name} 북마크 ${
           bookmarkedIds.includes(item.id) ? '해제' : '등록'
         }`}
         accessibilityRole="button"
@@ -339,13 +424,13 @@ export function HomeScreen({ navigation, route }: Props) {
         style={[
           styles.statusBadge,
           { top: cardWidth - 24 },
-          item.status === '종료' && styles.endedBadge,
+          (item.status === '종료' || item.isAdoptionUnavailable) && styles.endedBadge,
         ]}
       >
         <Text style={styles.statusText}>{item.status}</Text>
       </View>
       <Text numberOfLines={1} style={styles.cardTitle}>
-        {item.name}
+        [{item.species}]{item.name}
       </Text>
       <View style={styles.cardMetaRow}>
         <MapIcon />
@@ -392,6 +477,22 @@ export function HomeScreen({ navigation, route }: Props) {
     </View>
   );
 
+  const registrationMenu = registrationMenuOpen ? (
+    <RegistrationMenu
+      bottom={insets.bottom + 84}
+      onClose={() => setRegistrationMenuOpen(false)}
+      onSelectFound={() => {
+        setRegistrationMenuOpen(false);
+        navigation.navigate('PetRegistration', { flow: 'found-report' });
+      }}
+      onSelectLost={() => {
+        setRegistrationMenuOpen(false);
+        resetLostReportDraft();
+        navigation.navigate('LostReportPetSelection');
+      }}
+    />
+  ) : null;
+
   if (selectedTab === 'chat') {
     return (
       <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -402,6 +503,7 @@ export function HomeScreen({ navigation, route }: Props) {
           session={shortcutSession}
         />
         {navigationBar}
+        {registrationMenu}
       </SafeAreaView>
     );
   }
@@ -452,6 +554,27 @@ export function HomeScreen({ navigation, route }: Props) {
           </View>
           <View style={styles.listArea}>
             <FlatList
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  {animalsLoading ? (
+                    <AdoptionListSkeleton />
+                  ) : animalsError ? (
+                    <>
+                      <Text style={styles.emptyTitle}>{animalsError}</Text>
+                      <Pressable accessibilityRole="button" onPress={() => fetchAnimals()}>
+                        <Text style={styles.retryText}>다시 시도</Text>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.emptyTitle}>검색 결과가 없습니다</Text>
+                      <Text style={styles.emptyDescription}>
+                        다른 검색어나 필터 조건을 선택해보세요.
+                      </Text>
+                    </>
+                  )}
+                </View>
+              }
               columnWrapperStyle={styles.column}
               contentContainerStyle={[
                 styles.listContent,
@@ -552,30 +675,32 @@ export function HomeScreen({ navigation, route }: Props) {
         />
       ) : null}
       {activeFilter || reportFilterOpen ? null : navigationBar}
-      {registrationMenuOpen && !activeFilter ? (
-        <RegistrationMenu
-          bottom={insets.bottom + 84}
-          onClose={() => setRegistrationMenuOpen(false)}
-          onSelectFound={() => {
-            setRegistrationMenuOpen(false);
-            navigation.navigate('PetRegistration', { flow: 'found-report' });
-          }}
-          onSelectLost={() => {
-            setRegistrationMenuOpen(false);
-            resetLostReportDraft();
-            navigation.navigate('LostReportPetSelection');
-          }}
-        />
-      ) : null}
+      {!activeFilter ? registrationMenu : null}
       {selectedTab === 'adoption' ? (
         <AdoptionFilterSheet
           activeFilter={activeFilter}
           filters={filterValues}
           onChange={updateFilter}
           onClose={() => setActiveFilter(null)}
+          regionOptions={regionOptions}
+          speciesOptions={speciesOptions}
         />
       ) : null}
     </SafeAreaView>
+  );
+}
+
+function AdoptionListSkeleton() {
+  return (
+    <SkeletonGroup accessibilityLabel="보호동물 목록 불러오는 중" style={styles.gridSkeleton}>
+      {[0, 1, 2, 3].map(index => (
+        <View key={index} style={styles.gridSkeletonCard}>
+          <SkeletonBlock style={styles.gridSkeletonImage} />
+          <SkeletonBlock style={styles.gridSkeletonTitle} />
+          <SkeletonBlock style={styles.gridSkeletonLine} />
+        </View>
+      ))}
+    </SkeletonGroup>
   );
 }
 
@@ -585,6 +710,21 @@ const styles = StyleSheet.create({
   logo: { height: 34, width: 88 },
   headerIcon: { position: 'absolute', right: 20 },
   listArea: { flex: 1 },
+  emptyState: { alignItems: 'center', flex: 1, justifyContent: 'center' },
+  emptyTitle: { ...typography.bodySemiBold16, color: colors.gray700 },
+  emptyDescription: { ...typography.bodyRegular14, color: colors.gray400, marginTop: 6 },
+  retryText: { ...typography.bodySemiBold16, color: colors.green400, marginTop: 12 },
+  gridSkeleton: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    paddingHorizontal: 20,
+    width: '100%',
+  },
+  gridSkeletonCard: { gap: 8, width: '47%' },
+  gridSkeletonImage: { aspectRatio: 1, width: '100%' },
+  gridSkeletonTitle: { height: 18, width: '70%' },
+  gridSkeletonLine: { height: 14, width: '90%' },
   searchAndFilters: {
     backgroundColor: colors.white,
     height: SEARCH_FILTERS_HEIGHT,

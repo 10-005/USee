@@ -8,14 +8,10 @@ import type { RootStackParamList } from '../../app/navigation/types';
 import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import { AppHeader, ListScreenSkeleton } from '../../components/common';
 import {
-  type AdoptionApplicationRecord,
   type AdoptionApplicationStatus,
-  getAdoptionApplicationRecord,
-} from '../../services/storage/adoptionApplicationStorage';
-import {
-  type AdoptionApplicationDraft,
-  getAdoptionApplicationDraft,
-} from '../../services/storage/adoptionDraftStorage';
+  getMyAdoptionApplications,
+  type MyAdoptionApplication,
+} from '../../services/adoption';
 import { colors, radius, spacing, typography } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AdoptionApplicationList'>;
@@ -24,37 +20,20 @@ type FilterValue = 'ALL' | AdoptionApplicationStatus;
 
 type ListItem = {
   animalId: string;
+  animalLabel: string;
   date: string;
   id: string;
+  shelter: string;
   status: AdoptionApplicationStatus;
 };
-
-const previewItems: ListItem[] = [
-  { animalId: 'animal-1', date: '2026-10-27', id: 'preview-draft', status: 'DRAFT' },
-  { animalId: 'animal-1', date: '2026-10-27', id: 'preview-submitted', status: 'SUBMITTED' },
-  {
-    animalId: 'animal-1',
-    date: '2026-10-27',
-    id: 'preview-document-approved',
-    status: 'DOCUMENT_APPROVED',
-  },
-  {
-    animalId: 'animal-1',
-    date: '2026-10-27',
-    id: 'preview-adoption-approved',
-    status: 'ADOPTION_APPROVED',
-  },
-  { animalId: 'animal-1', date: '2026-10-27', id: 'preview-rejected', status: 'REJECTED' },
-  { animalId: 'animal-1', date: '2026-10-27', id: 'preview-canceled', status: 'CANCELED' },
-];
 
 const filterOptions: Array<{ label: string; value: FilterValue }> = [
   { label: '전체 상태', value: 'ALL' },
   { label: '임시저장', value: 'DRAFT' },
   { label: '서류 제출 완료', value: 'SUBMITTED' },
   { label: '서류 제출 취소', value: 'CANCELED' },
-  { label: '서류 승인', value: 'DOCUMENT_APPROVED' },
-  { label: '최종 입양 승인', value: 'ADOPTION_APPROVED' },
+  { label: '서류 승인', value: 'APPROVED' },
+  { label: '최종 입양 승인', value: 'ADOPTED' },
   { label: '입양 거절', value: 'REJECTED' },
 ];
 
@@ -62,8 +41,8 @@ const statusStyle: Record<AdoptionApplicationStatus, { backgroundColor: string; 
   DRAFT: { backgroundColor: '#EFEEEA', color: colors.gray600 },
   SUBMITTED: { backgroundColor: '#EDF4FF', color: '#5B91EB' },
   CANCELED: { backgroundColor: '#EFEEEA', color: colors.gray600 },
-  DOCUMENT_APPROVED: { backgroundColor: '#EDF4FF', color: '#5B91EB' },
-  ADOPTION_APPROVED: { backgroundColor: '#E4F3E9', color: '#3C9A61' },
+  APPROVED: { backgroundColor: '#EDF4FF', color: '#5B91EB' },
+  ADOPTED: { backgroundColor: '#E4F3E9', color: '#3C9A61' },
   REJECTED: { backgroundColor: '#EFEEEA', color: colors.gray600 },
 };
 
@@ -82,8 +61,7 @@ function formatDate(value: string) {
 }
 
 export function AdoptionApplicationListScreen({ navigation }: Props) {
-  const [record, setRecord] = useState<AdoptionApplicationRecord | null>(null);
-  const [draft, setDraft] = useState<AdoptionApplicationDraft<unknown> | null>(null);
+  const [applications, setApplications] = useState<MyAdoptionApplication[]>([]);
   const [filter, setFilter] = useState<FilterValue>('ALL');
   const [filterOpen, setFilterOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -91,71 +69,44 @@ export function AdoptionApplicationListScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      Promise.all([getAdoptionApplicationRecord(), getAdoptionApplicationDraft()])
-        .then(([storedRecord, storedDraft]) => {
-          setRecord(storedRecord);
-          setDraft(storedDraft);
-        })
+      getMyAdoptionApplications()
+        .then(page => setApplications(page.content))
+        .catch(() => setApplications([]))
         .finally(() => setLoading(false));
     }, []),
   );
 
   const items = useMemo(() => {
-    const result: ListItem[] = [];
-    if (draft) {
-      result.push({
-        animalId: record?.animalId ?? 'animal-1',
-        date: draft.savedAt,
-        id: `draft-${draft.savedAt}`,
-        status: 'DRAFT',
-      });
-    }
-    if (record) {
-      result.push({
-        animalId: record.animalId,
-        date: record.submittedAt,
-        id: `record-${record.applicationNumber}`,
-        status: record.status,
-      });
-    }
-    const existingStatuses = new Set(result.map(item => item.status));
-    const withPreviews = [
-      ...result,
-      ...previewItems.filter(item => !existingStatuses.has(item.status)),
-    ];
-    return filter === 'ALL' ? withPreviews : withPreviews.filter(item => item.status === filter);
-  }, [draft, filter, record]);
+    const result = applications.map<ListItem>(application => ({
+      animalId: String(application.animalSummary?.animalSeq ?? ''),
+      animalLabel: `[${application.animalSummary?.speciesName ?? '동물'}] ${
+        application.animalSummary?.breedName ?? '품종 정보 없음'
+      }`,
+      date: application.displayDttm ?? '',
+      id: String(application.applicationSeq),
+      shelter: application.animalSummary?.shelterName ?? '보호소 정보 없음',
+      status: application.status,
+    }));
+    return filter === 'ALL' ? result : result.filter(item => item.status === filter);
+  }, [applications, filter]);
 
-  const totalCount = useMemo(() => {
-    const statuses = new Set<AdoptionApplicationStatus>();
-    if (draft) {
-      statuses.add('DRAFT');
-    }
-    if (record) {
-      statuses.add(record.status);
-    }
-    previewItems.forEach(item => statuses.add(item.status));
-    return statuses.size;
-  }, [draft, record]);
+  const totalCount = applications.length;
   const selectedFilterLabel =
     filterOptions.find(option => option.value === filter)?.label ?? '전체 상태';
 
   const openItem = (item: ListItem) => {
-    if (item.id.startsWith('preview-')) {
-      navigation.navigate('AdoptionApplicationHistory', {
-        animalId: item.animalId,
-        previewStatus: item.status,
-      });
-      return;
-    }
     if (item.status === 'DRAFT') {
       navigation.navigate('AdoptionApplicationHistory', {
+        applicationSeq: Number(item.id),
+        applicationStatus: item.status,
         animalId: item.animalId,
         source: 'draft',
       });
       return;
     }
     navigation.navigate('AdoptionApplicationHistory', {
+      applicationSeq: Number(item.id),
+      applicationStatus: item.status,
       animalId: item.animalId,
       source: 'record',
     });
@@ -210,9 +161,9 @@ export function AdoptionApplicationListScreen({ navigation }: Props) {
                   </Text>
                   <Text style={styles.date}>{formatDate(item.date)}</Text>
                 </View>
-                <Text style={styles.animal}>[개] 믹스견</Text>
+                <Text style={styles.animal}>{item.animalLabel}</Text>
                 <Text numberOfLines={1} style={styles.shelter}>
-                  경북 구미시 3공단 3로 302 박범준보호소
+                  {item.shelter}
                 </Text>
               </Pressable>
             )}
@@ -302,7 +253,7 @@ const styles = StyleSheet.create({
   },
   date: { ...typography.bodyRegular14, color: colors.gray400 },
   animal: { ...typography.titleBold18, color: colors.black, marginTop: spacing[5] },
-  shelter: { ...typography.bodyRegular14, color: colors.gray500, marginTop: spacing[3] },
+  shelter: { ...typography.captionSemiBold12, color: colors.gray500, marginTop: spacing[3] },
   filteredEmpty: {
     ...typography.bodyRegular14,
     color: colors.gray400,
