@@ -26,6 +26,7 @@
 | Q514 | **방해금지는 모의 입양 알림에만, 걸리면 버림.** `quietEnabled`·`quietStart`·`quietEnd`(서울 `HH:mm`, 시작 포함·끝 제외, 시작이 끝보다 늦으면 자정을 넘김, 같으면 400)는 모의 입양 푸시에만 적용합니다. 그 시간에 생긴 푸시는 나중에 보내지 않고 버립니다. 돌발 이벤트 발생은 그대로라 방해금지 중 생긴 HOME 이벤트가 푸시 없이 시한을 넘길 수 있습니다(의도). 서버의 이벤트 미발생 시간(22~8시, 18.0)과는 별개입니다 | 17.10·18.0 |
 | Q515 | **앱 첫 설정은 OS 권한 결과로.** 앱은 설치 후 OS 알림 권한을 물은 직후 권한 결과에 맞춰 5종을 17.10 한 번으로 보냅니다. 재설치하면 다시 덮어쓰는 것이 의도이며 서버는 초기화 여부를 따로 저장하지 않습니다. OS 권한과 앱 설정은 별개(OS 권한이 꺼져 있으면 서버가 보내도 기기가 표시하지 않음) | 17.10 |
 | Q516 | **채팅 푸시에 title·body와 `CHAT` 구분값(2026-11-11, 모바일 연동).** data만 보내면 OS가 알림을 띄우지 않고 앱이 직접 로컬 알림을 만들어야 해서, 채팅 푸시도 notification 메시지 **title = `senderDisplayName`, body = `preview`**로 보냅니다. data에는 `notificationType: "CHAT"`을 더해 앱이 저장형 알림과 같은 키로 구분하게 합니다. `CHAT`은 저장 유형(17.1의 9종)에 넣지 않는 푸시 전용 값이라 알림함·`notificationType` 필터·DB CHECK는 그대로이고 `notificationSeq`는 없습니다. 앱이 포그라운드면 OS가 띄우지 않으므로 지금처럼 현재 방 기준으로 판단합니다. 모든 푸시는 Android high priority(절전 중 지연 방지) | 14장·17.8·17.10 |
+| Q517 | **리포트 요약 LLM 생성과 일차별 돌봄 집계 [구현 예정] (2026-11-11).** ① 18.18 응답에 `evaluatedDays`·`careGuideline`(하루 권장 횟수 [가안] 밥 3·물 3·배변 청소 2·놀이·간식 2·산책 1)·`dailyCare`(1~7일차 × 행동 5종 횟수)를 더합니다. 저장하지 않고 조회할 때 행동 이력에서 계산하므로 DB 변경이 없습니다. ② 요약 생성기 포트(Q497)에 LLM 구현(OpenAI)을 붙입니다. 서버가 일차별 집계와 기준 이탈을 계산해 JSON으로 보내고(원본 이력은 보내지 않음), LLM은 `{ overall, good, lacking }` 세 문단만 씁니다. 서버가 빈 줄로 이어 `summary`에 저장합니다(일반 텍스트, 마크다운 없음). API 키가 없거나 생성·검증에 실패하면 지금처럼 규칙 문구로 저장합니다(Q444·Q497 유지). 정답 기준은 하루 권장 횟수·건강이 깎이는 위험 구간·돌발 이벤트 정답 행동·최소 예산 네 가지입니다 | 18.18 |
 
 ## v14 변경 요약 (v13 → v14)
 
@@ -2443,6 +2444,32 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 - FAILED면 `summary`에 "돌봄 부족으로 중단" 취지를 담고 죽음 표현을 쓰지 않습니다(M6).
 - **요약 생성(Q444·Q487·Q497):** 종료 커밋 후 비동기로 생성기(지금은 규칙 문구, LLM은 나중에 교체)를 불러 `UPDATE ... WHERE summary IS NULL`로 한 번만 저장합니다. 생성 실패 시 1회 재시도, 그래도 실패하거나 빈 문구면 규칙 문구로 저장하므로 요약은 반드시 채워집니다. 규칙 문구 예: "초코의 7일 돌봄을 끝까지 마쳤어요. 돌봄은 모두 41번 했어요. 산책은 6번 다녀왔어요. 예상보다 32,000원을 더 썼어요. 병원 진료비에 가장 많이 썼어요(80,000원). 돌발 상황 9건 중 6건을 해결했어요. 마지막까지 컨디션을 잘 지켰어요." 리포트 생성 후 10분 [가안](`simulation.report.summary-recovery-delay`)이 지나도 `summary`가 비어 있으면 스케줄러가 다시 만듭니다.
 - 18.18 본인 진행 중 세션은 18.2와 같이 먼저 지연 계산·종료 판정을 하며(Q496), 그 사이 끝났으면 방금 만든 저장 리포트(`isFinal:true`, `summary:null`)를 줍니다.
+- **[구현 예정, Q517] 일차별 돌봄 집계 필드.** 18.18 응답(18.5 포기 응답의 `report` 포함)에 아래 세 필드를 더합니다. 저장하지 않고 **조회할 때 행동 이력에서 계산**합니다(DB 변경 없음, 이미 끝난 세션의 리포트에도 나옵니다. 행동 이력은 회원 탈퇴 후에도 지우지 않습니다). 18.19~18.21 목록 항목은 바뀌지 않습니다.
+```json
+{
+  "evaluatedDays": 7,
+  "careGuideline": { "FEED": 3, "WATER": 3, "CLEAN_LITTER": 2, "PLAY": 2, "WALK": 1 },
+  "dailyCare": {
+    "1": { "FEED": 3, "WATER": 3, "CLEAN_LITTER": 2, "PLAY": 2, "WALK": 1 },
+    "2": { "FEED": 4, "WATER": 2, "CLEAN_LITTER": 2, "PLAY": 3, "WALK": 1 },
+    "3": { "FEED": 2, "WATER": 0, "CLEAN_LITTER": 1, "PLAY": 0, "WALK": 1 },
+    "4": { "FEED": 3, "WATER": 3, "CLEAN_LITTER": 2, "PLAY": 0, "WALK": 0 },
+    "5": { "FEED": 3, "WATER": 1, "CLEAN_LITTER": 2, "PLAY": 2, "WALK": 1 },
+    "6": { "FEED": 3, "WATER": 3, "CLEAN_LITTER": 1, "PLAY": 0, "WALK": 1 },
+    "7": { "FEED": 3, "WATER": 3, "CLEAN_LITTER": 2, "PLAY": 2, "WALK": 1 }
+  }
+}
+```
+  - `dailyCare`의 일차는 `dailySpent`와 같은 규칙(세션 시작 시각 기준 24시간 단위)이며 `"1"`~`"7"`을 모두 채웁니다. 각 일차는 `careGuideline`과 **같은 키를 모두** 채웁니다(없으면 0).
+  - 키와 세는 행동: `FEED`(= `FEED`), `WATER`(= `WATER` + 산책 중 `GIVE_WATER`), `CLEAN_LITTER`(= `CLEAN_LITTER`), `PLAY`(놀이·간식 = `PLAY` + `SNACK` + 산책 중 `GIVE_SNACK` + `GIVE_CATNIP`), `WALK`(= 산책 시작 `WALK_START`). **고양이 세션은 `WALK` 키가 없습니다**(`careGuideline`·`dailyCare` 모두, Q488). 목욕·약·병원·산책 배변 치우기는 세지 않습니다.
+  - `careGuideline`은 하루 권장 횟수 **[가안]**(`simulation.report.care-guideline`)입니다. 근거: 포만감은 시간당 4씩 줄어 하루 96, 사료 한 끼 +30이라 3회 / 수분은 하루 120, 물 한 번 +50이라 3회 / 청결도는 하루 48, 배변용품 +30이라 2회. 놀이·간식 2회와 산책 1회는 역산이 어려워 임의로 둔 값입니다. 성격별 보정은 하지 않습니다.
+  - `evaluatedDays`(1~7)는 평가 대상 일수입니다. 종료 리포트는 종료 시각이 속한 일차, 중간 리포트는 조회 시각이 속한 일차입니다. 그 뒤 일차의 `dailyCare`는 0으로 채워지지만 "돌봄 없음"이 아니라 **아직 없거나 끝난 뒤**이므로 클라이언트는 빈칸으로 그립니다. 마지막 평가 일차는 하루를 다 채우지 못했을 수 있습니다.
+- **[구현 예정, Q517] LLM 요약.** 요약 생성기 포트(Q497)에 OpenAI 구현을 붙입니다. `simulation.report.llm.api-key`(환경 변수 `OPENAI_API_KEY`)가 비어 있으면 지금처럼 규칙 문구 생성기를 씁니다. 모델은 `simulation.report.llm.model` **[가안 `gpt-4o-mini`]**, 타임아웃은 20초(Q444)입니다.
+  - **입력:** 서버가 계산한 JSON 하나를 보냅니다. 동물(가상 이름·종·품종·성격), 결과(상태·종료 일차), `careGuideline`, 예산(예상 비용·총지출·최소 예산 [가안: 개 93,300원·고양이 88,800원, 필수 기구와 7일치 소모품 최소 구성]·가장 많이 쓴 분류), 일차별(행동 횟수·지출·하루 최저 스탯·발생한 돌발 이벤트의 제목·정답 행동·해결 여부·해결까지 걸린 분), 기준 이탈 표시(권장 횟수에 못 미친 일차, 위험 구간에 들어간 일차, 미해결 이벤트 수), 최종 스탯. 행동 이력 원본과 회원 정보는 보내지 않습니다. 하루 최저 스탯은 행동 이력의 행동 직전 값(`stats_after - stat_delta`)에서 뽑으므로 행동이 없는 날은 "돌봄 없음"으로만 표시합니다.
+  - **정답 기준:** ① 하루 권장 횟수(`careGuideline`) ② 위험 구간(포만감·수분·청결도 20 미만 또는 안정감 20 이하이면 건강이 깎임, 18.0 설정값 그대로) ③ 돌발 이벤트의 정답 행동(Q486) ④ 예상 비용과 최소 예산. **계산과 이탈 판정은 서버가 하고 LLM은 설명만 합니다.**
+  - **출력:** LLM은 `{ "overall": "...", "good": "...", "lacking": "..." }` JSON만 냅니다(각 1~3문장). 서버가 세 값을 **빈 줄(`\n\n`)로 이어** `summary`에 저장합니다. 전체 300~400자 권장, 600자 초과는 실패로 봅니다. 말투는 규칙 문구와 같은 "~했어요", 호칭 없음(본인과 보호소가 같은 글을 봄), 마크다운 없음, 입력에 없는 숫자 금지, 화면에 이미 있는 합계(총지출·총 돌봄 횟수)를 늘어놓지 않고 일차별 근거를 인용, FAILED·ABANDONED도 비난하지 않고 죽음 표현 없음(M6).
+  - **실패 처리:** 호출 실패·타임아웃·JSON 파싱 실패·빈 값·길이 초과·금지 표현이면 생성 실패로 보고, 기존대로 1회 재시도 후 규칙 문구를 저장합니다(Q444). 그래서 `summary`는 **세 문단(LLM)이거나 한 문단(규칙 문구)** 입니다.
+- **[구현 예정, Q517] 클라이언트 처리 안내.** `summary`는 일반 텍스트이며 문단은 빈 줄로 나뉩니다. 줄바꿈을 살려 그리되(웹은 `white-space: pre-line`) **문단 수를 가정하지 않습니다**. `null`이면 지금처럼 "요약 준비 중". `evaluatedDays`·`careGuideline`·`dailyCare`는 서버 반영 전에는 없으므로 **없으면 표를 숨깁니다**. 표는 `careGuideline`의 키를 행(`FEED`·`WATER`·`CLEAN_LITTER`·`PLAY`·`WALK` 순, 없는 키는 건너뜀), `"1"`~`"7"`을 열로 그리고, 칸 상태는 일차 > `evaluatedDays`면 빈칸, 횟수 ≥ 권장이면 충족, 0이면 없음, 그 사이는 부족입니다.
 - `18.19` 요청 `?page=0&size=20&sort=endedDttm,desc` → `data.content[]` `{ sessionSeq, animalName, breed:{breedSeq, breedName, speciesType, representativeImageUrl}, status, startedDttm, endedDttm, expectedCost, totalSpent, difference }`. 정렬 화이트리스트 `endedDttm`(기본 desc, 동률 세션 번호 desc). **USER 전용**(SHELTER 403 `AUTH_FORBIDDEN`), 본인의 끝난 세션 전체(진행 중 세션은 리포트가 없어 제외).
 - `18.20` 요청 `?userSeq=17&page=0&size=20&sort=endedDttm,desc` → `data.content[]` `{ sessionSeq, user:{userSeq, displayName, role, profileImage:{imageSeq, imageUrl}|null}, ...18.19 항목 필드 }`(`core.users`·`core.images` 읽기 전용 JOIN). **SHELTER 전용**(USER 403 `AUTH_FORBIDDEN`), **종료된 세션의 리포트 전체**(소속 제한 없음, Q483). 필터 `userSeq`(선택, 생략 시 전체, INT 범위 밖이면 빈 목록). 회원이 탈퇴했거나 회원 행이 없으면 `displayName`은 `(탈퇴한 사용자)`, `profileImage`는 null(Q497). 진행 중 세션은 보호소에 노출하지 않습니다.
 - `18.18`을 보호소가 호출하면 **종료된 세션의 저장 리포트**를 누구 것이든 반환하고, 진행 중 세션의 중간 리포트는 본인만 볼 수 있습니다(보호소에는 404 `SIMULATION_NOT_FOUND`, Q483).
@@ -2752,6 +2779,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | Q514 방해금지는 모의 입양에만 (2026-11-10) | 서울 `HH:mm`, 시작 포함·끝 제외, 자정 넘김 허용, 같으면 400. 걸린 푸시는 버림. 이벤트 발생은 그대로(방해금지 중 HOME 이벤트가 푸시 없이 시한을 넘길 수 있음, 의도) | 17.10 |
 | Q515 앱 첫 설정 (2026-11-10) | 설치 후 OS 권한 결과로 5종을 17.10 한 번에. 재설치 시 덮어쓰기는 의도, 서버는 초기화 여부 미저장 | 17.10 |
 | Q516 채팅 푸시 title·body (2026-11-11) | title=`senderDisplayName`, body=`preview`, data에 `notificationType: "CHAT"` 추가(저장 유형 아님, `notificationSeq` 없음). 포그라운드 표시는 앱이 현재 방 기준. 모든 푸시 Android high priority | 14장·17.8 |
+| Q517 리포트 LLM 요약·일차별 돌봄 집계 [구현 예정] (2026-11-11) | 18.18에 `evaluatedDays`·`careGuideline`·`dailyCare` 추가(조회 시 계산, DB 변경 없음). 요약은 서버가 계산한 일차별 집계 JSON을 LLM에 보내 `{ overall, good, lacking }`을 받아 빈 줄로 이어 저장, 키 없음·실패·검증 탈락이면 규칙 문구. 권장 횟수·모델·최소 예산은 설정값 [가안] | 18.18 |
 
 ### 20.2 미결 안건
 
