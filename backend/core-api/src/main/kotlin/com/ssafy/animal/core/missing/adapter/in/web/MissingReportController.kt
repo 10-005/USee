@@ -37,7 +37,7 @@ import org.springframework.web.bind.annotation.RestController
 import java.time.LocalDate
 
 /** 7장 실종 신고. 조회는 로그인 사용자, 작성은 USER(Q421), 수정·상태·삭제는 작성자 본인(타인은 404, Q434) */
-@Tag(name = "실종 신고", description = "실종 신고 검색·상세·내 신고, 등록·수정·상태 변경·삭제. 회원당 진행 중(ACTIVE) 신고는 1건")
+@Tag(name = "실종 신고", description = "실종 신고 검색·상세·내 신고, 등록·수정·상태 변경·삭제. 한 회원이 진행 중(ACTIVE) 신고를 여러 건 둘 수 있다")
 @RestController
 @RequestMapping("/api/core/v1/missing-reports")
 class MissingReportController(
@@ -243,11 +243,11 @@ class MissingReportController(
     @Operation(
         summary = "실종 신고 등록",
         description = "- USER만\n" +
-            "- 회원당 진행 중(ACTIVE) 신고는 1건. 이미 있으면 409. 기존 신고를 종료(7.6)하거나 삭제(7.7)한 뒤 등록한다.\n" +
+            "- 진행 중(ACTIVE) 신고가 이미 있어도 새로 등록할 수 있다(회원당 건수 제한 없음).\n" +
             "- 사진은 이미지 업로드 API로 먼저 올리고 받은 `imageSeq` 1~3개를 보낸다. 배열 순서가 표시 순서다.\n" +
             "- `districtCode`는 서버가 좌표를 역지오코딩해 정한다. 실패해도 null로 저장하고 등록은 진행한다.\n" +
             "- 등록이 끝나면 AI 매칭을 요청한다(`aiMatchingRequested=true`).\n" +
-            "- 검사 순서: 필수값 → 좌표 범위 → 조합 → 사진(개수·중복·존재·소유) → 진행 중 신고 → 길이.\n" +
+            "- 검사 순서: 필수값 → 좌표 범위 → 조합 → 사진(개수·중복·존재·소유) → 길이.\n" +
             "- 응답 message는 `실종 신고가 등록되었습니다.`",
     )
     @ApiResponses(
@@ -326,17 +326,6 @@ class MissingReportController(
                         ExampleObject(name = "CATALOG_COMBINATION_NOT_FOUND", value = CATALOG_COMBINATION_NOT_FOUND),
                         ExampleObject(name = "IMAGE_NOT_FOUND", value = IMAGE_NOT_FOUND),
                     ],
-                ),
-            ],
-        ),
-        ApiResponse(
-            responseCode = "409",
-            description = "이미 진행 중(ACTIVE)인 실종 신고가 있음(동시 등록 포함)",
-            content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = FailResponseSchema::class),
-                    examples = [ExampleObject(name = "MISSING_ACTIVE_ALREADY_EXISTS", value = MISSING_ACTIVE_ALREADY_EXISTS)],
                 ),
             ],
         ),
@@ -459,7 +448,7 @@ class MissingReportController(
         description = "- 로그인 필요. 작성자 본인만(남의 신고는 404)\n" +
             "- ACTIVE → CLOSED(종료), CLOSED → ACTIVE(재개). 종료 사유·시각 필드는 없다.\n" +
             "- 현재와 같은 상태로 바꾸면 400.\n" +
-            "- 재개할 때 다른 진행 중(ACTIVE) 신고가 있으면 409. 재개하면 AI 매칭을 다시 요청한다.",
+            "- 다른 진행 중(ACTIVE) 신고가 있어도 재개할 수 있다. 재개하면 AI 매칭을 다시 요청한다.",
     )
     @ApiResponses(
         ApiResponse(
@@ -528,17 +517,6 @@ class MissingReportController(
                     mediaType = "application/json",
                     schema = Schema(implementation = FailResponseSchema::class),
                     examples = [ExampleObject(name = "MISSING_REPORT_NOT_FOUND", value = MISSING_REPORT_NOT_FOUND)],
-                ),
-            ],
-        ),
-        ApiResponse(
-            responseCode = "409",
-            description = "재개하려는데 다른 진행 중(ACTIVE) 신고가 있음. 그 신고를 먼저 종료한다",
-            content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = FailResponseSchema::class),
-                    examples = [ExampleObject(name = "MISSING_ACTIVE_ALREADY_EXISTS", value = MISSING_ACTIVE_ALREADY_EXISTS)],
                 ),
             ],
         ),
@@ -667,8 +645,6 @@ class MissingReportController(
             """{"status":404,"code":"CATALOG_COMBINATION_NOT_FOUND","message":"존재하지 않는 종·품종·색상 조합입니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val IMAGE_NOT_FOUND =
             """{"status":404,"code":"IMAGE_NOT_FOUND","message":"이미지를 찾을 수 없습니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
-        const val MISSING_ACTIVE_ALREADY_EXISTS =
-            """{"status":409,"code":"MISSING_ACTIVE_ALREADY_EXISTS","message":"이미 진행 중인 실종 신고가 있습니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val MISSING_REPORT_CLOSED =
             """{"status":409,"code":"MISSING_REPORT_CLOSED","message":"종료된 실종 신고는 수정할 수 없습니다. 먼저 재개해 주세요.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
     }

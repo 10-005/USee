@@ -75,7 +75,6 @@ class MissingReportService(
             val classification = catalogUseCase.requireClassification(command.combinationSeq)
             requireImages(userSeq, command.imageSeqs)
             val seq = Math.toIntExact(userSeq)
-            if (missingReportRepository.existsActive(seq)) throw BusinessException(MissingErrorCode.MISSING_ACTIVE_ALREADY_EXISTS)
             val report = with(command) {
                 MissingReport(
                     seq, combinationSeq, gender, age, weight, isNeutered, microchipNumber, description,
@@ -148,9 +147,6 @@ class MissingReportService(
         val report = loadOwned(userSeq, missingReportSeq)
         if (report.status == status) throw invalid("status", "이미 ${status.name} 상태입니다.")
         val seq = Math.toIntExact(userSeq)
-        if (status == MissingStatus.ACTIVE && missingReportRepository.existsActive(seq)) {
-            throw BusinessException(MissingErrorCode.MISSING_ACTIVE_ALREADY_EXISTS)
-        }
         report.changeStatus(status, seq)
         missingReportRepository.saveAndFlush(report)
         // 재개하면 다시 매칭 대상이 된다(7.4 "최초 등록/재개 시 AI 매칭 후보"). 이벤트 종류는 등록과 같게 보낸다

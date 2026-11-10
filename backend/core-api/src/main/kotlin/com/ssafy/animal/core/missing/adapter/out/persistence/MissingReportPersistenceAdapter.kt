@@ -3,18 +3,14 @@ package com.ssafy.animal.core.missing.adapter.out.persistence
 import com.querydsl.core.types.dsl.BooleanExpression
 import com.querydsl.core.types.dsl.Expressions
 import com.querydsl.jpa.impl.JPAQueryFactory
-import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.common.persistence.SortPolicy
 import com.ssafy.animal.core.missing.application.port.`in`.MissingSearchFilter
 import com.ssafy.animal.core.missing.application.port.out.AuthorRow
 import com.ssafy.animal.core.missing.application.port.out.MissingReportRepository
-import com.ssafy.animal.core.missing.domain.MissingErrorCode
 import com.ssafy.animal.core.missing.domain.MissingGender
 import com.ssafy.animal.core.missing.domain.MissingReport
 import com.ssafy.animal.core.missing.domain.MissingReportImage
-import com.ssafy.animal.core.missing.domain.MissingStatus
 import com.ssafy.animal.core.missing.domain.QMissingReport.Companion.missingReport
-import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
@@ -33,8 +29,6 @@ interface MissingReportJpaRepository : JpaRepository<MissingReport, Int> {
     fun findVisible(@Param("seq") missingReportSeq: Int): MissingReport?
 
     fun findByMissingReportSeqAndUserSeqAndIsDeletedFalse(missingReportSeq: Int, userSeq: Int): MissingReport?
-
-    fun existsByUserSeqAndStatusAndIsDeletedFalse(userSeq: Int, status: MissingStatus): Boolean
 
     fun findByUserSeqAndIsDeletedFalseOrderByRegDttmDescMissingReportSeqDesc(userSeq: Int): List<MissingReport>
 
@@ -94,22 +88,12 @@ class MissingReportPersistenceAdapter(
     private val queryFactory: JPAQueryFactory,
 ) : MissingReportRepository {
 
-    override fun saveAndFlush(report: MissingReport): MissingReport = try {
-        reportJpaRepository.saveAndFlush(report)
-    } catch (e: DataIntegrityViolationException) {
-        // 사전 조회를 지나 동시에 들어온 등록·재개(Q399). 인덱스 이름이 PostgreSQL 오류 메시지에 들어 있다
-        if (ACTIVE_UNIQUE_INDEX in e.mostSpecificCause.message.orEmpty()) {
-            throw BusinessException(MissingErrorCode.MISSING_ACTIVE_ALREADY_EXISTS)
-        }
-        throw e
-    }
+    override fun saveAndFlush(report: MissingReport): MissingReport = reportJpaRepository.saveAndFlush(report)
 
     override fun findVisible(missingReportSeq: Int) = reportJpaRepository.findVisible(missingReportSeq)
 
     override fun findOwned(userSeq: Int, missingReportSeq: Int) =
         reportJpaRepository.findByMissingReportSeqAndUserSeqAndIsDeletedFalse(missingReportSeq, userSeq)
-
-    override fun existsActive(userSeq: Int) = reportJpaRepository.existsByUserSeqAndStatusAndIsDeletedFalse(userSeq, MissingStatus.ACTIVE)
 
     override fun search(filter: MissingSearchFilter, pageable: Pageable): Page<MissingReport> {
         val condition = conditions(filter).reduce(BooleanExpression::and)
@@ -178,7 +162,6 @@ class MissingReportPersistenceAdapter(
     }
 
     companion object {
-        private const val ACTIVE_UNIQUE_INDEX = "uq_missing_user_active"
         private val KST = ZoneId.of("Asia/Seoul")
 
         /** 7.1 정렬 화이트리스트 regDttm만 */
