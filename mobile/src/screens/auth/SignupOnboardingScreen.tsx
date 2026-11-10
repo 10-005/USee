@@ -373,6 +373,7 @@ export function SignupOnboardingScreen() {
         ) : null}
       </KeyboardAvoidingView>
       <DatePickerModal
+        hasValue={Boolean(birthDate)}
         maximumDate={new Date()}
         onClose={() => setDatePickerOpen(false)}
         onConfirm={date => {
