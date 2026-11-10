@@ -30,7 +30,9 @@ import {
 } from '../../services/simulation/care';
 import {
   applyActiveSimulation,
+  isActiveSimulationStale,
   readCurrentActiveSimulation,
+  refreshActiveSimulationAfterPurchase,
 } from '../../services/simulation/activeSession';
 import { invalidateSimulationReports } from '../../services/simulation/reports';
 import { invalidateSimulationTransactions } from '../../services/simulation/transactions';
@@ -70,7 +72,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const purchased = (id: string) =>
     shopStatus === 'ready' && shop.ownedItems.some(item => item.productId === id);
   const pet = mockAdoptionPets.find(item => item.id === route.params.petId);
-  const activeSimulation = readCurrentActiveSimulation();
+  const [activeSimulation, setActiveSimulation] = useState(readCurrentActiveSimulation);
   const synced =
     activeSimulation && session?.sessionSeq === activeSimulation.sessionSeq
       ? activeSimulation
@@ -206,11 +208,24 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         setReturnSequence(value => value + 1);
       }
       setRoomVisible(true);
+      let cancelled = false;
+      if (isActiveSimulationStale()) {
+        refreshActiveSimulationAfterPurchase()
+          .then(active => {
+            if (!cancelled) {
+              setActiveSimulation(active);
+            }
+          })
+          .catch(() => undefined);
+      } else {
+        setActiveSimulation(readCurrentActiveSimulation());
+      }
       const back = BackHandler.addEventListener('hardwareBackPress', () => {
         hideThenNavigate(() => navigation.goBack());
         return true;
       });
       return () => {
+        cancelled = true;
         back.remove();
         clearTimeout(bathTimer.current);
         bathScreenOpacity.stopAnimation();

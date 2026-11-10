@@ -25,6 +25,7 @@ import {
   getPurchaseErrorMessage,
   purchaseSimulationItems,
 } from '../../services/simulation/purchase';
+import { invalidateActiveSimulation } from '../../services/simulation/activeSession';
 import { invalidateSimulationTransactions } from '../../services/simulation/transactions';
 import type { SimulationEvent } from '../../services/simulation/events';
 import {
@@ -176,6 +177,7 @@ export function ArWalkScreen({
           { itemSeq: product.itemSeq, quantity: 1 },
         ]).then(result => {
           invalidateSimulationTransactions(active.sessionSeq);
+          invalidateActiveSimulation();
           const line = result.purchases[0];
           finish(
             line

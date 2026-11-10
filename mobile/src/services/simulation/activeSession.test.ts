@@ -2,7 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { ApiClientError } from '../api/errors';
 import { getActiveMockAdoption, startMockAdoption } from '../storage/mockAdoptionStorage';
-import { applyActiveSimulation, getActiveSimulation, type ActiveSimulation } from './activeSession';
+import {
+  applyActiveSimulation,
+  clearActiveSimulationRefresh,
+  getActiveSimulation,
+  invalidateActiveSimulation,
+  isActiveSimulationStale,
+  refreshActiveSimulationAfterPurchase,
+  type ActiveSimulation,
+} from './activeSession';
 import { invalidateSimulationReports } from './reports';
 
 jest.mock('./reports', () => ({
@@ -74,6 +82,7 @@ describe('active simulation', () => {
     jest.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000);
     await AsyncStorage.clear();
     await applyActiveSimulation(null);
+    clearActiveSimulationRefresh();
     jest.mocked(invalidateSimulationReports).mockClear();
   });
 
@@ -146,6 +155,34 @@ describe('active simulation', () => {
     await expect(
       applyActiveSimulation(session({ activeWalkSeq: null })),
     ).resolves.not.toHaveProperty('walkSeq');
+  });
+
+  test('refetches the active session once after a purchase', async () => {
+    await startMockAdoption('dog-1', 35000, '초코', 3001);
+    await applyActiveSimulation(session({ equipment: { ...equipment, foodBowl: false } }));
+    invalidateActiveSimulation();
+    const get = jest
+      .fn()
+      .mockResolvedValue(
+        envelope(session({ equipment: { ...equipment, foodBowl: true, toy: true } })),
+      );
+
+    await expect(refreshActiveSimulationAfterPurchase({ get })).resolves.toMatchObject({
+      equipment: { foodBowl: true, toy: true },
+    });
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledWith('/simulations/me/active');
+    await expect(refreshActiveSimulationAfterPurchase({ get })).resolves.toMatchObject({
+      equipment: { foodBowl: true, toy: true },
+    });
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps the active session stale when refreshing fails', async () => {
+    invalidateActiveSimulation();
+    const get = jest.fn().mockRejectedValue(new Error('offline'));
+    await expect(refreshActiveSimulationAfterPurchase({ get })).rejects.toThrow('offline');
+    expect(isActiveSimulationStale()).toBe(true);
   });
 
   test('starts from the server session when the device has none', async () => {

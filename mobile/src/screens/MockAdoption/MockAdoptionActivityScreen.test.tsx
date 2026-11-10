@@ -2,7 +2,12 @@ import { STORAGE_KEYS } from '../../constants/storageKeys';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiClientError } from '../../services/api';
 import { abandonSimulation } from '../../services/simulation/abandon';
-import { applyActiveSimulation } from '../../services/simulation/activeSession';
+import {
+  applyActiveSimulation,
+  clearActiveSimulationRefresh,
+  invalidateActiveSimulation,
+} from '../../services/simulation/activeSession';
+import { simulationClient } from '../../services/api/client';
 import { getSimulationStats, type SimulationStats } from '../../services/simulation/stats';
 import { performCareAction } from '../../services/simulation/care';
 import {
@@ -64,6 +69,7 @@ jest.mock('./RoomPet', () => ({ RoomPet: 'RoomPet' }));
 
 beforeEach(() => {
   jest.mocked(invalidateSimulationReports).mockClear();
+  clearActiveSimulationRefresh();
 });
 
 test('hospital close preserves issues, payment debits budget, and ignore advances the queue', async () => {
@@ -173,6 +179,83 @@ test('inventory icon opens the owned items screen', async () => {
   });
   expect(navigate).toHaveBeenCalledWith('ShopInventory', { petId: 'cat-2' });
   await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('shows purchased equipment after returning to the room', async () => {
+  await AsyncStorage.clear();
+  const now = Date.now();
+  const session = await startMockAdoption('dog-1', 50000, '초코', 3001);
+  useShopStore.getState().open(session);
+  const active = {
+    sessionSeq: 3001,
+    userSeq: 17,
+    animalName: '초코',
+    breed: {
+      breedSeq: '000018',
+      breedName: '비숑 프리제',
+      speciesType: 'DOG' as const,
+      representativeImageUrl: null,
+    },
+    speciesType: 'DOG' as const,
+    personality: 'FRIENDLY' as const,
+    status: 'IN_PROGRESS' as const,
+    expectedCost: 50000,
+    balance: 50000,
+    startedDttm: new Date(now).toISOString(),
+    endsDttm: new Date(now + 7 * 86400000).toISOString(),
+    endedDttm: null,
+    stats: {
+      satiety: 64,
+      hydration: 58,
+      cleanliness: 40,
+      bond: 31,
+      calmness: 46,
+      health: 90,
+      energy: 55,
+      calculatedDttm: new Date(now).toISOString(),
+    },
+    lastActionDttm: null,
+    equipment: { foodBowl: false, waterBowl: false, litterBox: false, toy: false, leash: false },
+    pendingEvent: null,
+    activeWalkSeq: null,
+  };
+  await applyActiveSimulation(active);
+  const props = {
+    navigation: { goBack: jest.fn(), navigate: jest.fn() },
+    route: { key: 'activity', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  const get = jest.spyOn(simulationClient, 'get').mockResolvedValue({
+    data: {
+      status: 200,
+      code: 'SUCCESS',
+      message: '요청이 성공했습니다.',
+      data: {
+        ...active,
+        equipment: { ...active.equipment, foodBowl: true },
+      },
+      errors: [],
+      traceId: '4f2c9e1a7b3d4c5e',
+    },
+  } as never);
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  try {
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+    });
+    expect(renderer.root.findAllByProps({ accessibilityLabel: '사료 그릇' })).toHaveLength(0);
+    invalidateActiveSimulation();
+    await ReactTestRenderer.act(async () => {
+      mockFocusRoom();
+      await new Promise(resolve => setImmediate(resolve));
+    });
+    expect(get).toHaveBeenCalledWith('/simulations/me/active');
+    expect(
+      renderer.root.findAllByProps({ accessibilityLabel: '사료 그릇' }).length,
+    ).toBeGreaterThan(0);
+  } finally {
+    get.mockRestore();
+    await ReactTestRenderer.act(() => renderer?.unmount());
+  }
 });
 
 test('activity screen has one action connected to the existing AR walk', async () => {

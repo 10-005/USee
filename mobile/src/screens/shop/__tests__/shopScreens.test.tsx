@@ -12,6 +12,10 @@ import { ApiClientError } from '../../../services/api';
 import { purchaseSimulationItems } from '../../../services/simulation/purchase';
 import { getSimulationInventory } from '../../../services/simulation/inventory';
 import { loadTransactionsOnEntry } from '../../../services/simulation/transactions';
+import {
+  clearActiveSimulationRefresh,
+  isActiveSimulationStale,
+} from '../../../services/simulation/activeSession';
 import { StackRouter, StackActions } from '@react-navigation/routers';
 
 const mockShopSession: {
@@ -89,6 +93,7 @@ beforeEach(() => {
   db.executeSync('DELETE FROM simulation_shop_catalogs');
   db.executeSync("DELETE FROM products WHERE origin = 'server'");
   delete mockShopSession.session;
+  clearActiveSimulationRefresh();
   jest.clearAllMocks();
   jest.mocked(loadTransactionsOnEntry).mockResolvedValue(null);
   useShopStore.setState({ sessionKey: '' });
@@ -558,6 +563,7 @@ it('purchases a server item from the cart and keeps the cart when purchase fails
     await screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress();
   });
   expect(purchaseSimulationItems).toHaveBeenCalledWith(3001, [{ itemSeq: 11, quantity: 5 }]);
+  expect(isActiveSimulationStale()).toBe(true);
   expect(useShopStore.getState().inventory['11']).toBe(5);
   expect(useShopStore.getState().spent).toBe(40000);
   expect(useShopStore.getState().cart).toEqual({});
