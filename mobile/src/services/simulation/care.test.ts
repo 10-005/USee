@@ -109,6 +109,8 @@ test('builds a request only when the action has the item it requires', () => {
   expect(careRequest(SimulationCareAction.Feed)).toBeNull();
   expect(careRequest(SimulationCareAction.Feed, 11)).toEqual({ actionCode: 'FEED', itemSeq: 11 });
   expect(careRequest(SimulationCareAction.Water)).toEqual({ actionCode: 'WATER' });
+  expect(careRequest(SimulationCareAction.Bathe)).toEqual({ actionCode: 'BATHE' });
+  expect(careRequest(SimulationCareAction.Bathe, 11)).toEqual({ actionCode: 'BATHE' });
   expect(careRequest(SimulationCareAction.Play)).toEqual({ actionCode: 'PLAY' });
 });
 

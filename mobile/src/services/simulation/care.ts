@@ -193,13 +193,13 @@ export function careRequest(
 ): SimulationCareRequest | null {
   switch (actionCode) {
     case SimulationCareAction.Water:
+    case SimulationCareAction.Bathe:
     case SimulationCareAction.VetVisit:
       return { actionCode };
     case SimulationCareAction.Play:
       return itemSeq === undefined ? { actionCode } : { actionCode, itemSeq };
     case SimulationCareAction.Feed:
     case SimulationCareAction.CleanLitter:
-    case SimulationCareAction.Bathe:
     case SimulationCareAction.Snack:
     case SimulationCareAction.Medicine:
       return itemSeq === undefined ? null : { actionCode, itemSeq };

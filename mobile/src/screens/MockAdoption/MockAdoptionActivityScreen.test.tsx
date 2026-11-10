@@ -2,7 +2,13 @@ import { STORAGE_KEYS } from '../../constants/storageKeys';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiClientError } from '../../services/api';
 import { abandonSimulation } from '../../services/simulation/abandon';
+import { applyActiveSimulation } from '../../services/simulation/activeSession';
 import { performCareAction } from '../../services/simulation/care';
+import {
+  SimulationEventStatus,
+  SimulationTriggerContext,
+  SimulationTriggerType,
+} from '../../services/simulation/events';
 import { invalidateSimulationReports } from '../../services/simulation/reports';
 import {
   getActiveMockAdoption,
@@ -402,6 +408,91 @@ test.each(['food', 'water'] as const)(
     jest.useRealTimers();
   },
 );
+
+test('sends a bath without an item and a hospital visit only after the fee is paid', async () => {
+  await AsyncStorage.clear();
+  jest.mocked(performCareAction).mockReset();
+  jest.mocked(performCareAction).mockResolvedValue({} as never);
+  const session = await startMockAdoption('dog-1', 50000, '초코', 3001);
+  useShopStore.getState().open(session);
+  const now = Date.now();
+  await applyActiveSimulation({
+    sessionSeq: 3001,
+    userSeq: 17,
+    animalName: '초코',
+    breed: {
+      breedSeq: '000018',
+      breedName: '비숑 프리제',
+      speciesType: 'DOG',
+      representativeImageUrl: null,
+    },
+    speciesType: 'DOG',
+    personality: 'FRIENDLY',
+    status: 'IN_PROGRESS',
+    expectedCost: 50000,
+    balance: 50000,
+    startedDttm: new Date(now).toISOString(),
+    endsDttm: new Date(now + 7 * 86400000).toISOString(),
+    endedDttm: null,
+    stats: {
+      satiety: 64,
+      hydration: 58,
+      cleanliness: 40,
+      bond: 31,
+      calmness: 46,
+      health: 90,
+      energy: 55,
+      calculatedDttm: new Date(now).toISOString(),
+    },
+    lastActionDttm: null,
+    equipment: { foodBowl: false, waterBowl: false, litterBox: false, toy: false, leash: false },
+    pendingEvent: {
+      occurrenceSeq: 90001,
+      scenario: {
+        scenarioSeq: 1,
+        title: '축 처져 있어요',
+        description: '밥을 잘 안 먹어요.',
+        triggerContext: SimulationTriggerContext.Home,
+        triggerType: SimulationTriggerType.Condition,
+      },
+      vetVisit: { cost: 30000 },
+      walkSeq: null,
+      status: SimulationEventStatus.Pending,
+      occurredDttm: new Date(now).toISOString(),
+      expiresDttm: new Date(now + 60_000).toISOString(),
+      resolvedDttm: null,
+      resolvedActionCode: null,
+      resultText: null,
+    },
+    activeWalkSeq: null,
+  });
+  const props = {
+    navigation: { goBack: jest.fn() },
+    route: { key: 'care', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  try {
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+    });
+    const hospital = () => renderer.root.findAllByProps({ accessibilityLabel: '동물병원' })[0];
+    expect(hospital().props.disabled).toBe(false);
+    await ReactTestRenderer.act(() => hospital().props.onPress());
+    expect(performCareAction).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => {
+      await renderer.root.findByType(VetVisitDialog).props.onPay();
+    });
+    expect(performCareAction).toHaveBeenCalledTimes(1);
+    expect(performCareAction).toHaveBeenCalledWith(3001, { actionCode: 'VET_VISIT' });
+    await ReactTestRenderer.act(() =>
+      renderer.root.findAllByProps({ accessibilityLabel: '목욕하기' })[0].props.onPress(),
+    );
+    expect(performCareAction).toHaveBeenLastCalledWith(3001, { actionCode: 'BATHE' });
+  } finally {
+    await ReactTestRenderer.act(() => renderer?.unmount());
+    await applyActiveSimulation(null);
+  }
+});
 
 test('records water on the server and keeps feed local until an item id exists', async () => {
   await AsyncStorage.clear();

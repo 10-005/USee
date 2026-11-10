@@ -21,7 +21,6 @@ export type SimulationCareRequest =
       actionCode:
         | SimulationCareAction.Feed
         | SimulationCareAction.CleanLitter
-        | SimulationCareAction.Bathe
         | SimulationCareAction.Snack
         | SimulationCareAction.Medicine;
       itemSeq: number;
@@ -32,7 +31,10 @@ export type SimulationCareRequest =
       itemSeq?: number;
     }
   | {
-      actionCode: SimulationCareAction.Water | SimulationCareAction.VetVisit;
+      actionCode:
+        | SimulationCareAction.Water
+        | SimulationCareAction.Bathe
+        | SimulationCareAction.VetVisit;
       itemSeq?: never;
     };
 

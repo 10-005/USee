@@ -86,10 +86,18 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const showToy = synced ? synced.equipment.toy : hasToy;
   const [statsVisible, setStatsVisible] = useState(false);
   const [hospitalVisible, setHospitalVisible] = useState(false);
+  const [closedVetSeq, setClosedVetSeq] = useState<number | null>(null);
   const hospitalEvents = (shop.hospitalEvents ?? []).filter(
     event => getVetVisit(event) && Date.now() < Date.parse(event.expiresDttm),
   );
-  const pendingEvent = hospitalEvents[0] ?? null;
+  const serverVetEvent =
+    synced?.pendingEvent &&
+    synced.pendingEvent.occurrenceSeq !== closedVetSeq &&
+    getVetVisit(synced.pendingEvent)
+      ? synced.pendingEvent
+      : null;
+  const pendingEvent =
+    serverVetEvent ?? hospitalEvents.find(event => event.occurrenceSeq !== closedVetSeq) ?? null;
   const [suddenEvent, setSuddenEvent] = useState<SimulationEvent | null>(null);
   useEffect(() => {
     const event = synced?.pendingEvent;
@@ -299,7 +307,15 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         return;
       }
     }
-    if (!shop.resolveHospitalEvent(pendingEvent.occurrenceSeq, pay)) {
+    const paidOnServer = pay && Boolean((await getActiveMockAdoption())?.sessionSeq);
+    if (
+      !useShopStore
+        .getState()
+        .hospitalEvents?.some(event => event.occurrenceSeq === pendingEvent.occurrenceSeq)
+    ) {
+      useShopStore.getState().enqueueHospitalEvent(pendingEvent);
+    }
+    if (!shop.resolveHospitalEvent(pendingEvent.occurrenceSeq, pay) && !paidOnServer) {
       Alert.alert(
         '동물병원',
         useShopStore.getState().error ?? '진료를 처리하지 못했어요. 다시 시도해주세요.',
@@ -312,6 +328,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
         'bottom',
       );
     }
+    setClosedVetSeq(pendingEvent.occurrenceSeq);
     if (hospitalEvents.length <= 1) {
       setHospitalVisible(false);
     }
@@ -320,7 +337,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
     if (careBusy.current || bathingRef.current || leaving || busy || !roomVisible) {
       return;
     }
-    const recorded = await recordCare(SimulationCareAction.Bathe, careItemSeq('bath'));
+    const recorded = await recordCare(SimulationCareAction.Bathe);
     if (recorded !== true) {
       showToast(recorded);
       return;
