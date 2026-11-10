@@ -1,6 +1,6 @@
 import type { SimulationCareAction, SimulationWalkAction } from './actions';
 
-// FCM EVENT signals a refresh; its payload fields are not specified yet.
+// A simulation FCM push only carries data.target SIMULATION. It is not this DTO.
 export enum SimulationEventStatus {
   Pending = 'PENDING',
   Resolved = 'RESOLVED',
