@@ -1,6 +1,11 @@
 import { AnimalPhoto } from '@/shared/ui/AnimalPhoto';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { detailOptions, siblingOptions, submitReview } from '@/entities/shelter/data/applications';
+import {
+  applicationSections,
+  detailOptions,
+  siblingOptions,
+  submitReview,
+} from '@/entities/shelter/data/applications';
 import { demoMode } from '@/shared/config/demo';
 import { LoadStateMessage } from '@/shared/ui/LoadState';
 import type { Adoption } from '@/entities/shelter/model';
@@ -13,9 +18,73 @@ import type { AdoptionStatus } from '@/entities/shelter/model';
 import { Button } from '@/shared/ui/Button';
 import { Modal } from '@/shared/ui/Modal';
 import { TextAreaField } from '@/shared/ui/TextAreaField';
-import clock from '@/shared/assets/icons/review-clock.svg';
+import documentArt from '@/shared/assets/review-documents.png';
+import interviewArt from '@/shared/assets/review-interview.png';
+import approvedArt from '@/shared/assets/review-approved.png';
+import rejectedArt from '@/shared/assets/review-rejected.png';
 import chevron from '@/shared/assets/icons/chat-back.svg';
 import './simulation-reports.css';
+
+const reviewStages = ['신청서 접수', '서류 심사', '입양 심사', '최종 승인'];
+const reviewPresentation = {
+  '심사 대기': {
+    completed: 1,
+    title: '신청서가 접수되었어요',
+    description: '신청 내용을 검토하고 서류 심사 결과를 결정해 주세요.',
+    image: documentArt,
+  },
+  '서류 승인': {
+    completed: 2,
+    title: '입양 심사가 진행 중이에요',
+    description: '면담 후 최종 입양 여부를 결정해 주세요.',
+    image: interviewArt,
+  },
+  '최종 승인': { completed: 4, title: '입양이 완료되었어요', description: '', image: approvedArt },
+  거절: { completed: 0, title: '입양 신청이 거절되었어요', description: '', image: rejectedArt },
+} satisfies Record<
+  AdoptionStatus,
+  { completed: number; title: string; description: string; image: string }
+>;
+
+function ReviewProgress({ status, reason }: Pick<Adoption, 'status' | 'reason'>) {
+  const { completed, title, description, image } = reviewPresentation[status];
+  return (
+    <div className="review-notice">
+      <div className="review-notice__heading">
+        <div>
+          <strong>{title}</strong>
+          {description && <p>{description}</p>}
+        </div>
+        <img src={image} alt="" width="84" height="84" />
+      </div>
+      {status === '거절' ? (
+        <div className="review-notice__reason">
+          <strong>거절 사유</strong>
+          <p>{reason?.trim() || '등록된 거절 사유가 없습니다.'}</p>
+        </div>
+      ) : (
+        <ol className="review-stages" aria-label="입양 심사 단계">
+          {reviewStages.map((label, index) => {
+            const state = index < completed ? '완료' : index === completed ? '진행 중' : '예정';
+            return (
+              <li
+                key={label}
+                data-state={state}
+                aria-current={state === '진행 중' ? 'step' : undefined}
+              >
+                <span className="review-stages__dot" aria-hidden="true">
+                  {state === '완료' && '✓'}
+                </span>
+                {label}
+                <span className="review-stages__sr"> {state}</span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </div>
+  );
+}
 
 export function AdoptionDetailPage() {
   const { id } = useParams();
@@ -70,74 +139,34 @@ function DemoDetail({ id }: { id?: string }) {
   const review = useReviewAdoption();
 
   if (!record) return <MissingRecord back={listUrl} />;
-  const questions: { title: string; rows: [string, string][] }[] = [
-    {
-      title: '신청자 기본 정보',
-      rows: [
-        ['신청자', record.applicant],
-        ['생년월일', '미등록'],
-        ['전화번호', '미등록'],
-        ['실제 양육 장소', '미등록'],
-        ['상세 주소', '미등록'],
-        ['이메일', '미등록'],
-        ['방문 상담 희망일', '미등록'],
-      ],
+  const questions = applicationSections({
+    applicant: { name: record.applicant, phone: null, birthDate: null },
+    careAddress: null,
+    careAddressDetail: null,
+    email: null,
+    visitHopeDate: null,
+    answers: {
+      1: '아파트',
+      2: '자가',
+      3: '가능',
+      4: '있음',
+      5: '전원 동의',
+      6: '없음',
+      8: '있음',
+      9: '2시간 미만',
+      10: '본인',
+      11: '없음',
+      12: '가족이 돌봄 예정',
+      13: '오랫동안 반려동물 입양을 고민해 왔으며, 충분한 준비를 마친 후 함께 생활하고 싶습니다.',
+      14: '월 20만 원',
+      15: '가족과 협력해 지속적으로 돌볼 예정입니다.',
+      16: '동의',
+      17: '이수',
+      18: 'PBJ 동물 보호 교육기관',
+      19: '고양이(유기동물) 입양 교육',
+      20: '2026.10.10',
     },
-    {
-      title: '주거 및 동거 환경',
-      rows: [
-        ['주거형태', '아파트'],
-        ['반려동물 양육 가능 여부', '가능'],
-        ['동거인 유무', '있음'],
-        ['동거인의 입양 동의', '전원 동의'],
-        ['주 양육자', '본인'],
-        ['주로 생활할 공간', '실내'],
-        ['반려동물이 하루 평균 혼자 있는 시간', '2시간 미만'],
-      ],
-    },
-    {
-      title: '양육 경험 및 돌봄 환경',
-      rows: [
-        ['현재 함께 사는 동물', '없음'],
-        ['동물 종류와 마리수 및 합사 준비', '해당없음'],
-        ['과거 양육 경험', '있음'],
-        ['과거 양육 동물 및 기간', '고양이(치즈냥이) 1년 동안 양육'],
-        ['과거 동물과 함께하지 않는 이유', '사망'],
-        ['부재·응급상황의 대처 돌봄', '있음'],
-        ['대체 돌봄 방법', '가족이 돌봄 예정'],
-      ],
-    },
-    {
-      title: '입양 및 돌봄 계획',
-      rows: [
-        [
-          '입양 동기',
-          '오랫동안 반려동물 입양을 고민해 왔으며, 충분한 준비를 마친 후 함께 생활하고 싶습니다.',
-        ],
-        [
-          '일상적인 돌봄 계획',
-          '규칙적인 급식과 산책, 놀이 시간을 확보하고 위생 및 건강 상태를 꾸준히 관리할 예정입니다.',
-        ],
-        [
-          '치료·행동 적용 지원 계획',
-          '동물병원에서 정기적으로 검진하고 필요한 치료를 받을 예정입니다.',
-        ],
-        [
-          '생활환경 변화 시 돌봄 계획',
-          '이사나 장기 부재 시에도 가족과 협력해 지속적으로 돌볼 예정입니다.',
-        ],
-      ],
-    },
-    {
-      title: '입양 전 교육',
-      rows: [
-        ['교육 이수 여부', '이수'],
-        ['교육기관', 'PBJ 동물 보호 교육기관'],
-        ['이수한 교육 과정', '고양이(유기동물) 입양 교육'],
-        ['이수일', '2026.10.10'],
-      ],
-    },
-  ];
+  });
   const siblingIds = applications
     .filter((item) => record.animalId && item.animalId === record.animalId)
     .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
@@ -305,24 +334,10 @@ function DetailView({
       </section>
       <section className="detail-box">
         <div className="detail-box__heading">
-          <h2>심사 결과</h2>
+          <h2>입양 심사 현황</h2>
           <RecordBadge status={record.status} />
         </div>
-        <div className="review-notice">
-          <img src={clock} alt="" />
-          <strong>
-            {record.status === '심사 대기'
-              ? '서류 심사 대기 중'
-              : `${record.status} 처리된 신청입니다`}
-          </strong>
-          <p>
-            {record.status === '심사 대기'
-              ? '입양 신청서가 접수되었습니다. 제출된 내용을 검토하고 서류 승인 또는 거절 여부를 결정해 주세요.'
-              : record.status === '서류 승인'
-                ? '면접 및 후속 절차를 진행한 뒤 최종 입양 여부를 결정해 주세요.'
-                : (record.status === '거절' && record.reason) || '심사 처리가 완료되었습니다.'}
-          </p>
-        </div>
+        <ReviewProgress status={record.status} reason={record.reason} />
         {['심사 대기', '서류 승인'].includes(record.status) && (
           <div className="page-actions">
             <Button variant="secondary" onClick={() => openReview('거절')}>
