@@ -76,6 +76,8 @@ class OpenAiReportSummaryGenerator(
         // 일차가 아닌 숫자(횟수·금액·분 등)는 보낸 문장에 나온 숫자여야 한다
         val numbers = candidates.flatMap(::numbersIn).toSet()
         (numbersIn(DAY_PATTERN.replace(summary, " ")) - numbers).firstOrNull()?.let { error("요약에 근거 없는 숫자가 있습니다: $it") }
+        // 예산 줄(4차 수정)을 보냈으면 그 금액(차액, 맞춰 썼으면 예상 비용)이 요약에 있어야 한다
+        budgetAmount(candidates)?.let { check(it in numbersIn(summary)) { "요약에 예산 금액이 없습니다: $it" } }
         return summary
     }
 
@@ -113,6 +115,12 @@ class OpenAiReportSummaryGenerator(
         /** 아라비아 숫자(쉼표 금액 포함, 끝의 쉼표는 뗀다) */
         fun numbersIn(text: String): Set<String> = Regex("""\d[\d,]*""").findAll(text).map { it.value.trimEnd(',') }.toSet()
 
+        /** "예상 비용"으로 시작하는 후보 줄의 금액: "…X원 더 씀"·"…X원 덜 씀"은 X, "…X원에 맞춰 씀"은 X */
+        private val BUDGET_AMOUNT = Regex("""([\d,]+)원(?:에 맞춰| 더| 덜) 씀""")
+
+        fun budgetAmount(candidates: List<String>): String? =
+            candidates.firstOrNull { it.startsWith("예상 비용") }?.let { BUDGET_AMOUNT.find(it)?.groupValues?.get(1) }
+
         fun daysIn(text: String): Set<Int> =
             DAY_PATTERN.findAll(text).flatMap { m -> Regex("""\d+""").findAll(m.groupValues[1]).map { it.value.toInt() } }.toSet()
 
@@ -138,6 +146,7 @@ class OpenAiReportSummaryGenerator(
             - overall: 첫 문장에 animal.name과 result.statusText의 결과를 넣고, 전체 인상을 한 줄 덧붙입니다.
             - good: good 후보에서 2개 안팎을 골라 씁니다.
             - lacking: lacking 후보에서 2~3개를 골라 쓰고, 마지막 문장은 "~해 보세요"로 끝나는 조언 하나로 마칩니다.
+            - good이나 lacking 후보에 "예상 비용"으로 시작하는 줄이 있으면, 그 줄은 고르는 개수와 별도로 반드시 한 문장으로 씁니다. 금액은 후보 그대로 씁니다. lacking에 있으면 마지막 조언 문장 바로 앞에 씁니다.
             - 조언은 advice에서 하나를 골라 그 숫자 그대로 씁니다(예: "물은 하루 3회가 권장" → "물을 하루 3회 챙겨 보세요"). advice가 비어 있으면 숫자 없이 꾸준히 챙기라는 조언을 씁니다.
             - 후보가 대체 한 줄뿐이면(예: "권장 횟수에 못 미친 날과 미해결 돌발 상황이 없음") 그 내용만 짧게 씁니다. good 후보가 비어 있으면 good에는 돌봄 기록이 거의 없었다는 내용만 한 문장으로 씁니다.
             - 세 값을 합쳐 300~400자 정도로 씁니다. 600자를 넘기면 안 됩니다.
@@ -161,12 +170,12 @@ class OpenAiReportSummaryGenerator(
             {"animal":{"name":"나비","species":"고양이","breed":"코리안 숏헤어","personality":"소심함"},
              "result":{"status":"COMPLETED","statusText":"7일 돌봄을 끝까지 마침","evaluatedDays":7},
              "good":["2일차: '헤어볼을 토했어요'를 25분 만에 해결(목욕)","밥: 7일 중 7일 권장 횟수(3회)를 채움"],
-             "lacking":["5일차: 청결도가 15까지 떨어짐(20 미만이면 건강이 깎임)","5일차: 배변 청소 0회(권장 2회)","놀이·간식 부족: 1·4일차(권장 2회)"],
+             "lacking":["5일차: 청결도가 15까지 떨어짐(20 미만이면 건강이 깎임)","5일차: 배변 청소 0회(권장 2회)","놀이·간식 부족: 1·4일차(권장 2회)","예상 비용보다 8,000원 더 씀, 가장 많이 쓴 분류는 사료(21,200원)"],
              "advice":["배변 청소는 하루 2회가 권장","놀이·간식은 하루 2회가 권장"]}
             출력:
             {"overall":"나비의 7일 돌봄을 끝까지 마쳤어요. 끼니는 꾸준히 챙겼지만 화장실 관리에서 아쉬움이 남았어요.",
              "good":"2일차에 '헤어볼을 토했어요' 상황을 25분 만에 목욕으로 해결했어요. 밥은 7일 내내 권장 횟수인 3회를 채웠어요.",
-             "lacking":"5일차에는 배변 청소를 한 번도 하지 않았고, 그날 청결도가 15까지 떨어졌어요. 놀이·간식은 1·4일차에 권장 2회보다 적었어요. 배변 청소를 하루 2회 챙겨 보세요."}
+             "lacking":"5일차에는 배변 청소를 한 번도 하지 않았고, 그날 청결도가 15까지 떨어졌어요. 놀이·간식은 1·4일차에 권장 2회보다 적었어요. 예상 비용보다 8,000원을 더 썼고, 가장 많이 쓴 분류는 사료(21,200원)였어요. 배변 청소를 하루 2회 챙겨 보세요."}
         """.trimIndent()
     }
 }

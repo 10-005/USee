@@ -132,8 +132,8 @@ data class SummaryEvidence(
                 input.difference == 0 -> "예상 비용 ${KoreanLabels.won(input.expectedCost)}에 맞춰 씀"
                 else -> "예상 비용 ${KoreanLabels.won(input.expectedCost)}보다 ${KoreanLabels.won(input.difference)} 덜 씀"
             }
-            val all = resolved + steady + listOfNotNull(budget)
-            if (all.isNotEmpty()) return all.take(LIMIT)
+            val all = keepLast(resolved + steady, budget)
+            if (all.isNotEmpty()) return all
             return if (input.actionCount > 0) listOf("돌봄 행동을 모두 ${input.actionCount}번 함") else emptyList()
         }
 
@@ -176,9 +176,13 @@ data class SummaryEvidence(
             } else {
                 null
             }
-            val all = danger + unresolved + zero + short + listOfNotNull(overspent)
-            return if (all.isEmpty()) listOf("권장 횟수에 못 미친 날과 미해결 돌발 상황이 없음") else all.take(LIMIT)
+            val all = keepLast(danger + unresolved + zero + short, overspent)
+            return all.ifEmpty { listOf("권장 횟수에 못 미친 날과 미해결 돌발 상황이 없음") }
         }
+
+        /** 예산 줄(4차 수정)은 LIMIT에서 잘리지 않게 나머지를 하나 덜 자르고 맨 뒤에 붙인다 */
+        private fun keepLast(rest: List<String>, budget: String?): List<String> =
+            if (budget == null) rest.take(LIMIT) else rest.take(LIMIT - 1) + budget
 
         /** 미달 일수(0회 포함)가 많은 키부터, 같으면 CareKey 선언 순 */
         private fun advice(input: ReportSummaryInput, care: CareReport): List<String> {
