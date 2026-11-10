@@ -65,6 +65,12 @@ type Neutered = '완료' | '미완료' | '모름';
 type Microchip = '완료' | '미완료' | '모름';
 type ApiSpeciesLabel = '개' | '고양이' | '기타';
 
+const uploadPhotoPickerOptions = {
+  maxHeight: 1600,
+  maxWidth: 1600,
+  quality: 0.8 as const,
+};
+
 export function PetRegistrationScreen({ navigation, route }: Props) {
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const isLostReportFlow = route.params?.flow === 'lost-report';
@@ -367,6 +373,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
     setPhotoMenuOpen(false);
     try {
       const result = await launchImageLibrary({
+        ...uploadPhotoPickerOptions,
         mediaType: 'photo',
         selectionLimit: 3 - photos.length,
         includeExtra: true,
@@ -404,7 +411,11 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       }
     }
     try {
-      const result = await launchCamera({ mediaType: 'photo', saveToPhotos: false });
+      const result = await launchCamera({
+        ...uploadPhotoPickerOptions,
+        mediaType: 'photo',
+        saveToPhotos: false,
+      });
       if (result.errorCode) {
         Alert.alert('카메라를 열 수 없어요', result.errorMessage ?? '잠시 후 다시 시도해주세요.');
         return;

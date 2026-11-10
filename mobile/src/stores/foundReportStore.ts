@@ -3,6 +3,7 @@ import { create } from 'zustand';
 
 import type { FoundReport } from '../screens/found-report/data';
 import { formatKoreanAddress } from '../utils/address';
+import { formatReportDateTime } from '../utils/dateTime';
 import { getApiErrorDisplayMessage } from '../services/api';
 import {
   changeFoundReportStatus,
@@ -59,6 +60,7 @@ export const mapFoundSummary = (report: FoundReportSummary, isMine: boolean): Fo
 export const mapFoundDetail = (report: FoundReportDetail, isMine: boolean): FoundReport => ({
   ...mapFoundSummary(report, isMine),
   contact: report.reporterPhone ?? undefined,
+  date: formatReportDateTime(report.occurredDttm),
   description: report.description ?? '',
   images: imageSources(report.images.map(image => image.imageUrl)),
   latitude: report.latitude,
