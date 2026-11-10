@@ -19,6 +19,16 @@ class SimulationInventory(
 ) {
 
     /**
+     * 사기 전에 보유 규칙만 본다(쓰지 않음). 장바구니 구매가 모든 물품을 검증한 뒤에 쓰도록 한다.
+     * 이미 가진 기구면 409 SIMULATION_EQUIPMENT_ALREADY_OWNED.
+     */
+    fun checkReceivable(sessionSeq: Long, item: SimulationShopItem) {
+        if (!item.category.isEquipment) return
+        val existing = inventoryRepository.find(sessionSeq, item.itemSeq)
+        if (existing != null && !existing.isEmpty) throw BusinessException(SimulationErrorCode.SIMULATION_EQUIPMENT_ALREADY_OWNED)
+    }
+
+    /**
      * 구매한 물품을 보유에 더한다. 기구는 1개만 사며 이미 있으면 409 SIMULATION_EQUIPMENT_ALREADY_OWNED.
      * 소모품은 구매 수량 × 묶음 수(simulation.shop.uses-per-purchase)만큼 늘린다.
      */
