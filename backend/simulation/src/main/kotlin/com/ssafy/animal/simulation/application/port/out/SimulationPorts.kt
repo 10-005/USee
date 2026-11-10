@@ -60,6 +60,9 @@ interface SimulationActionLogRepository {
 
     /** 리포트 actionCount용. 그 분류들의 로그 수 */
     fun countByTypes(sessionSeq: Long, types: Collection<ActionType>): Int
+
+    /** 리포트 일차별 돌봄 집계용(Q517). 그 분류들의 로그 전체, 오래된 순 */
+    fun findByTypes(sessionSeq: Long, types: Collection<ActionType>): List<SimulationActionLog>
 }
 
 /** 종료 리포트(DB 44). 세션당 1건 */
@@ -82,7 +85,7 @@ interface ReportRepository {
 }
 
 /**
- * 리포트 요약 문구 생성기. 지금은 규칙 문구 구현만 있고 LLM 구현은 나중에 이 포트로 갈아 끼운다(Q444).
+ * 리포트 요약 문구 생성기. 규칙 문구 구현과 LLM(OpenAI) 구현이 있고, LLM 키가 있으면 LLM을 쓴다(Q444·Q517).
  * 실패하면 예외를 던진다(부르는 쪽이 1회 재시도 후 규칙 문구로 대체).
  */
 interface ReportSummaryGenerator {
@@ -155,6 +158,9 @@ interface EventOccurrenceRepository {
 
     /** 리포트 eventCount(해결 + 만료)·eventResolvedCount */
     fun countEvents(sessionSeq: Long): EventCounts
+
+    /** 리포트 일차별 돌봄 집계용(Q517). 세션의 발생 이벤트 전체(대기 중 포함), 발생 순 */
+    fun findBySession(sessionSeq: Long): List<EventOccurrence>
 }
 
 /** 발생 이벤트 수(해결 + 만료)와 해결 수 */

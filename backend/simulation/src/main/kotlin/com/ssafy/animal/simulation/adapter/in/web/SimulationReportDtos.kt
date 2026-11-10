@@ -58,11 +58,29 @@ data class SimulationReportResponse(
     @field:Schema(description = "산책 수. 고양이 세션은 항상 0", example = "0")
     val walkCount: Int,
     @field:Schema(
-        description = "요약 문구. 종료 직후에는 null(비동기로 생성, 앱은 \"요약 준비 중\" 표시 후 다시 조회). 중간 리포트는 항상 null",
+        description = "요약 문구(일반 텍스트, 마크다운 없음). 문단은 빈 줄(\\n\\n)로 나뉘며 LLM 요약이면 세 문단, 규칙 문구면 한 문단이라 문단 수를 가정하지 않는다. " +
+            "종료 직후에는 null(비동기로 생성, 앱은 \"요약 준비 중\" 표시 후 다시 조회). 중간 리포트는 항상 null",
         nullable = true,
         example = "null",
     )
     val summary: String?,
+    @field:Schema(
+        description = "평가 대상 일수(1~7). 종료 리포트는 종료 시각, 중간 리포트는 조회 시각이 속한 일차. " +
+            "이 뒤 일차의 dailyCare는 0이지만 아직 없거나 끝난 뒤라 앱은 빈칸으로 그린다. 마지막 평가 일차는 하루를 다 채우지 못했을 수 있다",
+        example = "3",
+    )
+    val evaluatedDays: Int,
+    @field:Schema(
+        description = "하루 권장 돌봄 횟수[가안]. 키 순서 FEED·WATER·CLEAN_LITTER·PLAY·WALK, 고양이 세션은 WALK 키가 없다",
+        example = """{"FEED":3,"WATER":3,"CLEAN_LITTER":2,"PLAY":2,"WALK":1}""",
+    )
+    val careGuideline: Map<String, Int>,
+    @field:Schema(
+        description = "일차별 돌봄 횟수. 키는 \"1\"~\"7\"(dailySpent와 같은 일차 규칙), 각 일차는 careGuideline과 같은 키를 모두 채운다(0 포함). " +
+            "WATER = 물 주기 + 산책 중 물 주기, PLAY = 놀이 + 간식 + 산책 중 간식 + 캣닢, WALK = 산책 시작. 목욕·약·병원·산책 배변 치우기는 세지 않는다",
+        example = """{"1":{"FEED":3,"WATER":3,"CLEAN_LITTER":2,"PLAY":2,"WALK":1},"2":{"FEED":2,"WATER":1,"CLEAN_LITTER":1,"PLAY":0,"WALK":0}}""",
+    )
+    val dailyCare: Map<String, Map<String, Int>>,
 ) {
     companion object {
         fun from(view: SessionReportView) = with(view.report) {
@@ -87,6 +105,9 @@ data class SimulationReportResponse(
                 eventResolvedCount = eventResolvedCount,
                 walkCount = walkCount,
                 summary = summary,
+                evaluatedDays = view.care.evaluatedDays,
+                careGuideline = view.care.guideline.mapKeys { it.key.name },
+                dailyCare = view.care.days.associate { day -> day.day.toString() to day.counts.mapKeys { it.key.name } },
             )
         }
     }

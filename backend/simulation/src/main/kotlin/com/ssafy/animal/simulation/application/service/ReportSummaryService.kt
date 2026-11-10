@@ -1,6 +1,7 @@
 package com.ssafy.animal.simulation.application.service
 
 import com.ssafy.animal.simulation.application.port.`in`.ReportSummaryUseCase
+import com.ssafy.animal.simulation.application.port.out.BreedReader
 import com.ssafy.animal.simulation.application.port.out.ReportRepository
 import com.ssafy.animal.simulation.application.port.out.ReportSummaryGenerator
 import com.ssafy.animal.simulation.application.port.out.SimulationSessionRepository
@@ -24,6 +25,8 @@ class ReportSummaryService(
     private val reportRepository: ReportRepository,
     private val sessionRepository: SimulationSessionRepository,
     private val generator: ReportSummaryGenerator,
+    private val reportCalculator: ReportCalculator,
+    private val breedReader: BreedReader,
     private val eventPublisher: ApplicationEventPublisher,
     private val properties: SimulationProperties,
     private val clock: Clock,
@@ -34,7 +37,16 @@ class ReportSummaryService(
         if (report.summary != null) return false
         val session = checkNotNull(sessionRepository.findById(sessionSeq)) { "리포트의 세션이 없습니다: sessionSeq=$sessionSeq" }
 
-        val input = ReportSummaryInput.of(session, report, properties.sessionDuration.toDays().toInt())
+        // LLM 입력 재료(Q517). 읽기에 실패해도 규칙 문구로는 요약할 수 있으므로 null로 넘긴다
+        val care = runCatching { reportCalculator.care(session, report) }
+            .onFailure { log.warn("[simulation-summary] 일차별 집계 실패 sessionSeq={}", sessionSeq, it) }
+            .getOrNull()
+        val input = ReportSummaryInput.of(
+            session, report, properties.sessionDuration.toDays().toInt(),
+            breedName = breedReader.findBreed(session.breedSeq)?.breedName,
+            referenceCost = properties.report.referenceCost[session.speciesType],
+            care = care,
+        )
         if (!reportRepository.updateSummaryIfNull(sessionSeq, generate(input))) return false
         eventPublisher.publishEvent(SimulationReportSummarized(sessionSeq, session.userSeq, session.status, session.animalName))
         return true

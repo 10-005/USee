@@ -24,7 +24,10 @@ import kotlin.test.assertTrue
 
 class ReportSummaryServiceTest {
 
-    private val store = FakeSimulationStore().apply { stockShop() }
+    private val store = FakeSimulationStore().apply {
+        stockShop()
+        breeds[21] = FakeSimulationStore.MALTESE
+    }
     private val properties = SimulationProperties(Duration.ofHours(1), Duration.ofDays(7), StatCalculatorTest.RULES)
     private val start = OffsetDateTime.of(2026, 11, 1, 14, 0, 0, 0, ZoneOffset.ofHours(9))
     private val summarized = mutableListOf<Any>()
@@ -46,6 +49,8 @@ class ReportSummaryServiceTest {
         reportRepository = store,
         sessionRepository = store,
         generator = generator,
+        reportCalculator = store.reportCalculator(properties, now),
+        breedReader = store,
         eventPublisher = ApplicationEventPublisher { summarized += it },
         properties = properties,
         clock = Clock.fixed(now.toInstant(), ZoneId.of("Asia/Seoul")),
@@ -71,6 +76,29 @@ class ReportSummaryServiceTest {
 
         assertEquals("짧은 요약입니다.", store.reports.single().summary)
         assertEquals(listOf<Any>(SimulationReportSummarized(session.sessionSeq!!, 17, SessionStatus.ABANDONED, "초코")), summarized)
+    }
+
+    @Test
+    fun `생성기에는 일차별 집계·품종·최소 예산을 실어 보낸다`() {
+        val session = endedSession(17, start.plusDays(2).plusHours(5))
+        var received: ReportSummaryInput? = null
+
+        val capturing = object : ReportSummaryGenerator {
+            override fun generate(input: ReportSummaryInput): String {
+                received = input
+                return "LLM 요약"
+            }
+        }
+
+        service(capturing).summarize(session.sessionSeq!!)
+
+        val input = received!!
+        assertEquals(3, input.care!!.evaluatedDays)
+        assertEquals(7, input.care!!.days.size)
+        assertEquals("말티즈", input.breedName)
+        assertEquals(93_300, input.referenceCost)
+        assertEquals(Personality.FRIENDLY, input.personality)
+        assertEquals("LLM 요약", store.reports.single().summary)
     }
 
     @Test

@@ -6,7 +6,10 @@ import com.ssafy.animal.common.exception.ErrorCode
 import com.ssafy.animal.simulation.application.service.FakeSimulationStore.Companion.MALTESE
 import com.ssafy.animal.simulation.application.port.out.UserInfo
 import com.ssafy.animal.simulation.config.SimulationProperties
+import com.ssafy.animal.simulation.domain.ActionCode
+import com.ssafy.animal.simulation.domain.CareKey
 import com.ssafy.animal.simulation.domain.Personality
+import com.ssafy.animal.simulation.domain.SimulationActionLog
 import com.ssafy.animal.simulation.domain.SessionStatus
 import com.ssafy.animal.simulation.domain.SimulationErrorCode
 import com.ssafy.animal.simulation.domain.SimulationSession
@@ -48,7 +51,7 @@ class SimulationReportQueryServiceTest {
         reportRepository = store,
         breedReader = store,
         progress = store.progress(properties, now),
-        reportCalculator = store.reportCalculator(properties),
+        reportCalculator = store.reportCalculator(properties, now),
         userReader = store,
     )
 
@@ -112,6 +115,21 @@ class SimulationReportQueryServiceTest {
         assertEquals(start.plusHours(3), session.statsCalculatedDttm)
         assertNull(view.report.summary)
         assertTrue(store.reports.isEmpty())
+        assertEquals(1, view.care.evaluatedDays)
+    }
+
+    @Test
+    fun `중간 리포트의 평가 일수는 조회 시각의 일차이고 행동 이력으로 일차별 돌봄을 센다`() {
+        store.now = start.plusHours(1)
+        store.save(SimulationActionLog.system(session, ActionCode.SESSION_START))
+        store.now = start.plusDays(1).plusHours(1)
+        store.save(SimulationActionLog(sessionSeq, ActionCode.WATER, session.stats(), mapOf("hydration" to 30)))
+
+        val view = serviceAt(start.plusDays(1).plusHours(2)).getReport(17, Role.USER, sessionSeq)
+
+        assertEquals(2, view.care.evaluatedDays)
+        assertEquals(1, view.care.days[1].counts.getValue(CareKey.WATER))
+        assertNull(view.care.days[0].lowestStats) // SYSTEM 로그는 행동이 아니다
     }
 
     @Test
@@ -123,6 +141,7 @@ class SimulationReportQueryServiceTest {
         assertTrue(view.isFinal)
         assertSame(report, view.report)
         assertEquals(MALTESE, view.breed)
+        assertEquals(1, view.care.evaluatedDays) // 조회 시각이 아니라 종료 시각의 일차
     }
 
     @Test

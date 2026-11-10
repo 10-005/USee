@@ -206,6 +206,11 @@ class FakeSimulationStore :
     override fun countByTypes(sessionSeq: Long, types: Collection<ActionType>) =
         logs.count { it.sessionSeq == sessionSeq && it.actionType in types }
 
+    override fun findByTypes(sessionSeq: Long, types: Collection<ActionType>) =
+        logs.filter { it.sessionSeq == sessionSeq && it.actionType in types }
+
+    override fun findBySession(sessionSeq: Long) = occurrences.filter { it.sessionSeq == sessionSeq }
+
     override fun findSpends(sessionSeq: Long) = transactions.filter { it.sessionSeq == sessionSeq }.map {
         val key = if (it.transactionType == TransactionType.EVENT) ReportAggregator.EVENT_KEY else shopItems.getValue(it.itemSeq!!).category.name
         SpendRecord(key, it.amount, checkNotNull(it.regDttm) { "테스트 지출에 regDttm이 없습니다" })
@@ -357,7 +362,11 @@ class FakeSimulationStore :
     /** 종료 시 발행된 내부 이벤트 */
     val published = mutableListOf<Any>()
 
-    fun reportCalculator(properties: SimulationProperties) = ReportCalculator(this, this, this, this, properties)
+    /** now는 진행 중 세션의 평가 일차(care) 기준 시각. 없으면 시스템 시계 */
+    fun reportCalculator(properties: SimulationProperties, now: OffsetDateTime? = null) = ReportCalculator(
+        this, this, this, this, this, properties,
+        now?.let { Clock.fixed(it.toInstant(), ZoneId.of("Asia/Seoul")) } ?: Clock.systemDefaultZone(),
+    )
 
     fun terminator(properties: SimulationProperties) =
         SessionTerminator(this, this, this, this, reportCalculator(properties), ApplicationEventPublisher { published += it })

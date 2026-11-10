@@ -38,7 +38,7 @@ class AbandonSimulationServiceTest {
     )
     private val sessionSeq = session.sessionSeq!!
 
-    private fun serviceAt(now: OffsetDateTime) = AbandonSimulationService(store, store, store.progress(properties, now))
+    private fun serviceAt(now: OffsetDateTime) = AbandonSimulationService(store, store, store.progress(properties, now), store.reportCalculator(properties, now))
 
     @Test
     fun `포기하면 지금 시각으로 ABANDONED 처리하고 리포트(summary null)를 돌려준다`() {

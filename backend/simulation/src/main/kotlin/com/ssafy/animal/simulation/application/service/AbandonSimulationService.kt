@@ -14,6 +14,7 @@ class AbandonSimulationService(
     private val sessionRepository: SimulationSessionRepository,
     private val breedReader: BreedReader,
     private val progress: SessionProgress,
+    private val reportCalculator: ReportCalculator,
 ) : AbandonSimulationUseCase {
 
     /**
@@ -30,6 +31,6 @@ class AbandonSimulationService(
 
         val report = progress.abandon(session)
         val breed = checkNotNull(breedReader.findBreed(session.breedSeq)) { "세션의 품종 기준정보가 없습니다: breedSeq=${session.breedSeq}" }
-        return SessionReportView(session, breed, report)
+        return SessionReportView(session, breed, report, reportCalculator.care(session, report))
     }
 }

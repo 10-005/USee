@@ -321,7 +321,7 @@ class SimulationSessionControllerTest {
             sessionDays = 7,
         )
         session.end(SessionStatus.ABANDONED, endedAt)
-        given(abandonUseCase.abandon(17, 3001L)).willReturn(SessionReportView(session, maltese, report))
+        given(abandonUseCase.abandon(17, 3001L)).willReturn(SessionReportView(session, maltese, report, com.ssafy.animal.simulation.domain.CareFixtures.care(startedAt, evaluatedDays = 2)))
 
         mockMvc.post("/api/simulation/v1/simulations/3001/abandon") { header(HttpHeaders.AUTHORIZATION, USER_TOKEN) }.andExpect {
             status { isOk() }
@@ -340,6 +340,9 @@ class SimulationSessionControllerTest {
             jsonPath("$.data.report.actionCount") { value(12) }
             jsonPath("$.data.report.walkCount") { value(0) }
             jsonPath("$.data.report.summary") { value(null) }
+            jsonPath("$.data.report.evaluatedDays") { value(2) }
+            jsonPath("$.data.report.careGuideline.FEED") { value(3) }
+            jsonPath("$.data.report.dailyCare.1.FEED") { value(0) }
         }
     }
 

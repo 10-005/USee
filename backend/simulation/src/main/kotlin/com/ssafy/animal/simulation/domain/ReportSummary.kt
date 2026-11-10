@@ -1,13 +1,16 @@
 package com.ssafy.animal.simulation.domain
 
 import java.time.OffsetDateTime
-import java.util.Locale
 
-/** 리포트 요약 재료(규칙 문구·LLM 공통). 저장된 종료 리포트와 세션 스냅샷에서 만든다 */
+/**
+ * 리포트 요약 재료(규칙 문구·LLM 공통). 저장된 종료 리포트와 세션 스냅샷에서 만든다.
+ * breedName·referenceCost·care는 LLM 입력용(Q517)이고 규칙 문구는 쓰지 않는다. 읽지 못했으면 null
+ */
 data class ReportSummaryInput(
     val status: SessionStatus,
     val speciesType: SpeciesType,
     val animalName: String,
+    val personality: Personality,
     /** 종료가 시작 기준 며칠째인지(1~세션 일수) */
     val endedDay: Int,
     val sessionDays: Int,
@@ -19,16 +22,28 @@ data class ReportSummaryInput(
     val eventCount: Int,
     val eventResolvedCount: Int,
     val walkCount: Int,
+    val breedName: String? = null,
+    /** 종별 최소 예산(원, [가안]) */
+    val referenceCost: Int? = null,
+    val care: CareReport? = null,
 ) {
     val difference: Int get() = expectedCost - totalSpent
 
     companion object {
-        fun of(session: SimulationSession, report: SimulationReport, sessionDays: Int): ReportSummaryInput {
+        fun of(
+            session: SimulationSession,
+            report: SimulationReport,
+            sessionDays: Int,
+            breedName: String? = null,
+            referenceCost: Int? = null,
+            care: CareReport? = null,
+        ): ReportSummaryInput {
             val endedAt: OffsetDateTime = checkNotNull(session.endedDttm) { "끝난 세션만 요약합니다: sessionSeq=${session.sessionSeq}" }
             return ReportSummaryInput(
                 status = session.status,
                 speciesType = session.speciesType,
                 animalName = session.animalName,
+                personality = session.personality,
                 endedDay = ReportAggregator.dayOf(session.startedDttm, endedAt, sessionDays),
                 sessionDays = sessionDays,
                 expectedCost = report.expectedCost,
@@ -39,6 +54,9 @@ data class ReportSummaryInput(
                 eventCount = report.eventCount,
                 eventResolvedCount = report.eventResolvedCount,
                 walkCount = report.walkCount,
+                breedName = breedName,
+                referenceCost = referenceCost,
+                care = care,
             )
         }
     }
@@ -55,34 +73,6 @@ object ReportSummaryWriter {
 
     /** 낮은 스탯은 낮은 순서로 이만큼만 말한다 */
     private const val LOW_STAT_LIMIT = 2
-
-    private val CATEGORY_LABELS = mapOf(
-        "FOOD_BOWL" to "밥그릇",
-        "WATER_BOWL" to "물그릇",
-        "LITTER_BOX" to "화장실",
-        "TOY" to "장난감",
-        "FURNITURE" to "생활 용품",
-        "LEASH" to "하네스와 리드줄",
-        "GROOMING_KIT" to "위생 관리 키트",
-        "FOOD" to "사료",
-        "SNACK" to "간식",
-        "LITTER" to "배변 용품",
-        "SHAMPOO" to "샴푸",
-        "MEDICINE" to "상비약",
-        "POOP_BAG" to "배변봉투",
-        "CATNIP" to "캣닢",
-        ReportAggregator.EVENT_KEY to "병원 진료비",
-    )
-
-    private val STAT_LABELS = mapOf(
-        Stat.SATIETY to "포만감",
-        Stat.HYDRATION to "수분",
-        Stat.CLEANLINESS to "청결도",
-        Stat.BOND to "친밀도",
-        Stat.CALMNESS to "안정감",
-        Stat.HEALTH to "건강",
-        Stat.ENERGY to "활력",
-    )
 
     fun write(input: ReportSummaryInput): String = listOfNotNull(
         ending(input),
@@ -110,8 +100,8 @@ object ReportSummaryWriter {
         if (input.totalSpent == 0) return "아무것도 사지 않아 지출이 없었어요."
         val difference = input.difference
         return when {
-            difference < 0 -> "예상보다 ${won(-difference)}을 더 썼어요."
-            difference > 0 -> "예상보다 ${won(difference)} 덜 썼어요."
+            difference < 0 -> "예상보다 ${KoreanLabels.won(-difference)}을 더 썼어요."
+            difference > 0 -> "예상보다 ${KoreanLabels.won(difference)} 덜 썼어요."
             else -> "예상한 비용과 똑같이 썼어요."
         }
     }
@@ -123,7 +113,7 @@ object ReportSummaryWriter {
             .filter { it.second > 0 }
             .maxByOrNull { it.second }
             ?: return null
-        return "${CATEGORY_LABELS[top.first] ?: top.first}에 가장 많이 썼어요(${won(top.second)})."
+        return "${KoreanLabels.category(top.first)}에 가장 많이 썼어요(${KoreanLabels.won(top.second)})."
     }
 
     private fun events(input: ReportSummaryInput): String? = when {
@@ -140,8 +130,7 @@ object ReportSummaryWriter {
             .sortedBy { it.second }
             .take(LOW_STAT_LIMIT)
         if (low.isEmpty()) return if (input.status == SessionStatus.COMPLETED) "마지막까지 컨디션을 잘 지켰어요." else null
-        return "마지막에 ${low.joinToString("·") { STAT_LABELS.getValue(it.first) }} 수치가 낮았어요."
+        return "마지막에 ${low.joinToString("·") { KoreanLabels.stat(it.first) }} 수치가 낮았어요."
     }
 
-    private fun won(amount: Int) = String.format(Locale.KOREA, "%,d원", amount)
 }
