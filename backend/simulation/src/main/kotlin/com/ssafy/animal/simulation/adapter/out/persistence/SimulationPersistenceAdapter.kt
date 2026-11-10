@@ -82,6 +82,12 @@ class SimulationPersistenceAdapter(
                 .fetchOne() ?: 0L
             ).toInt()
 
+    override fun findByTypes(sessionSeq: Long, types: Collection<ActionType>): List<SimulationActionLog> =
+        queryFactory.selectFrom(simulationActionLog)
+            .where(simulationActionLog.sessionSeq.eq(sessionSeq), simulationActionLog.actionType.`in`(types))
+            .orderBy(simulationActionLog.regDttm.asc(), simulationActionLog.actionLogSeq.asc())
+            .fetch()
+
     // (session_seq, reg_dttm DESC) 인덱스로 그 세션의 최근 로그 중에서 찾는다
     override fun findLastActionDttm(sessionSeq: Long, actionCode: ActionCode): OffsetDateTime? =
         queryFactory.select(simulationActionLog.regDttm.max())

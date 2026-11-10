@@ -1,5 +1,6 @@
 package com.ssafy.animal.simulation.config
 
+import com.ssafy.animal.simulation.domain.SpeciesType
 import com.ssafy.animal.simulation.domain.StatCalculatorTest
 import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources
@@ -23,5 +24,11 @@ class SimulationPropertiesTest {
         assertEquals(Duration.ofDays(7), properties.sessionDuration)
         assertEquals(StatCalculatorTest.RULES, properties.stats)
         assertEquals(com.ssafy.animal.simulation.domain.EventConfig(), properties.event)
+        // Q517 [가안]. 키 값은 환경 변수 자리표시자라 여기서는 보지 않는다
+        assertEquals(ReportConfig().careGuideline, properties.report.careGuideline)
+        assertEquals(mapOf(SpeciesType.DOG to 93_300, SpeciesType.CAT to 88_800), properties.report.referenceCost)
+        assertEquals("gpt-4o-mini", properties.report.llm.model)
+        assertEquals(Duration.ofSeconds(20), properties.report.llm.timeout)
+        assertEquals("https://api.openai.com", properties.report.llm.baseUrl)
     }
 }

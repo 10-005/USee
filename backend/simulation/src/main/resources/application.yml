@@ -105,6 +105,23 @@ simulation:
   report:
     # 종료 처리 후 이 시간이 지나도 요약이 없으면 스케줄러가 다시 만든다(Q487 가안 10분)
     summary-recovery-delay: 10m
+    # 하루 권장 횟수(Q517 가안). 18.18 dailyCare 이탈 판정·LLM 요약 기준. 고양이 세션은 walk를 쓰지 않는다
+    care-guideline:
+      feed: 3
+      water: 3
+      clean-litter: 2
+      play: 2
+      walk: 1
+    # 종별 최소 예산(원, Q517 가안): 필수 기구 + 7일치 소모품 최소 구성. LLM 요약 입력용
+    reference-cost:
+      dog: 93300
+      cat: 88800
+    # LLM 요약(Q517). 키가 비어 있으면 규칙 문구만 쓴다. 키는 환경 변수로만(SealedSecret)
+    llm:
+      api-key: ${OPENAI_API_KEY:}
+      model: gpt-4o-mini
+      timeout: 20s
+      base-url: https://api.openai.com
   # 돌발 이벤트(S15P31D106-255, 가안). RANDOM은 스케줄러 판정마다 이 확률로 발생(10분 주기면 하루 평균 약 1.5회)
   event:
     home-expiry: 6h

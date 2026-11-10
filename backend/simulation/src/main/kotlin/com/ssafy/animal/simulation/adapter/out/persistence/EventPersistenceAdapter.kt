@@ -97,6 +97,12 @@ class EventPersistenceAdapter(
         return EventCounts(total = statuses.size, resolved = statuses.count { it == OccurrenceStatus.RESOLVED })
     }
 
+    override fun findBySession(sessionSeq: Long): List<EventOccurrence> =
+        queryFactory.selectFrom(eventOccurrence)
+            .where(eventOccurrence.sessionSeq.eq(sessionSeq))
+            .orderBy(eventOccurrence.occurredDttm.asc(), eventOccurrence.occurrenceSeq.asc())
+            .fetch()
+
     companion object {
         /** 18.12 정렬 화이트리스트는 occurredDttm뿐(기본 desc, 동률 PK desc) */
         val SORT_POLICY = SortPolicy(

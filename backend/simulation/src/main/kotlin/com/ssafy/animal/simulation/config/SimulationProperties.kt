@@ -1,9 +1,11 @@
 package com.ssafy.animal.simulation.config
 
 import com.ssafy.animal.simulation.domain.CareConfig
+import com.ssafy.animal.simulation.domain.CareKey
 import com.ssafy.animal.simulation.domain.DemoConfig
 import com.ssafy.animal.simulation.domain.EventConfig
 import com.ssafy.animal.simulation.domain.ShopRules
+import com.ssafy.animal.simulation.domain.SpeciesType
 import com.ssafy.animal.simulation.domain.StatRules
 import com.ssafy.animal.simulation.domain.WalkConfig
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -29,4 +31,22 @@ data class SimulationProperties(
 data class ReportConfig(
     /** 종료 처리 후 이 시간이 지나도 요약이 없으면 스케줄러가 다시 만든다(고아 복구) */
     val summaryRecoveryDelay: Duration = Duration.ofMinutes(10),
+    /** 하루 권장 횟수(Q517 [가안]). 18.18 careGuideline·dailyCare 이탈 판정 기준 */
+    val careGuideline: Map<CareKey, Int> = mapOf(
+        CareKey.FEED to 3, CareKey.WATER to 3, CareKey.CLEAN_LITTER to 2, CareKey.PLAY to 2, CareKey.WALK to 1,
+    ),
+    /** 종별 최소 예산(원, Q517 [가안]): 필수 기구 + 7일치 소모품 최소 구성. LLM 요약 입력에만 쓴다 */
+    val referenceCost: Map<SpeciesType, Int> = mapOf(SpeciesType.DOG to 93_300, SpeciesType.CAT to 88_800),
+    val llm: LlmConfig = LlmConfig(),
 )
+
+/** LLM 요약(Q517). apiKey가 비어 있으면 규칙 문구 생성기를 쓴다 */
+data class LlmConfig(
+    val apiKey: String = "",
+    val model: String = "gpt-4o-mini",
+    val timeout: Duration = Duration.ofSeconds(20),
+    val baseUrl: String = "https://api.openai.com",
+) {
+    // 설정 객체가 로그에 찍혀도 키가 남지 않게 한다
+    override fun toString() = "LlmConfig(apiKey=${if (apiKey.isBlank()) "<empty>" else "<set>"}, model=$model, timeout=$timeout, baseUrl=$baseUrl)"
+}
