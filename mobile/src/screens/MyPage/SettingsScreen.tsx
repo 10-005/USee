@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -6,8 +7,6 @@ import {
   AppState,
   Linking,
   Modal,
-  PermissionsAndroid,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -32,6 +31,7 @@ import { useProfileStore } from '../../stores/profileStore';
 import { colors, radius, typography } from '../../theme';
 import { useAuthStore } from '../../stores/authStore';
 import { getApiErrorDisplayMessage } from '../../services/api';
+import { readAppNotificationPermission } from '../../services/notifications/appNotificationPermission';
 import { deactivateDeviceTokenIfSignedIn } from '../../services/notifications/deviceTokenRegistration';
 import { getStoredFcmToken } from '../../services/notifications/firebaseMessaging';
 
@@ -61,19 +61,21 @@ export function SettingsScreen({ navigation }: Props) {
   const [accountModal, setAccountModal] = useState<AccountModal>(null);
   const [activeTimeField, setActiveTimeField] = useState<'start' | 'end' | null>(null);
 
-  const readNotificationPermission = useCallback(async () => {
-    if (Platform.OS !== 'android' || Number(Platform.Version) < 33) {
-      setNotificationsAllowed(true);
-      return;
-    }
-    try {
-      setNotificationsAllowed(
-        await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS),
-      );
-    } catch {
-      setNotificationsAllowed(false);
-    }
+  const readNotificationPermission = useCallback(() => {
+    readAppNotificationPermission()
+      .then(allowed => {
+        if (allowed !== null) {
+          setNotificationsAllowed(allowed);
+        }
+      })
+      .catch(() => undefined);
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      readNotificationPermission();
+    }, [readNotificationPermission]),
+  );
 
   useEffect(() => {
     if (notificationsAllowed) {
@@ -87,7 +89,6 @@ export function SettingsScreen({ navigation }: Props) {
   }, [notificationsAllowed]);
 
   useEffect(() => {
-    readNotificationPermission();
     const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') {
         readNotificationPermission();
