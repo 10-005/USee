@@ -403,6 +403,7 @@ export function ProfileEditScreen({ navigation }: Props) {
         </Pressable>
       </View>
       <DatePickerModal
+        hasValue={Boolean(birthDate)}
         maximumDate={new Date()}
         onClose={() => setDatePickerOpen(false)}
         onConfirm={date => {
