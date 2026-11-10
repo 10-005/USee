@@ -170,6 +170,15 @@ logging:
     correlation: "[%X{traceId:-}] "
 
 ---
+# dev 시드(db/dev)는 local·dev에서만 함께 적용한다(core-api와 같은 방식). 회원 1번 모의 입양 완료 세션(S15P31D106-254)
+spring:
+  config:
+    activate:
+      on-profile: local | dev
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev
+
+---
 spring:
   config:
     activate:
