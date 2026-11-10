@@ -21,7 +21,7 @@ class ReportSummaryWriterTest {
         eventResolvedCount: Int = 6,
         walkCount: Int = 6,
     ) = ReportSummaryInput(
-        status = status, speciesType = speciesType, animalName = "초코", endedDay = endedDay, sessionDays = 7,
+        status = status, speciesType = speciesType, animalName = "초코", personality = Personality.FRIENDLY, endedDay = endedDay, sessionDays = 7,
         expectedCost = expectedCost, totalSpent = spent.values.sum(),
         spentByCategory = ReportAggregator.CATEGORY_KEYS.associateWith { spent[it] ?: 0 },
         finalStats = finalStats, actionCount = actionCount, eventCount = eventCount, eventResolvedCount = eventResolvedCount, walkCount = walkCount,

@@ -1,8 +1,12 @@
 package com.ssafy.animal.simulation.config
 
+import com.ssafy.animal.simulation.adapter.out.summary.OpenAiReportSummaryGenerator
+import com.ssafy.animal.simulation.adapter.out.summary.RuleReportSummaryGenerator
+import com.ssafy.animal.simulation.application.port.out.ReportSummaryGenerator
 import com.ssafy.animal.simulation.domain.StatCalculator
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import tools.jackson.databind.json.JsonMapper
 import java.time.Clock
 import java.time.Duration
 import java.time.ZoneId
@@ -14,6 +18,13 @@ class SimulationConfig {
 
     @Bean
     fun statCalculator(properties: SimulationProperties) = StatCalculator(properties.stats, properties.tick)
+
+    /** 요약 생성기는 하나만 띄운다: LLM 키가 있으면 OpenAI, 비어 있으면 규칙 문구(Q517) */
+    @Bean
+    fun reportSummaryGenerator(properties: SimulationProperties, jsonMapper: JsonMapper): ReportSummaryGenerator {
+        val llm = properties.report.llm
+        return if (llm.apiKey.isBlank()) RuleReportSummaryGenerator() else OpenAiReportSummaryGenerator(llm, jsonMapper)
+    }
 
     /**
      * 실시간 7일 세션(M2)의 기준 시계. 테스트는 고정 시계로 바꾼다.

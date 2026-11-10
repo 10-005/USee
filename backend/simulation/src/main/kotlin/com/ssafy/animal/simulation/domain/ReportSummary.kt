@@ -3,11 +3,15 @@ package com.ssafy.animal.simulation.domain
 import java.time.OffsetDateTime
 import java.util.Locale
 
-/** 리포트 요약 재료(규칙 문구·LLM 공통). 저장된 종료 리포트와 세션 스냅샷에서 만든다 */
+/**
+ * 리포트 요약 재료(규칙 문구·LLM 공통). 저장된 종료 리포트와 세션 스냅샷에서 만든다.
+ * breedName·referenceCost·care는 LLM 입력용(Q517)이고 규칙 문구는 쓰지 않는다. 읽지 못했으면 null
+ */
 data class ReportSummaryInput(
     val status: SessionStatus,
     val speciesType: SpeciesType,
     val animalName: String,
+    val personality: Personality,
     /** 종료가 시작 기준 며칠째인지(1~세션 일수) */
     val endedDay: Int,
     val sessionDays: Int,
@@ -19,16 +23,28 @@ data class ReportSummaryInput(
     val eventCount: Int,
     val eventResolvedCount: Int,
     val walkCount: Int,
+    val breedName: String? = null,
+    /** 종별 최소 예산(원, [가안]) */
+    val referenceCost: Int? = null,
+    val care: CareReport? = null,
 ) {
     val difference: Int get() = expectedCost - totalSpent
 
     companion object {
-        fun of(session: SimulationSession, report: SimulationReport, sessionDays: Int): ReportSummaryInput {
+        fun of(
+            session: SimulationSession,
+            report: SimulationReport,
+            sessionDays: Int,
+            breedName: String? = null,
+            referenceCost: Int? = null,
+            care: CareReport? = null,
+        ): ReportSummaryInput {
             val endedAt: OffsetDateTime = checkNotNull(session.endedDttm) { "끝난 세션만 요약합니다: sessionSeq=${session.sessionSeq}" }
             return ReportSummaryInput(
                 status = session.status,
                 speciesType = session.speciesType,
                 animalName = session.animalName,
+                personality = session.personality,
                 endedDay = ReportAggregator.dayOf(session.startedDttm, endedAt, sessionDays),
                 sessionDays = sessionDays,
                 expectedCost = report.expectedCost,
@@ -39,6 +55,9 @@ data class ReportSummaryInput(
                 eventCount = report.eventCount,
                 eventResolvedCount = report.eventResolvedCount,
                 walkCount = report.walkCount,
+                breedName = breedName,
+                referenceCost = referenceCost,
+                care = care,
             )
         }
     }
@@ -123,7 +142,7 @@ object ReportSummaryWriter {
             .filter { it.second > 0 }
             .maxByOrNull { it.second }
             ?: return null
-        return "${CATEGORY_LABELS[top.first] ?: top.first}에 가장 많이 썼어요(${won(top.second)})."
+        return "${categoryLabel(top.first)}에 가장 많이 썼어요(${won(top.second)})."
     }
 
     private fun events(input: ReportSummaryInput): String? = when {
@@ -142,6 +161,9 @@ object ReportSummaryWriter {
         if (low.isEmpty()) return if (input.status == SessionStatus.COMPLETED) "마지막까지 컨디션을 잘 지켰어요." else null
         return "마지막에 ${low.joinToString("·") { STAT_LABELS.getValue(it.first) }} 수치가 낮았어요."
     }
+
+    /** 지출 분류 키(물품 분류·EVENT)의 한국어 이름 */
+    fun categoryLabel(key: String): String = CATEGORY_LABELS[key] ?: key
 
     private fun won(amount: Int) = String.format(Locale.KOREA, "%,d원", amount)
 }
