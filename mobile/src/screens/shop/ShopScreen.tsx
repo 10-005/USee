@@ -42,11 +42,7 @@ export function ShopScreen({ navigation, route }: Props) {
   const [sort, setSort] = useState('기본순');
   const [sortOpen, setSortOpen] = useState(false);
   const items = filterProducts(pet?.category ?? 'dog', '전체', query, sort).filter(
-    p =>
-      !selectedCategories.length ||
-      selectedCategories.some(category =>
-        category === '필수 준비' ? p.essential : p.category === category,
-      ),
+    p => !selectedCategories.length || selectedCategories.some(category => p.category === category),
   );
   const cartCount = Object.values(shop.cart).reduce((sum, n) => sum + n, 0);
   const toggleCategory = (category: string) => {
