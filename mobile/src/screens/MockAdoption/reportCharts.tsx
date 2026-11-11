@@ -26,7 +26,7 @@ import {
   won,
 } from './reportLabels';
 
-const STAT_COLOR = { low: '#DC2626', medium: '#A16207', high: '#15803D' };
+const STAT_COLOR = { low: '#C82850', medium: '#996A36', high: '#4050E0' };
 const STAT_LEGEND = [
   { tone: 'high', label: '양호', range: '70% 이상' },
   { tone: 'medium', label: '주의', range: '40~69%' },
@@ -458,8 +458,8 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
       <Svg pointerEvents="none" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
         <Defs>
           <RadialGradient id={`radar-panel-${chartId}`} cx="50%" cy="40%" r="75%">
-            <Stop offset="0%" stopColor="#FAFCFB" />
-            <Stop offset="100%" stopColor="#EDF4F0" />
+            <Stop offset="0%" stopColor="#FCFCFF" />
+            <Stop offset="100%" stopColor="#F4F0FD" />
           </RadialGradient>
         </Defs>
         <Rect width="100%" height="100%" fill={`url(#radar-panel-${chartId})`} />
@@ -486,8 +486,8 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
                   r={RADAR.radius * 1.5}
                   gradientUnits="userSpaceOnUse"
                 >
-                  <Stop offset="0%" stopColor={item.color} stopOpacity={0.24} />
-                  <Stop offset="55%" stopColor={item.color} stopOpacity={0.08} />
+                  <Stop offset="0%" stopColor={item.color} stopOpacity={0.18} />
+                  <Stop offset="55%" stopColor={item.color} stopOpacity={0.05} />
                   <Stop offset="100%" stopColor={item.color} stopOpacity={0} />
                 </RadialGradient>
                 <LinearGradient
@@ -522,7 +522,7 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
         <Polygon
           points={baseline}
           fill="none"
-          stroke="#88BFA7"
+          stroke="#C4C6DF"
           strokeWidth={1}
           strokeLinejoin="round"
         />
@@ -569,7 +569,7 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
             key={item.key}
             x={item.labelX}
             y={item.labelY}
-            fill="#344A40"
+            fill="#4D5066"
             fontSize="11"
             fontFamily="Pretendard-Regular"
             textAnchor="middle"
@@ -750,6 +750,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   statusDot: { borderRadius: 4, height: 8, width: 8 },
-  radarLineBase: { backgroundColor: '#88BFA7' },
+  radarLineBase: { backgroundColor: '#C4C6DF' },
   radarKeyLabel: { ...typography.captionSemiBold12, color: '#435E54' },
 });
