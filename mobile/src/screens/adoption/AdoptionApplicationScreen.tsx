@@ -392,7 +392,7 @@ function ChoiceGroup({
           ))}
           {row.length < columnCount
             ? Array.from({ length: columnCount - row.length }, (_, index) => (
-                <View key={`spacer-${index}`} style={styles.choiceSpacer} />
+                <View key={`spacer-${index}`} style={[styles.choice, styles.choiceSpacer]} />
               ))
             : null}
         </View>
@@ -1333,7 +1333,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   choiceSelected: { backgroundColor: '#3DDC97', borderColor: '#3DDC97' },
-  choiceSpacer: { flex: 1 },
+  choiceSpacer: { opacity: 0 },
   choiceText: {
     ...typography.bodyRegular14,
     color: colors.gray400,
