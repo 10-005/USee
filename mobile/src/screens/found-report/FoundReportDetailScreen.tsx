@@ -46,6 +46,7 @@ import { useMissingReportStore } from '../../stores/missingReportStore';
 import { type ReportProgressStatus, useReportStatusStore } from '../../stores/reportStatusStore';
 import { colors, radius, typography } from '../../theme';
 import { FoundReportCommentList } from './FoundReportCommentList';
+import { useInitialCommentScroll } from './useInitialCommentScroll';
 import { getFoundReport } from './data';
 import { getLostReport } from '../lost-report/data';
 
@@ -112,6 +113,11 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const [statusSheetVisible, setStatusSheetVisible] = useState(false);
   const listRef = useRef<FlatList>(null);
   const scrollRef = useRef<ScrollViewInstance>(null);
+  const commentScroll = useInitialCommentScroll(
+    scrollRef,
+    route.params.reportId,
+    highlightCommentId,
+  );
   const focusedCommentInputRef = useRef<number | null>(null);
   const bookmarkType = isLostReport ? 'MISSING' : 'FOUND';
   const bookmarked = useAdoptionBookmarkStore(state =>
@@ -155,11 +161,11 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const detailPhoto = isLostReport ? null : apiFoundDetail?.reporter?.profileImage;
   const [profile, setProfile] = useState<{ id: number; uri?: string }>();
   useEffect(() => {
-    if (!userSeq || detailPhoto) return;
+    if (!userSeq || detailPhoto) {return;}
     let active = true;
     getPublicProfile(userSeq)
       .then(result => {
-        if (active) setProfile({ id: userSeq, uri: result.profileImage?.imageUrl });
+        if (active) {setProfile({ id: userSeq, uri: result.profileImage?.imageUrl });}
       })
       .catch(() => undefined);
     return () => {
@@ -296,123 +302,136 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
         }
         title="게시글"
       />
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 120 + insets.bottom + keyboardHeight }}
-        decelerationRate="fast"
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
-        ref={scrollRef}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.reporter}>
-          <Image
-            source={
-              reporterPhoto
-                ? { uri: reporterPhoto }
-                : require('../../assets/images/mypage/profile-default.png')
-            }
-            style={styles.profileImage}
-          />
-          <Text style={[styles.reporterName, report.isMine && styles.myReporterName]}>
-            {reporterName}
-          </Text>
-          <Text style={styles.reportMeta}>1시간 전</Text>
-        </View>
-        <View>
-          <FlatList
-            data={report.images}
-            horizontal
-            keyExtractor={(_item, index) => `${report.id}-image-${index}`}
-            onMomentumScrollEnd={onMomentumEnd}
-            pagingEnabled
-            ref={listRef}
-            renderItem={({ item }) => (
-              <Image resizeMode="cover" source={item} style={{ height: width, width }} />
-            )}
-            showsHorizontalScrollIndicator={false}
-          />
-          {report.images.length > 1 ? (
-            <View style={styles.indicators}>
-              {report.images.map((_image, index) => (
-                <View
-                  key={index}
-                  style={[styles.indicator, index === page && styles.activeIndicator]}
-                />
-              ))}
-            </View>
-          ) : null}
-        </View>
-        <View style={styles.titleRow}>
-          <View
-            style={[
-              styles.badge,
-              isLostReport && styles.lostBadge,
-              isCompleted && styles.closedBadge,
-            ]}
-          >
-            <Text style={styles.badgeText}>{displayStatus}</Text>
+      <View style={styles.contentBody}>
+        <ScrollView
+          key={`${route.params.reportId}:${highlightCommentId ?? ''}`}
+          style={commentScroll.waiting ? styles.hiddenContent : undefined}
+          pointerEvents={commentScroll.waiting ? 'none' : 'auto'}
+          accessibilityElementsHidden={commentScroll.waiting}
+          importantForAccessibility={commentScroll.waiting ? 'no-hide-descendants' : 'auto'}
+          onLayout={commentScroll.onLayout}
+          onContentSizeChange={commentScroll.onContentSizeChange}
+          onScroll={commentScroll.onScroll}
+          scrollEventThrottle={16}
+          contentContainerStyle={{ paddingBottom: 120 + insets.bottom + keyboardHeight }}
+          decelerationRate="fast"
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          ref={scrollRef}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.reporter}>
+            <Image
+              source={
+                reporterPhoto
+                  ? { uri: reporterPhoto }
+                  : require('../../assets/images/mypage/profile-default.png')
+              }
+              style={styles.profileImage}
+            />
+            <Text style={[styles.reporterName, report.isMine && styles.myReporterName]}>
+              {reporterName}
+            </Text>
+            <Text style={styles.reportMeta}>1시간 전</Text>
           </View>
-          <Text style={styles.title}>{report.name}</Text>
-          <Pressable
-            accessibilityLabel="북마크"
-            accessibilityRole="button"
-            accessibilityState={{
-              busy: bookmarkPending,
-              disabled: bookmarkPending,
-              selected: bookmarked,
-            }}
-            disabled={bookmarkPending}
-            hitSlop={10}
-            onPress={() =>
-              toggleBookmark(bookmarkType, report.id).catch(() =>
-                Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
-              )
-            }
-          >
-            {bookmarkPending ? (
-              <ActivityIndicator color={colors.green400} size="small" />
-            ) : bookmarked ? (
-              <BookmarkActiveIcon />
-            ) : (
-              <BookmarkIcon />
-            )}
-          </Pressable>
-        </View>
-        <View style={styles.section}>
-          <InfoRow
-            label="성별"
-            value={`${report.gender} (중성화 ${
-              report.neutered === null ? '모름' : report.neutered ? 'O' : 'X'
-            })`}
+          <View>
+            <FlatList
+              data={report.images}
+              horizontal
+              keyExtractor={(_item, index) => `${report.id}-image-${index}`}
+              onMomentumScrollEnd={onMomentumEnd}
+              pagingEnabled
+              ref={listRef}
+              renderItem={({ item }) => (
+                <Image resizeMode="cover" source={item} style={{ height: width, width }} />
+              )}
+              showsHorizontalScrollIndicator={false}
+            />
+            {report.images.length > 1 ? (
+              <View style={styles.indicators}>
+                {report.images.map((_image, index) => (
+                  <View
+                    key={index}
+                    style={[styles.indicator, index === page && styles.activeIndicator]}
+                  />
+                ))}
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.titleRow}>
+            <View
+              style={[
+                styles.badge,
+                isLostReport && styles.lostBadge,
+                isCompleted && styles.closedBadge,
+              ]}
+            >
+              <Text style={styles.badgeText}>{displayStatus}</Text>
+            </View>
+            <Text style={styles.title}>{report.name}</Text>
+            <Pressable
+              accessibilityLabel="북마크"
+              accessibilityRole="button"
+              accessibilityState={{
+                busy: bookmarkPending,
+                disabled: bookmarkPending,
+                selected: bookmarked,
+              }}
+              disabled={bookmarkPending}
+              hitSlop={10}
+              onPress={() =>
+                toggleBookmark(bookmarkType, report.id).catch(() =>
+                  Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
+                )
+              }
+            >
+              {bookmarkPending ? (
+                <ActivityIndicator color={colors.green400} size="small" />
+              ) : bookmarked ? (
+                <BookmarkActiveIcon />
+              ) : (
+                <BookmarkIcon />
+              )}
+            </Pressable>
+          </View>
+          <View style={styles.section}>
+            <InfoRow
+              label="성별"
+              value={`${report.gender} (중성화 ${
+                report.neutered === null ? '모름' : report.neutered ? 'O' : 'X'
+              })`}
+            />
+            <InfoRow label="나이" value={report.age} />
+            <InfoRow label="몸무게" value={report.weight} />
+            <InfoRow label="털색" value={report.color} />
+          </View>
+          <View style={styles.section}>
+            <InfoRow label={isLostReport ? '실종일' : '발견일'} value={report.date} />
+            <InfoRow label={isLostReport ? '실종장소' : '발견장소'} value={report.location} />
+            <InfoRow label="연락처" value={getContactDisplayValue(report.contact)} />
+          </View>
+          <View style={styles.descriptionSection}>
+            <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
+            <Text style={styles.description}>{report.description.trim() || '-'}</Text>
+          </View>
+          <FoundReportCommentList
+            onTargetLayout={commentScroll.onTargetLayout}
+            onTargetUnavailable={commentScroll.onTargetUnavailable}
+            onChat={openChat}
+            onEditFocus={revealCommentInput}
+            onPhotoMenuVisibilityChange={setCommentPhotoMenuVisible}
+            reportId={report.id}
+            targetType={isLostReport ? 'MISSING' : 'FOUND'}
+            targetCommentId={highlightCommentId}
           />
-          <InfoRow label="나이" value={report.age} />
-          <InfoRow label="몸무게" value={report.weight} />
-          <InfoRow label="털색" value={report.color} />
-        </View>
-        <View style={styles.section}>
-          <InfoRow label={isLostReport ? '실종일' : '발견일'} value={report.date} />
-          <InfoRow label={isLostReport ? '실종장소' : '발견장소'} value={report.location} />
-          <InfoRow label="연락처" value={getContactDisplayValue(report.contact)} />
-        </View>
-        <View style={styles.descriptionSection}>
-          <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
-          <Text style={styles.description}>{report.description.trim() || '-'}</Text>
-        </View>
-        <FoundReportCommentList
-          onTargetLayout={y => {
-            setTimeout(() => {
-              scrollRef.current?.scrollTo({ animated: true, y: Math.max(0, y - 80) });
-            }, 250);
-          }}
-          onChat={openChat}
-          onEditFocus={revealCommentInput}
-          onPhotoMenuVisibilityChange={setCommentPhotoMenuVisible}
-          reportId={report.id}
-          targetType={isLostReport ? 'MISSING' : 'FOUND'}
-          targetCommentId={highlightCommentId}
-        />
-      </ScrollView>
-      {!keyboardVisible && !commentPhotoMenuVisible && !isCompleted ? (
+        </ScrollView>
+        {commentScroll.waiting ? (
+          <View style={StyleSheet.absoluteFill}>
+            <DetailScreenSkeleton accessibilityLabel="알림 댓글 위치 불러오는 중" />
+          </View>
+        ) : null}
+      </View>
+      {!commentScroll.waiting && !keyboardVisible && !commentPhotoMenuVisible && !isCompleted ? (
         <View style={[styles.buttonWrap, { bottom: Math.max(insets.bottom, 12) }]}>
           <Button onPress={() => openChat(reporterName, reporterId)} style={styles.chatButton}>
             채팅 보내기
@@ -722,6 +741,8 @@ function StatusOption({
 }
 
 const styles = StyleSheet.create({
+  contentBody: { flex: 1 },
+  hiddenContent: { opacity: 0 },
   loadError: {
     alignItems: 'center',
     flex: 1,

@@ -505,13 +505,11 @@ function CommentThread({
 }: CommentThreadProps) {
   const threadYRef = useRef<number | null>(null);
   const targetYRef = useRef<number | null>(null);
-  const targetReportedRef = useRef(false);
 
   const reportTargetLayout = () => {
-    if (threadYRef.current === null || targetYRef.current === null || targetReportedRef.current) {
+    if (threadYRef.current === null || targetYRef.current === null) {
       return;
     }
-    targetReportedRef.current = true;
     onTargetLayout?.(threadYRef.current + targetYRef.current);
   };
 
@@ -535,7 +533,7 @@ function CommentThread({
         reply.id === targetCommentId
           ? event => {
               targetYRef.current = event.nativeEvent.layout.y;
-              requestAnimationFrame(reportTargetLayout);
+              reportTargetLayout();
             }
           : undefined
       }
@@ -547,7 +545,7 @@ function CommentThread({
     <View
       onLayout={event => {
         threadYRef.current = event.nativeEvent.layout.y;
-        requestAnimationFrame(reportTargetLayout);
+        reportTargetLayout();
       }}
     >
       {item(comment)}
@@ -570,6 +568,7 @@ function CommentThread({
 }
 
 type FoundReportCommentListProps = {
+  onTargetUnavailable?: () => void;
   onChat: (name: string, authorId: string) => void;
   onEditFocus?: (inputHandle: number) => void;
   onPhotoMenuVisibilityChange?: (visible: boolean) => void;
@@ -625,6 +624,7 @@ async function uploadCommentImage(asset?: Asset) {
 }
 
 export function FoundReportCommentList({
+  onTargetUnavailable,
   onChat,
   onEditFocus,
   onPhotoMenuVisibilityChange,
@@ -635,7 +635,6 @@ export function FoundReportCommentList({
 }: FoundReportCommentListProps) {
   const listYRef = useRef<number | null>(null);
   const targetRelativeYRef = useRef<number | null>(null);
-  const targetReportedRef = useRef(false);
   const insets = useSafeAreaInsets();
   const [comments, dispatch] = useReducer(commentReducer, []);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -684,15 +683,25 @@ export function FoundReportCommentList({
       .finally(() => setLoading(false));
   }, [refreshComments]);
 
-  const reportTargetPosition = () => {
+  useEffect(() => {
     if (
-      listYRef.current === null ||
-      targetRelativeYRef.current === null ||
-      targetReportedRef.current
+      !loading &&
+      targetCommentId &&
+      (loadError ||
+        !comments.some(
+          comment =>
+            comment.id === targetCommentId ||
+            comment.replies.some(reply => reply.id === targetCommentId),
+        ))
     ) {
+      onTargetUnavailable?.();
+    }
+  }, [comments, loadError, loading, onTargetUnavailable, targetCommentId]);
+
+  const reportTargetPosition = () => {
+    if (listYRef.current === null || targetRelativeYRef.current === null) {
       return;
     }
-    targetReportedRef.current = true;
     onTargetLayout?.(listYRef.current + targetRelativeYRef.current);
   };
 
@@ -840,7 +849,7 @@ export function FoundReportCommentList({
       accessible={false}
       onLayout={event => {
         listYRef.current = event.nativeEvent.layout.y;
-        requestAnimationFrame(reportTargetPosition);
+        reportTargetPosition();
       }}
       onPress={dismissMenus}
       style={styles.container}
@@ -922,7 +931,7 @@ export function FoundReportCommentList({
           targetCommentId={targetCommentId}
           onTargetLayout={y => {
             targetRelativeYRef.current = y;
-            requestAnimationFrame(reportTargetPosition);
+            reportTargetPosition();
           }}
         />
       ))}
