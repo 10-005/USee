@@ -58,6 +58,11 @@ storage:
   region: ${STORAGE_REGION:ap-northeast-2}
   public-base-url: ${STORAGE_PUBLIC_BASE_URL:}
 
+# AI 품종 추천 서버(ai/breed-server, 클러스터 내부 주소). 비어 있으면 8.9는 503
+ai:
+  breed-server:
+    base-url: ${AI_BREED_SERVER_URL:}
+
 management:
   endpoints:
     web:

@@ -6,6 +6,7 @@ import com.ssafy.animal.core.image.application.port.`in`.ImageSummary
 import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
 import com.ssafy.animal.core.image.application.port.`in`.IssueUploadUrlCommand
 import com.ssafy.animal.core.image.application.port.`in`.UploadUrl
+import com.ssafy.animal.core.image.application.port.`in`.UploadedImageUseCase
 import com.ssafy.animal.core.image.application.port.out.ImageRepository
 import com.ssafy.animal.core.image.application.port.out.ImageStorage
 import com.ssafy.animal.core.image.application.port.out.UploadContext
@@ -25,7 +26,7 @@ class ImageService(
     private val imageStorage: ImageStorage,
     private val imageRepository: ImageRepository,
     private val uploadContextStore: UploadContextStore,
-) : ImageUseCase {
+) : ImageUseCase, UploadedImageUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -71,6 +72,11 @@ class ImageService(
         val image = imageRepository.findById(imageSeq) ?: throw BusinessException(ImageErrorCode.IMAGE_NOT_FOUND)
         if (image.regUsrSeq?.toLong() != userSeq) throw BusinessException(ImageErrorCode.IMAGE_NOT_OWNED)
         return image.toSummary()
+    }
+
+    override fun requireUploadedUrl(userSeq: Long, imageKey: String): String {
+        uploadContextStore.find(imageKey)?.takeIf { it.userSeq == userSeq } ?: throw BusinessException(ImageErrorCode.IMAGE_NOT_FOUND)
+        return imageStorage.publicUrl(imageKey)
     }
 
     override fun findSummary(imageSeq: Long) = imageRepository.findById(imageSeq)?.toSummary()

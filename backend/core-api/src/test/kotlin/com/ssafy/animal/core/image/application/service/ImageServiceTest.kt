@@ -64,6 +64,18 @@ class ImageServiceTest {
         assertTrue(contexts.saved.isEmpty())
     }
 
+    // 8.9용: 확정 전 업로드 사진의 URL
+
+    @Test
+    fun `확정 전 키의 URL은 발급자 본인에게만 주고 컨텍스트는 그대로 둔다`() {
+        contexts.saved[key] = UploadContext(7, "image/jpeg", "dog.jpg") to Duration.ofMinutes(10)
+
+        assertEquals(storage.publicUrl(key), service.requireUploadedUrl(7, key))
+        assertCode(ImageErrorCode.IMAGE_NOT_FOUND) { service.requireUploadedUrl(8, key) }
+        assertCode(ImageErrorCode.IMAGE_NOT_FOUND) { service.requireUploadedUrl(7, "images/2026/11/none.jpg") }
+        assertTrue(key in contexts.saved) // 4.2 확정에 다시 쓰이므로 지우지 않는다
+    }
+
     // 4.2
 
     @Test

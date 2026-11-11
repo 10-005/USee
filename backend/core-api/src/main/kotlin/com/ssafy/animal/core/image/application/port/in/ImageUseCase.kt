@@ -62,3 +62,12 @@ data class ConfirmedImage(
     val image: Image,
     val imageUrl: String,
 )
+
+/** 4.2 확정 전의 업로드 사진을 쓰는 기능(8.9 품종 추천)용. ImageUseCase와 따로 둔 것은 그쪽 가짜 구현(테스트)을 건드리지 않기 위해서다 */
+interface UploadedImageUseCase {
+    /**
+     * 4.1로 발급받은 imageKey의 공개 URL. 발급 컨텍스트(Redis, TTL 10분)의 발급자가 요청자와 같을 때만 준다.
+     * 없거나(만료·이미 확정) 남의 키면 4.2와 같이 404 IMAGE_NOT_FOUND. 객체가 실제로 올라왔는지는 확인하지 않는다
+     */
+    fun requireUploadedUrl(userSeq: Long, imageKey: String): String
+}

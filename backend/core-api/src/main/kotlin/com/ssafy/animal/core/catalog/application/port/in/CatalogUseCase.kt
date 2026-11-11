@@ -38,3 +38,16 @@ data class AnimalClassification(
     @field:Schema(description = "색상 이름", example = "흰색")
     val colorName: String,
 )
+
+/** AI 품종 추천(8.9)이 AI 품종 이름을 품종으로 바꿀 때 쓴다. CatalogUseCase와 따로 둔 것은 그쪽 가짜 구현(테스트)을 건드리지 않기 위해서다 */
+interface BreedLookupUseCase {
+    /** 종의 품종 전체를 품종 이름(breed_name)으로 찾을 수 있게 돌려준다(Q520: 이름을 AI 표시 이름에 맞춤). 종이 시드에 없으면 null */
+    fun findBreedsByName(speciesCode: SpeciesCode): SpeciesBreeds?
+
+    /** 품종의 유효 색상 조합(5.4의 ?breedSeq= 와 같은 결과). 8.9가 색상 드롭다운용으로 함께 내려준다 */
+    fun findBreedColors(breedSeq: Int): List<AnimalClassification>
+}
+
+data class SpeciesBreeds(val speciesSeq: Int, val byName: Map<String, BreedRef>)
+
+data class BreedRef(val breedSeq: Int, val breedName: String)
