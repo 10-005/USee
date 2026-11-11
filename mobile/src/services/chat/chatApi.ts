@@ -45,6 +45,7 @@ export type ChatRoomDetail = {
   chatRoomSeq: number;
   roomType: ChatTargetType;
   counterpart: ChatCounterpart;
+  counterpartLastReadMessageSeq: number | null;
   lastReadMessageSeq: number | null;
   lastHiddenMessageSeq: number | null;
   unreadCount: number;

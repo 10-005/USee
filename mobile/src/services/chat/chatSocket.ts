@@ -21,6 +21,19 @@ export class ChatSocket {
   private connected = false;
   private queue: string[] = [];
   private subscriptions = new Map<string, (message: ChatMessageView) => void>();
+  private readListeners = new Set<{
+    onRead: (roomSeq: number, cursor: number) => void;
+    onConnect: () => void;
+  }>();
+
+  observeReadReceipts(onRead: (roomSeq: number, cursor: number) => void, onConnect: () => void) {
+    const listener = { onRead, onConnect };
+    this.readListeners.add(listener);
+    return () => {
+      this.readListeners.delete(listener);
+    };
+  }
+
   private pendingSends = new Map<
     string,
     { reject: (error: Error) => void; resolve: () => void; timer: ReturnType<typeof setTimeout> }
@@ -126,13 +139,39 @@ export class ChatSocket {
       const command = head.shift()?.trim();
       if (command === 'CONNECTED') {
         this.connected = true;
-        this.socket?.send(encodeFrame('SUBSCRIBE', {
-          destination: '/user/queue/errors', id: 'send-errors', ack: 'auto',
-        }));
+        this.socket?.send(
+          encodeFrame('SUBSCRIBE', {
+            destination: '/user/queue/errors',
+            id: 'send-errors',
+            ack: 'auto',
+          }),
+        );
+        this.socket?.send(
+          encodeFrame('SUBSCRIBE', {
+            destination: '/user/queue/room-updates',
+            id: 'room-updates',
+            ack: 'auto',
+          }),
+        );
+        this.readListeners.forEach(listener => listener.onConnect());
         this.subscriptions.forEach((_, destination) => this.sendSubscription(destination));
         this.queue.splice(0).forEach(item => this.socket?.send(item));
       } else if (command === 'MESSAGE' && divider >= 0) {
         const headers = Object.fromEntries(head.map(line => line.split(/:(.*)/s).slice(0, 2)));
+        if (headers.subscription === 'room-updates') {
+          const update = JSON.parse(frame.slice(divider + 2));
+          const room = update.room;
+          if (
+            update.type === 'COUNTERPART_READ' &&
+            Number.isSafeInteger(room?.chatRoomSeq) &&
+            Number.isSafeInteger(room?.counterpartLastReadMessageSeq)
+          ) {
+            this.readListeners.forEach(listener =>
+              listener.onRead(room.chatRoomSeq, room.counterpartLastReadMessageSeq),
+            );
+          }
+          continue;
+        }
         if (headers.subscription === 'send-errors') {
           const failure = JSON.parse(frame.slice(divider + 2));
           const reason = failure.message ?? '채팅 서버가 메시지를 거절했어요.';

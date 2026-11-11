@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   BackHandler,
   FlatList,
   Image,
@@ -19,6 +20,8 @@ import {
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useIsFocused } from '@react-navigation/native';
+import { chatSocket, getChatRoom } from '../../services/chat';
 import SendIcon from '../../assets/icons/common/chat-send.svg';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { AppHeader } from '../../components/common';
@@ -180,6 +183,14 @@ export function ChatRoomScreen({ route, navigation }: Props) {
   const room = useChatStore(state => state.rooms.find(item => item.id === roomId));
   const draft = useChatStore(state => state.drafts[roomId] ?? '');
   const { setDraft, send, markRead, leave, ensureRoom, loadMoreMessages } = useChatStore.getState();
+  const focused = useIsFocused();
+  const [appState, setAppState] = useState(AppState.currentState);
+  const active = focused && appState === 'active';
+  const [receipt, setReceipt] = useState<{ roomId: string; cursor: number | null }>();
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', setAppState);
+    return () => subscription.remove();
+  }, []);
   const list = useRef<FlatList>(null);
   const picking = useRef(false);
   const [action, setAction] = useState<ChatAction>();
@@ -209,11 +220,55 @@ export function ChatRoomScreen({ route, navigation }: Props) {
       : null;
   }, [action, room, nickname]);
   useEffect(() => {
+    if (!active) {
+      return;
+    }
+    let current = true;
+    const apply = (cursor: number | null) => {
+      if (!current || cursor === undefined) {
+        return;
+      }
+      setReceipt(previous => {
+        if (previous?.roomId === roomId && (previous.cursor ?? 0) >= (cursor ?? 0)) {
+          return previous;
+        }
+        return { roomId, cursor };
+      });
+    };
+    const unsubscribe = chatSocket.observeReadReceipts(
+      (seq, cursor) => {
+        if (String(seq) === roomId) {
+          apply(cursor);
+        }
+      },
+      () => {
+        getChatRoom(Number(roomId))
+          .then(detail => apply(detail.counterpartLastReadMessageSeq))
+          .catch(() => undefined);
+      },
+    );
     ensureRoom(roomId)
-      .then(() => markRead(roomId))
-      .catch(() => Alert.alert('채팅', '대화 내역을 불러올 수 없어요.'))
-      .finally(() => setRoomLoading(false));
-  }, [ensureRoom, markRead, roomId]);
+      .then(cursor => {
+        apply(cursor);
+        if (current) {
+          return markRead(roomId);
+        }
+      })
+      .catch(() => {
+        if (current) {
+          Alert.alert('채팅', '대화 내역을 불러올 수 없어요.');
+        }
+      })
+      .finally(() => {
+        if (current) {
+          setRoomLoading(false);
+        }
+      });
+    return () => {
+      current = false;
+      unsubscribe();
+    };
+  }, [active, ensureRoom, markRead, roomId]);
   useEffect(() => {
     if (action === 'report' && nickname && !reportTarget) {
       Alert.alert('사용자를 신고할 수 없어요', '상대 회원 정보를 확인할 수 없습니다.');
@@ -247,8 +302,10 @@ export function ChatRoomScreen({ route, navigation }: Props) {
     list.current?.scrollToOffset({ offset: 0, animated: false });
   }, [roomId, latestId]);
   useEffect(() => {
-    markRead(roomId).catch(() => undefined);
-  }, [latestId, roomId, markRead]);
+    if (active) {
+      markRead(roomId).catch(() => undefined);
+    }
+  }, [active, latestId, roomId, markRead]);
   const pickPhoto = async (source: 'library' | 'camera') => {
     setPhotoMenuOpen(false);
     if (picking.current) {
@@ -287,16 +344,14 @@ export function ChatRoomScreen({ route, navigation }: Props) {
         Alert.alert('사진 첨부', 'JPG 또는 PNG 사진을 10MB 이하로 선택해 주세요.');
         return;
       }
-      await sendFromRoom(
-        {
-          byteSize: asset.fileSize,
-          contentType: asset.type as 'image/jpeg' | 'image/png',
-          fileName: asset.fileName ?? `chat-${Date.now()}.jpg`,
-          height: asset.height || 1,
-          uri: asset.uri,
-          width: asset.width || 1,
-        },
-      );
+      await sendFromRoom({
+        byteSize: asset.fileSize,
+        contentType: asset.type as 'image/jpeg' | 'image/png',
+        fileName: asset.fileName ?? `chat-${Date.now()}.jpg`,
+        height: asset.height || 1,
+        uri: asset.uri,
+        width: asset.width || 1,
+      });
     } catch {
       Alert.alert('사진 첨부', '사진을 저장할 수 없어요. 다시 시도해 주세요.');
     } finally {
@@ -358,6 +413,12 @@ export function ChatRoomScreen({ route, navigation }: Props) {
                 const first = newDay || showCard || previous?.mine !== item.mine;
                 const meta = (
                   <View style={s.meta}>
+                    {item.mine &&
+                      !item.pending &&
+                      receipt?.roomId === roomId &&
+                      Number(item.id) > (receipt.cursor ?? 0) && (
+                        <Text style={s.sendStatus}>미읽음</Text>
+                      )}
                     {item.pending && <Text style={s.sendStatus}>전송 중</Text>}
                     <Text style={s.time}>{timeFormat.format(item.sentAt)}</Text>
                   </View>
