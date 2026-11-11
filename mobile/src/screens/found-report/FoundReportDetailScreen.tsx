@@ -469,7 +469,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             <InfoRow label="나이" value={report.age} />
             <InfoRow label="몸무게" value={report.weight} />
             <InfoRow label="털색" value={report.color} />
-            {foundFields && <InfoRow label="특징" value={foundFields.description.trim() || '-'} />}
+            <InfoRow label="특징" value={(foundFields?.description ?? report.description).trim() || '-'} />
           </View>
           <View style={styles.section}>
             <InfoRow label={isLostReport ? '실종일' : '발견일'} value={report.date} />
@@ -486,12 +486,6 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
               }
             />
           </View>
-          {isLostReport && (
-            <View style={styles.descriptionSection}>
-              <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
-              <Text style={styles.description}>{report.description.trim() || '-'}</Text>
-            </View>
-          )}
           <FoundReportCommentList
             onReplySelect={(name, y) => {
               setReplyName(name);
@@ -947,14 +941,6 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row' },
   infoLabel: { ...typography.bodyRegular14, color: colors.gray400, width: 110 },
   infoValue: { ...typography.bodyRegular14, color: colors.black, flex: 1 },
-  descriptionSection: {
-    borderBottomColor: colors.gray200,
-    borderBottomWidth: 1,
-    paddingHorizontal: 22,
-    paddingVertical: 20,
-  },
-  descriptionLabel: { ...typography.bodyRegular14, color: colors.gray400 },
-  description: { ...typography.bodyRegular14, color: colors.black, marginTop: 10 },
   fullChat: { position: 'absolute', left: 26, right: 26, bottom: 12 },
   raisedChat: { width: 48, position: 'absolute', right: 26, bottom: '100%', marginBottom: 20 },
   keyboardDock: { bottom: 0, paddingBottom: 0 },
