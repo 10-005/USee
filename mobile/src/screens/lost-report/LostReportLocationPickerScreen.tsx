@@ -236,7 +236,7 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
             : '실종 장소 선택'
         }
       />
-      <View style={styles.searchSection}>
+      <View style={[styles.searchSection, candidates !== null && styles.searchSectionWithResults]}>
         <View style={styles.searchField}>
           <SearchIcon height={20} width={20} />
           <TextInput
@@ -247,7 +247,7 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
               setCandidates(null);
             }}
             onSubmitEditing={searchAddress}
-            placeholder="도로명, 건물명, 지번으로 검색"
+            placeholder="장소명, 도로명, 지번으로 검색"
             placeholderTextColor={colors.gray400}
             returnKeyType="search"
             style={styles.searchInput}
@@ -318,14 +318,14 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
                     onPress={() => chooseCandidate(candidate)}
                     style={({ pressed }) => [styles.resultItem, pressed && styles.resultPressed]}
                   >
-                    <LocationIcon height={20} width={20} />
+                    <MapLocationIcon height={20} width={20} />
                     <View style={styles.resultTextWrap}>
                       <Text numberOfLines={1} style={styles.roadAddress}>
-                        {getCandidateAddress(candidate)}
+                        {candidate.placeName || getCandidateAddress(candidate)}
                       </Text>
-                      {candidate.jibunAddress ? (
+                      {candidate.placeName || candidate.jibunAddress ? (
                         <Text numberOfLines={1} style={styles.jibunAddress}>
-                          {candidate.jibunAddress}
+                          {candidate.placeName ? getCandidateAddress(candidate) : candidate.jibunAddress}
                         </Text>
                       ) : null}
                     </View>
@@ -389,6 +389,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     paddingHorizontal: 20,
   },
+  searchSectionWithResults: { paddingBottom: 4 },
   searchField: {
     alignItems: 'center',
     borderColor: colors.gray200,
