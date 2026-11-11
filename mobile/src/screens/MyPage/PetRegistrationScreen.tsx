@@ -175,7 +175,10 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   const [catalogSpecies, setCatalogSpecies] = useState<AnimalSpecies[]>([]);
   const [catalogBreeds, setCatalogBreeds] = useState<AnimalBreed[]>([]);
   const [catalogCombinations, setCatalogCombinations] = useState<AnimalCombination[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [speciesLoading, setSpeciesLoading] = useState(false);
+  const [breedsLoading, setBreedsLoading] = useState(false);
+  const [colorsLoading, setColorsLoading] = useState(false);
+  const catalogLoading = speciesLoading || breedsLoading || colorsLoading;
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -214,14 +217,14 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
     if (!usesPetApi) {
       return;
     }
-    setCatalogLoading(true);
+    setSpeciesLoading(true);
     setCatalogError(null);
     try {
       setCatalogSpecies(await getAnimalSpecies());
     } catch (error) {
       setCatalogError(getApiErrorDisplayMessage(error, '기준정보를 불러오지 못했어요.'));
     } finally {
-      setCatalogLoading(false);
+      setSpeciesLoading(false);
     }
   }, [usesPetApi]);
 
@@ -229,30 +232,39 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
     loadSpecies().catch(() => undefined);
   }, [loadSpecies]);
 
+  const selectedSpeciesSeq = catalogSpecies.find(
+    item => speciesLabel(item.speciesCode) === (species === '강아지' ? '개' : species),
+  )?.speciesSeq;
   useEffect(() => {
-    if (!isEditing || !editingPet || catalogSpecies.length === 0) {
-      return;
+    let active = true;
+    setCatalogBreeds([]);
+    setBreedsLoading(Boolean(selectedSpeciesSeq));
+    if (selectedSpeciesSeq) {
+      getAnimalBreeds(selectedSpeciesSeq)
+        .then(items => { if (active) setCatalogBreeds(items); })
+        .catch(error => {
+          if (active) setCatalogError(getApiErrorDisplayMessage(error, '품종을 불러오지 못했어요.'));
+        })
+        .finally(() => { if (active) setBreedsLoading(false); });
     }
-    const selectedSpecies = catalogSpecies.find(
-      item => speciesLabel(item.speciesCode) === editingPet.species,
-    );
-    if (!selectedSpecies) {
-      return;
+    return () => { active = false; };
+  }, [selectedSpeciesSeq]);
+
+  const selectedBreedSeq = catalogBreeds.find(item => item.breedName === breed)?.breedSeq;
+  useEffect(() => {
+    let active = true;
+    setCatalogCombinations([]);
+    setColorsLoading(Boolean(selectedBreedSeq));
+    if (selectedBreedSeq) {
+      getAnimalCombinations(selectedBreedSeq)
+        .then(items => { if (active) setCatalogCombinations(items); })
+        .catch(error => {
+          if (active) setCatalogError(getApiErrorDisplayMessage(error, '색상 조합을 불러오지 못했어요.'));
+        })
+        .finally(() => { if (active) setColorsLoading(false); });
     }
-    setCatalogLoading(true);
-    getAnimalBreeds(selectedSpecies.speciesSeq)
-      .then(async breeds => {
-        setCatalogBreeds(breeds);
-        const selectedBreed = breeds.find(item => item.breedName === editingPet.breed);
-        if (selectedBreed) {
-          setCatalogCombinations(await getAnimalCombinations(selectedBreed.breedSeq));
-        }
-      })
-      .catch(error =>
-        setCatalogError(getApiErrorDisplayMessage(error, '기준정보를 불러오지 못했어요.')),
-      )
-      .finally(() => setCatalogLoading(false));
-  }, [catalogSpecies, editingPet, isEditing]);
+    return () => { active = false; };
+  }, [selectedBreedSeq]);
 
   const retryCatalog = () => {
     setSpecies('');
@@ -296,6 +308,14 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
     }, [requestBack]),
   );
 
+  const selectedCombination = catalogCombinations.find(item => item.colorName === color);
+  const foundCombinationSeq = selectedCombination?.combinationSeq ?? (
+    species === normalizePetSpecies(foundReportDraft.species) &&
+    breed === foundReportDraft.breed &&
+    color === foundReportDraft.color
+      ? foundReportDraft.combinationSeq
+      : null
+  );
   const isValid = Boolean(
     photos.length &&
       (isReportFlow || name.trim()) &&
@@ -308,7 +328,8 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       (microchip !== '완료' || microchipNumber.trim()) &&
       (!usesPetApi ||
         (isLostReportFlow && Boolean(lostReportAnimal.combinationSeq)) ||
-        catalogCombinations.some(combination => combination.colorName === color)) &&
+        (isFoundReportFlow && Boolean(foundCombinationSeq)) ||
+        selectedCombination) &&
       !isUploadingPhotos &&
       !isSubmitting,
   );
@@ -441,36 +462,12 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       setColor('');
       setCatalogBreeds([]);
       setCatalogCombinations([]);
-      if (usesPetApi) {
-        setCatalogError(null);
-        const selected = catalogSpecies.find(item => speciesLabel(item.speciesCode) === value);
-        if (selected) {
-          setCatalogLoading(true);
-          getAnimalBreeds(selected.speciesSeq)
-            .then(setCatalogBreeds)
-            .catch(error =>
-              setCatalogError(getApiErrorDisplayMessage(error, '품종을 불러오지 못했어요.')),
-            )
-            .finally(() => setCatalogLoading(false));
-        }
-      }
+      setCatalogError(null);
     } else if (selectKey === 'breed' && breed !== value) {
       setBreed(value);
       setColor('');
       setCatalogCombinations([]);
-      if (usesPetApi) {
-        setCatalogError(null);
-        const selected = catalogBreeds.find(item => item.breedName === value);
-        if (selected) {
-          setCatalogLoading(true);
-          getAnimalCombinations(selected.breedSeq)
-            .then(setCatalogCombinations)
-            .catch(error =>
-              setCatalogError(getApiErrorDisplayMessage(error, '색상 조합을 불러오지 못했어요.')),
-            )
-            .finally(() => setCatalogLoading(false));
-        }
-      }
+      setCatalogError(null);
     } else if (selectKey === 'color') {
       setColor(value);
     }
@@ -543,9 +540,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       return;
     }
     if (isFoundReportFlow) {
-      const combinationSeq =
-        catalogCombinations.find(item => item.colorName === color)?.combinationSeq ??
-        foundReportDraft.combinationSeq;
+      const combinationSeq = foundCombinationSeq;
       if (!combinationSeq) {
         Alert.alert('입력 확인', '종·품종·색상 조합을 다시 선택해 주세요.');
         return;

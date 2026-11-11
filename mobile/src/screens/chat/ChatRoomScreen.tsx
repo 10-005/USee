@@ -458,8 +458,12 @@ export function ChatRoomScreen({ route, navigation }: Props) {
                         <MessagePhoto key={item.photo?.uri} photo={item.photo} maxSize={photoMax} />
                       ) : (
                         <View style={[s.bubble, item.mine && s.myBubble]}>
-                          <Text selectable style={[s.text, item.mine && s.myText]}>
-                            {item.text}
+                          <Text
+                            selectable
+                            textBreakStrategy="simple"
+                            style={[s.text, item.mine && s.myText]}
+                          >
+                            {item.text?.replace(/([가-힣ㄱ-ㅎㅏ-ㅣ])(?=[가-힣ㄱ-ㅎㅏ-ㅣ])/g, '$1\u200B')}
                           </Text>
                         </View>
                       )}

@@ -288,13 +288,11 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
                 </Text>
                 <Text style={styles.animalMeta}>
                   중성화 여부{' '}
-                  <Text style={styles.neutered}>
-                    {application?.animalSummary?.isNeutered == null
-                      ? '모름'
-                      : application.animalSummary.isNeutered
+                  {application?.animalSummary?.isNeutered == null
+                    ? '모름'
+                    : application.animalSummary.isNeutered
                       ? 'O'
                       : 'X'}
-                  </Text>
                 </Text>
               </View>
             </View>
@@ -505,7 +503,6 @@ const styles = StyleSheet.create({
   animalText: { marginLeft: 16 },
   animalTitle: { ...typography.titleBold18, color: colors.black, fontSize: 20, lineHeight: 26 },
   animalMeta: { ...typography.bodyRegular14, color: colors.black, marginTop: 2 },
-  neutered: { color: colors.green400 },
   registrationRows: { gap: 7, marginTop: 14 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', minHeight: 23 },
   infoLabel: { ...typography.bodyRegular14, color: colors.gray500 },
