@@ -165,10 +165,8 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       : isLostReportFlow && lostReportEntryMode === 'manual' && !route.params?.reportId
       ? ''
       : initialAnimal
-      ? initialAnimal.microchipNumber
+      ? initialAnimal.microchipNumber?.trim()
         ? '완료'
-        : isLostReportFlow && route.params?.reportId
-        ? '모름'
         : '미완료'
       : '',
   );
