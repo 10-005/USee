@@ -164,10 +164,11 @@ class ChatControllerTest {
 
     @Test
     fun `14_3 상세, 비참여자 404`() {
-        given(chatUseCase.getRoom(me, 501)).willReturn(ChatRoomDetail(501, ChatRoomType.SHELTER, counterpart, 4001, null, 1))
+        given(chatUseCase.getRoom(me, 501)).willReturn(ChatRoomDetail(501, ChatRoomType.SHELTER, counterpart, 4001, null, 1, null))
         get("/rooms/501").andExpect {
             status { isOk() }
             jsonPath("$.data.lastReadMessageSeq") { value(4001) }
+            jsonPath("$.data.counterpartLastReadMessageSeq") { value(null) }
             jsonPath("$.data.lastHiddenMessageSeq") { value(null) }
             jsonPath("$.data.counterpart.displayName") { value("행복동물보호센터") }
             jsonPath("$.data.unreadCount") { value(1) }

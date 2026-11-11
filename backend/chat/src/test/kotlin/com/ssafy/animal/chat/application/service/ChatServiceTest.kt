@@ -2,6 +2,7 @@ package com.ssafy.animal.chat.application.service
 
 import com.ssafy.animal.chat.application.port.`in`.ChatMessageView
 import com.ssafy.animal.chat.application.port.`in`.ChatRoomItem
+import com.ssafy.animal.chat.application.port.`in`.CounterpartRead
 import com.ssafy.animal.chat.application.port.`in`.CreateRoomCommand
 import com.ssafy.animal.chat.application.port.`in`.RoomRef
 import com.ssafy.animal.chat.application.port.`in`.RoomUpdate
@@ -275,6 +276,7 @@ class ChatServiceTest {
         assertEquals(2, detail.unreadCount)
         assertEquals("밥", detail.counterpart.displayName)
         assertNull(detail.lastReadMessageSeq)
+        assertNull(detail.counterpartLastReadMessageSeq)
         assertCode(ChatErrorCode.CHAT_ROOM_NOT_FOUND) { service.getRoom(carol, roomSeq) }
         assertCode(ChatErrorCode.CHAT_ROOM_NOT_FOUND) { service.getRoom(alice, 9999) }
     }
@@ -305,7 +307,7 @@ class ChatServiceTest {
     // ---- 14.6·14.7 ----
 
     @Test
-    fun `14_6 읽음은 앞으로만, 본인에게 READ`() {
+    fun `14_6 읽음은 앞으로만, 본인에게 READ, 상대에게 COUNTERPART_READ`() {
         val roomSeq = userRoom()
         val m1 = service.sendMessage(bob, roomSeq, text("1")).chatMessageSeq
         val m2 = service.sendMessage(bob, roomSeq, text("2")).chatMessageSeq
@@ -315,15 +317,41 @@ class ChatServiceTest {
         assertEquals(m2, result.lastReadMessageSeq)
         assertEquals(0, result.unreadCount)
         assertEquals(0, result.totalUnreadMessageCount)
-        val (userSeq, update) = roomUpdates.single()
-        assertEquals(20L, userSeq)
-        assertEquals(RoomUpdateType.READ, update.type)
+        val updates = roomUpdates.toMap()
+        assertEquals(setOf(20L, 10L), updates.keys)
+        assertEquals(RoomUpdateType.READ, updates.getValue(20).type)
+        assertEquals(RoomUpdateType.COUNTERPART_READ, updates.getValue(10).type)
+        assertEquals(CounterpartRead(roomSeq, m2), updates.getValue(10).room)
 
+        roomUpdates.clear()
         assertEquals(m2, service.read(alice, roomSeq, m1).lastReadMessageSeq) // 되돌리기 무시
+        assertEquals(listOf(20L), roomUpdates.map { it.first }) // 포인터가 그대로면 상대에게 안 보낸다
         val other = service.createRoom(alice, CreateRoomCommand(ParticipantType.USER, 30, null)).chatRoomSeq
         val otherSeq = service.sendMessage(carol, other, text("x")).chatMessageSeq
         assertCode(ChatErrorCode.CHAT_MESSAGE_NOT_IN_ROOM) { service.read(alice, roomSeq, otherSeq) }
         assertCode(ChatErrorCode.CHAT_ROOM_NOT_FOUND) { service.read(carol, roomSeq, m1) }
+    }
+
+    @Test
+    fun `14_3 상대 읽음 위치, 회원과 보호소 양쪽`() {
+        // FE 예시: 내가 101·102를 보냈고 상대가 101까지 읽음 → 102만 미읽음
+        val userRoomSeq = userRoom()
+        val m101 = service.sendMessage(alice, userRoomSeq, text("101")).chatMessageSeq
+        service.sendMessage(alice, userRoomSeq, text("102"))
+        service.read(bob, userRoomSeq, m101)
+        assertEquals(m101, service.getRoom(alice, userRoomSeq).counterpartLastReadMessageSeq)
+        assertNull(service.getRoom(bob, userRoomSeq).counterpartLastReadMessageSeq)
+
+        val shelterRoomSeq = service.createRoom(alice, CreateRoomCommand(ParticipantType.SHELTER, null, 7)).chatRoomSeq
+        val s1 = service.sendMessage(alice, shelterRoomSeq, text("문의")).chatMessageSeq
+        roomUpdates.clear()
+        service.read(shelterAccount, shelterRoomSeq, s1)
+        assertEquals(s1, service.getRoom(alice, shelterRoomSeq).counterpartLastReadMessageSeq)
+        assertEquals(RoomUpdateType.COUNTERPART_READ, roomUpdates.toMap().getValue(20).type)
+
+        val r1 = service.sendMessage(shelterAccount, shelterRoomSeq, text("답변")).chatMessageSeq
+        service.read(alice, shelterRoomSeq, r1)
+        assertEquals(r1, service.getRoom(shelterAccount, shelterRoomSeq).counterpartLastReadMessageSeq)
     }
 
     @Test

@@ -7,6 +7,7 @@ import com.ssafy.animal.chat.application.port.`in`.ChatRoomItem
 import com.ssafy.animal.chat.application.port.`in`.ChatRoomPage
 import com.ssafy.animal.chat.application.port.`in`.ChatUseCase
 import com.ssafy.animal.chat.application.port.`in`.Counterpart
+import com.ssafy.animal.chat.application.port.`in`.CounterpartRead
 import com.ssafy.animal.chat.application.port.`in`.CounterpartApplication
 import com.ssafy.animal.chat.application.port.`in`.CounterpartProfile
 import com.ssafy.animal.chat.application.port.`in`.CreateRoomCommand
@@ -115,6 +116,7 @@ class ChatService(
             lastReadMessageSeq = me.lastReadMessageSeq,
             lastHiddenMessageSeq = me.lastHiddenMessageSeq,
             unreadCount = chatRepository.countUnread(chatRoomSeq, me.readFloor, actor.userSeq),
+            counterpartLastReadMessageSeq = chatRepository.findParticipant(chatRoomSeq, counterpartKey(actor, room))?.lastReadMessageSeq,
         )
     }
 
@@ -179,11 +181,22 @@ class ChatService(
     override fun read(actor: AuthUser, chatRoomSeq: Long, lastReadMessageSeq: Long): ReadResult {
         val me = participantOrNotFound(actor, chatRoomSeq)
         requireMessageInRoom(chatRoomSeq, lastReadMessageSeq)
+        val before = me.lastReadMessageSeq
         me.read(lastReadMessageSeq)
         chatRepository.saveParticipant(me)
         val total = chatRepository.countTotalUnread(actor)
         val update = RoomUpdate(RoomUpdateType.READ, roomUpdateItem(actor, chatRoomSeq), total)
-        afterCommit { chatPushPort.sendRoomUpdate(actor.userSeq, update) }
+        // 포인터가 실제로 앞으로 갔을 때만 상대(보낸 쪽)에게 읽은 위치를 알린다
+        val counterpartUpdates = if (me.lastReadMessageSeq == before) emptyList() else {
+            val read = CounterpartRead(chatRoomSeq, me.lastReadMessageSeq!!)
+            membersOf(chatRepository.findRoom(chatRoomSeq)!!).mapNotNull { it.actor }
+                .filter { it.userSeq != actor.userSeq }
+                .map { it.userSeq to RoomUpdate(RoomUpdateType.COUNTERPART_READ, read, chatRepository.countTotalUnread(it)) }
+        }
+        afterCommit {
+            chatPushPort.sendRoomUpdate(actor.userSeq, update)
+            counterpartUpdates.forEach { (userSeq, u) -> chatPushPort.sendRoomUpdate(userSeq, u) }
+        }
         return ReadResult(me.lastReadMessageSeq, chatRepository.countUnread(chatRoomSeq, me.readFloor, actor.userSeq), total)
     }
 
@@ -343,6 +356,11 @@ class ChatService(
         actor.shelterSeq != null -> room.userASeq
         else -> null
     }
+
+    /** 상대 참여자를 findParticipant로 찾기 위한 키. 보호소는 shelterSeq로만 찾으므로 userSeq는 쓰이지 않는다 */
+    private fun counterpartKey(actor: AuthUser, room: ChatRoom): AuthUser =
+        counterpartUserSeq(actor, room)?.let { AuthUser(it.toLong(), Role.USER, null) }
+            ?: AuthUser(0, Role.SHELTER, room.shelterSeq!!.toLong())
 
     /** 방의 양쪽(보호소는 담당 계정으로). actor는 room-updates·푸시 수신자, 담당 계정이 없는 보호소는 null */
     private fun membersOf(room: ChatRoom): List<Member> {

@@ -247,6 +247,7 @@ class ChatController(
         description = "- 로그인 필요. 이 방의 참여자만.\n" +
             "- 없는 방이거나 참여자가 아니면 404(존재를 감춘다).\n" +
             "- 나간 방도 참여자이므로 조회된다.\n" +
+            "- `counterpartLastReadMessageSeq`: 상대가 마지막으로 읽은 메시지 번호(읽은 적 없으면 null). 내 메시지 중 이 번호보다 큰 것만 미읽음 표시. 이후 변경은 STOMP `room-updates`의 `COUNTERPART_READ`로 받는다.\n" +
             "- 다음 호출: 메시지 내역 `GET /api/chat/v1/chats/rooms/{chatRoomSeq}/messages`.",
     )
     @ApiResponses(
@@ -260,7 +261,7 @@ class ChatController(
                     examples = [
                         ExampleObject(
                             name = "대화방 상세",
-                            value = """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"chatRoomSeq":501,"roomType":"USER","counterpart":{"type":"USER","userSeq":18,"shelterSeq":null,"displayName":"(탈퇴한 사용자)","profileImage":null},"lastReadMessageSeq":4000,"lastHiddenMessageSeq":null,"unreadCount":2},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}""",
+                            value = """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"chatRoomSeq":501,"roomType":"USER","counterpart":{"type":"USER","userSeq":18,"shelterSeq":null,"displayName":"(탈퇴한 사용자)","profileImage":null},"lastReadMessageSeq":4000,"lastHiddenMessageSeq":null,"unreadCount":2,"counterpartLastReadMessageSeq":4001},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}""",
                         ),
                     ],
                 ),
@@ -481,7 +482,8 @@ class ChatController(
         description = "- 로그인 필요. 이 방의 참여자만.\n" +
             "- 내 읽음 포인터를 `lastReadMessageSeq`로 옮긴다. 이 방의 메시지 번호여야 한다.\n" +
             "- 멱등: 현재 값 이하로 되돌리는 요청은 무시하고 현재 값과 미읽음 수를 200으로 준다.\n" +
-            "- 처리 후 STOMP `/user/queue/room-updates`로 내 다른 기기에 `READ` 갱신을 보낸다.",
+            "- 처리 후 STOMP `/user/queue/room-updates`로 내 다른 기기에 `READ` 갱신을 보낸다.\n" +
+            "- 포인터가 실제로 앞으로 갔으면 상대에게도 `COUNTERPART_READ`(`room`=`{chatRoomSeq, counterpartLastReadMessageSeq}`)를 보낸다. 되돌리기·같은 값이면 보내지 않는다.",
     )
     @ApiResponses(
         ApiResponse(
