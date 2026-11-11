@@ -248,7 +248,7 @@ export function ShelterDetailScreen({ navigation, route }: Props) {
         </View>
       </ScrollView>
       <View style={[styles.actionContainer, { paddingBottom: insets.bottom + 16 }]}>
-        <Button onPress={openChat}>채팅 보내기</Button>
+        <Button onPress={openChat} style={styles.chatButton}>채팅 보내기</Button>
       </View>
       <Pressable
         accessibilityLabel="뒤로가기"
@@ -329,6 +329,7 @@ const styles = StyleSheet.create({
     color: colors.gray300,
     textDecorationLine: 'underline',
   },
+  chatButton: { elevation: 8 },
   actionContainer: {
     bottom: 0,
     left: 0,

@@ -551,17 +551,17 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                 opacity: transition.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }),
                 transform: [{ scaleX: transition.interpolate({ inputRange: [0, 1], outputRange: [1, 48 / (width - 52)] }) }],
               }]}>
-                <Pressable accessibilityLabel="채팅 보내기" onPress={() => openChat(reporterName, reporterId)} style={[styles.chatButton, styles.floatingChat]}>
-                  <Text style={{ color: colors.white }}>채팅 보내기</Text>
-                </Pressable>
+                <Button accessibilityLabel="채팅 보내기" onPress={() => openChat(reporterName, reporterId)} style={styles.chatButton}>
+                  채팅 보내기
+                </Button>
               </Animated.View>
               <Animated.View pointerEvents={commentsVisible ? 'auto' : 'none'} style={[styles.raisedChat, {
                 opacity: transition,
                 transform: [{ translateY: transition.interpolate({ inputRange: [0, 1], outputRange: [68, 0] }) }],
               }]}>
-                <Pressable accessibilityLabel="채팅 보내기" onPress={() => openChat(reporterName, reporterId)} style={[styles.chatButton, styles.floatingChat]}>
+                <Button accessibilityLabel="채팅 보내기" onPress={() => openChat(reporterName, reporterId)} style={[styles.chatButton, styles.compactChat]}>
                   <ChatIcon width={24} height={24} color={colors.white} />
-                </Pressable>
+                </Button>
               </Animated.View>
             </>
           ) : null}
@@ -952,7 +952,7 @@ const styles = StyleSheet.create({
   raisedChat: { width: 48, position: 'absolute', right: 26, bottom: '100%', marginBottom: 20 },
   keyboardDock: { bottom: 0, paddingBottom: 0 },
   floatingRow: { alignItems: 'flex-end' },
-  floatingChat: { height: 48, borderRadius: 24, backgroundColor: colors.green400, alignItems: 'center', justifyContent: 'center' },
+  compactChat: { paddingHorizontal: 0, paddingVertical: 10 },
   buttonWrap: {
     left: 0,
     paddingHorizontal: 26,
@@ -961,7 +961,6 @@ const styles = StyleSheet.create({
     right: 0,
   },
   chatButton: {
-    boxShadow: '0px 0px 15px rgba(0, 0, 0, 0.25)',
     elevation: 8,
   },
   menuBackdrop: {
