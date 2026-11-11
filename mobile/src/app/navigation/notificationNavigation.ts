@@ -20,6 +20,9 @@ export function openPendingNotification(isAuthenticated: boolean): void {
   if (!message) {
     return;
   }
+  if (message.kind === 'server' && message.notificationType !== 'CHAT') {
+    markNotificationAsRead(Number(message.notificationSeq)).catch(() => undefined);
+  }
   const destination = resolveNotificationDestination(message);
   if (!destination) {
     return;
@@ -32,7 +35,4 @@ export function openPendingNotification(isAuthenticated: boolean): void {
           return { name, params };
         })();
   navigation.resetRoot({ index: 1, routes: [{ name: 'Home' }, route] });
-  if (message.kind === 'server' && message.notificationType !== 'CHAT') {
-    markNotificationAsRead(Number(message.notificationSeq)).catch(() => undefined);
-  }
 }

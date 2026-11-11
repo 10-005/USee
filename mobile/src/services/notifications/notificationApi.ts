@@ -1,3 +1,4 @@
+import { dismissReadNotification } from './pushBanner';
 import type { ApiResponse } from '../api';
 import { notificationClient } from '../api/client';
 import { isListedNotification } from './notificationListItem';
@@ -69,6 +70,7 @@ export async function markNotificationAsRead(
   const response = await notificationClient.patch<ApiResponse<NotificationReadResult>>(
     `/notifications/${notificationSeq}/read`,
   );
+  if (response.data.data.isRead) dismissReadNotification(notificationSeq);
   return response.data.data;
 }
 

@@ -5,6 +5,18 @@ type PushBannerModule = {
   show: (title: string, body: string, payload: string) => Promise<void>;
 };
 
+export function dismissReadNotification(seq: number): void {
+  if (Platform.OS === 'android') {
+    NativeModules.PushBanner?.dismissNotification?.(String(seq));
+  }
+}
+
+export function dismissReadChat(room: number, through: number): void {
+  if (Platform.OS === 'android') {
+    NativeModules.PushBanner?.dismissChat?.(String(room), String(through));
+  }
+}
+
 export function showPushBanner(
   title: string,
   body: string,

@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.net.Uri
 import java.util.UUID
+import org.json.JSONObject
 import androidx.core.app.NotificationCompat
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -14,6 +15,25 @@ import com.usee.animal.R
 
 class PushBannerModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
   override fun getName() = "PushBanner"
+
+  @ReactMethod
+  fun dismissNotification(seq: String) {
+    reactApplicationContext.getSystemService(NotificationManager::class.java)
+      .cancel("usee:notification:$seq", 0)
+  }
+
+  @ReactMethod
+  fun dismissChat(room: String, through: String) {
+    val lastRead = through.toLongOrNull() ?: return
+    val manager = reactApplicationContext.getSystemService(NotificationManager::class.java)
+    val prefix = "usee:chat:$room:"
+    for (entry in manager.activeNotifications) {
+      val tag = entry.tag ?: continue
+      if (!tag.startsWith(prefix)) continue
+      val message = tag.removePrefix(prefix).toLongOrNull() ?: continue
+      if (message <= lastRead) manager.cancel(tag, entry.id)
+    }
+  }
 
   @ReactMethod
   fun show(title: String, body: String, payload: String, promise: Promise) {
@@ -50,7 +70,9 @@ class PushBannerModule(context: ReactApplicationContext) : ReactContextBaseJavaM
           .setContentIntent(pendingIntent)
           .build()
       val manager = context.getSystemService(NotificationManager::class.java)
-      manager.notify(System.currentTimeMillis().toInt(), notification)
+      val data = JSONObject(payload).optJSONObject("data")
+      val tag = pushTag { key -> data?.optString(key)?.takeIf { it.isNotEmpty() } }
+      manager.notify(tag ?: UUID.randomUUID().toString(), 0, notification)
       promise.resolve(null)
     } catch (error: Exception) {
       promise.reject("PUSH_BANNER_FAILED", "알림 배너를 표시하지 못했습니다.", error)
