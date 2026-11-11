@@ -67,6 +67,7 @@ export function FoundReportMapScreen({ navigation }: Props) {
           isShowLocationButton
           isShowScaleBar={false}
           isShowZoomControls={false}
+          mapPadding={{ bottom: insets.bottom + 12 }}
           onTapMap={() => {
             setSelectedReport(null);
           }}
