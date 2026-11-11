@@ -15,8 +15,10 @@ import { MockAdoptionScreen } from '../MockAdoption/MockAdoptionScreen';
 import { Button } from '../../components/common';
 
 const mockNavigate = jest.fn();
+let mockIsHomeFocused = true;
 
 beforeEach(async () => {
+  mockIsHomeFocused = true;
   mockNavigate.mockClear();
   jest.mocked(hasUnreadListNotification).mockReset();
   jest.mocked(hasUnreadListNotification).mockResolvedValue(false);
@@ -47,6 +49,7 @@ jest.mock('../../services/simulation/reports', () => ({
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
   useNavigation: () => ({ navigate: mockNavigate }),
+  useIsFocused: () => mockIsHomeFocused,
   useFocusEffect: (callback: () => void) => {
     require('react').useEffect(callback, [callback]);
   },
@@ -56,6 +59,28 @@ jest.mock(
   'react-native-safe-area-context',
   () => require('react-native-safe-area-context/jest/mock').default,
 );
+
+test('removes the native blur while a detail screen covers home', async () => {
+  const props = {
+    navigation: { navigate: mockNavigate },
+    route: { key: 'home', name: 'Home' },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'Home'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  try {
+    await ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(<HomeScreen {...props} />);
+    });
+    expect(renderer.root.findAllByProps({ blurAmount: 16 }).length).toBeGreaterThan(0);
+    mockIsHomeFocused = false;
+    await ReactTestRenderer.act(() => renderer.update(<HomeScreen {...props} />));
+    expect(renderer.root.findAllByProps({ blurAmount: 16 })).toHaveLength(0);
+    mockIsHomeFocused = true;
+    await ReactTestRenderer.act(() => renderer.update(<HomeScreen {...props} />));
+    expect(renderer.root.findAllByProps({ blurAmount: 16 }).length).toBeGreaterThan(0);
+  } finally {
+    await ReactTestRenderer.act(() => renderer?.unmount());
+  }
+});
 
 test.each(['입양', '찾아요', '채팅', '마이페이지'])(
   '%s main tab provides a shortcut to the active pet',

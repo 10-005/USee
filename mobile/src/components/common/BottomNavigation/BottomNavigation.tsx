@@ -21,6 +21,7 @@ export type BottomNavigationItem<Key extends string = string> = {
 };
 
 type BottomNavigationProps<Key extends string> = {
+  backgroundBlurEnabled?: boolean;
   centerAction?: {
     accessibilityLabel: string;
     icon: ReactNode;
@@ -34,6 +35,7 @@ type BottomNavigationProps<Key extends string> = {
 };
 
 export function BottomNavigation<Key extends string>({
+  backgroundBlurEnabled = true,
   centerAction,
   items,
   onSelect,
@@ -161,13 +163,13 @@ export function BottomNavigation<Key extends string>({
       style={styles.container}
     >
       <View pointerEvents="none" style={styles.background}>
-        <BlurView
+        {backgroundBlurEnabled ? <BlurView
           {...Platform.select({ android: { enabled: true, autoUpdate: !blurPaused } })}
           blurAmount={16}
           blurType="light"
           reducedTransparencyFallbackColor="#F7F6F2"
           style={StyleSheet.absoluteFill}
-        />
+        /> : null}
         <View style={styles.backgroundTint} />
       </View>
       {width > 0 && (selectedIndex >= 0 || centerSelected) ? (

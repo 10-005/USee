@@ -1,4 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useIsFocused } from '@react-navigation/native';
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -140,6 +141,7 @@ const navigationItems = [
 ] as const;
 
 export function HomeScreen({ navigation, route }: Props) {
+  const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = (screenWidth - 52) / 2;
@@ -492,6 +494,7 @@ export function HomeScreen({ navigation, route }: Props) {
   const navigationBar = (
     <View style={[styles.navigationWrap, { bottom: insets.bottom + 16 }]}>
       <BottomNavigation
+        backgroundBlurEnabled={isFocused}
         centerAction={{
           accessibilityLabel: '등록',
           icon: <PlusIcon height={24} width={24} />,
