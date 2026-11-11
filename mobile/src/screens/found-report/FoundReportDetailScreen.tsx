@@ -545,7 +545,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
               }}
             />
           </Animated.View>
-          {!isCompleted && !keyboardVisible ? (
+          {!report.isMine && !isCompleted && !keyboardVisible ? (
             <>
               <Animated.View pointerEvents={commentsVisible ? 'none' : 'auto'} style={[styles.fullChat, {
                 opacity: transition.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }),
