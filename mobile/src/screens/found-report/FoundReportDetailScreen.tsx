@@ -198,7 +198,8 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     (isLostReport ? apiLostDetail?.user?.userSeq : apiFoundDetail?.reporter?.userSeq) ?? '',
   );
   const userSeq = Number(reporterId);
-  const detailPhoto = isLostReport ? null : apiFoundDetail?.reporter?.profileImage;
+  const reporterImage = isLostReport ? null : apiFoundDetail?.reporter?.profileImage;
+  const detailPhoto = typeof reporterImage === 'string' ? reporterImage : reporterImage?.imageUrl;
   const [profile, setProfile] = useState<{ id: number; uri?: string }>();
   useEffect(() => {
     if (!userSeq || detailPhoto) {return;}
