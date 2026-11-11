@@ -17,12 +17,18 @@ def decide_species(species_scores, min_score):
     return max(voted, key=lambda label: (voted.count(label), -voted.index(label))), labels
 
 
-def decide_breed(breed_scores, min_score, top_k=3):
-    """사진별 {라벨: 확률} 목록 → (품종 또는 None, 상위 후보 [(라벨, 평균 확률)]).
+def decide_breed(breed_scores, high_score, min_score, top_k=3):
+    """사진별 {라벨: 확률} 목록 → (품종 또는 None, 확신 정도, 상위 후보 [(라벨, 평균 확률)]).
 
-    사진별 확률을 평균해 1등을 고르고, 평균이 min_score 미만이면 품종은 비운다(후보는 그대로 준다).
+    사진별 확률을 평균해 1등을 고른다. 평균이 high_score 이상이면 "HIGH", min_score 이상이면 "LOW"(앱이 "~인 것 같아요"로 표시),
+    미만이면 품종·확신 정도 모두 None(후보는 그대로 준다).
     """
     labels = breed_scores[0].keys()
     average = {label: sum(scores[label] for scores in breed_scores) / len(breed_scores) for label in labels}
     candidates = sorted(average.items(), key=lambda item: item[1], reverse=True)[:top_k]
-    return (candidates[0][0] if candidates[0][1] >= min_score else None), candidates
+    best, score = candidates[0]
+    if score >= high_score:
+        return best, "HIGH", candidates
+    if score >= min_score:
+        return best, "LOW", candidates
+    return None, None, candidates
