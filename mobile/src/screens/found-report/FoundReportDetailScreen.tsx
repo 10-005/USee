@@ -192,6 +192,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     ? '종료'
     : '제보';
 
+  const foundFields = isLostReport ? null : splitReportDescription(report.description);
   const reporterName =
     (isLostReport ? apiLostDetail?.user?.displayName : apiFoundDetail?.reporter?.displayName) ??
     (report.isMine ? '내 닉네임' : '사용자');
@@ -468,10 +469,14 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             <InfoRow label="나이" value={report.age} />
             <InfoRow label="몸무게" value={report.weight} />
             <InfoRow label="털색" value={report.color} />
+            {foundFields && <InfoRow label="특징" value={foundFields.description.trim() || '-'} />}
           </View>
           <View style={styles.section}>
             <InfoRow label={isLostReport ? '실종일' : '발견일'} value={report.date} />
             <InfoRow label={isLostReport ? '실종장소' : '발견장소'} value={report.location} />
+            {foundFields && (
+              <InfoRow label="발견 상황" value={foundFields.foundSituation.trim() || '-'} />
+            )}
             <InfoRow
               label="연락처"
               value={
@@ -481,10 +486,12 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
               }
             />
           </View>
-          <View style={styles.descriptionSection}>
-            <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
-            <Text style={styles.description}>{report.description.trim() || '-'}</Text>
-          </View>
+          {isLostReport && (
+            <View style={styles.descriptionSection}>
+              <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
+              <Text style={styles.description}>{report.description.trim() || '-'}</Text>
+            </View>
+          )}
           <FoundReportCommentList
             onReplySelect={(name, y) => {
               setReplyName(name);
