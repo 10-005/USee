@@ -93,6 +93,9 @@ spec:
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef: { name: core-api-s3, key: AWS_SECRET_ACCESS_KEY }
+            # 발견 신고 사진 종·품종 추천(8.9, S15P31D106-396). 클러스터 내부 AI 서버(infra/services/breed-server)
+            - name: AI_BREED_SERVER_URL
+              value: http://breed-server.app.svc.cluster.local:8000
             # 서비스 간 이벤트를 RabbitMQ로 보낸다(기본 log는 로그만 남김). notification이 받아 알림 저장·푸시(S15P31D106-278)
             - name: EVENTS_TRANSPORT
               value: rabbit

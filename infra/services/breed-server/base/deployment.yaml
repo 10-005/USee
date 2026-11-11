@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: breed-server
+  namespace: app
+  labels:
+    app: breed-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: breed-server
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0   # 새 Pod가 준비된 뒤에 옛 Pod를 내린다
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: breed-server
+    spec:
+      imagePullSecrets:
+        - name: registry-pull
+      # 노드 1 고정: 이미지가 약 2.2GB인데 노드 2(role=worker)는 디스크 여유가 3GB뿐이다
+      nodeSelector:
+        role: primary
+      containers:
+        - name: breed-server
+          image: k15d106.p.ssafy.io/animal/breed-server   # 태그는 overlay(kustomization images)에서 지정
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            # 이 접두어로 시작하는 URL만 내려받는다. core-api의 STORAGE_PUBLIC_BASE_URL + "/"
+            - name: IMAGE_URL_PREFIX
+              value: https://s15p31d106-media-887324111755.s3.ap-northeast-2.amazonaws.com/
+            - name: CPU_THREADS
+              value: "2"
+            - name: BREED_HIGH_SCORE
+              value: "0.8"
+            - name: BREED_MIN_SCORE
+              value: "0.5"
+            - name: SPECIES_MIN_SCORE
+              value: "0.5"
+          # 모델(종 CLIP + 품종 2개)을 lifespan에서 다 올린 뒤에 /health가 응답한다. 최대 5분 대기
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 500m, memory: 2Gi }
+            limits: { memory: 4Gi }   # 실측: 종 모델 + 품종 구조 1개에 1.7GB
