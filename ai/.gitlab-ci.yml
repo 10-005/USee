@@ -1,0 +1,81 @@
+# AI CI (breed-server)
+#   develop-ai 에 push 되고 ai/breed-server 가 바뀌었으면
+#   1) S3 에서 AI 팀 품종 모델을 내려받아 이미지를 빌드해 자체 레지스트리에 push  (태그 = 커밋 짧은 SHA)
+#   2) infra 브랜치의 overlays/dev/kustomization.yaml newTag 를 그 SHA로 커밋 → ArgoCD 가 배포
+# 필요한 CI 변수 (Settings → CI/CD → Variables, Masked and hidden + Protected):
+#   REGISTRY_CI_PASSWORD, INFRA_PUSH_TOKEN : backend 와 같은 값 (backend/.gitlab-ci.yml 참고)
+#   AI_MODELS_AWS_ACCESS_KEY_ID, AI_MODELS_AWS_SECRET_ACCESS_KEY : 모델 버킷 읽기 전용 키
+# Protected 변수는 보호 브랜치에서만 보이므로 develop-ai 가 보호 브랜치여야 한다
+# backend/.gitlab-ci.yml 이 없는 브랜치에서도 돌도록 그 파일의 틀·변수를 쓰지 않고 이 파일만으로 완결한다
+# (전역 variables·숨은 작업 이름이 backend 와 겹치면 include 순서에 따라 덮어써지므로 작업 수준에 둔다)
+
+.breed-server-rules:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop-ai"
+      changes:
+        - ai/breed-server/**/*
+        - ai/.gitlab-ci.yml
+        - .gitlab-ci.yml
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "develop-ai"
+
+breed-server:build:
+  extends: .breed-server-rules
+  stage: build
+  image: docker:29-cli
+  variables:
+    SERVICE: breed-server
+    REGISTRY: k15d106.p.ssafy.io
+    MODELS_S3: s3://s15p31d106-media-887324111755/models/breed/20261110
+    AWS_DEFAULT_REGION: ap-northeast-2
+  # Runner 가 노드 2 의 Docker(/var/run/docker.sock)를 그대로 쓴다 (backend 와 같음)
+  script:
+    - apk add --no-cache aws-cli
+    # 키는 이 명령에만 넘긴다 (작업 환경 전체에 AWS_* 로 두지 않음)
+    - |
+      for species in dog cat; do
+        AWS_ACCESS_KEY_ID="$AI_MODELS_AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$AI_MODELS_AWS_SECRET_ACCESS_KEY" \
+          aws s3 cp --recursive --only-show-errors "$MODELS_S3/$species/" "ai/breed-server/models/$species/"
+      done
+    - ls -l ai/breed-server/models/dog ai/breed-server/models/cat
+    - echo "$REGISTRY_CI_PASSWORD" | docker login "$REGISTRY" -u ci --password-stdin
+    - docker build -t "$REGISTRY/animal/$SERVICE:$CI_COMMIT_SHORT_SHA" ai/breed-server
+    - docker push "$REGISTRY/animal/$SERVICE:$CI_COMMIT_SHORT_SHA"
+  after_script:
+    - docker logout "$REGISTRY" || true
+    # 노드 2 디스크 보호: 올린 이미지 태그는 지우고, 쓰지 않는 이미지 정리
+    - docker image rm "$REGISTRY/animal/breed-server:$CI_COMMIT_SHORT_SHA" || true
+    - docker image prune -f || true
+
+# backend 의 .deploy-tag 와 같은 절차 (커밋 이슈 번호만 396)
+breed-server:deploy:
+  extends: .breed-server-rules
+  stage: deploy
+  image: alpine:3.22
+  needs: ["breed-server:build"]
+  variables:
+    SERVICE: breed-server
+    INFRA_REPO: lab.ssafy.com/s15-final/S15P31D106.git
+  script:
+    - apk add --no-cache git
+    - git config --global user.name "s15p31d106-ci"
+    - git config --global user.email "ci@k15d106.p.ssafy.io"
+    - git clone --depth 5 --branch infra --single-branch "https://ci:${INFRA_PUSH_TOKEN}@${INFRA_REPO}" infra-repo
+    - cd infra-repo
+    - KFILE="infra/services/$SERVICE/overlays/dev/kustomization.yaml"
+    - |
+      sed -i "s|newTag: .*|newTag: \"$CI_COMMIT_SHORT_SHA\"|" "$KFILE"
+    - git add "$KFILE"
+    - |
+      if git diff --cached --quiet; then
+        echo "태그 변경 없음 ($CI_COMMIT_SHORT_SHA)"; exit 0
+      fi
+    - |
+      printf 'chore: deploy %s %s\n\n- 원본 커밋: %s\n- 파이프라인: %s\n\nS15P31D106-396\n' \
+        "$SERVICE" "$CI_COMMIT_SHORT_SHA" "$CI_PROJECT_URL/-/commit/$CI_COMMIT_SHA" "$CI_PIPELINE_URL" \
+        | git commit -F -
+    - |
+      for i in 1 2 3; do
+        if git push origin infra; then exit 0; fi
+        git pull --rebase origin infra
+      done
+      exit 1
