@@ -291,13 +291,11 @@ export function AdoptionApplicationReviewScreen({ navigation, route }: Props) {
             </Text>
             <Text style={styles.animalMeta}>
               중성화 여부{' '}
-              <Text style={styles.neutered}>
-                {application.animalSummary?.isNeutered == null
-                  ? '-'
-                  : application.animalSummary.isNeutered
-                    ? 'O'
-                    : 'X'}
-              </Text>
+              {application.animalSummary?.isNeutered == null
+                ? '-'
+                : application.animalSummary.isNeutered
+                  ? 'O'
+                  : 'X'}
             </Text>
           </View>
           <View style={styles.identifiers}>
@@ -372,7 +370,6 @@ const styles = StyleSheet.create({
   animalSummary: { left: 118, position: 'absolute', top: 18 },
   animalTitle: { ...typography.titleBold18, color: colors.black, marginBottom: spacing[2] },
   animalMeta: { ...typography.bodyRegular14, color: colors.gray700, marginTop: spacing[1] },
-  neutered: { color: colors.green400 },
   identifiers: { gap: spacing[3], marginTop: spacing[7] },
   identifierRow: { flexDirection: 'row', justifyContent: 'space-between' },
   identifierLabel: { ...typography.bodyRegular14, color: colors.gray400 },
