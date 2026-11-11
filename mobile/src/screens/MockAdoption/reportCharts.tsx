@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, {
   Circle,
+  ClipPath,
   Defs,
   G,
   Line,
@@ -425,9 +426,15 @@ function radarPoint(index: number, count: number, level: number) {
 }
 
 export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
+  const chartId = useId().replace(/:/g, '');
   const points = REPORT_STAT_ITEMS.map((item, index) => {
     const value = stats[item.key] ?? 0;
-    return { ...item, value, ...radarPoint(index, REPORT_STAT_ITEMS.length, value) };
+    return {
+      ...item,
+      value,
+      color: STAT_COLOR[statTone(value)],
+      ...radarPoint(index, REPORT_STAT_ITEMS.length, value),
+    };
   });
   const outline = points.map(item => `${item.x},${item.y}`).join(' ');
   const baselinePoints = REPORT_STAT_ITEMS.map((_, index) =>
@@ -440,12 +447,12 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
     <View style={styles.radarPanel}>
       <Svg pointerEvents="none" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
         <Defs>
-          <RadialGradient id="radar-panel" cx="50%" cy="40%" r="75%">
+          <RadialGradient id={`radar-panel-${chartId}`} cx="50%" cy="40%" r="75%">
             <Stop offset="0%" stopColor="#FAFCFB" />
             <Stop offset="100%" stopColor="#EDF4F0" />
           </RadialGradient>
         </Defs>
-        <Rect width="100%" height="100%" fill="url(#radar-panel)" />
+        <Rect width="100%" height="100%" fill={`url(#radar-panel-${chartId})`} />
       </Svg>
       <Svg
         accessibilityLabel={summary}
@@ -455,10 +462,38 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
         height={230}
       >
         <Defs>
-          <LinearGradient id="radar-value" x1="0%" y1="0%" x2="100%" y2="100%">
-            <Stop offset="0%" stopColor="#469D89" />
-            <Stop offset="100%" stopColor="#036666" />
-          </LinearGradient>
+          <ClipPath id={`radar-area-${chartId}`}>
+            <Polygon points={outline} />
+          </ClipPath>
+          {points.map((item, index) => {
+            const next = points[(index + 1) % points.length];
+            return (
+              <Fragment key={item.key}>
+                <RadialGradient
+                  id={`radar-fill-${chartId}-${item.key}`}
+                  cx={item.x}
+                  cy={item.y}
+                  r={RADAR.radius * 1.5}
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <Stop offset="0%" stopColor={item.color} stopOpacity={0.24} />
+                  <Stop offset="55%" stopColor={item.color} stopOpacity={0.08} />
+                  <Stop offset="100%" stopColor={item.color} stopOpacity={0} />
+                </RadialGradient>
+                <LinearGradient
+                  id={`radar-edge-${chartId}-${item.key}`}
+                  x1={item.x}
+                  y1={item.y}
+                  x2={next.x}
+                  y2={next.y}
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <Stop offset="0%" stopColor={item.color} />
+                  <Stop offset="100%" stopColor={next.color} />
+                </LinearGradient>
+              </Fragment>
+            );
+          })}
         </Defs>
         {[RADAR.radius + 10, RADAR.radius * 0.77, RADAR.radius * 0.42].map(radius => (
           <Circle key={radius} cx={RADAR.cx} cy={RADAR.cy} r={radius} fill="#FFFFFF" />
@@ -481,14 +516,44 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
           strokeWidth={1}
           strokeLinejoin="round"
         />
-        <Polygon
-          points={outline}
-          fill="url(#radar-value)"
-          fillOpacity={0.08}
-          stroke="url(#radar-value)"
-          strokeWidth={1.2}
-          strokeLinejoin="round"
-        />
+        <G clipPath={`url(#radar-area-${chartId})`}>
+          {points.map(item => (
+            <Rect
+              key={item.key}
+              x={RADAR.cx - RADAR.radius}
+              y={RADAR.cy - RADAR.radius}
+              width={RADAR.radius * 2}
+              height={RADAR.radius * 2}
+              fill={`url(#radar-fill-${chartId}-${item.key})`}
+            />
+          ))}
+        </G>
+        {points.map((item, index) => {
+          const next = points[(index + 1) % points.length];
+          return (
+            <Line
+              key={item.key}
+              x1={item.x}
+              y1={item.y}
+              x2={next.x}
+              y2={next.y}
+              stroke={`url(#radar-edge-${chartId}-${item.key})`}
+              strokeWidth={1.6}
+              strokeLinecap="round"
+            />
+          );
+        })}
+        {points.map(item => (
+          <Circle
+            key={item.key}
+            cx={item.x}
+            cy={item.y}
+            r={3.2}
+            fill={item.color}
+            stroke="#FFFFFF"
+            strokeWidth={1}
+          />
+        ))}
         {points.map(item => (
           <SvgText
             key={item.key}
@@ -507,7 +572,7 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
             key={`${item.key}-value`}
             x={item.labelX}
             y={item.labelY + 14}
-            fill={STAT_COLOR[statTone(item.value)]}
+            fill={item.color}
             fontSize="12"
             fontFamily="Pretendard-Bold"
             textAnchor="middle"
