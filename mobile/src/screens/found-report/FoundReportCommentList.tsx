@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useReducer, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useReducer, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -231,6 +231,7 @@ export function CommentComposer({
           accessibilityState={{ busy: isSubmitting, disabled: !canSubmit }}
           disabled={!canSubmit}
           onPress={submit}
+          style={styles.sendButton}
         >
           {isSubmitting ? (
             <ActivityIndicator color={colors.green400} size="small" />
@@ -387,6 +388,7 @@ function CommentItem({
                 accessibilityState={{ disabled: !draft.trim() }}
                 disabled={!draft.trim()}
                 onPress={() => onEdit(draft.trim())}
+                style={styles.sendButton}
               >
                 <SendIcon
                   color={draft.trim() ? colors.green400 : '#797770'}
@@ -657,7 +659,7 @@ async function uploadCommentImage(asset?: Asset) {
   return confirmImage(issued.imageKey);
 }
 
-export function FoundReportCommentList({
+export const FoundReportCommentList = memo(function CommentListContent({
   onTargetUnavailable,
   onReplySelect,
   resetReplyRef,
@@ -1052,17 +1054,18 @@ export function FoundReportCommentList({
       </Modal>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 22, paddingTop: 20 },
-  title: { ...typography.bodyRegular14, color: colors.black },
+  title: { ...typography.bodyRegular14, color: colors.black, marginBottom: 10 },
   commentState: { ...typography.bodyRegular14, color: colors.gray500, marginVertical: 12 },
   floatingComposer: { marginBottom: 0, marginTop: 0 },
   composerWrap: { marginBottom: 18, marginTop: 10, position: 'relative', zIndex: 5 },
   compactComposerWrap: { marginLeft: 44, marginTop: 0 },
   replyContext: { ...typography.bodyRegular14, color: colors.gray500, paddingTop: 10, paddingLeft: 10 },
   composerRow: { flexDirection: 'row', alignItems: 'center', minHeight: 48 },
+  sendButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   commentInput: {
     backgroundColor: '#F1F1F1',
     borderColor: colors.transparent,
@@ -1087,13 +1090,14 @@ const styles = StyleSheet.create({
   removeImage: { position: 'absolute', right: 4, top: 4 },
   photoMenu: {
     backgroundColor: colors.white,
+    bottom: '100%',
     borderColor: colors.gray200,
     borderRadius: 10,
     borderWidth: 1,
     left: 0,
+    marginBottom: 8,
     paddingVertical: 6,
     position: 'absolute',
-    top: 52,
     width: 154,
     zIndex: 20,
   },

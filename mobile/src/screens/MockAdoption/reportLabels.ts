@@ -61,6 +61,33 @@ export function expenseItems(spent: Record<string, number>) {
     .map(([key, amount]) => ({ key, label: categoryLabel(key), amount }));
 }
 
+export const REPORT_EXPENSE_GROUPS = [
+  { key: 'meal', label: '식사', color: '#B8DCC8', categories: ['FOOD', 'FOOD_BOWL', 'WATER_BOWL'] },
+  { key: 'snack', label: '간식', color: '#F5CCAD', categories: ['SNACK'] },
+  { key: 'play', label: '놀이', color: '#C9C3EB', categories: ['TOY', 'CATNIP'] },
+  { key: 'furniture', label: '가구', color: '#B9D7ED', categories: ['FURNITURE'] },
+  {
+    key: 'hygiene',
+    label: '위생',
+    color: '#F0C2D1',
+    categories: ['LITTER_BOX', 'LITTER', 'SHAMPOO', 'GROOMING_KIT', 'POOP_BAG'],
+  },
+  { key: 'daily', label: '생활', color: '#ECDCAB', categories: ['LEASH', 'MEDICINE', 'EVENT'] },
+] as const;
+
+export function expenseGroups(spent: Record<string, number>) {
+  const items = expenseItems(spent);
+  return REPORT_EXPENSE_GROUPS.map(group => {
+    const categories: readonly string[] = group.categories;
+    const purchases = items.filter(item => categories.includes(item.key));
+    return {
+      ...group,
+      amount: purchases.reduce((sum, item) => sum + item.amount, 0),
+      purchases,
+    };
+  });
+}
+
 export function reportDailyAmounts(daily: Record<string, number>): number[] {
   return [1, 2, 3, 4, 5, 6, 7].map(day => daily[String(day)] ?? 0);
 }

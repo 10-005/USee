@@ -497,13 +497,13 @@ export function FoundReportListContent({
           {item.name}
         </Text>
         <View style={styles.metaRow}>
-          <MapIcon height={18} width={18} />
+          <MapIcon height={14} width={14} />
           <Text numberOfLines={1} style={styles.metaText}>
             {item.location}
           </Text>
         </View>
         <View style={styles.metaRow}>
-          <DateIcon height={18} width={18} />
+          <DateIcon height={14} width={14} />
           <Text style={styles.metaText}>{item.date}</Text>
         </View>
         <Text
@@ -755,6 +755,7 @@ const styles = StyleSheet.create({
     ...typography.bodyRegular14,
     color: colors.gray700,
     flex: 1,
+    includeFontPadding: false,
     minWidth: 0,
   },
   summary: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },

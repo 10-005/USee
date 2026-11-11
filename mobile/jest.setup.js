@@ -1,5 +1,9 @@
 /* global jest */
 
+jest.mock('@react-native-community/blur', () => ({
+  BlurView: require('react-native').View,
+}));
+
 jest.mock('@react-native-firebase/messaging', () => ({
   getMessaging: jest.fn(() => ({})),
   getToken: jest.fn().mockResolvedValue('test-fcm-token'),

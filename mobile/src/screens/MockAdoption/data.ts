@@ -6,7 +6,9 @@ import type { CostGroup } from './initialCosts';
 export const mockAdoptionPets: Array<{
   id: string;
   name: string;
+  // External animal.go.kr code; this is not the simulation API's numeric breedSeq.
   breedCode: string;
+  breedAliases?: readonly string[];
   category: PetCategory;
   costGroup: CostGroup;
   image: ImageSourcePropType;
@@ -46,6 +48,7 @@ export const mockAdoptionPets: Array<{
   {
     id: 'dog-5',
     name: '시바',
+    breedAliases: ['시바견'],
     breedCode: '000100',
     costGroup: 'medium',
     category: 'dog',
@@ -54,6 +57,7 @@ export const mockAdoptionPets: Array<{
   {
     id: 'dog-6',
     name: '시츄',
+    breedAliases: ['시추'],
     breedCode: '000101',
     costGroup: 'small',
     category: 'dog',
@@ -65,7 +69,7 @@ export const mockAdoptionPets: Array<{
     breedCode: '000181',
     costGroup: 'cat',
     category: 'cat',
-    image: require('../../assets/images/mock-adoption/img_cat_korean_shorthair.png'),
+    image: require('../../assets/images/mock-adoption/img_cat_british_shorthair.png'),
   },
   {
     id: 'cat-2',
@@ -81,7 +85,7 @@ export const mockAdoptionPets: Array<{
     breedCode: '000182',
     costGroup: 'cat',
     category: 'cat',
-    image: require('../../assets/images/mock-adoption/img_cat_ragdoll.png'),
+    image: require('../../assets/images/mock-adoption/img_cat_savannah.png'),
   },
   {
     id: 'cat-4',
@@ -108,3 +112,20 @@ export const mockAdoptionPets: Array<{
     image: require('../../assets/images/mock-adoption/img_cat_siamese.png'),
   },
 ];
+
+export type MockAdoptionPet = (typeof mockAdoptionPets)[number];
+export type MockAdoptionBreedIdentity = { breedName: string; speciesType: 'DOG' | 'CAT' };
+
+export function matchesMockAdoptionBreed(pet: MockAdoptionPet, breed: MockAdoptionBreedIdentity) {
+  const normalize = (name: string) => name.normalize('NFKC').replace(/\s+/g, '');
+  return (
+    (pet.category === 'cat' ? 'CAT' : 'DOG') === breed.speciesType &&
+    [pet.name, ...(pet.breedAliases ?? [])].some(
+      name => normalize(name) === normalize(breed.breedName),
+    )
+  );
+}
+
+export function findMockAdoptionPetForBreed(breed: MockAdoptionBreedIdentity) {
+  return mockAdoptionPets.find(pet => matchesMockAdoptionBreed(pet, breed));
+}

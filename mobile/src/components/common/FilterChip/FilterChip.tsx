@@ -24,7 +24,7 @@ export function FilterChip({
       style={[styles.chip, open && styles.open, applied && styles.applied]}
     >
       <Text style={[styles.text, applied && styles.appliedText]}>{label}</Text>
-      <FilterArrowIcon height={14} width={14} />
+      <FilterArrowIcon height={12} width={12} />
     </Pressable>
   );
 }

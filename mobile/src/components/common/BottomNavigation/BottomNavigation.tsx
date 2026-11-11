@@ -1,5 +1,16 @@
-import { Fragment, type ReactNode, useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Fragment,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BlurView } from '@react-native-community/blur';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { colors, spacing, typography } from '../../../theme';
 
@@ -10,6 +21,7 @@ export type BottomNavigationItem<Key extends string = string> = {
 };
 
 type BottomNavigationProps<Key extends string> = {
+  backgroundBlurEnabled?: boolean;
   centerAction?: {
     accessibilityLabel: string;
     icon: ReactNode;
@@ -22,104 +34,161 @@ type BottomNavigationProps<Key extends string> = {
   selectedKey: Key;
 };
 
-function AnimatedSelectionIcon({
-  children,
-  selected,
-}: {
-  children: ReactNode;
-  selected: boolean;
-}) {
-  const progress = useRef(new Animated.Value(1)).current;
-  const mounted = useRef(false);
-
-  useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
-      return;
-    }
-
-    if (!selected) {
-      return;
-    }
-
-    progress.stopAnimation();
-    progress.setValue(0);
-    Animated.spring(progress, {
-      toValue: 1,
-      damping: 8,
-      stiffness: 280,
-      mass: 0.55,
-      useNativeDriver: true,
-    }).start();
-  }, [progress, selected]);
-
-  const scale = progress.interpolate({
-    inputRange: [0, 0.55, 1],
-    outputRange: [0.82, 1.08, 1],
-    extrapolate: 'clamp',
-  });
-  const translateY = progress.interpolate({
-    inputRange: [0, 0.55, 1],
-    outputRange: [2, -1, 0],
-    extrapolate: 'clamp',
-  });
-
-  return (
-    <Animated.View
-      style={[styles.animatedIcon, { transform: [{ translateY }, { scale }] }]}
-    >
-      {children}
-    </Animated.View>
-  );
-}
-
-function AnimatedSelectionBackground({ selected }: { selected: boolean }) {
-  const progress = useRef(new Animated.Value(selected ? 1 : 0)).current;
-
-  useEffect(() => {
-    const animation = selected
-      ? Animated.spring(progress, {
-          toValue: 1,
-          damping: 10,
-          stiffness: 240,
-          mass: 0.55,
-          useNativeDriver: true,
-        })
-      : Animated.timing(progress, {
-          toValue: 0,
-          duration: 120,
-          useNativeDriver: true,
-        });
-
-    animation.start();
-  }, [progress, selected]);
-
-  const scale = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.65, 1],
-  });
-
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        styles.selectionBackground,
-        { opacity: progress, transform: [{ scale }] },
-      ]}
-    />
-  );
-}
-
 export function BottomNavigation<Key extends string>({
+  backgroundBlurEnabled = true,
   centerAction,
   items,
   onSelect,
   selectedKey,
 }: BottomNavigationProps<Key>) {
+  const glassGradientId = useId();
   const centerIndex = Math.ceil(items.length / 2);
+  const [width, setWidth] = useState(0);
+  const [blurPaused, setBlurPaused] = useState(false);
+  const position = useRef(new Animated.Value(0)).current;
+  const initialized = useRef(false);
+  const trailingPosition = useRef(new Animated.Value(0)).current;
+  const destination = useRef<number | null>(null);
+  const animation = useRef<Animated.CompositeAnimation | null>(null);
+  const itemWidth = (width - spacing[4] * 2 - (centerAction ? 50 : 0)) / items.length;
+  const selectedIndex = items.findIndex(item => item.key === selectedKey);
+  const centerSelected = Boolean(centerAction?.label && centerAction.selected);
+  const hasCenterAction = Boolean(centerAction);
+  const getTarget = useCallback(
+    (index: number, center = false) =>
+      center
+        ? spacing[4] + itemWidth * centerIndex + 25 - 32
+        : spacing[4] +
+          itemWidth * (index + 0.5) +
+          (hasCenterAction && index >= centerIndex ? 50 : 0) +
+          (hasCenterAction && index === centerIndex - 1 ? -3 : 0) +
+          (hasCenterAction && index === centerIndex ? 3 : 0) -
+          32,
+    [centerIndex, hasCenterAction, itemWidth],
+  );
+  const target = getTarget(selectedIndex, centerSelected);
+
+  const moveSelection = useCallback(
+    (nextTarget: number) => {
+      if (width <= 0 || destination.current === nextTarget) {
+        return;
+      }
+      destination.current = nextTarget;
+      animation.current?.stop();
+      if (!initialized.current) {
+        position.setValue(nextTarget);
+        trailingPosition.setValue(nextTarget);
+        initialized.current = true;
+        return;
+      }
+      // Continue from both live positions when a new tab interrupts the motion.
+      setBlurPaused(true);
+      animation.current = Animated.parallel([
+        Animated.timing(position, {
+          toValue: nextTarget,
+          duration: 280,
+          easing: Easing.bezier(0.2, 0.75, 0.25, 1),
+          useNativeDriver: true,
+          isInteraction: false,
+        }),
+        Animated.timing(trailingPosition, {
+          toValue: nextTarget,
+          duration: 380,
+          easing: Easing.bezier(0.35, 0, 0.2, 1),
+          useNativeDriver: true,
+          isInteraction: false,
+        }),
+      ]);
+      animation.current.start(({ finished }) => {
+        if (finished) {
+          setBlurPaused(false);
+        }
+      });
+    },
+    [position, trailingPosition, width],
+  );
+
+  useEffect(() => {
+    moveSelection(target);
+  }, [moveSelection, target]);
+
+  useEffect(() => () => animation.current?.stop(), []);
+
+  const { lensPosition, lensTransform } = useMemo(() => {
+    const separation = Animated.subtract(position, trailingPosition);
+    const center = Animated.divide(Animated.add(position, trailingPosition), 2);
+    return {
+      lensPosition: center,
+      lensTransform: [
+        { translateX: center },
+        {
+          scaleX: separation.interpolate({
+            inputRange: [-160, 0, 160],
+            outputRange: [1.5, 1, 1.5],
+            extrapolate: 'clamp',
+          }),
+        },
+        {
+          scaleY: separation.interpolate({
+            inputRange: [-160, 0, 160],
+            outputRange: [0.94, 1, 0.94],
+            extrapolate: 'clamp',
+          }),
+        },
+      ],
+    };
+  }, [position, trailingPosition]);
+  const iconScales = useMemo(
+    () =>
+      items.map((_, index) =>
+        width > 0
+          ? lensPosition.interpolate({
+              inputRange: [
+                getTarget(index) - itemWidth,
+                getTarget(index),
+                getTarget(index) + itemWidth,
+              ],
+              outputRange: [1, 1.12, 1],
+              extrapolate: 'clamp',
+            })
+          : 1,
+      ),
+    [getTarget, itemWidth, items, lensPosition, width],
+  );
 
   return (
-    <View accessibilityRole="tablist" style={styles.container}>
+    <View
+      accessibilityRole="tablist"
+      onLayout={event => setWidth(event.nativeEvent.layout.width)}
+      style={styles.container}
+    >
+      <View pointerEvents="none" style={styles.background}>
+        {backgroundBlurEnabled ? <BlurView
+          {...Platform.select({ android: { enabled: true, autoUpdate: !blurPaused } })}
+          blurAmount={16}
+          blurType="light"
+          reducedTransparencyFallbackColor="#F7F6F2"
+          style={StyleSheet.absoluteFill}
+        /> : null}
+        <View style={styles.backgroundTint} />
+      </View>
+      {width > 0 && (selectedIndex >= 0 || centerSelected) ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.selectionBackground, { transform: lensTransform }]}
+        >
+          <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+            <Defs>
+              <LinearGradient id={glassGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0.48} />
+                <Stop offset="0.48" stopColor="#FFFFFF" stopOpacity={0.08} />
+                <Stop offset="1" stopColor={colors.green100} stopOpacity={0.16} />
+              </LinearGradient>
+            </Defs>
+            <Rect width="100%" height="100%" fill={`url(#${glassGradientId})`} />
+          </Svg>
+        </Animated.View>
+      ) : null}
       {items.map((item, index) => {
         const selected = item.key === selectedKey;
 
@@ -135,7 +204,16 @@ export function BottomNavigation<Key extends string>({
                       ? undefined
                       : { selected: centerAction.selected }
                   }
-                  onPress={centerAction.onPress}
+                  onPress={() => {
+                    if (centerAction.label) {
+                      moveSelection(
+                        centerAction.selected
+                          ? getTarget(selectedIndex)
+                          : getTarget(centerIndex, true),
+                      );
+                    }
+                    centerAction.onPress();
+                  }}
                   style={({ pressed }) => [
                     centerAction.label ? styles.centerTab : styles.centerButton,
                     pressed && styles.pressed,
@@ -143,15 +221,8 @@ export function BottomNavigation<Key extends string>({
                 >
                   {centerAction.label ? (
                     <>
-                      <AnimatedSelectionBackground
-                        selected={Boolean(centerAction.selected)}
-                      />
                       <View style={styles.centerTabIcon}>
-                        <AnimatedSelectionIcon
-                          selected={Boolean(centerAction.selected)}
-                        >
-                          {centerAction.icon}
-                        </AnimatedSelectionIcon>
+                        <View style={styles.animatedIcon}>{centerAction.icon}</View>
                       </View>
                       <Text
                         adjustsFontSizeToFit
@@ -163,11 +234,7 @@ export function BottomNavigation<Key extends string>({
                       </Text>
                     </>
                   ) : (
-                    <AnimatedSelectionIcon
-                      selected={Boolean(centerAction.selected)}
-                    >
-                      {centerAction.icon}
-                    </AnimatedSelectionIcon>
+                    <View style={styles.animatedIcon}>{centerAction.icon}</View>
                   )}
                 </Pressable>
               </View>
@@ -177,24 +244,20 @@ export function BottomNavigation<Key extends string>({
                 accessibilityLabel={item.label}
                 accessibilityRole="tab"
                 accessibilityState={{ selected }}
-                onPress={() => onSelect(item.key)}
+                onPress={() => {
+                  moveSelection(getTarget(index));
+                  onSelect(item.key);
+                }}
                 style={({ pressed }) => [
                   styles.item,
-                  centerAction && index === centerIndex - 1
-                    ? styles.beforeCenterItem
-                    : null,
-                  centerAction && index === centerIndex
-                    ? styles.afterCenterItem
-                    : null,
+                  centerAction && index === centerIndex - 1 ? styles.beforeCenterItem : null,
+                  centerAction && index === centerIndex ? styles.afterCenterItem : null,
                   pressed && styles.pressed,
                 ]}
               >
-                <AnimatedSelectionBackground selected={selected} />
-                <View style={styles.icon}>
-                  <AnimatedSelectionIcon selected={selected}>
-                    {item.icon(selected)}
-                  </AnimatedSelectionIcon>
-                </View>
+                <Animated.View style={[styles.icon, { transform: [{ scale: iconScales[index] }] }]}>
+                  {item.icon(selected)}
+                </Animated.View>
                 <Text
                   adjustsFontSizeToFit
                   minimumFontScale={0.8}
@@ -219,7 +282,6 @@ const styles = StyleSheet.create({
   },
   container: {
     alignItems: 'center',
-    backgroundColor: 'rgba(247, 246, 242, 0.6)',
     borderRadius: 28,
     boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.15)',
     flexDirection: 'row',
@@ -228,11 +290,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[4],
   },
+  background: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 28,
+    overflow: 'hidden',
+    zIndex: 0,
+  },
+  backgroundTint: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(247, 246, 242, 0.6)',
+  },
   itemSlot: {
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
     minWidth: 0,
+    zIndex: 2,
   },
   item: {
     alignItems: 'center',
@@ -264,14 +337,17 @@ const styles = StyleSheet.create({
     color: colors.green100,
   },
   selectionBackground: {
-    backgroundColor: 'rgba(34, 197, 94, 0.14)',
+    backgroundColor: 'rgba(34, 197, 94, 0.06)',
+    borderColor: 'rgba(255, 255, 255, 0.65)',
+    borderWidth: 1,
     borderRadius: 24,
     height: 48,
-    left: '50%',
-    marginLeft: -34,
+    left: 0,
     position: 'absolute',
-    top: 0,
-    width: 68,
+    top: 8,
+    width: 64,
+    overflow: 'hidden',
+    zIndex: 1,
   },
   centerButton: {
     alignItems: 'center',
@@ -286,6 +362,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     width: 50,
+    zIndex: 2,
   },
   centerTab: {
     alignItems: 'center',

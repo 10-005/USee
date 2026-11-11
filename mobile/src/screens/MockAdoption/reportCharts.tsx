@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, {
   Circle,
+  ClipPath,
   Defs,
   G,
   Line,
@@ -15,28 +16,22 @@ import Svg, {
 } from 'react-native-svg';
 
 import { colors, typography } from '../../theme';
+import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import {
   dailyAxisStep,
-  expenseItems,
+  expenseGroups,
   reportDailyAmounts,
   REPORT_STAT_ITEMS,
   statTone,
   won,
 } from './reportLabels';
 
-const EXPENSE_PALETTE = [
-  '#99E2B4',
-  '#88D4AB',
-  '#78C6A3',
-  '#67B99A',
-  '#56AB91',
-  '#469D89',
-  '#358F80',
-  '#248277',
-  '#14746F',
-  '#036666',
-];
-const STAT_COLOR = { low: '#A63828', medium: '#89500E', high: '#036666' };
+const STAT_COLOR = { low: '#C82850', medium: '#996A36', high: '#4050E0' };
+const STAT_LEGEND = [
+  { tone: 'high', label: '양호', range: '70% 이상' },
+  { tone: 'medium', label: '주의', range: '40~69%' },
+  { tone: 'low', label: '부족', range: '40% 미만' },
+] as const;
 const RADAR = { cx: 140, cy: 126, radius: 72, labelRadius: 108 };
 const TRACK = 168;
 const BAR_WIDTH = 18;
@@ -164,28 +159,30 @@ export function CategorySpending({
   spent: Record<string, number>;
   total: number;
 }) {
-  const items = expenseItems(spent);
+  const groups = useMemo(() => expenseGroups(spent), [spent]);
   const [selected, setSelected] = useState<string>();
-  const active = items.find(item => item.key === selected) ?? items[0];
+  const [expanded, setExpanded] = useState<string>();
+  const active = groups.find(item => item.key === selected) ?? groups.find(item => item.amount > 0);
   let angle = -Math.PI / 2;
-  const slices = items.map((item, index) => {
-    const start = angle;
-    const share = total > 0 ? item.amount / total : 0;
-    angle += share * Math.PI * 2;
-    const middle = (start + angle) / 2;
-    return {
-      ...item,
-      color: EXPENSE_PALETTE[index % EXPENSE_PALETTE.length],
-      path: donutPath(start, angle),
-      dx: Math.cos(middle) * 7,
-      dy: Math.sin(middle) * 7,
-    };
-  });
+  const slices = groups
+    .filter(item => item.amount > 0)
+    .map(item => {
+      const start = angle;
+      const share = total > 0 ? item.amount / total : 0;
+      angle += share * Math.PI * 2;
+      const middle = (start + angle) / 2;
+      return {
+        ...item,
+        path: donutPath(start, angle),
+        dx: Math.cos(middle) * 7,
+        dy: Math.sin(middle) * 7,
+      };
+    });
 
   return (
     <View style={styles.breakdown}>
       <View style={styles.figure}>
-        <Svg overflow="visible" viewBox="0 0 200 200" width="100%" height="100%">
+        <Svg viewBox="0 0 200 200" width="100%" height="100%">
           <Defs>
             {slices.map(item => (
               <RadialGradient
@@ -215,7 +212,10 @@ export function CategorySpending({
               dx={item.dx}
               dy={item.dy}
               gradientId={`expense-${item.key}`}
-              onPress={() => setSelected(item.key)}
+              onPress={() => {
+                setSelected(item.key);
+                setExpanded(item.key);
+              }}
             />
           ))}
         </Svg>
@@ -238,25 +238,55 @@ export function CategorySpending({
         )}
       </View>
       <View>
-        {slices.map(item => {
+        {groups.map(item => {
           const pressed = item.key === active?.key;
+          const open = expanded === item.key;
           return (
-            <Pressable
-              key={item.key}
-              accessibilityRole="button"
-              accessibilityLabel={`${item.label} ${won(item.amount)}`}
-              accessibilityState={{ selected: pressed }}
-              onPress={() => setSelected(item.key)}
-              style={[styles.legendItem, pressed && styles.legendItemActive]}
-            >
-              <View style={[styles.swatch, { backgroundColor: item.color }]} />
-              <Text style={[styles.legendLabel, pressed && styles.legendLabelActive]}>
-                {item.label}
-              </Text>
-              <Text style={[styles.legendAmount, pressed && styles.legendAmountActive]}>
-                {won(item.amount)}
-              </Text>
-            </Pressable>
+            <View key={item.key}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${item.label} ${won(item.amount)}`}
+                accessibilityState={{ selected: pressed, expanded: open }}
+                onPress={() => {
+                  setSelected(item.key);
+                  setExpanded(current => (current === item.key ? undefined : item.key));
+                }}
+                style={[
+                  styles.legendItem,
+                  pressed && { backgroundColor: `${item.color}33`, borderColor: item.color },
+                ]}
+              >
+                <View style={[styles.swatch, { backgroundColor: item.color }]} />
+                <Text style={[styles.legendLabel, pressed && styles.legendLabelActive]}>
+                  {item.label}
+                </Text>
+                <Text style={[styles.legendAmount, pressed && styles.legendAmountActive]}>
+                  {won(item.amount)}
+                </Text>
+                <FilterArrowIcon
+                  width={12}
+                  height={12}
+                  style={open ? styles.expandedArrow : undefined}
+                />
+              </Pressable>
+              {open ? (
+                <View
+                  accessibilityLabel={`${item.label} 구매 내역`}
+                  style={[styles.purchaseList, { borderLeftColor: item.color }]}
+                >
+                  {item.purchases.length > 0 ? (
+                    item.purchases.map(purchase => (
+                      <View key={purchase.key} style={styles.purchaseRow}>
+                        <Text style={styles.purchaseLabel}>{purchase.label}</Text>
+                        <Text style={styles.purchaseAmount}>{won(purchase.amount)}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.emptyPurchases}>구매 내역이 없어요.</Text>
+                  )}
+                </View>
+              ) : null}
+            </View>
           );
         })}
       </View>
@@ -401,27 +431,38 @@ function radarPoint(index: number, count: number, level: number) {
 }
 
 export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
+  const chartId = useId().replace(/:/g, '');
   const points = REPORT_STAT_ITEMS.map((item, index) => {
     const value = stats[item.key] ?? 0;
-    return { ...item, value, ...radarPoint(index, REPORT_STAT_ITEMS.length, value) };
+    return {
+      ...item,
+      value,
+      color: STAT_COLOR[statTone(value)],
+      ...radarPoint(index, REPORT_STAT_ITEMS.length, value),
+    };
   });
   const outline = points.map(item => `${item.x},${item.y}`).join(' ');
   const baselinePoints = REPORT_STAT_ITEMS.map((_, index) =>
     radarPoint(index, REPORT_STAT_ITEMS.length, 100),
   );
   const baseline = baselinePoints.map(point => `${point.x},${point.y}`).join(' ');
-  const summary = points.map(item => `${item.label} ${item.value}%`).join(', ');
+  const summary = points
+    .map(item => {
+      const status = STAT_LEGEND.find(itemTone => itemTone.tone === statTone(item.value))!;
+      return `${item.label} ${item.value}%, ${status.label}`;
+    })
+    .join(', ');
 
   return (
     <View style={styles.radarPanel}>
       <Svg pointerEvents="none" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
         <Defs>
-          <RadialGradient id="radar-panel" cx="50%" cy="40%" r="75%">
-            <Stop offset="0%" stopColor="#FAFCFB" />
-            <Stop offset="100%" stopColor="#EDF4F0" />
+          <RadialGradient id={`radar-panel-${chartId}`} cx="50%" cy="40%" r="75%">
+            <Stop offset="0%" stopColor="#FCFCFF" />
+            <Stop offset="100%" stopColor="#F4F0FD" />
           </RadialGradient>
         </Defs>
-        <Rect width="100%" height="100%" fill="url(#radar-panel)" />
+        <Rect width="100%" height="100%" fill={`url(#radar-panel-${chartId})`} />
       </Svg>
       <Svg
         accessibilityLabel={summary}
@@ -431,10 +472,38 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
         height={230}
       >
         <Defs>
-          <LinearGradient id="radar-value" x1="0%" y1="0%" x2="100%" y2="100%">
-            <Stop offset="0%" stopColor="#469D89" />
-            <Stop offset="100%" stopColor="#036666" />
-          </LinearGradient>
+          <ClipPath id={`radar-area-${chartId}`}>
+            <Polygon points={outline} />
+          </ClipPath>
+          {points.map((item, index) => {
+            const next = points[(index + 1) % points.length];
+            return (
+              <Fragment key={item.key}>
+                <RadialGradient
+                  id={`radar-fill-${chartId}-${item.key}`}
+                  cx={item.x}
+                  cy={item.y}
+                  r={RADAR.radius * 1.5}
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <Stop offset="0%" stopColor={item.color} stopOpacity={0.18} />
+                  <Stop offset="55%" stopColor={item.color} stopOpacity={0.05} />
+                  <Stop offset="100%" stopColor={item.color} stopOpacity={0} />
+                </RadialGradient>
+                <LinearGradient
+                  id={`radar-edge-${chartId}-${item.key}`}
+                  x1={item.x}
+                  y1={item.y}
+                  x2={next.x}
+                  y2={next.y}
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <Stop offset="0%" stopColor={item.color} />
+                  <Stop offset="100%" stopColor={next.color} />
+                </LinearGradient>
+              </Fragment>
+            );
+          })}
         </Defs>
         {[RADAR.radius + 10, RADAR.radius * 0.77, RADAR.radius * 0.42].map(radius => (
           <Circle key={radius} cx={RADAR.cx} cy={RADAR.cy} r={radius} fill="#FFFFFF" />
@@ -453,24 +522,54 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
         <Polygon
           points={baseline}
           fill="none"
-          stroke="#88BFA7"
+          stroke="#C4C6DF"
           strokeWidth={1}
           strokeLinejoin="round"
         />
-        <Polygon
-          points={outline}
-          fill="url(#radar-value)"
-          fillOpacity={0.08}
-          stroke="url(#radar-value)"
-          strokeWidth={1.2}
-          strokeLinejoin="round"
-        />
+        <G clipPath={`url(#radar-area-${chartId})`}>
+          {points.map(item => (
+            <Rect
+              key={item.key}
+              x={RADAR.cx - RADAR.radius}
+              y={RADAR.cy - RADAR.radius}
+              width={RADAR.radius * 2}
+              height={RADAR.radius * 2}
+              fill={`url(#radar-fill-${chartId}-${item.key})`}
+            />
+          ))}
+        </G>
+        {points.map((item, index) => {
+          const next = points[(index + 1) % points.length];
+          return (
+            <Line
+              key={item.key}
+              x1={item.x}
+              y1={item.y}
+              x2={next.x}
+              y2={next.y}
+              stroke={`url(#radar-edge-${chartId}-${item.key})`}
+              strokeWidth={1.6}
+              strokeLinecap="round"
+            />
+          );
+        })}
+        {points.map(item => (
+          <Circle
+            key={item.key}
+            cx={item.x}
+            cy={item.y}
+            r={3.2}
+            fill={item.color}
+            stroke="#FFFFFF"
+            strokeWidth={1}
+          />
+        ))}
         {points.map(item => (
           <SvgText
             key={item.key}
             x={item.labelX}
             y={item.labelY}
-            fill="#344A40"
+            fill="#4D5066"
             fontSize="11"
             fontFamily="Pretendard-Regular"
             textAnchor="middle"
@@ -483,7 +582,7 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
             key={`${item.key}-value`}
             x={item.labelX}
             y={item.labelY + 14}
-            fill={STAT_COLOR[statTone(item.value)]}
+            fill={item.color}
             fontSize="12"
             fontFamily="Pretendard-Bold"
             textAnchor="middle"
@@ -492,11 +591,15 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
           </SvgText>
         ))}
       </Svg>
+      <View style={styles.statLegend}>
+        {STAT_LEGEND.map(item => (
+          <View key={item.tone} style={styles.radarKey}>
+            <View style={[styles.statusDot, { backgroundColor: STAT_COLOR[item.tone] }]} />
+            <Text style={styles.radarKeyLabel}>{`${item.label} ${item.range}`}</Text>
+          </View>
+        ))}
+      </View>
       <View style={styles.radarLegend}>
-        <View style={styles.radarKey}>
-          <View style={[styles.radarLine, styles.radarLineActual]} />
-          <Text style={styles.radarKeyLabel}>최종 상태</Text>
-        </View>
         <View style={styles.radarKey}>
           <View style={[styles.radarLine, styles.radarLineBase]} />
           <Text style={styles.radarKeyLabel}>100% 기준선</Text>
@@ -541,7 +644,20 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: 8,
   },
-  legendItemActive: { backgroundColor: '#E8F5EE', borderColor: '#B7DDCA' },
+  expandedArrow: { transform: [{ rotate: '180deg' }] },
+  purchaseList: {
+    borderLeftWidth: 2,
+    gap: 10,
+    marginBottom: 12,
+    marginLeft: 12,
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  purchaseRow: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  purchaseLabel: { ...typography.bodyRegular14, color: colors.gray600, flex: 1 },
+  purchaseAmount: { ...typography.bodyRegular14, color: colors.gray700 },
+  emptyPurchases: { ...typography.bodyRegular14, color: colors.gray500 },
   swatch: { borderRadius: 3, height: 10, width: 10 },
   legendLabel: { ...typography.bodyRegular14, color: colors.gray700, flex: 1 },
   legendLabelActive: { color: '#245C48', fontFamily: 'Pretendard-SemiBold' },
@@ -574,7 +690,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     width: BAR_WIDTH,
   },
-  barShade: { ...StyleSheet.absoluteFillObject },
+  barShade: { ...StyleSheet.absoluteFill },
   barDot: {
     backgroundColor: '#248277',
     borderColor: colors.white,
@@ -625,7 +741,15 @@ const styles = StyleSheet.create({
   radarLegend: { flexDirection: 'row', gap: 16, justifyContent: 'center' },
   radarKey: { alignItems: 'center', flexDirection: 'row', gap: 6 },
   radarLine: { borderRadius: 2, height: 2, width: 16 },
-  radarLineActual: { backgroundColor: '#14746F' },
-  radarLineBase: { backgroundColor: '#88BFA7' },
+  statLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 8,
+  },
+  statusDot: { borderRadius: 4, height: 8, width: 8 },
+  radarLineBase: { backgroundColor: '#C4C6DF' },
   radarKeyLabel: { ...typography.captionSemiBold12, color: '#435E54' },
 });

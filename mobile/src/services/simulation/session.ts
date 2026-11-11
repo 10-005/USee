@@ -5,7 +5,7 @@ import { ApiClientError } from '../api/errors';
 import { readApiData } from '../api/response';
 
 export type StartSimulationRequest = {
-  breedSeq: string;
+  breedSeq: number;
   animalName: string;
   expectedCost: number;
 };
@@ -34,6 +34,12 @@ export async function startSimulationSession(
   request: StartSimulationRequest,
   client: SimulationClient = simulationClient,
 ): Promise<SimulationSession> {
+  if (!Number.isSafeInteger(request.breedSeq) || request.breedSeq <= 0) {
+    throw new ApiClientError({
+      code: 'COMMON_INVALID_INPUT',
+      message: '선택한 품종을 확인해주세요.',
+    });
+  }
   const response = await client.post('/simulations', request);
   const session = readApiData<SimulationSession>(response.data);
   const sessionSeq = session?.sessionSeq;

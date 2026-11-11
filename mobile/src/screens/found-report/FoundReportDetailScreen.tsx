@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -106,6 +106,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [commentsVisible, setCommentsVisible] = useState(false);
+  const commentsVisibleRef = useRef(false);
   const sectionY = useRef(Infinity);
   const viewport = useRef({ y: 0, height: 0 });
   const transition = useRef(new Animated.Value(0)).current;
@@ -115,7 +116,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const draftEmpty = useRef(true);
   const resetReply = useRef<(() => void) | null>(null);
   const clearEmptyReply = () => {
-    if (!draftEmpty.current) {
+    if (!draftEmpty.current || replyY.current === null) {
       return;
     }
     resetReply.current?.();
@@ -130,9 +131,39 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     animation.start();
     return () => animation.stop();
   }, [commentsVisible, transition]);
-  const updateCommentVisibility = () => {
-    setCommentsVisible(viewport.current.y + viewport.current.height > sectionY.current);
-  };
+  const updateCommentVisibility = useCallback(() => {
+    const visible = viewport.current.y + viewport.current.height > sectionY.current;
+    if (commentsVisibleRef.current !== visible) {
+      commentsVisibleRef.current = visible;
+      setCommentsVisible(visible);
+    }
+  }, []);
+  const onCommentSectionLayout = useCallback((y: number) => {
+    sectionY.current = y;
+    updateCommentVisibility();
+  }, [updateCommentVisibility]);
+  const onReplySelect = useCallback((name: string, y: number) => {
+    setReplyName(name);
+    replyY.current = y;
+    scrollRef.current?.scrollTo({ y: Math.max(0, y - 24), animated: true });
+    composerInput.current?.focus();
+  }, []);
+  const composerMotion = useMemo(() => ({
+    width: width - 52,
+    opacity: transition,
+    transform: [
+      { translateY: transition.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
+      { scale: transition.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
+    ],
+  }), [transition, width]);
+  const fullChatMotion = useMemo(() => ({
+    opacity: transition.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }),
+    transform: [{ scaleX: transition.interpolate({ inputRange: [0, 1], outputRange: [1, 48 / (width - 52)] }) }],
+  }), [transition, width]);
+  const raisedChatMotion = useMemo(() => ({
+    opacity: transition,
+    transform: [{ translateY: transition.interpolate({ inputRange: [0, 1], outputRange: [68, 0] }) }],
+  }), [transition]);
   const screenRef = useRef<ComponentRef<typeof View>>(null);
   const keyboardTop = useRef<number | null>(null);
   const [keyboardOverlap, setKeyboardOverlap] = useState(0);
@@ -216,7 +247,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     };
   }, [userSeq, detailPhoto]);
   const reporterPhoto = detailPhoto || (profile?.id === userSeq ? profile?.uri : undefined);
-  const openChat = async (name: string, authorId: string) => {
+  const openChat = useCallback(async (name: string, authorId: string) => {
     try {
       const params = await useChatStore
         .getState()
@@ -227,7 +258,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     } catch {
       Alert.alert('채팅', '채팅방을 열 수 없어요. 다시 시도해 주세요.');
     }
-  };
+  }, [isLostReport, navigation, report.id]);
 
   const onMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     setPage(Math.round(event.nativeEvent.contentOffset.x / width));
@@ -270,14 +301,14 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     };
   }, []);
 
-  const revealCommentInput = (inputHandle: number) => {
+  const revealCommentInput = useCallback((inputHandle: number) => {
     focusedCommentInputRef.current = inputHandle;
     setTimeout(() => {
       scrollRef.current
         ?.getScrollResponder()
         ?.scrollResponderScrollNativeHandleToKeyboard(inputHandle, 120, true);
     }, 100);
-  };
+  }, []);
 
   const requestStatusChange = () => {
     setStatusSheetVisible(false);
@@ -402,6 +433,10 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           <View>
             <FlatList
               data={report.images}
+              initialNumToRender={1}
+              maxToRenderPerBatch={2}
+              windowSize={3}
+              getItemLayout={(_data, index) => ({ length: width, offset: width * index, index })}
               horizontal
               keyExtractor={(_item, index) => `${report.id}-image-${index}`}
               onMomentumScrollEnd={onMomentumEnd}
@@ -487,19 +522,11 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             />
           </View>
           <FoundReportCommentList
-            onReplySelect={(name, y) => {
-              setReplyName(name);
-              replyY.current = y;
-              scrollRef.current?.scrollTo({ y: Math.max(0, y - 24), animated: true });
-              composerInput.current?.focus();
-            }}
+            onReplySelect={onReplySelect}
             resetReplyRef={resetReply}
             floatingComposer
             submitRef={submitComment}
-            onSectionLayout={y => {
-              sectionY.current = y;
-              updateCommentVisibility();
-            }}
+            onSectionLayout={onCommentSectionLayout}
             onTargetLayout={commentScroll.onTargetLayout}
             onTargetUnavailable={commentScroll.onTargetUnavailable}
             onChat={openChat}
@@ -518,14 +545,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
       </View>
       {!commentScroll.waiting && !commentPhotoMenuVisible ? (
         <View onTouchStart={event => event.stopPropagation()} style={[styles.buttonWrap, styles.floatingRow, keyboardVisible ? [styles.keyboardDock, { bottom: keyboardOverlap }] : { bottom: Math.max(insets.bottom, 12) }]}>
-          <Animated.View pointerEvents={commentsVisible ? 'auto' : 'none'} style={{
-            width: width - 52,
-            opacity: transition,
-            transform: [
-              { translateY: transition.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
-              { scale: transition.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
-            ],
-          }}>
+          <Animated.View pointerEvents={commentsVisible ? 'auto' : 'none'} style={composerMotion}>
             <CommentComposer
               floating
               inputRef={composerInput}
@@ -547,23 +567,17 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
               }}
             />
           </Animated.View>
-          {!isCompleted && !keyboardVisible ? (
+          {!report.isMine && !isCompleted && !keyboardVisible ? (
             <>
-              <Animated.View pointerEvents={commentsVisible ? 'none' : 'auto'} style={[styles.fullChat, {
-                opacity: transition.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }),
-                transform: [{ scaleX: transition.interpolate({ inputRange: [0, 1], outputRange: [1, 48 / (width - 52)] }) }],
-              }]}>
-                <Pressable accessibilityLabel="채팅 보내기" onPress={() => openChat(reporterName, reporterId)} style={[styles.chatButton, styles.floatingChat]}>
-                  <Text style={{ color: colors.white }}>채팅 보내기</Text>
-                </Pressable>
+              <Animated.View pointerEvents={commentsVisible ? 'none' : 'auto'} style={[styles.fullChat, fullChatMotion]}>
+                <Button accessibilityLabel="채팅 보내기" onPress={() => openChat(reporterName, reporterId)} style={styles.chatButton}>
+                  채팅 보내기
+                </Button>
               </Animated.View>
-              <Animated.View pointerEvents={commentsVisible ? 'auto' : 'none'} style={[styles.raisedChat, {
-                opacity: transition,
-                transform: [{ translateY: transition.interpolate({ inputRange: [0, 1], outputRange: [68, 0] }) }],
-              }]}>
-                <Pressable accessibilityLabel="채팅 보내기" onPress={() => openChat(reporterName, reporterId)} style={[styles.chatButton, styles.floatingChat]}>
+              <Animated.View pointerEvents={commentsVisible ? 'auto' : 'none'} style={[styles.raisedChat, raisedChatMotion]}>
+                <Button accessibilityLabel="채팅 보내기" onPress={() => openChat(reporterName, reporterId)} style={[styles.chatButton, styles.compactChat]}>
                   <ChatIcon width={24} height={24} color={colors.white} />
-                </Pressable>
+                </Button>
               </Animated.View>
             </>
           ) : null}
@@ -945,7 +959,7 @@ const styles = StyleSheet.create({
   raisedChat: { width: 48, position: 'absolute', right: 26, bottom: '100%', marginBottom: 20 },
   keyboardDock: { bottom: 0, paddingBottom: 0 },
   floatingRow: { alignItems: 'flex-end' },
-  floatingChat: { height: 48, borderRadius: 24, backgroundColor: colors.green400, alignItems: 'center', justifyContent: 'center' },
+  compactChat: { paddingHorizontal: 0, paddingVertical: 10 },
   buttonWrap: {
     left: 0,
     paddingHorizontal: 26,
@@ -954,7 +968,6 @@ const styles = StyleSheet.create({
     right: 0,
   },
   chatButton: {
-    boxShadow: '0px 0px 15px rgba(0, 0, 0, 0.25)',
     elevation: 8,
   },
   menuBackdrop: {

@@ -13,7 +13,7 @@ import {
   type SimulationReportStatus,
 } from '../../services/simulation/reports';
 import { colors, radius, typography } from '../../theme';
-import { mockAdoptionPets } from './data';
+import { findMockAdoptionPetForBreed } from './data';
 import { CategorySpending, DailySpending, FinalStateChart, GradientFill } from './reportCharts';
 import {
   budgetGap,
@@ -38,11 +38,7 @@ function reportPetImage(report: SimulationReportDetail) {
   if (report.breed.representativeImageUrl) {
     return { uri: report.breed.representativeImageUrl };
   }
-  return mockAdoptionPets.find(
-    pet =>
-      pet.breedCode === report.breed.breedSeq ||
-      pet.breedCode === report.breed.breedSeq.padStart(5, '0'),
-  )?.image;
+  return findMockAdoptionPetForBreed(report.breed)?.image;
 }
 
 function SummaryCard({ report }: { report: SimulationReportDetail }) {
