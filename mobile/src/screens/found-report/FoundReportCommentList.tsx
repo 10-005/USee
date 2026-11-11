@@ -231,6 +231,7 @@ export function CommentComposer({
           accessibilityState={{ busy: isSubmitting, disabled: !canSubmit }}
           disabled={!canSubmit}
           onPress={submit}
+          style={styles.sendButton}
         >
           {isSubmitting ? (
             <ActivityIndicator color={colors.green400} size="small" />
@@ -387,6 +388,7 @@ function CommentItem({
                 accessibilityState={{ disabled: !draft.trim() }}
                 disabled={!draft.trim()}
                 onPress={() => onEdit(draft.trim())}
+                style={styles.sendButton}
               >
                 <SendIcon
                   color={draft.trim() ? colors.green400 : '#797770'}
@@ -1063,6 +1065,7 @@ const styles = StyleSheet.create({
   compactComposerWrap: { marginLeft: 44, marginTop: 0 },
   replyContext: { ...typography.bodyRegular14, color: colors.gray500, paddingTop: 10, paddingLeft: 10 },
   composerRow: { flexDirection: 'row', alignItems: 'center', minHeight: 48 },
+  sendButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   commentInput: {
     backgroundColor: '#F1F1F1',
     borderColor: colors.transparent,
