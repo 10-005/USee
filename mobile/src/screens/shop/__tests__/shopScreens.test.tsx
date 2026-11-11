@@ -50,11 +50,18 @@ jest.mock('../../../services/simulation/purchase', () => {
   };
 });
 
+const mockShopFocusEffects = new Set<() => void | (() => void)>();
 jest.mock('@react-navigation/native', () => ({
   useFocusEffect: (effect: () => void | (() => void)) => {
     require('react').useEffect(() => {
+      mockShopFocusEffects.add(effect);
       const cleanup = effect();
-      return typeof cleanup === 'function' ? cleanup : undefined;
+      return () => {
+        mockShopFocusEffects.delete(effect);
+        if (typeof cleanup === 'function') {
+          cleanup();
+        }
+      };
     }, [effect]);
   },
 }));
@@ -807,5 +814,47 @@ it('reuses existing destinations when leaving cart instead of growing the stack'
   )[0];
   act(() => browse.props.onPress());
   expect(state.routes.map(r => r.name)).toEqual(['PetShop']);
+  act(() => screen.unmount());
+});
+
+it('reloads inventory when an existing inventory screen regains focus', async () => {
+  mockShopSession.session = { sessionSeq: 3001 };
+  const inventory = (quantity: number) => ({
+    balance: 49500,
+    expectedCost: 0,
+    equipment: [],
+    items: [
+      {
+        itemSeq: 31,
+        itemName: '배변봉투',
+        category: 'POOP_BAG' as const,
+        isConsumable: true,
+        quantity,
+        imageUrl: null,
+      },
+    ],
+  });
+  jest
+    .mocked(loadInventoryOnEntry)
+    .mockResolvedValueOnce(inventory(10))
+    .mockResolvedValueOnce(inventory(9));
+  let screen!: renderer.ReactTestRenderer;
+  await act(async () => {
+    screen = renderer.create(
+      wrap(
+        <InventoryScreen
+          navigation={{ goBack: jest.fn() } as never}
+          route={{ key: 'inventory', name: 'ShopInventory', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  expect(screen.root.findByProps({ children: '보유 10개' })).toBeDefined();
+  await act(async () => {
+    mockShopFocusEffects.forEach(effect => effect());
+  });
+  expect(loadInventoryOnEntry).toHaveBeenCalledTimes(2);
+  expect(screen.root.findByProps({ children: '보유 9개' })).toBeDefined();
+  expect(screen.root.findAllByProps({ children: '보유 10개' })).toHaveLength(0);
   act(() => screen.unmount());
 });

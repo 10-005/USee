@@ -194,7 +194,11 @@ export function ArWalkScreen({
   };
   const consumeWalkBag = () => {
     const product = walkBagProduct();
-    return product ? useShopStore.getState().consume({ [product.id]: 1 }) : false;
+    const consumed = product ? useShopStore.getState().consume({ [product.id]: 1 }) : false;
+    if (consumed && serverWalk.current) {
+      invalidateSimulationInventory(serverWalk.current.sessionSeq);
+    }
+    return consumed;
   };
   const [cleanupResponse, setCleanupResponse] = useState('');
   const lastCleanupRequest = useRef(0);
@@ -440,9 +444,11 @@ export function ArWalkScreen({
               respond(consumeWalkBag());
               return undefined;
             }
-            return performSimulationWalkAction(active.sessionSeq, active.walkSeq, {
+            const sessionSeq = active.sessionSeq;
+            return performSimulationWalkAction(sessionSeq, active.walkSeq, {
               actionCode: SimulationWalkAction.CleanUpPoop,
             }).then(result => {
+              invalidateSimulationInventory(sessionSeq);
               closeResolvedWalkEvent(
                 result.resolvedEvent?.occurrenceSeq ?? poopEvent.occurrenceSeq,
               );

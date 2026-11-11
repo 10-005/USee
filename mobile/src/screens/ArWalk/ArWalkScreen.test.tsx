@@ -13,6 +13,7 @@ import {
   SimulationTriggerType,
 } from '../../services/simulation/events';
 import { purchaseSimulationItems } from '../../services/simulation/purchase';
+import { invalidateSimulationInventory } from '../../services/simulation/inventory';
 import { SimulationWalkAction } from '../../services/simulation/actions';
 import {
   performSimulationWalkAction,
@@ -85,6 +86,11 @@ jest.mock('../../services/simulation/walk', () => ({
   }),
   performSimulationWalkAction: jest.fn().mockResolvedValue({ resolvedEvent: null }),
 }));
+jest.mock('../../services/simulation/inventory', () => ({
+  ...jest.requireActual('../../services/simulation/inventory'),
+  invalidateSimulationInventory: jest.fn(),
+}));
+
 jest.mock('../../services/simulation/purchase', () => ({
   ...jest.requireActual('../../services/simulation/purchase'),
   purchaseSimulationItems: jest.fn(),
@@ -510,6 +516,19 @@ test('shows a heartbeat event and starts poop only when the event is poop', asyn
       0,
     );
     expect(renderer.root.findByType(ArFloorView).props.poopRequest).toBe(1);
+    jest.mocked(getActiveMockAdoption).mockResolvedValue({ ...activeSession, walkSeq: 8001 });
+    jest.mocked(invalidateSimulationInventory).mockClear();
+    await ReactTestRenderer.act(async () => {
+      renderer.root.findByType(ArFloorView).props.onTracking({
+        nativeEvent: { status: 'anchored', visible: true, onScreen: true, cleanupRequestId: 9876 },
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(performSimulationWalkAction).toHaveBeenCalledWith(3001, 8001, {
+      actionCode: SimulationWalkAction.CleanUpPoop,
+    });
+    expect(invalidateSimulationInventory).toHaveBeenCalledWith(3001);
   } finally {
     await ReactTestRenderer.act(() => renderer?.unmount());
     jest.useRealTimers();
