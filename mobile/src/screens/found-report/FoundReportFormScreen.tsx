@@ -1,4 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { joinReportDescription } from './reportDescription';
 import {
   useCallback,
   useEffect,
@@ -174,8 +175,7 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
       address: draft.location,
       age: draft.age.trim() || null,
       combinationSeq: draft.combinationSeq,
-      description:
-        [draft.description.trim(), draft.foundSituation.trim()].filter(Boolean).join('\n') || null,
+      description: joinReportDescription(draft.description, draft.foundSituation),
       gender:
         draft.gender === 'male'
           ? ('MALE' as const)

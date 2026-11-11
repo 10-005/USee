@@ -52,6 +52,7 @@ import type { Asset } from 'react-native-image-picker';
 import { CommentComposer, FoundReportCommentList } from './FoundReportCommentList';
 import { useInitialCommentScroll } from './useInitialCommentScroll';
 import { getFoundReport } from './data';
+import { splitReportDescription } from './reportDescription';
 import { getLostReport } from '../lost-report/data';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FoundReportDetail' | 'LostReportDetail'>;
@@ -222,6 +223,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     ? '종료'
     : '제보';
 
+  const foundFields = isLostReport ? null : splitReportDescription(report.description);
   const reporterName =
     (isLostReport ? apiLostDetail?.user?.displayName : apiFoundDetail?.reporter?.displayName) ??
     (report.isMine ? '내 닉네임' : '사용자');
@@ -502,10 +504,14 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             <InfoRow label="나이" value={report.age} />
             <InfoRow label="몸무게" value={report.weight} />
             <InfoRow label="털색" value={report.color} />
+            <InfoRow label="특징" value={(foundFields?.description ?? report.description).trim() || '-'} />
           </View>
           <View style={styles.section}>
             <InfoRow label={isLostReport ? '실종일' : '발견일'} value={report.date} />
             <InfoRow label={isLostReport ? '실종장소' : '발견장소'} value={report.location} />
+            {foundFields && (
+              <InfoRow label="발견 상황" value={foundFields.foundSituation.trim() || '-'} />
+            )}
             <InfoRow
               label="연락처"
               value={
@@ -514,10 +520,6 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                   : getContactDisplayValue(apiFoundDetail?.reporterPhone, apiFoundDetail?.isPhonePublic)
               }
             />
-          </View>
-          <View style={styles.descriptionSection}>
-            <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
-            <Text style={styles.description}>{report.description.trim() || '-'}</Text>
           </View>
           <FoundReportCommentList
             onReplySelect={onReplySelect}
@@ -622,7 +624,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                       latitude: apiLostDetail?.latitude ?? null,
                       location: report.location,
                       longitude: apiLostDetail?.longitude ?? null,
-                      lostAt: apiLostDetail?.occurredDttm ?? new Date(report.date).toISOString(),
+                      lostAt: apiLostDetail?.occurredDttm ?? '',
                     });
                     navigation.navigate('PetRegistration', {
                       flow: 'lost-report',
@@ -631,15 +633,14 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                     return;
                   }
                   updateFoundReportDraft({
-                    age: report.age,
+                    ...splitReportDescription(report.description),
+                    age: apiFoundDetail?.age?.trim() === '모름' ? '' : apiFoundDetail?.age ?? '',
                     breed: report.name,
                     color: report.color,
                     combinationSeq: apiFoundDetail?.classification?.combinationSeq ?? null,
                     contact: apiFoundDetail?.reporterPhone ?? '',
-                    description: report.description,
                     exposeContact: apiFoundDetail?.isPhonePublic ?? false,
-                    foundAt: new Date(report.date).toISOString(),
-                    foundSituation: report.description,
+                    foundAt: apiFoundDetail?.occurredDttm ?? '',
                     gender:
                       report.gender === '수컷'
                         ? 'male'
@@ -658,9 +659,9 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                     microchipStatus: apiFoundDetail?.microchipNumber?.trim() ? 'done' : 'not-done',
                     neutered:
                       report.neutered === null ? 'unknown' : report.neutered ? 'done' : 'not-done',
-                    species: report.species === '개' ? '강아지' : report.species,
+                    species: report.species,
                     terrain: apiFoundDetail?.landmarkDescription ?? '',
-                    weight: report.weight,
+                    weight: apiFoundDetail?.weight?.trim() === '모름' ? '' : apiFoundDetail?.weight ?? '',
                   });
                   navigation.navigate('PetRegistration', {
                     flow: 'found-report',
@@ -954,14 +955,6 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row' },
   infoLabel: { ...typography.bodyRegular14, color: colors.gray400, width: 110 },
   infoValue: { ...typography.bodyRegular14, color: colors.black, flex: 1 },
-  descriptionSection: {
-    borderBottomColor: colors.gray200,
-    borderBottomWidth: 1,
-    paddingHorizontal: 22,
-    paddingVertical: 20,
-  },
-  descriptionLabel: { ...typography.bodyRegular14, color: colors.gray400 },
-  description: { ...typography.bodyRegular14, color: colors.black, marginTop: 10 },
   fullChat: { position: 'absolute', left: 26, right: 26, bottom: 12 },
   raisedChat: { width: 48, position: 'absolute', right: 26, bottom: '100%', marginBottom: 20 },
   keyboardDock: { bottom: 0, paddingBottom: 0 },

@@ -392,7 +392,7 @@ function ChoiceGroup({
           ))}
           {row.length < columnCount
             ? Array.from({ length: columnCount - row.length }, (_, index) => (
-                <View key={`spacer-${index}`} style={styles.choiceSpacer} />
+                <View key={`spacer-${index}`} style={[styles.choice, styles.choiceSpacer]} />
               ))
             : null}
         </View>
@@ -786,7 +786,7 @@ export function AdoptionApplicationScreen({ navigation, route }: Props) {
             ) : null}
             {step === 2 ? <StepTwo form={form} questions={questions} update={update} /> : null}
             {step === 3 ? <StepThree form={form} questions={questions} update={update} /> : null}
-            {step === 4 ? <StepFour form={form} update={update} /> : null}
+            {step === 4 ? <StepFour animal={animal} form={form} update={update} /> : null}
             {step === 5 ? <StepFive form={form} update={update} /> : null}
             {error ? (
               <Text accessibilityLiveRegion="polite" style={styles.error}>
@@ -935,7 +935,7 @@ function StepOne({
             {animal?.age ?? '모름'} | {gender} | {animal?.weight ?? '모름'}
           </Text>
           <Text style={styles.animalMeta}>
-            중성화 여부 <Text style={styles.greenText}>{neutered}</Text>
+            중성화 여부 {neutered}
           </Text>
         </View>
         <View style={styles.numberRows}>
@@ -1196,7 +1196,7 @@ function StepThree({ form, questions, update }: StepProps & { questions: Adoptio
   );
 }
 
-function StepFour({ form, update }: StepProps) {
+function StepFour({ animal, form, update }: StepProps & { animal?: ShelterAnimalDetail }) {
   const responsibilityRows: Array<[keyof FormState, string]> = [
     [
       'consentResponsibility',
@@ -1231,11 +1231,16 @@ function StepFour({ form, update }: StepProps) {
     <>
       <Text style={styles.heading}>동물 상태 안내</Text>
       <View style={styles.guideBox}>
-        <Text style={styles.body}>
-          건강검진 결과　<Text style={styles.warning}>미확인</Text>
-        </Text>
-        <Text style={styles.body}>예방접종 여부　코로나 접종, 0000 접종</Text>
-        <Text style={styles.body}>행동 특성　　　경계심이 살짝 있지만 순한 편</Text>
+        {[
+          ['특징', animal?.description],
+          ['건강검진 특이사항', animal?.healthCheck],
+          ['예방접종 상태', animal?.vaccinationStatus],
+        ].map(([label, value]) => (
+          <View key={label} style={styles.guideRow}>
+            <Text style={[styles.body, styles.guideLabel]}>{label}</Text>
+            <Text style={[styles.body, styles.guideValue]}>{value ?? '-'}</Text>
+          </View>
+        ))}
       </View>
       <ConsentRow
         label="[필수] 제공된 건강·행동 정보를 확인했으며, 미확인 사항은 상담 시 추가 안내받겠습니다."
@@ -1333,7 +1338,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   choiceSelected: { backgroundColor: '#3DDC97', borderColor: '#3DDC97' },
-  choiceSpacer: { flex: 1 },
+  choiceSpacer: { opacity: 0 },
   choiceText: {
     ...typography.bodyRegular14,
     color: colors.gray400,
@@ -1369,7 +1374,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     top: -51,
   },
-  greenText: { color: colors.green400 },
   numberRows: { flexDirection: 'row', flexWrap: 'wrap', marginTop: -32 },
   numberLabel: {
     ...typography.bodyRegular14,
@@ -1434,7 +1438,9 @@ const styles = StyleSheet.create({
   divider: { backgroundColor: colors.gray200, height: 1, marginVertical: 20 },
   guideBox: { backgroundColor: colors.gray10, borderRadius: radius.md, gap: 10, padding: 14 },
   body: { ...typography.bodyRegular14, color: colors.gray700 },
-  warning: { color: '#FA705B' },
+  guideRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  guideLabel: { color: colors.gray400, maxWidth: '45%' },
+  guideValue: { flex: 1 },
   consentRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 8, marginVertical: 9 },
   checkbox: {
     alignItems: 'center',

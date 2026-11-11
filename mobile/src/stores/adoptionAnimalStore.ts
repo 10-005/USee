@@ -52,10 +52,9 @@ export const useAdoptionAnimalStore = create<AdoptionAnimalState>(set => ({
     try {
       const detail = await getShelterAnimal(Number(animalId));
       set(state => ({
-        animals: [
-          ...state.animals.filter(animal => animal.id !== animalId),
-          mapShelterAnimalCard(detail),
-        ],
+        animals: state.animals.map(animal =>
+          animal.id === animalId ? mapShelterAnimalCard(detail) : animal,
+        ),
         detailsById: { ...state.detailsById, [animalId]: detail },
       }));
     } catch (error) {
