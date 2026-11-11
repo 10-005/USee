@@ -261,6 +261,7 @@ type CommentItemProps = {
   onChat: () => void;
   comment: FoundReportReply;
   editing: boolean;
+  highlighted: boolean;
   menuOpen: boolean;
   onDelete: () => void;
   onEdit: (content: string) => void;
@@ -279,6 +280,7 @@ function CommentItem({
   onChat,
   comment,
   editing,
+  highlighted,
   menuOpen,
   onDelete,
   onEdit,
@@ -297,7 +299,12 @@ function CommentItem({
   return (
     <View
       onLayout={onTargetLayout}
-      style={[styles.comment, reply && styles.reply, deleted && styles.deletedComment]}
+      style={[
+        styles.comment,
+        reply && styles.reply,
+        deleted && styles.deletedComment,
+        highlighted && styles.highlightedComment,
+      ]}
     >
       {deleted ? (
         <View style={styles.deletedAvatar} />
@@ -520,6 +527,7 @@ function CommentThread({
       onChat={() => onChat(reply)}
       comment={reply}
       editing={editingId === reply.id}
+      highlighted={reply.id === targetCommentId}
       key={reply.id}
       menuOpen={menuId === reply.id}
       onDelete={() => onDelete(reply.id)}
@@ -1055,6 +1063,7 @@ const styles = StyleSheet.create({
   photoMenuText: { ...typography.bodyRegular14, color: colors.gray700 },
   replyCancel: { alignSelf: 'flex-end', paddingHorizontal: 4, paddingTop: 6 },
   replyCancelText: { ...typography.captionRegular10, color: colors.gray400 },
+  highlightedComment: { backgroundColor: 'rgba(128, 128, 128, 0.1)' },
   comment: {
     alignItems: 'flex-start',
     flexDirection: 'row',
