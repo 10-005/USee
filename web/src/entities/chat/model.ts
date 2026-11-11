@@ -10,7 +10,7 @@ export type Conversation = {
 
 export type PostKind = 'SHELTER_ANIMAL' | 'MISSING' | 'FOUND';
 export type ChatMessage =
-  | { id: string; type: 'post'; targetId: string; targetType: PostKind }
+  | { id: string; type: 'post'; targetId: string; targetType: PostKind; readByRecipient?: boolean }
   | {
       id: string;
       type: 'message';

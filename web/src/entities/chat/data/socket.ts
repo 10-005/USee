@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { chatAccessToken, refreshChatToken } from '@/shared/api/session';
 import { env } from '@/shared/config/env';
-import { unreadOptions } from './live';
+import { counterpartReadKey, counterpartReadOptions, unreadOptions } from './live';
 
 export function useChatSocket() {
   const cache = useQueryClient();
@@ -41,6 +41,20 @@ export function useChatSocket() {
             refreshLists();
             return;
           }
+          if (update?.type === 'COUNTERPART_READ') {
+            const { chatRoomSeq, counterpartLastReadMessageSeq } = update.room ?? {};
+            if (
+              Number.isSafeInteger(chatRoomSeq) &&
+              chatRoomSeq > 0 &&
+              Number.isSafeInteger(counterpartLastReadMessageSeq) &&
+              counterpartLastReadMessageSeq > 0
+            ) {
+              cache.setQueryData(counterpartReadOptions(chatRoomSeq).queryKey, (previous) =>
+                Math.max(previous ?? 0, counterpartLastReadMessageSeq),
+              );
+            }
+            return;
+          }
           if (
             !Number.isSafeInteger(update?.totalUnreadMessageCount) ||
             update.totalUnreadMessageCount < 0
@@ -55,6 +69,7 @@ export function useChatSocket() {
           void cache.invalidateQueries({ queryKey: ['chat', 'rooms'] });
         });
         refreshLists();
+        void cache.invalidateQueries({ queryKey: counterpartReadKey });
         setConnection({ client });
       },
       onStompError: (frame) => {

@@ -222,7 +222,12 @@ export function ChatRoomView({
           {historyControls}
           {messages.map((message) =>
             message.type === 'post' ? (
-              <div key={message.id}>{renderPost(message.targetId, message.targetType)}</div>
+              <div key={message.id}>
+                {renderPost(message.targetId, message.targetType)}
+                {message.readByRecipient === false && (
+                  <span className="chat-message__unread">안읽음</span>
+                )}
+              </div>
             ) : (
               <div className={`chat-message chat-message--${message.sender}`} key={message.id}>
                 {message.sender === 'other' && (

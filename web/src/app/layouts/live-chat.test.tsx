@@ -7,6 +7,7 @@ import { LiveChatSidebar } from './LiveChatSidebar';
 const broker = vi.hoisted(() => ({
   subscriptions: new Map<string, (frame: { body: string }) => void>(),
   publish: vi.fn(),
+  reconnect: () => {},
 }));
 vi.mock('@stomp/stompjs', () => ({
   Client: class {
@@ -15,6 +16,7 @@ vi.mock('@stomp/stompjs', () => ({
     constructor(private options: { beforeConnect: () => Promise<void>; onConnect: () => void }) {}
     async activate() {
       await this.options.beforeConnect();
+      broker.reconnect = () => this.options.onConnect();
       this.options.onConnect();
     }
     deactivate() {
@@ -52,12 +54,14 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
     messageType: 'TEXT',
     body: '첫 문의',
   };
+  let serverCursor: number | null = null;
   let failReadOnce = false;
   const fetchMock = vi.fn(async (input: string, options: RequestInit) => {
     expect(new Headers(options.headers).get('Authorization')).toBe('Bearer test');
     const path = new URL(input, 'http://localhost').pathname;
     let data;
     if (path.endsWith('/rooms')) data = { content: [room], hasNext: false };
+    else if (path.endsWith('/rooms/9')) data = { counterpartLastReadMessageSeq: serverCursor };
     else if (path.endsWith('/messages')) data = { content: [old], hasNext: false };
     else if (path.endsWith('/shelter-animals/me/42'))
       data = {
@@ -225,4 +229,40 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
     expect(screen.getByText(description)).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: '닫기' }));
   }
+  expect(screen.getAllByText('안읽음')).toHaveLength(1);
+  receive({
+    ...old,
+    chatMessageSeq: 21,
+    senderUserSeq: 99,
+    messageType: 'IMAGE',
+    imageUrl: '/mine.jpg',
+  });
+  expect(screen.getAllByText('안읽음')).toHaveLength(2);
+  const counterpartRead = (roomId: number, seq: number) =>
+    act(() =>
+      broker.subscriptions.get('/user/queue/room-updates')!({
+        body: JSON.stringify({
+          type: 'COUNTERPART_READ',
+          room: { chatRoomSeq: roomId, counterpartLastReadMessageSeq: seq },
+          totalUnreadMessageCount: 0,
+        }),
+      }),
+    );
+  counterpartRead(9, 17);
+  await waitFor(() => expect(screen.getAllByText('안읽음')).toHaveLength(1));
+  counterpartRead(9, 16);
+  counterpartRead(10, 21);
+  // Returning to the tab can yield an older snapshot than the last socket event.
+  serverCursor = 15;
+  const detailCalls = () => fetchMock.mock.calls.filter(([url]) => url.endsWith('/rooms/9')).length;
+  const beforeFocus = detailCalls();
+  visibility.mockReturnValue('hidden');
+  fireEvent(window, new Event('visibilitychange'));
+  visibility.mockReturnValue('visible');
+  fireEvent(window, new Event('visibilitychange'));
+  await waitFor(() => expect(detailCalls()).toBeGreaterThan(beforeFocus));
+  expect(screen.getAllByText('안읽음')).toHaveLength(1);
+  serverCursor = 21;
+  act(() => broker.reconnect());
+  await waitFor(() => expect(screen.queryByText('안읽음')).toBeNull());
 });

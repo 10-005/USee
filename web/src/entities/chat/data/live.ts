@@ -58,6 +58,27 @@ export const unreadOptions = queryOptions({
   queryFn: ({ signal }) =>
     chatRequest<{ totalUnreadMessageCount: number }>('/unread-count', { signal }),
 });
+export const counterpartReadKey = ['chat', 'counterpart-read'] as const;
+export function counterpartReadOptions(id: number) {
+  return queryOptions({
+    queryKey: [...counterpartReadKey, id] as const,
+    queryFn: async ({ signal }) => {
+      const { counterpartLastReadMessageSeq: seq } = await chatRequest<{
+        counterpartLastReadMessageSeq: number | null;
+      }>('/rooms/' + id, { signal });
+      if (seq !== null && (!Number.isSafeInteger(seq) || seq < 0))
+        throw new Error('상대방의 읽음 위치를 확인할 수 없습니다.');
+      return seq;
+    },
+    // A socket update may arrive while the room detail request is in flight.
+    structuralSharing: (oldValue, newValue) =>
+      typeof oldValue === 'number' && (typeof newValue !== 'number' || oldValue > newValue)
+        ? oldValue
+        : newValue,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
+  });
+}
 export function roomsOptions(unreadOnly: boolean) {
   return infiniteQueryOptions({
     queryKey: ['chat', 'rooms', unreadOnly],
