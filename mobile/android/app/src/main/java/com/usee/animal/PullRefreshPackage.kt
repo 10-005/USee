@@ -16,7 +16,7 @@ class PullRefreshPackage : ReactPackage {
   override fun createNativeModules(context: ReactApplicationContext): List<NativeModule> = emptyList()
 
   override fun createViewManagers(context: ReactApplicationContext): List<ViewManager<*, *>> =
-    listOf(object : ReactViewManager() {
+    listOf(PostTabPageManager(), object : ReactViewManager() {
       override fun getName() = "PullRefreshContainer"
       override fun createViewInstance(context: ThemedReactContext): ReactViewGroup = PullRefreshContainer(context)
     })
