@@ -1,11 +1,17 @@
 import type { RemoteMessage } from '@react-native-firebase/messaging';
+import { AppState } from 'react-native';
 import { showPushBanner } from '../pushBanner';
+import { trackVisibleChatRoom } from '../visibleChatRoom';
 
 import { appearsInNotificationList, resolveNotificationDestination } from '../pushDestination';
 import { parsePushMessage, SERVER_NOTIFICATION_TYPES } from '../pushMessage';
 import { handleRemoteMessage, subscribePushMessages } from '../remoteMessage';
 
 jest.mock('../pushBanner', () => ({ showPushBanner: jest.fn().mockResolvedValue(undefined) }));
+jest.mock('react-native/Libraries/AppState/AppState', () => ({
+  __esModule: true,
+  default: { currentState: 'active' },
+}));
 
 const commentMessage = {
   data: {
@@ -198,6 +204,7 @@ describe('handleRemoteMessage', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
     stops.splice(0).forEach(stop => stop());
     const drain = subscribePushMessages(() => {});
     drain();
@@ -230,6 +237,61 @@ describe('handleRemoteMessage', () => {
 
     expect(showPushBanner).not.toHaveBeenCalled();
     expect(received).toHaveLength(1);
+  });
+
+  it('현재 보고 있는 채팅방 알림은 표시하지 않고 메시지만 전달한다', async () => {
+    jest.replaceProperty(AppState, 'currentState', 'active');
+    stops.push(trackVisibleChatRoom('501'));
+    const received: unknown[] = [];
+    stops.push(subscribePushMessages(message => received.push(message)));
+
+    await handleRemoteMessage(chatMessage);
+
+    expect(showPushBanner).not.toHaveBeenCalled();
+    expect(received).toEqual([parsePushMessage(chatMessage)]);
+  });
+
+  it('다른 채팅방과 일반 알림은 표시한다', async () => {
+    jest.replaceProperty(AppState, 'currentState', 'active');
+    stops.push(trackVisibleChatRoom('502'));
+
+    await handleRemoteMessage(chatMessage);
+    await handleRemoteMessage(commentMessage);
+
+    expect(showPushBanner).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['background', 'inactive'] as const)(
+    '앱이 %s이면 같은 방 알림도 표시한다',
+    async state => {
+      jest.replaceProperty(AppState, 'currentState', state);
+      stops.push(trackVisibleChatRoom('501'));
+
+      await handleRemoteMessage(chatMessage);
+
+      expect(showPushBanner).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('채팅 상세화면을 벗어나면 같은 방 알림을 다시 표시한다', async () => {
+    jest.replaceProperty(AppState, 'currentState', 'active');
+    const stop = trackVisibleChatRoom('501');
+    stop();
+
+    await handleRemoteMessage(chatMessage);
+
+    expect(showPushBanner).toHaveBeenCalledTimes(1);
+  });
+
+  it('이전 화면 정리가 새로 열린 채팅방의 표시 억제를 해제하지 않는다', async () => {
+    jest.replaceProperty(AppState, 'currentState', 'active');
+    const stopPrevious = trackVisibleChatRoom('502');
+    stops.push(trackVisibleChatRoom('501'));
+    stopPrevious();
+
+    await handleRemoteMessage(chatMessage);
+
+    expect(showPushBanner).not.toHaveBeenCalled();
   });
 
   it('구독자에게 해석된 메시지를 전달하고 잘못된 메시지는 버린다', async () => {

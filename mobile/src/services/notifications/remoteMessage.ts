@@ -2,6 +2,7 @@ import type { RemoteMessage } from '@react-native-firebase/messaging';
 
 import { showPushBanner } from './pushBanner';
 import { parsePushMessage, type ParsedPushMessage } from './pushMessage';
+import { isViewingChatRoom } from './visibleChatRoom';
 
 export type PushMessageListener = (message: ParsedPushMessage) => void;
 
@@ -28,7 +29,11 @@ export async function handleRemoteMessage(
   if (!parsed) {
     return;
   }
-  if (displayNotification) {
+  const isVisibleChat =
+    parsed.kind === 'server' &&
+    parsed.notificationType === 'CHAT' &&
+    isViewingChatRoom(parsed.roomSeq);
+  if (displayNotification && !isVisibleChat) {
     await showPushBanner(parsed.title, parsed.body).catch(() => {
       console.warn('[FCM] 알림 배너를 표시하지 못했습니다.');
     });
