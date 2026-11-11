@@ -12,24 +12,25 @@ export type RootStackParamList = {
   AdoptionApplication: { animalId: string };
   AdoptionApplicantEdit: undefined;
   AdoptionApplicationHistory: {
-    applicationSeq?: number;
     applicationStatus?: ApiAdoptionApplicationStatus;
-    animalId: string;
     source?: 'draft' | 'record';
-  };
+  } & (
+    | { animalId: string; applicationSeq?: number }
+    | { animalId?: string; applicationSeq: number }
+  );
   AdoptionApplicationList: undefined;
   AdoptionApplicationReview: { animalId: string; applicationSeq: number };
   AdoptionDetail: { animalId: string };
   Home:
     | {
         initialReportTab?: 'found' | 'lost';
-        initialTab?: 'search';
+        initialTab?: 'chat' | 'search';
       }
     | undefined;
   FoundReportDetail: { highlightCommentId?: string; reportId: string };
   FoundReportForm: { reportId?: string } | undefined;
   FoundReportMap: undefined;
-  LostReportDetail: { reportId: string };
+  LostReportDetail: { highlightCommentId?: string; reportId: string };
   LostReportForm: { reportId?: string } | undefined;
   LostReportLocationPicker: { target?: 'adoption' | 'found-report' | 'lost-report' } | undefined;
   LostReportPetSelection: undefined;

@@ -1,3 +1,4 @@
+import { dismissReadChat } from '../notifications/pushBanner';
 import type { ApiResponse } from '../api';
 import { chatClient } from '../api/client';
 
@@ -106,6 +107,8 @@ export async function markChatRoomRead(chatRoomSeq: number, lastReadMessageSeq: 
       totalUnreadMessageCount: number;
     }>
   >(`/chats/rooms/${chatRoomSeq}/read`, { lastReadMessageSeq });
+  const through = response.data.data.lastReadMessageSeq;
+  if (through != null) dismissReadChat(chatRoomSeq, through);
   return response.data.data;
 }
 export async function leaveChatRoom(chatRoomSeq: number) {

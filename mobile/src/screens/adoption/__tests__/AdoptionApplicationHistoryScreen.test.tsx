@@ -102,7 +102,10 @@ function pressAction(root: ReactTestInstance, value: string) {
   action.props.onPress();
 }
 
-async function renderScreen(status: AdoptionApplicationStatus = applicationDetail.status) {
+async function renderScreen(
+  status: AdoptionApplicationStatus = applicationDetail.status,
+  fromNotification = false,
+) {
   mockedGetApplication.mockResolvedValue({ ...applicationDetail, status });
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
@@ -115,7 +118,9 @@ async function renderScreen(status: AdoptionApplicationStatus = applicationDetai
       >
         <AdoptionApplicationHistoryScreen
           navigation={navigation as never}
-          route={route as never}
+          route={
+            (fromNotification ? { ...route, params: { applicationSeq: 901 } } : route) as never
+          }
         />
       </SafeAreaProvider>,
     );
@@ -126,6 +131,16 @@ async function renderScreen(status: AdoptionApplicationStatus = applicationDetai
 describe('AdoptionApplicationHistoryScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('알림의 신청 번호만으로 조회하고 응답의 동물 번호로 신청서를 연다', async () => {
+    const renderer = await renderScreen('APPROVED', true);
+    expect(mockedGetApplication).toHaveBeenCalledWith(901);
+    ReactTestRenderer.act(() => pressButton(renderer.root, '입양 신청서'));
+    expect(navigation.navigate).toHaveBeenCalledWith('AdoptionApplicationReview', {
+      animalId: '700',
+      applicationSeq: 901,
+    });
   });
 
   it.each([

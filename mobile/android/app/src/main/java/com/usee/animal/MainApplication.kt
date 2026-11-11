@@ -8,6 +8,8 @@ import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.usee.animal.ar.ArFloorPackage
 import com.usee.animal.location.LocationGeocoderPackage
+import com.usee.animal.notification.PushBannerChannels
+import com.usee.animal.notification.PushBannerPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -18,12 +20,14 @@ class MainApplication : Application(), ReactApplication {
         PackageList(this).packages.apply {
           add(ArFloorPackage())
           add(LocationGeocoderPackage())
+          add(PushBannerPackage())
         },
     )
   }
 
   override fun onCreate() {
     super.onCreate()
+    PushBannerChannels.ensure(this)
     loadReactNative(this)
   }
 }
