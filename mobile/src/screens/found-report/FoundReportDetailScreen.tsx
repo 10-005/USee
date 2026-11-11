@@ -608,7 +608,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                       latitude: apiLostDetail?.latitude ?? null,
                       location: report.location,
                       longitude: apiLostDetail?.longitude ?? null,
-                      lostAt: apiLostDetail?.occurredDttm ?? new Date(report.date).toISOString(),
+                      lostAt: apiLostDetail?.occurredDttm ?? '',
                     });
                     navigation.navigate('PetRegistration', {
                       flow: 'lost-report',
@@ -624,7 +624,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                     contact: apiFoundDetail?.reporterPhone ?? '',
                     description: report.description,
                     exposeContact: apiFoundDetail?.isPhonePublic ?? false,
-                    foundAt: new Date(report.date).toISOString(),
+                    foundAt: apiFoundDetail?.occurredDttm ?? '',
                     foundSituation: report.description,
                     gender:
                       report.gender === '수컷'
