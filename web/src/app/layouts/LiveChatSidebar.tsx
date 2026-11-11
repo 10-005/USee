@@ -9,6 +9,7 @@ import { adoptionStatusLabels } from '@/entities/shelter/data/applications';
 import {
   chatRequest,
   counterpartOptions,
+  counterpartReadOptions,
   historyOptions,
   roomsOptions,
   timeLabel,
@@ -155,7 +156,15 @@ export function LiveChatSidebar() {
   );
 }
 
-function displayMessage(m: Message, other: number | null): ChatMessage {
+function displayMessage(
+  m: Message,
+  other: number | null,
+  cursor: number | null | undefined,
+): ChatMessage {
+  const readByRecipient =
+    other !== null && m.senderUserSeq !== other && cursor !== undefined
+      ? cursor !== null && m.chatMessageSeq <= cursor
+      : undefined;
   if (
     m.messageType === 'SHARED_POST' &&
     !m.sharedPostUnavailable &&
@@ -166,12 +175,14 @@ function displayMessage(m: Message, other: number | null): ChatMessage {
   )
     return {
       type: 'post',
+      readByRecipient,
       id: String(m.chatMessageSeq),
       targetType: m.sharedTargetType,
       targetId: String(m.sharedTargetSeq),
     };
   return {
     type: 'message',
+    readByRecipient,
     id: String(m.chatMessageSeq),
     sender: m.senderUserSeq === other ? 'other' : 'me',
     time: timeLabel(m.regDttm),
@@ -203,6 +214,7 @@ function LiveRoom({
   const id = room.chatRoomSeq;
   const cache = useQueryClient();
   const history = useInfiniteQuery(historyOptions(id));
+  const counterpartRead = useQuery(counterpartReadOptions(id));
   const [incoming, setIncoming] = useState<Message[]>([]);
   const pending = useRef<SendResult | null>(null);
   const [upload] = useState(createImageUploader);
@@ -325,7 +337,9 @@ function LiveRoom({
       onBack={onBack}
       text={text}
       setText={setText}
-      messages={ordered.map((m) => displayMessage(m, room.counterpart.userSeq))}
+      messages={ordered.map((m) =>
+        displayMessage(m, room.counterpart.userSeq, counterpartRead.data),
+      )}
       connectionNotice={connection ? undefined : '실시간 채팅에 연결하는 중입니다.'}
       historyControls={
         <>
