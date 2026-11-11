@@ -60,8 +60,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function getContactDisplayValue(contact?: string) {
-  return contact ?? '비공개';
+export function getContactDisplayValue(contact: string | null | undefined, isPublic: boolean | undefined) {
+  return isPublic && contact ? contact : '비공개';
 }
 
 import { getPublicProfile } from '../../services/users/userApi';
@@ -392,7 +392,12 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
         <View style={styles.section}>
           <InfoRow label={isLostReport ? '실종일' : '발견일'} value={report.date} />
           <InfoRow label={isLostReport ? '실종장소' : '발견장소'} value={report.location} />
-          <InfoRow label="연락처" value={getContactDisplayValue(report.contact)} />
+          <InfoRow
+            label="연락처"
+            value={isLostReport
+              ? getContactDisplayValue(apiLostDetail?.contactPhone, apiLostDetail?.isPhonePublic)
+              : getContactDisplayValue(apiFoundDetail?.reporterPhone, apiFoundDetail?.isPhonePublic)}
+          />
         </View>
         <View style={styles.descriptionSection}>
           <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
@@ -455,7 +460,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                   updateLostReportDetails({
                     contact: apiLostDetail?.contactPhone ?? report.contact ?? '',
                     detailAddress: '',
-                    exposeContact: apiLostDetail?.isPhonePublic ?? Boolean(report.contact),
+                    exposeContact: apiLostDetail?.isPhonePublic ?? false,
                     latitude: apiLostDetail?.latitude ?? null,
                     location: report.location,
                     longitude: apiLostDetail?.longitude ?? null,
@@ -472,9 +477,9 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                   breed: report.name,
                   color: report.color,
                   combinationSeq: apiFoundDetail?.classification?.combinationSeq ?? null,
-                  contact: report.contact ?? '',
+                  contact: apiFoundDetail?.reporterPhone ?? '',
                   description: report.description,
-                  exposeContact: Boolean(report.contact),
+                  exposeContact: apiFoundDetail?.isPhonePublic ?? false,
                   foundAt: new Date(report.date).toISOString(),
                   foundSituation: report.description,
                   gender:
