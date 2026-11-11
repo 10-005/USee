@@ -1,4 +1,8 @@
-import { assignedOptions, rescueListOptions } from '@/entities/shelter/data/rescues';
+import {
+  assignedOptions,
+  assignedRefreshOptions,
+  rescueListOptions,
+} from '@/entities/shelter/data/rescues';
 import { animalListOptions } from '@/entities/shelter/data/animals';
 import { readAnimalFilters } from '@/pages/animals/model';
 import { useQuery } from '@tanstack/react-query';
@@ -15,12 +19,19 @@ import './home.css';
 export function HomePage() {
   const navigate = useNavigate();
   const demoReports = useReports();
-  const assigned = useQuery({ ...assignedOptions(new URLSearchParams()), enabled: !demoMode });
+  const reportParams = new URLSearchParams();
+  const assigned = useQuery({
+    ...assignedOptions(reportParams),
+    ...assignedRefreshOptions(reportParams),
+    enabled: !demoMode,
+  });
   const processing = useQuery({
     ...rescueListOptions(new URLSearchParams({ status: '진행 중' })),
     enabled: !demoMode,
   });
-  const reports = demoMode ? demoReports : (assigned.data?.content ?? []);
+  const reports = demoMode
+    ? [...demoReports].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    : (assigned.data?.content ?? []);
   const animalList = useQuery({
     ...animalListOptions(readAnimalFilters(new URLSearchParams()), 1, false),
     enabled: !demoMode,
@@ -80,15 +91,12 @@ export function HomePage() {
       emptyTitle: '아직 배정된 발견 신고가 없어요.',
       emptyHint: '보호소에 새 신고가 배정되면 여기에 표시돼요.',
       href: '/reports',
-      items: [...reports]
-        .sort((a, b) => b.foundAt.localeCompare(a.foundAt))
-        .slice(0, 3)
-        .map((r) => ({
-          title: r.name,
-          description: `${r.location} · ${r.foundAt.slice(0, 10)} 발견`,
-          badge: <RecordBadge status={r.reportStatus} />,
-          href: '/reports',
-        })),
+      items: reports.slice(0, 3).map((r) => ({
+        title: r.name,
+        description: `${r.location} · ${r.foundAt.slice(0, 10)} 발견`,
+        badge: <RecordBadge status={r.reportStatus} />,
+        href: '/reports',
+      })),
     },
   ];
   return (

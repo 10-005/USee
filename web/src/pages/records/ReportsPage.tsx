@@ -1,7 +1,12 @@
 import { AnimalPhoto } from '@/shared/ui/AnimalPhoto';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { demoMode } from '@/shared/config/demo';
-import { assignedOptions, speciesOptions, districtOptions } from '@/entities/shelter/data/rescues';
+import {
+  assignedOptions,
+  assignedRefreshOptions,
+  speciesOptions,
+  districtOptions,
+} from '@/entities/shelter/data/rescues';
 import type { Report } from '@/entities/shelter/report';
 import type { PageData } from '@/shared/api/contracts';
 import { RecordQueries } from './RecordQueries';
@@ -31,7 +36,8 @@ export function ReportsPage() {
 }
 function LiveReports() {
   const [params] = useSearchParams();
-  const list = useQuery(assignedOptions(params)),
+  const refresh = assignedRefreshOptions(params);
+  const list = useQuery({ ...assignedOptions(params), ...refresh }),
     species = useQuery(speciesOptions),
     regions = useQuery(districtOptions);
   const selectedKind = reportTabs.find(([kind]) => kind === params.get('kind'))?.[0] ?? '';
@@ -42,7 +48,7 @@ function LiveReports() {
       filters.set('kind', kind);
       filters.delete('page');
       filters.delete('sort');
-      return assignedOptions(filters, 1);
+      return { ...assignedOptions(filters, 1), ...refresh };
     }),
   });
   const counts: Record<string, number | undefined> = { [selectedKind]: list.data?.totalElements };
@@ -50,7 +56,10 @@ function LiveReports() {
     counts[kind] = countQueries[index]?.data?.totalElements;
   });
   return (
-    <RecordQueries title="발견 신고 목록" queries={[list, species, regions]}>
+    <RecordQueries
+      title="발견 신고 목록"
+      queries={list.data ? [species, regions] : [list, species, regions]}
+    >
       {list.data &&
         (list.data.page >= Math.max(1, list.data.totalPages) ? (
           <Navigate

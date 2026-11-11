@@ -155,6 +155,14 @@ export const districtOptions = queryOptions({
     read<{ districtCode: string; sidoName: string; sigunguName: string }[]>('/districts', signal),
   staleTime: 300000,
 });
+export function assignedRefreshOptions(params: URLSearchParams) {
+  const latestPage = (Number(params.get('page')) || 1) <= 1 && params.get('sort') !== 'oldest';
+  return {
+    refetchInterval: latestPage ? 5000 : (false as const),
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: latestPage ? ('always' as const) : (false as const),
+  };
+}
 export function assignedOptions(params: URLSearchParams, size = 8) {
   const q = listParams(params);
   q.set('size', String(size));
