@@ -324,7 +324,11 @@ function CommentItem({
           />
         </Pressable>
       )}
-      <View style={[styles.commentBody, deleted && styles.deletedCommentBody]}>
+      <View style={[
+        styles.commentBody,
+        deleted && styles.deletedCommentBody,
+        reply && !deleted && !editing && styles.replyBody,
+      ]}>
         {!deleted ? (
           <View style={styles.commentMeta}>
             <Text
@@ -1070,6 +1074,7 @@ const styles = StyleSheet.create({
   avatar: { borderRadius: 20, height: 40, width: 40 },
   deletedAvatar: { height: 0, width: 0 },
   commentBody: { flex: 1, marginLeft: 7, minWidth: 0 },
+  replyBody: { paddingBottom: (typography.captionRegular10.lineHeight + 5) / 2 },
   deletedCommentBody: { marginLeft: 0 },
   commentMeta: { alignItems: 'flex-start', flexDirection: 'row', minHeight: 15 },
   nickname: {
