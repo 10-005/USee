@@ -1,0 +1,33 @@
+# 루트 CI: 영역별 파이프라인을 모은다 (backend/web/mobile/ai 는 각 폴더의 .gitlab-ci.yml)
+# develop-ai 판: develop-backend 루트와 같고 include 만 ai/.gitlab-ci.yml 이다 (develop-ai 에는 backend CI 파일이 없음)
+# master 로 합칠 때 두 루트를 합쳐야 한다
+stages:
+  - test
+  - build
+  - deploy
+
+# 파이프라인을 만드는 경우
+#   - 모든 MR: "파이프라인이 성공해야 머지 가능" 설정은 파이프라인이 없는 MR도 막으므로 MR마다 반드시 만든다
+#   - develop-* 브랜치 push (배포), 화면에서 수동 실행
+# 열린 MR이 있을 때 branch 파이프라인을 막는 규칙($CI_OPEN_MERGE_REQUESTS)은 쓰지 않는다
+#   → develop-backend → master MR이 열려 있으면 develop-backend 배포가 멈추기 때문
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^develop-/
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+include:
+  - local: ai/.gitlab-ci.yml
+
+# develop-backend 가 아닌 브랜치로 가는 MR용 통과 작업 (자기 검사가 없는 영역의 MR도 파이프라인이 생기게)
+# web·mobile·ai 가 MR 테스트를 넣으면 그 대상 브랜치를 아래 rules 에서 빼거나 이 작업을 대체한다
+# 각 영역 작업에는 반드시 브랜치·경로 rules 를 달 것 (rules 가 없으면 모든 MR 파이프라인에서 돈다)
+mr:check:
+  stage: test
+  image: alpine:3.22
+  interruptible: true
+  script:
+    - echo "MR $CI_MERGE_REQUEST_IID ($CI_MERGE_REQUEST_SOURCE_BRANCH_NAME → $CI_MERGE_REQUEST_TARGET_BRANCH_NAME) 기본 검사 통과"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME != "develop-backend"
