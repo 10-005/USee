@@ -4,14 +4,16 @@
 이 서버는 서비스 DB를 모른다. 품종은 AI 팀 라벨(maltese 등)로 돌려주고 품종 코드 변환은 core-api가 한다.
 """
 from contextlib import asynccontextmanager
+import io
 import os
 from pathlib import Path
 
 from fastapi import FastAPI
 import httpx
+from PIL import Image
 from pydantic import BaseModel, Field
 
-from breed_pipeline import BreedClassifier, PipelineError, decode_image
+from breed_pipeline import MAX_PIXELS, SUPPORTED_FORMATS, BreedClassifier, PipelineError, decode_image
 from policy import decide_breed, decide_species
 from species import VERSION as SPECIES_VERSION, SpeciesClassifier
 
@@ -64,6 +66,25 @@ class PredictionResponse(BaseModel):
     modelVersion: str
 
 
+def shrink_if_huge(payload):
+    """AI 팀 decode_image는 2,500만 화소 초과를 거부한다. 폰의 고화소 사진은 먼저 줄여서 넘긴다(모델 입력은 384·224라 손실 없음).
+
+    기준 이하면 원본 바이트를 그대로 돌려줘 AI 팀 경로를 건드리지 않는다.
+    """
+    try:
+        image = Image.open(io.BytesIO(payload))
+        if image.width * image.height <= MAX_PIXELS:
+            return payload
+        if image.format not in SUPPORTED_FORMATS:
+            raise PipelineError("INVALID_IMAGE", "Supported formats: JPEG, PNG, WEBP.")
+        image.thumbnail((4096, 4096))
+        return image
+    except PipelineError:
+        raise
+    except Exception as exc:  # 깨진 파일, 압축 폭탄 등
+        raise PipelineError("INVALID_IMAGE", "Cannot decode the image safely.") from exc
+
+
 def fetch_image(url):
     """사진을 내려받아 PIL 이미지로. 실패하면 오류 코드 문자열을 돌려준다(그 사진만 건너뛴다)."""
     if not url.startswith(IMAGE_URL_PREFIX):
@@ -76,7 +97,7 @@ def fetch_image(url):
                 payload += chunk
                 if len(payload) > MAX_IMAGE_BYTES:
                     return "IMAGE_TOO_LARGE"
-        return decode_image(payload)
+        return decode_image(shrink_if_huge(payload))
     except PipelineError as exc:
         return exc.code
     except httpx.HTTPError:

@@ -7,7 +7,7 @@
 
 | 역할 | 모델 | 출처 |
 |---|---|---|
-| 종 판별 | Faster R-CNN MobileNetV3 320(COCO) + MobileNetV3(ImageNet) | torchvision·timm 공개 가중치(빌드 때 내려받음) |
+| 종 판별 | CLIP ViT-B/32 제로샷(개 / 고양이 / 둘 다 아님) | Hugging Face `openai/clip-vit-base-patch32`(빌드 때 내려받음) |
 | 개 품종 15종 | ConvNeXt-Tiny | AI 팀 전달본 `01_dog_breed/models` |
 | 고양이 품종 15종 | ConvNeXt-Tiny | AI 팀 전달본 `02_cat_breed/models` |
 
@@ -45,7 +45,7 @@
     { "species": "dog", "speciesScore": 0.99, "error": null },
     { "species": null, "speciesScore": 0.03, "error": null }
   ],
-  "modelVersion": "dog-convnext_mix,cat-convnext_weighted,frcnn_mnv3_320+mobilenetv3_large_100.ra_in1k"
+  "modelVersion": "dog-convnext_mix,cat-convnext_weighted,clip-vit-base-patch32"
 }
 ```
 
@@ -83,4 +83,6 @@ Docker: `docker build -t breed-server .` (빌드 전에 `models/`가 있어야 �
 
 ## 속도 (2026-11-11, CPU 스레드 2개 기준)
 
-종 판별 약 0.2초/장, 품종 약 0.5초/장. 사진 3장이면 2초 남짓.
+종 판별 약 0.3초/장, 품종 약 0.5초/장(개발 PC). 서버 노드 1에서는 종 0.75초, 품종 0.21초였다. 사진 3장이면 3초 안쪽.
+
+2,500만 화소가 넘는 사진은 AI 팀 코드가 거부하므로 서버가 먼저 줄여서 넣는다.

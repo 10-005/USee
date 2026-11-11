@@ -1,42 +1,40 @@
 """종 판별. 품종 모델은 종을 가리지 못하고 동물이 아닌 사진도 거절하지 못하므로(AI 팀 README 6절),
-그 앞에서 개/고양이/둘 다 아님을 정한다. 별도 학습 없이 공개 사전학습 가중치 두 개를 함께 쓴다.
+그 앞에서 개/고양이/둘 다 아님을 정한다.
 
-- COCO 탐지(torchvision Faster R-CNN MobileNetV3 320): 사진 속 개·고양이 상자의 최고 점수
-- ImageNet 분류(timm MobileNetV3): 개(151~268)·고양이(281~285) 확률의 합
+Hugging Face `openai/clip-vit-base-patch32`를 학습 없이 그대로 쓴다(제로샷). 사진이 아래 세 문장 중 어디에
+가장 가까운지를 확률로 낸다. 문장 쪽 계산은 시작할 때 한 번만 하고, 사진마다 이미지 쪽만 돌린다.
 
-종별로 둘 중 높은 점수를 쓴다. 2026-11-11 더미 사진 62장(스레드 2개)에서 탐지만 쓰면 개 1장을 고양이로,
-분류만 쓰면 고양이 10장을 0.5 미만으로 냈고, 함께 쓰면 62장 모두 맞았다(장당 약 0.2초).
+2026-11-11 더미 사진 62장 + 동물 없는 사진 4장(CPU 스레드 2개. 정답 라벨이 있는 평가가 아니라 다른 모델 4개의 판정과 대조하고 엇갈린 사진만 눈으로 확인):
+62장 모두 종이 맞았고(개 44·고양이 18), 동물 없는 사진 4장은 모두 거절. 장당 약 0.3초.
 """
 from PIL import ImageOps
-import timm
-from timm.data import create_transform, resolve_data_config
 import torch
-from torchvision.models import detection
+from transformers import CLIPModel, CLIPProcessor
 
-COCO_CAT, COCO_DOG = 17, 18
-IMAGENET_DOG = list(range(151, 269))  # Chihuahua ~ Mexican hairless
-IMAGENET_CAT = list(range(281, 286))  # tabby, tiger cat, Persian, Siamese, Egyptian cat
-CLASSIFIER = "mobilenetv3_large_100.ra_in1k"
-VERSION = f"frcnn_mnv3_320+{CLASSIFIER}"
+MODEL = "openai/clip-vit-base-patch32"
+VERSION = "clip-vit-base-patch32"
+PROMPTS = {"dog": "a photo of a dog", "cat": "a photo of a cat", "none": "a photo with no dog or cat"}
 
 
 class SpeciesClassifier:
     def __init__(self):
-        weights = detection.FasterRCNN_MobileNet_V3_Large_320_FPN_Weights.DEFAULT
-        self.detector = detection.fasterrcnn_mobilenet_v3_large_320_fpn(weights=weights, box_score_thresh=0.05).eval()
-        self.detector_transform = weights.transforms()
-        self.classifier = timm.create_model(CLASSIFIER, pretrained=True).eval()
-        self.classifier_transform = create_transform(**resolve_data_config({}, model=self.classifier))
+        self.model = CLIPModel.from_pretrained(MODEL).eval()
+        self.processor = CLIPProcessor.from_pretrained(MODEL)
+        with torch.inference_mode():
+            text = self.model.get_text_features(**self.processor(text=list(PROMPTS.values()), return_tensors="pt", padding=True))
+        self.text = self._unit(text)
+
+    @staticmethod
+    def _unit(features):
+        # transformers 버전에 따라 텐서 또는 pooler_output을 가진 객체가 온다
+        features = getattr(features, "pooler_output", features)
+        return features / features.norm(dim=-1, keepdim=True)
 
     def predict(self, image):
-        """PIL 이미지 → {"dog": 점수, "cat": 점수} (0~1). 둘 다 낮으면 개·고양이가 없는 사진이다."""
+        """PIL 이미지 → {"dog": 확률, "cat": 확률}. 나머지 확률은 '둘 다 아님'이다."""
         image = ImageOps.exif_transpose(image).convert("RGB")
         with torch.inference_mode():
-            found = self.detector([self.detector_transform(image)])[0]
-            probabilities = self.classifier(self.classifier_transform(image).unsqueeze(0)).softmax(dim=1)[0]
-        scores = {"dog": probabilities[IMAGENET_DOG].sum().item(), "cat": probabilities[IMAGENET_CAT].sum().item()}
-        for label, score in zip(found["labels"].tolist(), found["scores"].tolist()):
-            species = {COCO_DOG: "dog", COCO_CAT: "cat"}.get(label)
-            if species:
-                scores[species] = max(scores[species], score)
-        return scores
+            features = self._unit(self.model.get_image_features(**self.processor(images=image, return_tensors="pt")))
+            probabilities = (self.model.logit_scale.exp() * features @ self.text.T).softmax(dim=-1)[0].tolist()
+        scores = dict(zip(PROMPTS, probabilities))
+        return {"dog": scores["dog"], "cat": scores["cat"]}
