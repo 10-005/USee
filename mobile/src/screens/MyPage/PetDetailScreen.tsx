@@ -22,6 +22,7 @@ import PetMoreIcon from '../../assets/icons/mypage/pet-more.svg';
 import PetTrashIcon from '../../assets/icons/mypage/pet-trash.svg';
 import { getApiErrorDisplayMessage } from '../../services/api';
 import { usePetStore } from '../../stores/petStore';
+import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
 import { SkeletonBlock, SkeletonGroup } from '../../components/common';
 import { colors, radius, typography } from '../../theme';
 
@@ -162,7 +163,12 @@ export function PetDetailScreen({ navigation, route }: Props) {
       </View>
       <Pressable
         accessibilityRole="button"
-        onPress={() => Alert.alert('실종 신고하기', '실종 신고 화면은 관련 작업에서 연결됩니다.')}
+        onPress={() => {
+          const draft = useLostReportDraftStore.getState();
+          draft.resetDraft();
+          draft.selectPet(pet);
+          navigation.navigate('PetRegistration', { flow: 'lost-report' });
+        }}
         style={({ pressed }) => [
           styles.reportButton,
           { bottom: insets.bottom + 12 },

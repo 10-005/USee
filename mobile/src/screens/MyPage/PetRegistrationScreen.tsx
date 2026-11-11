@@ -62,7 +62,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'PetRegistration'>;
 type SelectKey = 'species' | 'breed' | 'color' | null;
 type Gender = '수컷' | '암컷' | '모름';
 type Neutered = '완료' | '미완료' | '모름';
-type Microchip = '완료' | '미완료' | '모름';
+type Microchip = '완료' | '미완료';
 type ApiSpeciesLabel = '개' | '고양이' | '기타';
 
 const uploadPhotoPickerOptions = {
@@ -134,7 +134,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         : foundReportDraft.neutered === 'unknown'
         ? '모름'
         : ''
-      : isLostReportFlow && lostReportEntryMode === 'manual'
+      : isLostReportFlow && lostReportEntryMode === 'manual' && !route.params?.reportId
       ? ''
       : initialAnimal
       ? initialAnimal.neutered === null
@@ -159,13 +159,11 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         ? '완료'
         : foundReportDraft.microchipStatus === 'not-done'
         ? '미완료'
-        : foundReportDraft.microchipStatus === 'unknown'
-        ? '모름'
         : ''
-      : isLostReportFlow && lostReportEntryMode === 'manual'
+      : isLostReportFlow && lostReportEntryMode === 'manual' && !route.params?.reportId
       ? ''
       : initialAnimal
-      ? initialAnimal.microchipNumber
+      ? initialAnimal.microchipNumber?.trim()
         ? '완료'
         : '미완료'
       : '',
@@ -575,8 +573,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
           images: photos,
           imageSeqs: photos.map(photo => nextConfirmed[photo.uri!]),
           microchipNumber: microchip === '완료' ? microchipNumber.trim() : '',
-          microchipStatus:
-            microchip === '완료' ? 'done' : microchip === '미완료' ? 'not-done' : 'unknown',
+          microchipStatus: microchip === '완료' ? 'done' : 'not-done',
           neutered: neutered === '완료' ? 'done' : neutered === '미완료' ? 'not-done' : 'unknown',
           species,
           weight,
@@ -816,18 +813,18 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
               <View style={styles.half}>
                 <InputField
                   keyboardType="number-pad"
-                  label="나이"
+                  label="나이 (살)"
                   onChangeText={setAge}
-                  placeholder="예: 12살"
+                  placeholder="예: 12"
                   value={age}
                 />
               </View>
               <View style={styles.half}>
                 <InputField
                   keyboardType="decimal-pad"
-                  label="몸무게"
+                  label="몸무게 (kg)"
                   onChangeText={setWeight}
-                  placeholder="예: 5kg"
+                  placeholder="예: 5"
                   value={weight}
                 />
               </View>
@@ -847,7 +844,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
                   setMicrochipNumber('');
                 }
               }}
-              options={isFoundReportFlow ? ['완료', '미완료', '모름'] : ['완료', '미완료']}
+              options={['완료', '미완료']}
               required
               value={microchip}
             />

@@ -19,6 +19,7 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this).packages.apply {
           add(ArFloorPackage())
+          add(PullRefreshPackage())
           add(LocationGeocoderPackage())
           add(PushBannerPackage())
         },

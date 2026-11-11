@@ -38,7 +38,9 @@ import { colors, radius, typography } from '../../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'LostReportForm'>;
 type Step = 3 | 4;
 
-const PHONE_PATTERN = /^01[016789]-\d{3,4}-\d{4}$/;
+export function isValidLostReportPhone(value: string) {
+  return /^01[016789]\d{8}$/.test(value.replace(/-/g, ''));
+}
 
 export function formatLostDateTime(value: string) {
   if (!value) {
@@ -108,7 +110,7 @@ export function LostReportFormScreen({ navigation, route }: Props) {
             details.latitude !== null &&
             details.longitude !== null,
         )
-      : PHONE_PATTERN.test(details.contact);
+      : isValidLostReportPhone(details.contact);
 
   const goBack = useCallback(() => {
     Keyboard.dismiss();
@@ -294,6 +296,7 @@ export function LostReportFormScreen({ navigation, route }: Props) {
         visible={datePickerOpen}
       />
       <TimePickerModal
+        centered
         onClose={() => setPendingDate(null)}
         onConfirm={selected => {
           updateDetails({ lostAt: selected.toISOString() });
@@ -385,19 +388,25 @@ function ContactStep({
         </View>
         <Switch
           label="전화번호 공개"
-          onValueChange={exposeContact => onUpdate({ exposeContact })}
+          onValueChange={exposeContact => {
+            if (!exposeContact) {
+              Keyboard.dismiss();
+            }
+            onUpdate({ exposeContact });
+          }}
           value={details.exposeContact}
         />
       </View>
-      <Text style={styles.label}>전화번호</Text>
+      <Text style={[styles.label, !details.exposeContact && styles.disabledLabel]}>전화번호</Text>
       <KeyboardAwareTextInput
-        editable
+        editable={details.exposeContact}
+        accessibilityState={{ disabled: !details.exposeContact }}
         keyboardType="phone-pad"
         onChangeText={contact => onUpdate({ contact: formatPhone(contact) })}
         placeholder="010-0000-0000"
         placeholderTextColor={colors.gray300}
-        style={styles.textInput}
-        value={details.contact}
+        style={[styles.textInput, !details.exposeContact && styles.disabledInput]}
+        value={formatPhone(details.contact)}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </>

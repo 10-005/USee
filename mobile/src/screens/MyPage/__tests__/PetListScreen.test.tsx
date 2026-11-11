@@ -1,6 +1,6 @@
 import renderer, { act } from 'react-test-renderer';
 
-import { getMyPets } from '../../../services/pets';
+import { getMyPet, getMyPets } from '../../../services/pets';
 import { usePetStore } from '../../../stores/petStore';
 import { PetListScreen } from '../PetListScreen';
 
@@ -10,6 +10,7 @@ jest.mock('@react-navigation/native', () => ({
     jest.requireActual('react').useEffect(callback, [callback]),
 }));
 jest.mock('../../../services/pets', () => ({
+  getMyPet: jest.fn(),
   getMyPets: jest.fn(),
 }));
 
@@ -58,6 +59,7 @@ describe('PetListScreen', () => {
   });
 
   it('서버에서 조회한 반려동물 목록과 추가 등록 버튼을 표시한다', async () => {
+    (getMyPet as jest.Mock).mockResolvedValueOnce({ age: '2살' });
     mockGetMyPets.mockResolvedValue({
       content: [pet],
       hasNext: false,
@@ -79,6 +81,7 @@ describe('PetListScreen', () => {
 
     expect(screen.root.findByProps({ accessibilityLabel: '등록된 반려동물 1마리' })).toBeDefined();
     expect(screen.root.findByProps({ accessibilityLabel: '몽실이 상세보기' })).toBeDefined();
+    expect(JSON.stringify(screen.toJSON())).toContain('2살');
     expect(screen.root.findByProps({ accessibilityLabel: '반려동물 추가 등록' })).toBeDefined();
     act(() => screen.unmount());
   });

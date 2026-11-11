@@ -188,7 +188,7 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
       landmarkDescription: draft.terrain.trim() || null,
       latitude: draft.latitude,
       longitude: draft.longitude,
-      microchipNumber: draft.microchipNumber.trim() || null,
+      microchipNumber: draft.microchipStatus === 'done' ? draft.microchipNumber.trim() || null : null,
       occurredDttm: draft.foundAt,
       reporterPhone: draft.contact.replace(/\D/g, ''),
       weight: draft.weight.trim() || null,
@@ -279,6 +279,7 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
         visible={datePickerOpen}
       />
       <TimePickerModal
+        centered
         onClose={() => setPendingDate(null)}
         onConfirm={selected => {
           updateDraft({ foundAt: selected.toISOString() });
@@ -366,20 +367,20 @@ function _AnimalStep({
       />
       <View style={styles.twoColumn}>
         <View style={styles.half}>
-          <FieldLabel>나이</FieldLabel>
+          <FieldLabel>나이 (살)</FieldLabel>
           <FormInput
             keyboardType="numeric"
             onChangeText={age => onUpdate({ age })}
-            placeholder="예: 12살"
+            placeholder="예: 12"
             value={draft.age}
           />
         </View>
         <View style={styles.half}>
-          <FieldLabel>몸무게</FieldLabel>
+          <FieldLabel>몸무게 (kg)</FieldLabel>
           <FormInput
             keyboardType="decimal-pad"
             onChangeText={weight => onUpdate({ weight })}
-            placeholder="예: 5kg"
+            placeholder="예: 5"
             value={draft.weight}
           />
         </View>
@@ -399,13 +400,12 @@ function _AnimalStep({
       />
       <FieldLabel required>마이크로칩(RFID) 등록 여부</FieldLabel>
       <OptionRow
-        onSelect={microchipStatus =>
-          onUpdate({ microchipStatus: microchipStatus as FoundReportDraft['microchipStatus'] })
+        onSelect={value =>
+          onUpdate(value === 'done' ? { microchipStatus: 'done' } : { microchipStatus: 'not-done', microchipNumber: '' })
         }
         options={[
           ['done', '완료'],
           ['not-done', '미완료'],
-          ['unknown', '모름'],
         ]}
         value={draft.microchipStatus}
       />

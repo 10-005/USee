@@ -43,7 +43,9 @@ describe('found report data', () => {
   });
 
   it('비공개 연락처도 상세 화면에서 안내 문구로 표시한다', () => {
-    expect(getContactDisplayValue()).toBe('비공개');
-    expect(getContactDisplayValue('010-1111-2222')).toBe('010-1111-2222');
+    expect(getContactDisplayValue(undefined, true)).toBe('비공개');
+    expect(getContactDisplayValue('010-1111-2222', false)).toBe('비공개');
+    expect(getContactDisplayValue('010-1111-2222', undefined)).toBe('비공개');
+    expect(getContactDisplayValue('010-1111-2222', true)).toBe('010-1111-2222');
   });
 });

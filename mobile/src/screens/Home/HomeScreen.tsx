@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import PullRefreshContainer from '../../components/common/PullRefreshContainer';
 import type { RootStackParamList } from '../../app/navigation/types';
 import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
@@ -141,6 +142,7 @@ export function HomeScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = (screenWidth - 52) / 2;
+  const [refreshingAnimals, setRefreshingAnimals] = useState(false);
   const [query, setQuery] = useState('');
   const listRef = useRef<FlatList<AdoptionAnimal>>(null);
   const controlsProgress = useRef(new Animated.Value(1)).current;
@@ -318,6 +320,18 @@ export function HomeScreen({ navigation, route }: Props) {
     listRef.current?.scrollToOffset({ animated: true, offset: 0 });
   }, [resetAdoptionListHeader]);
 
+  const refreshList = useCallback(async () => {
+    if (refreshingAnimals) {
+      return;
+    }
+    setRefreshingAnimals(true);
+    try {
+      await fetchAnimals(adoptionSearchParams);
+    } finally {
+      setRefreshingAnimals(false);
+    }
+  }, [adoptionSearchParams, fetchAnimals, refreshingAnimals]);
+
   const handleListScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const currentOffset = Math.max(0, event.nativeEvent.contentOffset.y);
     const delta = currentOffset - lastScrollOffset.current;
@@ -400,77 +414,77 @@ export function HomeScreen({ navigation, route }: Props) {
     const bookmarkPending = pendingBookmarkKeys.includes(key);
     const bookmarked = bookmarkKeys.includes(key);
     return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => navigation.navigate('AdoptionDetail', { animalId: item.id })}
-      style={({ pressed }) => [
-        styles.card,
-        { height: cardWidth + 118, width: cardWidth },
-        pressed && styles.pressed,
-      ]}
-    >
-      <Image
-        resizeMode="cover"
-        source={item.image}
-        style={[styles.cardImage, { height: cardWidth, width: cardWidth }]}
-      />
       <Pressable
-        accessibilityLabel={`[${item.species}] ${item.name} 북마크 ${
-          bookmarked ? '해제' : '등록'
-        }`}
         accessibilityRole="button"
-        accessibilityState={{
-          busy: bookmarkPending,
-          disabled: bookmarkPending,
-          selected: bookmarked,
-        }}
-        disabled={bookmarkPending}
-        hitSlop={8}
-        onPress={event => {
-          event.stopPropagation();
-          toggleBookmark('SHELTER_ANIMAL', item.id).catch(() =>
-            Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
-          );
-        }}
-        style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
-      >
-        {bookmarkPending ? (
-          <ActivityIndicator color={colors.green400} size="small" />
-        ) : bookmarked ? (
-          <BookmarkActiveIcon />
-        ) : (
-          <BookmarkIcon />
-        )}
-      </Pressable>
-      <View
-        style={[
-          styles.statusBadge,
-          { top: cardWidth - 24 },
-          (item.status === '종료' || item.isAdoptionUnavailable) && styles.endedBadge,
+        onPress={() => navigation.navigate('AdoptionDetail', { animalId: item.id })}
+        style={({ pressed }) => [
+          styles.card,
+          { height: cardWidth + 118, width: cardWidth },
+          pressed && styles.pressed,
         ]}
       >
-        <Text style={styles.statusText}>{item.status}</Text>
-      </View>
-      <Text numberOfLines={1} style={styles.cardTitle}>
-        [{item.species}] {item.name}
-      </Text>
-      <View style={styles.cardMetaRow}>
-        <MapIcon />
-        <Text numberOfLines={1} style={styles.cardMeta}>
-          {item.location}
+        <Image
+          resizeMode="cover"
+          source={item.image}
+          style={[styles.cardImage, { height: cardWidth, width: cardWidth }]}
+        />
+        <Pressable
+          accessibilityLabel={`[${item.species}] ${item.name} 북마크 ${
+            bookmarked ? '해제' : '등록'
+          }`}
+          accessibilityRole="button"
+          accessibilityState={{
+            busy: bookmarkPending,
+            disabled: bookmarkPending,
+            selected: bookmarked,
+          }}
+          disabled={bookmarkPending}
+          hitSlop={8}
+          onPress={event => {
+            event.stopPropagation();
+            toggleBookmark('SHELTER_ANIMAL', item.id).catch(() =>
+              Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
+            );
+          }}
+          style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
+        >
+          {bookmarkPending ? (
+            <ActivityIndicator color={colors.green400} size="small" />
+          ) : bookmarked ? (
+            <BookmarkActiveIcon />
+          ) : (
+            <BookmarkIcon />
+          )}
+        </Pressable>
+        <View
+          style={[
+            styles.statusBadge,
+            { top: cardWidth - 24 },
+            (item.status === '종료' || item.isAdoptionUnavailable) && styles.endedBadge,
+          ]}
+        >
+          <Text style={styles.statusText}>{item.status}</Text>
+        </View>
+        <Text numberOfLines={1} style={styles.cardTitle}>
+          [{item.species}] {item.name}
         </Text>
-      </View>
-      <View style={styles.cardMetaRow}>
-        <DateIcon />
-        <Text style={styles.cardMeta}>{item.date}</Text>
-      </View>
-      <Text numberOfLines={1} style={styles.cardSummary}>
-        {item.summary}
-      </Text>
-      <Text numberOfLines={1} style={styles.cardDescription}>
-        {item.description}
-      </Text>
-    </Pressable>
+        <View style={styles.cardMetaRow}>
+          <MapIcon />
+          <Text numberOfLines={1} style={styles.cardMeta}>
+            {item.location}
+          </Text>
+        </View>
+        <View style={styles.cardMetaRow}>
+          <DateIcon />
+          <Text style={styles.cardMeta}>{item.date}</Text>
+        </View>
+        <Text numberOfLines={1} style={styles.cardSummary}>
+          {item.summary}
+        </Text>
+        <Text numberOfLines={1} style={styles.cardDescription}>
+          {item.description}
+        </Text>
+      </Pressable>
     );
   };
 
@@ -579,45 +593,53 @@ export function HomeScreen({ navigation, route }: Props) {
             </Pressable>
           </View>
           <View style={styles.listArea}>
-            <FlatList
-              ListEmptyComponent={
-                <View style={styles.emptyState}>
-                  {animalsLoading ? (
-                    <AdoptionListSkeleton />
-                  ) : animalsError ? (
-                    <>
-                      <Text style={styles.emptyTitle}>{animalsError}</Text>
-                      <Pressable accessibilityRole="button" onPress={() => fetchAnimals()}>
-                        <Text style={styles.retryText}>다시 시도</Text>
-                      </Pressable>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={styles.emptyTitle}>검색 결과가 없습니다</Text>
-                      <Text style={styles.emptyDescription}>
-                        다른 검색어나 필터 조건을 선택해보세요.
-                      </Text>
-                    </>
-                  )}
-                </View>
-              }
-              columnWrapperStyle={styles.column}
-              contentContainerStyle={[
-                styles.listContent,
-                { paddingBottom: 104 + insets.bottom, paddingTop: SEARCH_FILTERS_HEIGHT },
-              ]}
-              data={animals}
-              decelerationRate="fast"
-              key={listKey}
-              keyExtractor={item => item.id}
-              keyboardDismissMode="on-drag"
-              numColumns={2}
-              onScroll={handleListScroll}
-              ref={listRef}
-              renderItem={renderAnimal}
-              showsVerticalScrollIndicator={false}
-              scrollEventThrottle={16}
-            />
+            <PullRefreshContainer style={styles.pullList}>
+              <FlatList
+                ListEmptyComponent={
+                  <View style={styles.emptyState}>
+                    {animalsLoading ? (
+                      <AdoptionListSkeleton cardWidth={cardWidth} />
+                    ) : animalsError ? (
+                      <>
+                        <Text style={styles.emptyTitle}>{animalsError}</Text>
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => fetchAnimals(adoptionSearchParams)}
+                        >
+                          <Text style={styles.retryText}>다시 시도</Text>
+                        </Pressable>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.emptyTitle}>검색 결과가 없습니다</Text>
+                        <Text style={styles.emptyDescription}>
+                          다른 검색어나 필터 조건을 선택해보세요.
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                }
+                columnWrapperStyle={styles.column}
+                contentContainerStyle={[
+                  styles.listContent,
+                  { paddingBottom: 104 + insets.bottom, paddingTop: SEARCH_FILTERS_HEIGHT },
+                ]}
+                refreshing={refreshingAnimals}
+                progressViewOffset={SEARCH_FILTERS_HEIGHT}
+                onRefresh={refreshList}
+                data={animals}
+                decelerationRate="fast"
+                key={listKey}
+                keyExtractor={item => item.id}
+                keyboardDismissMode="on-drag"
+                numColumns={2}
+                onScroll={handleListScroll}
+                ref={listRef}
+                renderItem={renderAnimal}
+                showsVerticalScrollIndicator={false}
+                scrollEventThrottle={16}
+              />
+            </PullRefreshContainer>
             <Animated.View
               pointerEvents={controlsVisible ? 'auto' : 'none'}
               style={[
@@ -716,11 +738,11 @@ export function HomeScreen({ navigation, route }: Props) {
   );
 }
 
-function AdoptionListSkeleton() {
+function AdoptionListSkeleton({ cardWidth }: { cardWidth: number }) {
   return (
     <SkeletonGroup accessibilityLabel="보호동물 목록 불러오는 중" style={styles.gridSkeleton}>
       {[0, 1, 2, 3].map(index => (
-        <View key={index} style={styles.gridSkeletonCard}>
+        <View key={index} style={[styles.gridSkeletonCard, { width: cardWidth }]}>
           <SkeletonBlock style={styles.gridSkeletonImage} />
           <SkeletonBlock style={styles.gridSkeletonTitle} />
           <SkeletonBlock style={styles.gridSkeletonLine} />
@@ -735,6 +757,7 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', flexDirection: 'row', height: 56, justifyContent: 'center' },
   logo: { height: 34, width: 88 },
   headerIcon: { position: 'absolute', right: 20 },
+  pullList: { flex: 1 },
   notificationDot: {
     backgroundColor: '#FA705B',
     borderColor: colors.white,
@@ -755,10 +778,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    paddingHorizontal: 20,
     width: '100%',
   },
-  gridSkeletonCard: { gap: 8, width: '47%' },
+  gridSkeletonCard: { gap: 8 },
   gridSkeletonImage: { aspectRatio: 1, width: '100%' },
   gridSkeletonTitle: { height: 18, width: '70%' },
   gridSkeletonLine: { height: 14, width: '90%' },

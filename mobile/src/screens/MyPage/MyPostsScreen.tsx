@@ -27,13 +27,12 @@ import {
   getMyFoundReports,
   type FoundReportSummary,
 } from '../../services/foundReports/foundReportApi';
-import {
-  getMyMissingReports,
-  type MissingReportSummary,
-} from '../../services/missingReports';
+import { getMyMissingReports, type MissingReportSummary } from '../../services/missingReports';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { colors, radius, typography } from '../../theme';
 import { formatKoreanAddress } from '../../utils/address';
+
+import { PostTabPager } from './PostTabPager';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MyPosts'>;
 type MyPostTab = 'found' | 'lost';
@@ -90,42 +89,58 @@ export const mapMyMissingPost = (report: MissingReportSummary): MyPost => ({
 });
 
 export function MyPostsScreen({ navigation }: Props) {
+  return (
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
+      <AppHeader onBackPress={navigation.goBack} title="내 게시글" />
+      <PostTabPager
+        tabs={tabs}
+        tabStyle={styles.tabs}
+        renderTab={(label, selected, select) => (
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            onPress={select}
+            style={styles.tab}
+          >
+            <Text style={selected ? styles.activeTabText : styles.tabText}>{label}</Text>
+            <View style={selected ? styles.activeIndicator : styles.indicator} />
+          </Pressable>
+        )}
+        renderPage={tab => <MyPostsPage navigation={navigation} tab={tab} />}
+      />
+    </SafeAreaView>
+  );
+}
+
+function MyPostsPage({ navigation, tab }: Pick<Props, 'navigation'> & { tab: MyPostTab }) {
   const { width } = useWindowDimensions();
   const cardWidth = (width - 52) / 2;
-  const [activeTab, setActiveTab] = useState<MyPostTab>('found');
-  const [postsByTab, setPostsByTab] = useState<Record<MyPostTab, MyPost[]>>({
-    found: [],
-    lost: [],
-  });
-  const [loadedTabs, setLoadedTabs] = useState<Record<MyPostTab, boolean>>({
-    found: false,
-    lost: false,
-  });
+  const [posts, setPosts] = useState<MyPost[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const bookmarkKeys = useAdoptionBookmarkStore(state => state.bookmarkKeys);
   const loadBookmarks = useAdoptionBookmarkStore(state => state.loadBookmarks);
   const pendingBookmarkKeys = useAdoptionBookmarkStore(state => state.pendingKeys);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
-  const bookmarkType: BookmarkTargetType = activeTab === 'found' ? 'FOUND' : 'MISSING';
-  const posts = postsByTab[activeTab];
+  const bookmarkType: BookmarkTargetType = tab === 'found' ? 'FOUND' : 'MISSING';
 
   const loadPosts = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const nextPosts =
-        activeTab === 'found'
+        tab === 'found'
           ? (await getMyFoundReports()).map(mapMyFoundPost)
           : (await getMyMissingReports()).map(mapMyMissingPost);
-      setPostsByTab(current => ({ ...current, [activeTab]: nextPosts }));
-      setLoadedTabs(current => ({ ...current, [activeTab]: true }));
+      setPosts(nextPosts);
+      setLoaded(true);
     } catch (loadError) {
       setError(getApiErrorDisplayMessage(loadError, '내 게시글을 불러오지 못했어요.'));
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [tab]);
 
   useFocusEffect(
     useCallback(() => {
@@ -147,7 +162,7 @@ export function MyPostsScreen({ navigation }: Props) {
         accessibilityLabel={`${item.name} 내 게시글 상세`}
         accessibilityRole="button"
         onPress={() =>
-          navigation.navigate(activeTab === 'found' ? 'FoundReportDetail' : 'LostReportDetail', {
+          navigation.navigate(tab === 'found' ? 'FoundReportDetail' : 'LostReportDetail', {
             reportId: item.id,
           })
         }
@@ -161,7 +176,11 @@ export function MyPostsScreen({ navigation }: Props) {
         <Pressable
           accessibilityLabel={`${item.name} 북마크 ${bookmarked ? '해제' : '등록'}`}
           accessibilityRole="button"
-          accessibilityState={{ busy: bookmarkPending, disabled: bookmarkPending, selected: bookmarked }}
+          accessibilityState={{
+            busy: bookmarkPending,
+            disabled: bookmarkPending,
+            selected: bookmarked,
+          }}
           disabled={bookmarkPending}
           hitSlop={8}
           onPress={event => {
@@ -217,26 +236,8 @@ export function MyPostsScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <AppHeader onBackPress={navigation.goBack} title="내 게시글" />
-      <View accessibilityRole="tablist" style={styles.tabs}>
-        {tabs.map(tab => {
-          const selected = tab.key === activeTab;
-          return (
-            <Pressable
-              accessibilityRole="tab"
-              accessibilityState={{ selected }}
-              key={tab.key}
-              onPress={() => setActiveTab(tab.key)}
-              style={styles.tab}
-            >
-              <Text style={selected ? styles.activeTabText : styles.tabText}>{tab.label}</Text>
-              <View style={selected ? styles.activeIndicator : styles.indicator} />
-            </Pressable>
-          );
-        })}
-      </View>
-      {loading && !loadedTabs[activeTab] ? (
+    <View style={styles.tabContent}>
+      {loading && !loaded ? (
         <MyPostsSkeleton cardWidth={cardWidth} />
       ) : error ? (
         <View style={styles.empty}>
@@ -247,24 +248,23 @@ export function MyPostsScreen({ navigation }: Props) {
         </View>
       ) : (
         <FlatList
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>작성한 게시글이 없어요</Text>
-            <Text style={styles.emptyBody}>등록한 신고가 이곳에 표시됩니다.</Text>
-          </View>
-        }
-        columnWrapperStyle={posts.length ? styles.columns : undefined}
-        contentContainerStyle={[styles.list, !posts.length && styles.emptyList]}
-        data={posts}
-        decelerationRate="fast"
-        key={activeTab}
-        keyExtractor={item => item.id}
-        numColumns={2}
-        renderItem={renderPost}
-        showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>작성한 게시글이 없어요</Text>
+              <Text style={styles.emptyBody}>등록한 신고가 이곳에 표시됩니다.</Text>
+            </View>
+          }
+          columnWrapperStyle={posts.length ? styles.columns : undefined}
+          contentContainerStyle={[styles.list, !posts.length && styles.emptyList]}
+          data={posts}
+          decelerationRate="fast"
+          keyExtractor={item => item.id}
+          numColumns={2}
+          renderItem={renderPost}
+          showsVerticalScrollIndicator={false}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -303,6 +303,7 @@ function MyPostImage({ size, source }: { size: number; source: ImageSourcePropTy
 }
 
 const styles = StyleSheet.create({
+  tabContent: { flex: 1 },
   safeArea: { backgroundColor: colors.white, flex: 1 },
   tabs: { flexDirection: 'row', height: 60 },
   tab: { alignItems: 'center', flex: 1, justifyContent: 'space-between', paddingTop: 20 },

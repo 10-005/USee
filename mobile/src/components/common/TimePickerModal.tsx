@@ -4,7 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, radius, typography } from '../../theme';
 
+import { CalendarDialog } from './CalendarDialog';
+
 type Props = {
+  centered?: boolean;
   onClose: () => void;
   onConfirm: (date: Date) => void;
   title?: string;
@@ -17,6 +20,7 @@ const hours = Array.from({ length: 12 }, (_, index) => index + 1);
 const minutes = Array.from({ length: 60 }, (_, index) => index);
 
 export function TimePickerModal({
+  centered = false,
   onClose,
   onConfirm,
   title = '시간 선택',
@@ -53,6 +57,87 @@ export function TimePickerModal({
     onConfirm(selected);
   };
 
+  const controls = (
+    <>
+      <View style={styles.periodRow}>
+        {[
+          { key: 'am', label: '오전' },
+          { key: 'pm', label: '오후' },
+        ].map(option => {
+          const selected = period === option.key;
+          return (
+            <Pressable
+              key={option.key}
+              onPress={() => setPeriod(option.key as 'am' | 'pm')}
+              style={[styles.periodButton, selected && styles.selectedPeriodButton]}
+            >
+              <Text style={[styles.periodText, selected && styles.selectedText]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <View style={styles.selectorLabels}>
+        <Text style={styles.selectorLabel}>시</Text>
+        <Text style={[styles.colon, styles.hiddenColon]}>:</Text>
+        <Text style={styles.selectorLabel}>분</Text>
+      </View>
+      <View style={styles.selectors}>
+        <ScrollView
+          ref={hourScrollRef}
+          contentContainerStyle={styles.selectorContent}
+          decelerationRate="fast"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+          style={styles.selector}
+        >
+          {hours.map(option => (
+            <TimeOption
+              key={option}
+              label={String(option).padStart(2, '0')}
+              onPress={() => setHour(option)}
+              selected={hour === option}
+            />
+          ))}
+        </ScrollView>
+        <Text style={styles.colon}>:</Text>
+        <ScrollView
+          ref={minuteScrollRef}
+          contentContainerStyle={styles.selectorContent}
+          decelerationRate="fast"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+          style={styles.selector}
+        >
+          {minutes.map(option => (
+            <TimeOption
+              key={option}
+              label={String(option).padStart(2, '0')}
+              onPress={() => setMinute(option)}
+              selected={minute === option}
+            />
+          ))}
+        </ScrollView>
+      </View>
+      <View style={styles.actions}>
+        <Pressable onPress={onClose} style={styles.cancelButton}>
+          <Text style={styles.cancelText}>취소</Text>
+        </Pressable>
+        <Pressable onPress={confirm} style={styles.confirmButton}>
+          <Text style={styles.confirmText}>확인</Text>
+        </Pressable>
+      </View>
+    </>
+  );
+
+  if (centered) {
+    return (
+      <CalendarDialog visible={visible} title={title} onClose={onClose}>
+        {controls}
+      </CalendarDialog>
+    );
+  }
   return (
     <Modal
       animationType="fade"
@@ -62,79 +147,15 @@ export function TimePickerModal({
       visible={visible}
     >
       <View style={styles.overlay}>
-        <Pressable accessibilityLabel="시간 선택 닫기" onPress={onClose} style={StyleSheet.absoluteFill} />
+        <Pressable
+          accessibilityLabel="시간 선택 닫기"
+          onPress={onClose}
+          style={StyleSheet.absoluteFill}
+        />
         <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
           <Text style={styles.title}>{title}</Text>
           <View style={styles.divider} />
-          <View style={styles.periodRow}>
-            {[
-              { key: 'am', label: '오전' },
-              { key: 'pm', label: '오후' },
-            ].map(option => {
-              const selected = period === option.key;
-              return (
-                <Pressable
-                  key={option.key}
-                  onPress={() => setPeriod(option.key as 'am' | 'pm')}
-                  style={[styles.periodButton, selected && styles.selectedPeriodButton]}
-                >
-                  <Text style={[styles.periodText, selected && styles.selectedText]}>
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <View style={styles.selectorLabels}>
-            <Text style={styles.selectorLabel}>시</Text>
-            <Text style={[styles.colon, styles.hiddenColon]}>:</Text>
-            <Text style={styles.selectorLabel}>분</Text>
-          </View>
-          <View style={styles.selectors}>
-            <ScrollView
-              ref={hourScrollRef}
-              contentContainerStyle={styles.selectorContent}
-              decelerationRate="fast"
-              nestedScrollEnabled
-              showsVerticalScrollIndicator={false}
-              style={styles.selector}
-            >
-              {hours.map(option => (
-                <TimeOption
-                  key={option}
-                  label={String(option).padStart(2, '0')}
-                  onPress={() => setHour(option)}
-                  selected={hour === option}
-                />
-              ))}
-            </ScrollView>
-            <Text style={styles.colon}>:</Text>
-            <ScrollView
-              ref={minuteScrollRef}
-              contentContainerStyle={styles.selectorContent}
-              decelerationRate="fast"
-              nestedScrollEnabled
-              showsVerticalScrollIndicator={false}
-              style={styles.selector}
-            >
-              {minutes.map(option => (
-                <TimeOption
-                  key={option}
-                  label={String(option).padStart(2, '0')}
-                  onPress={() => setMinute(option)}
-                  selected={minute === option}
-                />
-              ))}
-            </ScrollView>
-          </View>
-          <View style={styles.actions}>
-            <Pressable onPress={onClose} style={styles.cancelButton}>
-              <Text style={styles.cancelText}>취소</Text>
-            </Pressable>
-            <Pressable onPress={confirm} style={styles.confirmButton}>
-              <Text style={styles.confirmText}>확인</Text>
-            </Pressable>
-          </View>
+          {controls}
         </View>
       </View>
     </Modal>
@@ -152,7 +173,9 @@ function TimeOption({
 }) {
   return (
     <Pressable onPress={onPress} style={[styles.timeOption, selected && styles.selectedTimeOption]}>
-      <Text style={[styles.timeOptionText, selected && styles.selectedTimeOptionText]}>{label}</Text>
+      <Text style={[styles.timeOptionText, selected && styles.selectedTimeOptionText]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }

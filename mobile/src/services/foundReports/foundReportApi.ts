@@ -40,7 +40,7 @@ export type FoundReportDetail = FoundReportSummary & {
   microchipNumber: string | null;
   reporter: {
     displayName: string | null;
-    profileImage: string | null;
+    profileImage: string | { imageUrl: string | null } | null;
     role: 'USER' | 'SHELTER';
     userSeq: number;
   } | null;
