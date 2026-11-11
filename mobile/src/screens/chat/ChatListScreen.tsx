@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, FlatList, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import TrashIcon from '../../assets/icons/common/chat-trash.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -28,6 +28,25 @@ export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => voi
         .sort((a, b) => Number(b.last.id) - Number(a.last.id)),
     [storedRooms],
   );
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') setNow(Date.now());
+    });
+    return () => subscription.remove();
+  }, []);
+  useEffect(() => {
+    let next = Infinity;
+    for (const { last } of rooms) {
+      const elapsed = Math.max(0, now - last.sentAt);
+      if (elapsed >= 86400000) continue;
+      const unit = elapsed < 3600000 ? 60000 : 3600000;
+      next = Math.min(next, last.sentAt + (Math.floor(elapsed / unit) + 1) * unit);
+    }
+    if (!Number.isFinite(next)) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, next - Date.now()));
+    return () => clearTimeout(timer);
+  }, [now, rooms]);
   const loaded = useChatStore(state => state.loaded);
   const [refreshing, setRefreshing] = useState(false);
   const loadMoreRooms = useChatStore(state => state.loadMoreRooms);
@@ -138,7 +157,7 @@ export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => voi
                     name={item.name}
                     isShelter={item.counterpart.type === 'SHELTER'}
                     lastMessage={last?.kind === 'photo' ? '사진' : last?.text ?? ''}
-                    time={last ? roomTime(last.sentAt) : ''}
+                    time={last ? roomTime(last.sentAt, now) : ''}
                     unreadCount={item.unreadCount}
                     onPress={() => {
                       if (open) {
@@ -214,11 +233,13 @@ const styles = StyleSheet.create({
   empty: { ...typography.bodyRegular16, color: colors.gray500, textAlign: 'center', marginTop: 40 },
 });
 
-function roomTime(sentAt: number) {
-  const hours = Math.floor((Date.now() - sentAt) / 3600000);
-  if (hours === 0) {
+function roomTime(sentAt: number, now: number) {
+  const minutes = Math.floor(Math.max(0, now - sentAt) / 60000);
+  if (minutes === 0) {
     return '방금 전';
   }
+  if (minutes < 60) return `${minutes}분 전`;
+  const hours = Math.floor(minutes / 60);
   if (hours < 24) {
     return `${hours}시간 전`;
   }
