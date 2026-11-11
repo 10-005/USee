@@ -156,12 +156,12 @@ describe('resolveNotificationDestination', () => {
       messageWith({
         notificationSeq: '3',
         notificationType: 'ADOPTION_APPROVED',
-        targetSeq: 'animal-1',
+        targetSeq: '301',
         targetType: 'ADOPTION',
       }),
     )!;
     expect(resolveNotificationDestination(adoption)).toEqual({
-      animalId: 'animal-1',
+      applicationSeq: 301,
       name: 'AdoptionApplicationHistory',
     });
 
@@ -178,11 +178,11 @@ describe('resolveNotificationDestination', () => {
     }
   });
 
-  it('채팅 알림은 목록에 넣지 않고 채팅 탭으로 보낸다', () => {
+  it('채팅 알림은 목록에 넣지 않고 해당 채팅방으로 보낸다', () => {
     const parsed = parsePushMessage(chatMessage)!;
     const listed = parsePushMessage(commentMessage)!;
 
-    expect(resolveNotificationDestination(parsed)).toEqual({ initialTab: 'chat', name: 'Home' });
+    expect(resolveNotificationDestination(parsed)).toEqual({ roomId: '501', name: 'ChatRoom' });
     expect(appearsInNotificationList(parsed)).toBe(false);
     expect(appearsInNotificationList(listed)).toBe(true);
   });
@@ -216,6 +216,7 @@ describe('handleRemoteMessage', () => {
     expect(showPushBanner).toHaveBeenCalledWith(
       commentMessage.notification?.title,
       commentMessage.notification?.body,
+      commentMessage,
     );
   });
 
@@ -225,7 +226,11 @@ describe('handleRemoteMessage', () => {
 
     await handleRemoteMessage(chatMessage);
 
-    expect(showPushBanner).toHaveBeenCalledWith('행복동물보호센터', '내일 방문 가능하세요?');
+    expect(showPushBanner).toHaveBeenCalledWith(
+      '행복동물보호센터',
+      '내일 방문 가능하세요?',
+      chatMessage,
+    );
     expect(received).toEqual([parsePushMessage(chatMessage)]);
   });
 

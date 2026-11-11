@@ -227,7 +227,9 @@ function openNotificationDestination(
   }
   switch (destination.name) {
     case 'AdoptionApplicationHistory':
-      navigation.navigate('AdoptionApplicationHistory', { animalId: destination.animalId });
+      navigation.navigate('AdoptionApplicationHistory', {
+        applicationSeq: destination.applicationSeq,
+      });
       return;
     case 'FoundReportDetail':
       navigation.navigate('FoundReportDetail', {
@@ -235,8 +237,8 @@ function openNotificationDestination(
         reportId: destination.reportId,
       });
       return;
-    case 'Home':
-      navigation.navigate('Home', { initialTab: destination.initialTab });
+    case 'ChatRoom':
+      navigation.navigate('ChatRoom', { roomId: destination.roomId });
       return;
     case 'LostReportDetail':
       navigation.navigate('LostReportDetail', {

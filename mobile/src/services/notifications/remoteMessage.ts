@@ -34,7 +34,7 @@ export async function handleRemoteMessage(
     parsed.notificationType === 'CHAT' &&
     isViewingChatRoom(parsed.roomSeq);
   if (displayNotification && !isVisibleChat) {
-    await showPushBanner(parsed.title, parsed.body).catch(() => {
+    await showPushBanner(parsed.title, parsed.body, message).catch(() => {
       console.warn('[FCM] 알림 배너를 표시하지 못했습니다.');
     });
   }

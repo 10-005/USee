@@ -12,11 +12,12 @@ export type RootStackParamList = {
   AdoptionApplication: { animalId: string };
   AdoptionApplicantEdit: undefined;
   AdoptionApplicationHistory: {
-    applicationSeq?: number;
     applicationStatus?: ApiAdoptionApplicationStatus;
-    animalId: string;
     source?: 'draft' | 'record';
-  };
+  } & (
+    | { animalId: string; applicationSeq?: number }
+    | { animalId?: string; applicationSeq: number }
+  );
   AdoptionApplicationList: undefined;
   AdoptionApplicationReview: { animalId: string; applicationSeq: number };
   AdoptionDetail: { animalId: string };

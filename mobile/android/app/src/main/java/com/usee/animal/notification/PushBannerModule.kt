@@ -3,6 +3,8 @@ package com.usee.animal.notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.net.Uri
+import java.util.UUID
 import androidx.core.app.NotificationCompat
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -14,13 +16,16 @@ class PushBannerModule(context: ReactApplicationContext) : ReactContextBaseJavaM
   override fun getName() = "PushBanner"
 
   @ReactMethod
-  fun show(title: String, body: String, promise: Promise) {
+  fun show(title: String, body: String, payload: String, promise: Promise) {
     try {
       val context = reactApplicationContext
       PushBannerChannels.ensure(context)
       val launchIntent =
         context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
           flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+          action = Intent.ACTION_VIEW
+          // Unique URI keeps each notification's PendingIntent and destination independent.
+          data = Uri.parse("usee://notification/${UUID.randomUUID()}?payload=${Uri.encode(payload)}")
         }
       val pendingIntent =
         launchIntent?.let { intent ->

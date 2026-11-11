@@ -4,7 +4,7 @@ export const MISSING_TARGET_TYPE = 'MISSING';
 
 export type NotificationDestination =
   | {
-      animalId: string;
+      applicationSeq: number;
       name: 'AdoptionApplicationHistory';
     }
   | {
@@ -12,7 +12,7 @@ export type NotificationDestination =
       name: 'FoundReportDetail' | 'LostReportDetail';
       reportId: string;
     }
-  | { initialTab: 'chat'; name: 'Home' }
+  | { roomId: string; name: 'ChatRoom' }
   | { name: 'Simulation' };
 
 const commentTypes = new Set<ServerPushMessage['notificationType']>(['COMMENT', 'COMMENT_REPLY']);
@@ -31,7 +31,7 @@ export function resolveNotificationDestination(
   }
 
   if (message.notificationType === 'CHAT') {
-    return { initialTab: 'chat', name: 'Home' };
+    return { roomId: message.roomSeq, name: 'ChatRoom' };
   }
 
   if (!message.targetSeq) {
@@ -51,7 +51,10 @@ export function resolveNotificationDestination(
   }
 
   if (adoptionTypes.has(message.notificationType)) {
-    return { animalId: message.targetSeq, name: 'AdoptionApplicationHistory' };
+    const applicationSeq = Number(message.targetSeq);
+    return Number.isSafeInteger(applicationSeq) && applicationSeq > 0
+      ? { applicationSeq, name: 'AdoptionApplicationHistory' }
+      : null;
   }
 
   return null;
