@@ -16,6 +16,7 @@ import RightArrowGreenIcon from '../../assets/icons/common/right-arrow-green.svg
 import { AppHeader, SkeletonBlock, SkeletonGroup } from '../../components/common';
 import { getMapFoundReports } from '../../services/foundReports/mapReports';
 import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
+import { useReportStatusStore } from '../../stores/reportStatusStore';
 import { colors, radius, typography } from '../../theme';
 import type { FoundReport } from './data';
 
@@ -30,6 +31,10 @@ export function FoundReportMapScreen({ navigation }: Props) {
   const reportEdits = useFoundReportEditStore(state => state.editsById);
   const [reports, setReports] = useState<FoundReport[]>([]);
   const [selectedReport, setSelectedReport] = useState<FoundReport | null>(null);
+  const storedStatus = useReportStatusStore(state =>
+    selectedReport ? state.statusById[selectedReport.id] : undefined,
+  );
+  const isCompleted = storedStatus ? storedStatus === 'completed' : selectedReport?.status === '완료';
   const [isLoading, setIsLoading] = useState(true);
 
   const applyReportState = useCallback(
@@ -120,8 +125,8 @@ export function FoundReportMapScreen({ navigation }: Props) {
                 <Text numberOfLines={1} style={styles.reportTitle}>
                   {selectedReport.name}
                 </Text>
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusText}>{selectedReport.status}</Text>
+                <View style={[styles.statusBadge, isCompleted && styles.closedBadge]}>
+                  <Text style={styles.statusText}>{isCompleted ? '종료' : '제보'}</Text>
                 </View>
               </View>
               <View style={styles.metaRow}>
@@ -248,12 +253,13 @@ const styles = StyleSheet.create({
   reportTitleRow: { alignItems: 'center', flexDirection: 'row', gap: 6 },
   reportTitle: { ...typography.titleSemiBold18, color: colors.black, flex: 1 },
   statusBadge: {
-    backgroundColor: '#ECFDF3',
+    backgroundColor: colors.blue,
     borderRadius: radius.pill,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  statusText: { ...typography.captionSemiBold12, color: colors.green400 },
+  closedBadge: { backgroundColor: colors.gray400 },
+  statusText: { ...typography.bodyRegular14, color: colors.white },
   metaRow: { alignItems: 'center', flexDirection: 'row', gap: 4, marginTop: 6 },
   metaText: { ...typography.bodyRegular14, color: colors.gray600, flex: 1 },
   detailLink: {
