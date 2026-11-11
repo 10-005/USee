@@ -12,6 +12,8 @@ RUN pip install --no-cache-dir torch==2.14.1 torchvision==0.29.1 --index-url htt
 ENV HF_HOME=/app/.cache/hf TORCH_HOME=/app/.cache/torch DISABLE_SAFETENSORS_CONVERSION=1
 COPY species.py .
 RUN python -c "from species import SpeciesClassifier; SpeciesClassifier()"
+# 가중치는 위에서 받았으니 실행 중에는 Hugging Face에 요청하지 않는다(이 줄을 위 RUN보다 앞에 두면 빌드가 가중치를 못 받는다)
+ENV HF_HUB_OFFLINE=1
 
 COPY breed_pipeline.py policy.py app.py ./
 COPY models/ models/

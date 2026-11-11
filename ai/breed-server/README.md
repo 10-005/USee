@@ -64,6 +64,7 @@
 | `BREED_HIGH_SCORE` | `0.8` | 품종 `HIGH` 기준 |
 | `BREED_MIN_SCORE` | `0.5` | 품종 `LOW` 기준(미만이면 비움) |
 | `CPU_THREADS` | `2` | torch CPU 스레드 수 |
+| `HF_HUB_OFFLINE` | `1`(이미지) | 종 모델 가중치는 이미지에 들어 있으므로 실행 중 Hugging Face에 요청하지 않는다. 로컬 첫 실행에서는 설정하지 않는다(가중치를 받아야 함) |
 
 ## 로컬 실행
 
