@@ -296,6 +296,14 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
     }, [requestBack]),
   );
 
+  const selectedCombination = catalogCombinations.find(item => item.colorName === color);
+  const foundCombinationSeq = selectedCombination?.combinationSeq ?? (
+    species === normalizePetSpecies(foundReportDraft.species) &&
+    breed === foundReportDraft.breed &&
+    color === foundReportDraft.color
+      ? foundReportDraft.combinationSeq
+      : null
+  );
   const isValid = Boolean(
     photos.length &&
       (isReportFlow || name.trim()) &&
@@ -308,7 +316,8 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       (microchip !== '완료' || microchipNumber.trim()) &&
       (!usesPetApi ||
         (isLostReportFlow && Boolean(lostReportAnimal.combinationSeq)) ||
-        catalogCombinations.some(combination => combination.colorName === color)) &&
+        (isFoundReportFlow && Boolean(foundCombinationSeq)) ||
+        selectedCombination) &&
       !isUploadingPhotos &&
       !isSubmitting,
   );
@@ -543,9 +552,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       return;
     }
     if (isFoundReportFlow) {
-      const combinationSeq =
-        catalogCombinations.find(item => item.colorName === color)?.combinationSeq ??
-        foundReportDraft.combinationSeq;
+      const combinationSeq = foundCombinationSeq;
       if (!combinationSeq) {
         Alert.alert('입력 확인', '종·품종·색상 조합을 다시 선택해 주세요.');
         return;
