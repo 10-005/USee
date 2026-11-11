@@ -593,7 +593,7 @@ export function HomeScreen({ navigation, route }: Props) {
                 ListEmptyComponent={
                   <View style={styles.emptyState}>
                     {animalsLoading ? (
-                      <AdoptionListSkeleton />
+                      <AdoptionListSkeleton cardWidth={cardWidth} />
                     ) : animalsError ? (
                       <>
                         <Text style={styles.emptyTitle}>{animalsError}</Text>
@@ -733,11 +733,11 @@ export function HomeScreen({ navigation, route }: Props) {
   );
 }
 
-function AdoptionListSkeleton() {
+function AdoptionListSkeleton({ cardWidth }: { cardWidth: number }) {
   return (
     <SkeletonGroup accessibilityLabel="보호동물 목록 불러오는 중" style={styles.gridSkeleton}>
       {[0, 1, 2, 3].map(index => (
-        <View key={index} style={styles.gridSkeletonCard}>
+        <View key={index} style={[styles.gridSkeletonCard, { width: cardWidth }]}>
           <SkeletonBlock style={styles.gridSkeletonImage} />
           <SkeletonBlock style={styles.gridSkeletonTitle} />
           <SkeletonBlock style={styles.gridSkeletonLine} />
@@ -762,10 +762,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    paddingHorizontal: 20,
     width: '100%',
   },
-  gridSkeletonCard: { gap: 8, width: '47%' },
+  gridSkeletonCard: { gap: 8 },
   gridSkeletonImage: { aspectRatio: 1, width: '100%' },
   gridSkeletonTitle: { height: 18, width: '70%' },
   gridSkeletonLine: { height: 14, width: '90%' },
