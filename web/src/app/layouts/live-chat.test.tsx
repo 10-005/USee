@@ -55,6 +55,7 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
     body: '첫 문의',
   };
   let serverCursor: number | null = null;
+  let serverMessages = [old];
   let failReadOnce = false;
   const fetchMock = vi.fn(async (input: string, options: RequestInit) => {
     expect(new Headers(options.headers).get('Authorization')).toBe('Bearer test');
@@ -62,7 +63,7 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
     let data;
     if (path.endsWith('/rooms')) data = { content: [room], hasNext: false };
     else if (path.endsWith('/rooms/9')) data = { counterpartLastReadMessageSeq: serverCursor };
-    else if (path.endsWith('/messages')) data = { content: [old], hasNext: false };
+    else if (path.endsWith('/messages')) data = { content: serverMessages, hasNext: false };
     else if (path.endsWith('/shelter-animals/me/42'))
       data = {
         animalSeq: 42,
@@ -265,4 +266,19 @@ it('서버 이력과 구독 메시지를 합치고 전송 확인을 받으면 �
   serverCursor = 21;
   act(() => broker.reconnect());
   await waitFor(() => expect(screen.queryByText('안읽음')).toBeNull());
+
+  const first = { ...old, chatMessageSeq: 22, body: '첫 번째 연속 메시지' };
+  const second = { ...old, chatMessageSeq: 23, body: '두 번째 연속 메시지' };
+  serverMessages = [second, first, old];
+  receive(second);
+  act(() =>
+    broker.subscriptions.get('/user/queue/room-updates')!({
+      body: JSON.stringify({ type: 'MESSAGE', room, totalUnreadMessageCount: 2 }),
+    }),
+  );
+  expect(await screen.findByText(first.body)).toBeVisible();
+  expect(screen.getAllByText(/번째 연속 메시지/).map((element) => element.textContent)).toEqual([
+    first.body,
+    second.body,
+  ]);
 });
