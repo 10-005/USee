@@ -118,6 +118,8 @@ function SavedPostsPage({ navigation, tab }: Pick<Props, 'navigation'> & { tab: 
   const loadBookmarks = useAdoptionBookmarkStore(state => state.loadBookmarks);
   const pendingBookmarkKeys = useAdoptionBookmarkStore(state => state.pendingKeys);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
+  const cardHeight = cardWidth + 118;
+  const rowHeight = cardHeight + 18;
   const targetType = targetTypeByTab[tab];
 
   const posts = useMemo<SavedPost[]>(() => {
@@ -158,11 +160,15 @@ function SavedPostsPage({ navigation, tab }: Pick<Props, 'navigation'> & { tab: 
         onPress={() => openPost(item.id)}
         style={({ pressed }) => [
           styles.card,
-          { height: cardWidth + 118, width: cardWidth },
+          { height: cardHeight, width: cardWidth },
           pressed && styles.pressed,
         ]}
       >
-        <SavedPostImage size={cardWidth} source={item.image} />
+        <Image
+          resizeMode="cover"
+          source={item.image}
+          style={[styles.cardImage, { height: cardWidth }]}
+        />
         <Pressable
           accessibilityLabel={`${item.name} 북마크 해제`}
           accessibilityRole="button"
@@ -237,6 +243,11 @@ function SavedPostsPage({ navigation, tab }: Pick<Props, 'navigation'> & { tab: 
           columnWrapperStyle={posts.length ? styles.columns : undefined}
           contentContainerStyle={[styles.list, !posts.length && styles.emptyList]}
           data={posts}
+          getItemLayout={(_, index) => ({
+            index,
+            length: rowHeight,
+            offset: 27 + index * rowHeight,
+          })}
           decelerationRate="fast"
           keyExtractor={item => item.id}
           numColumns={2}
@@ -264,25 +275,6 @@ function SavedPostsSkeleton({ cardWidth }: { cardWidth: number }) {
   );
 }
 
-function SavedPostImage({ size, source }: { size: number; source: ImageSourcePropType }) {
-  const remote = typeof source === 'object' && source !== null && 'uri' in source;
-  const [loading, setLoading] = useState(remote);
-
-  return (
-    <View style={[styles.cardImage, { height: size }]}>
-      <Image
-        onError={() => setLoading(false)}
-        onLoadEnd={() => setLoading(false)}
-        onLoadStart={() => remote && setLoading(true)}
-        resizeMode="cover"
-        source={source}
-        style={styles.cardImageContent}
-      />
-      {loading ? <SkeletonBlock style={styles.cardImageSkeleton} /> : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   tabContent: { flex: 1 },
   safeArea: { backgroundColor: colors.white, flex: 1 },
@@ -295,15 +287,7 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 20, paddingTop: 27 },
   columns: { gap: 12 },
   card: { marginBottom: 18 },
-  cardImage: { borderRadius: radius.sm, overflow: 'hidden', width: '100%' },
-  cardImageContent: { height: '100%', width: '100%' },
-  cardImageSkeleton: {
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-  },
+  cardImage: { backgroundColor: colors.gray200, borderRadius: radius.sm, width: '100%' },
   bookmarkButton: {
     alignItems: 'center',
     height: 24,
