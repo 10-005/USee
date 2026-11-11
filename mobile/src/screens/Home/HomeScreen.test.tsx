@@ -252,7 +252,9 @@ test('returning to adoption resets the hidden search and filter header', async (
     renderer.root.findAllByProps({ accessibilityLabel: '입양' })[0].props.onPress();
   });
 
-  const searchInput = renderer!.root.findByProps({ placeholder: '특징으로 검색해보세요' });
+  const activeTab = renderer!.root.findAllByProps({ accessibilityElementsHidden: false })
+    .find(tab => tab.findAllByProps({ placeholder: '특징으로 검색해보세요' }).length > 0);
+  const searchInput = activeTab!.findByProps({ placeholder: '특징으로 검색해보세요' });
   let searchHeader: ReactTestInstance | null = searchInput;
   while (searchHeader && searchHeader.props.pointerEvents === undefined) {
     searchHeader = searchHeader.parent;

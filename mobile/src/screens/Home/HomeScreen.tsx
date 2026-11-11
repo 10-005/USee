@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -75,6 +75,7 @@ import {
   type TwoColumnFilterOptions,
 } from './AdoptionFilterSheet';
 import { useUnreadNotificationBadge } from './useUnreadNotificationBadge';
+import { RetainedTab } from './RetainedTab';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 const filterItems: Array<{ key: FilterKey; label: string }> = [
@@ -409,7 +410,7 @@ export function HomeScreen({ navigation, route }: Props) {
     return value === '전체' ? defaultLabel : value;
   };
 
-  const renderAnimal = ({ item }: { item: AdoptionAnimal }) => {
+  const renderAnimal = useCallback(({ item }: { item: AdoptionAnimal }) => {
     const key = bookmarkKey('SHELTER_ANIMAL', item.id);
     const bookmarkPending = pendingBookmarkKeys.includes(key);
     const bookmarked = bookmarkKeys.includes(key);
@@ -486,7 +487,7 @@ export function HomeScreen({ navigation, route }: Props) {
         </Text>
       </Pressable>
     );
-  };
+  }, [bookmarkKeys, cardWidth, navigation, pendingBookmarkKeys, toggleBookmark]);
 
   const navigationBar = (
     <View style={[styles.navigationWrap, { bottom: insets.bottom + 16 }]}>
@@ -507,7 +508,7 @@ export function HomeScreen({ navigation, route }: Props) {
           if (key === 'adoption') {
             resetAdoptionListHeader();
           }
-          setSelectedTab(key);
+          startTransition(() => setSelectedTab(key));
         }}
         selectedKey={selectedTab}
       />
@@ -530,24 +531,13 @@ export function HomeScreen({ navigation, route }: Props) {
     />
   ) : null;
 
-  if (selectedTab === 'chat') {
-    return (
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <ChatListScreen onOpenRoom={roomId => navigation.navigate('ChatRoom', { roomId })} />
-        <MockAdoptionShortcut
-          bottom={insets.bottom + 104}
-          onOpen={petId => navigation.navigate('MockAdoptionActivity', { petId })}
-          session={shortcutSession}
-        />
-        {navigationBar}
-        {registrationMenu}
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      {selectedTab === 'mypage' ? (
+      <RetainedTab active={selectedTab === 'chat'}>
+        <ChatListScreen onOpenRoom={roomId => navigation.navigate('ChatRoom', { roomId })} />
+      </RetainedTab>
+      <RetainedTab active={selectedTab === 'mypage'}>
         <MyPageScreen
           onOpenMockAdoption={() => navigation.navigate('MockAdoptionOverview')}
           onOpenMyPosts={() => navigation.navigate('MyPosts')}
@@ -558,14 +548,16 @@ export function HomeScreen({ navigation, route }: Props) {
           onOpenSettings={() => navigation.navigate('Settings')}
           onOpenSavedPosts={() => navigation.navigate('SavedPosts')}
         />
-      ) : selectedTab === 'search' ? (
+      </RetainedTab>
+      <RetainedTab active={selectedTab === 'search'}>
         <FoundReportListContent
           bottomInset={insets.bottom}
           initialTab={route.params?.initialReportTab}
           navigation={navigation}
           onFilterOpenChange={setReportFilterOpen}
         />
-      ) : (
+      </RetainedTab>
+      <RetainedTab active={selectedTab === 'adoption'}>
         <>
           <View style={styles.header}>
             <Pressable
@@ -714,7 +706,7 @@ export function HomeScreen({ navigation, route }: Props) {
             </Animated.View>
           </View>
         </>
-      )}
+      </RetainedTab>
       {!activeFilter && !reportFilterOpen && !registrationMenuOpen ? (
         <MockAdoptionShortcut
           bottom={insets.bottom + 104}
