@@ -1072,7 +1072,7 @@ const styles = StyleSheet.create({
   },
   deletedComment: { minHeight: 0, paddingVertical: 10 },
   reply: { marginLeft: 40, minHeight: 0 },
-  avatar: { borderRadius: 10, height: 20, width: 20 },
+  avatar: { borderRadius: 14, height: 28, width: 28 },
   deletedAvatar: { height: 0, width: 0 },
   commentBody: { flex: 1, marginLeft: 7, minWidth: 0 },
   replyBody: { paddingBottom: (typography.captionRegular10.lineHeight + 5) / 2 },
