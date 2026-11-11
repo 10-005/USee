@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useReducer, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useReducer, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -657,7 +657,7 @@ async function uploadCommentImage(asset?: Asset) {
   return confirmImage(issued.imageKey);
 }
 
-export function FoundReportCommentList({
+export const FoundReportCommentList = memo(function CommentListContent({
   onTargetUnavailable,
   onReplySelect,
   resetReplyRef,
@@ -1052,7 +1052,7 @@ export function FoundReportCommentList({
       </Modal>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 22, paddingTop: 20 },
