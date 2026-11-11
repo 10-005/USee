@@ -3,6 +3,7 @@ import { Alert, FlatList, PanResponder, Pressable, StyleSheet, Text, View } from
 import TrashIcon from '../../assets/icons/common/chat-trash.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import PullRefreshContainer from '../../components/common/PullRefreshContainer';
 import { ChatListItem } from '../../components/common';
 import { ChatActions } from './ChatActions';
 import { useChatStore } from '../../stores/chatStore';
@@ -28,7 +29,7 @@ export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => voi
     [storedRooms],
   );
   const loaded = useChatStore(state => state.loaded);
-  const loading = useChatStore(state => state.loading);
+  const [refreshing, setRefreshing] = useState(false);
   const loadMoreRooms = useChatStore(state => state.loadMoreRooms);
   useEffect(() => {
     const load = () =>
@@ -81,74 +82,78 @@ export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => voi
           </Pressable>
         ))}
       </View>
-      <FlatList
-        contentContainerStyle={[styles.list, { paddingBottom: 104 + insets.bottom }]}
-        data={filter === '전체' ? rooms : unreadRooms}
-        decelerationRate="fast"
-        keyExtractor={room => room.id}
-        onEndReached={() => loadMoreRooms(filter === '안 읽음').catch(() => undefined)}
-        onEndReachedThreshold={0.4}
-        onRefresh={() =>
-          useChatStore
-            .getState()
-            .load(true, filter === '안 읽음')
-            .catch(() => undefined)
-        }
-        refreshing={loading}
-        ListEmptyComponent={
-          <Text style={styles.empty}>
-            {loaded ? '표시할 대화가 없습니다.' : '대화를 불러오는 중이에요.'}
-          </Text>
-        }
-        renderItem={({ item }) => {
-          const last = item.last;
-          const open = revealed === item.id;
-          const swipe = PanResponder.create({
-            onMoveShouldSetPanResponderCapture: (_, g) =>
-              Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
-            onPanResponderRelease: (_, g) => {
-              if (Math.abs(g.dx) > 24) {
-                setRevealed(g.dx < 0 ? item.id : undefined);
-              }
-            },
-          });
-          return (
-            <View {...swipe.panHandlers} style={styles.item}>
-              {open && (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="채팅방 나가기"
-                  onPress={() => setLeaving(item.id)}
-                  style={styles.delete}
-                >
-                  <TrashIcon width={22} height={22} />
-                </Pressable>
-              )}
-              <View style={open && styles.shift}>
-                <ChatListItem
-                  avatarSource={
-                    item.counterpart.profileImage?.imageUrl
-                      ? { uri: item.counterpart.profileImage.imageUrl }
-                      : avatarSource
-                  }
-                  name={item.name}
-                  isShelter={item.counterpart.type === 'SHELTER'}
-                  lastMessage={last?.kind === 'photo' ? '사진' : last?.text ?? ''}
-                  time={last ? roomTime(last.sentAt) : ''}
-                  unreadCount={item.unreadCount}
-                  onPress={() => {
-                    if (open) {
-                      setRevealed(undefined);
-                    } else {
-                      onOpenRoom(item.id);
+      <PullRefreshContainer style={styles.listArea}>
+        <FlatList
+          contentContainerStyle={[styles.list, { paddingBottom: 104 + insets.bottom }]}
+          data={filter === '전체' ? rooms : unreadRooms}
+          decelerationRate="fast"
+          keyExtractor={room => room.id}
+          onEndReached={() => loadMoreRooms(filter === '안 읽음').catch(() => undefined)}
+          onEndReachedThreshold={0.4}
+          onRefresh={() => {
+            setRefreshing(true);
+            useChatStore
+              .getState()
+              .load(true, filter === '안 읽음')
+              .catch(() => undefined)
+              .finally(() => setRefreshing(false));
+          }}
+          refreshing={refreshing}
+          ListEmptyComponent={
+            <Text style={styles.empty}>
+              {loaded ? '표시할 대화가 없습니다.' : '대화를 불러오는 중이에요.'}
+            </Text>
+          }
+          renderItem={({ item }) => {
+            const last = item.last;
+            const open = revealed === item.id;
+            const swipe = PanResponder.create({
+              onMoveShouldSetPanResponderCapture: (_, g) =>
+                Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+              onPanResponderRelease: (_, g) => {
+                if (Math.abs(g.dx) > 24) {
+                  setRevealed(g.dx < 0 ? item.id : undefined);
+                }
+              },
+            });
+            return (
+              <View {...swipe.panHandlers} style={styles.item}>
+                {open && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="채팅방 나가기"
+                    onPress={() => setLeaving(item.id)}
+                    style={styles.delete}
+                  >
+                    <TrashIcon width={22} height={22} />
+                  </Pressable>
+                )}
+                <View style={open && styles.shift}>
+                  <ChatListItem
+                    avatarSource={
+                      item.counterpart.profileImage?.imageUrl
+                        ? { uri: item.counterpart.profileImage.imageUrl }
+                        : avatarSource
                     }
-                  }}
-                />
+                    name={item.name}
+                    isShelter={item.counterpart.type === 'SHELTER'}
+                    lastMessage={last?.kind === 'photo' ? '사진' : last?.text ?? ''}
+                    time={last ? roomTime(last.sentAt) : ''}
+                    unreadCount={item.unreadCount}
+                    onPress={() => {
+                      if (open) {
+                        setRevealed(undefined);
+                      } else {
+                        onOpenRoom(item.id);
+                      }
+                    }}
+                  />
+                </View>
               </View>
-            </View>
-          );
-        }}
-      />
+            );
+          }}
+        />
+      </PullRefreshContainer>
       {leaving && (
         <ChatActions
           action="leave"
@@ -170,6 +175,7 @@ export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => voi
 }
 
 const styles = StyleSheet.create({
+  listArea: { flex: 1 },
   screen: { flex: 1, backgroundColor: colors.white },
   filters: { flexDirection: 'row', height: 56 },
   chip: { alignItems: 'center', flex: 1, justifyContent: 'space-between', paddingTop: 16 },

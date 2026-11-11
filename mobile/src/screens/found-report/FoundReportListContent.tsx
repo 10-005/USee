@@ -18,6 +18,7 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 
+import PullRefreshContainer from '../../components/common/PullRefreshContainer';
 import type { RootStackParamList } from '../../app/navigation/types';
 import DateIcon from '../../assets/icons/common/date.svg';
 import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
@@ -135,6 +136,7 @@ export function FoundReportListContent({
   const scrollDirection = useRef<'down' | 'up' | null>(null);
   const scrollDirectionDistance = useRef(0);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [refreshingTabs, setRefreshingTabs] = useState({ found: false, lost: false });
   const [activeTab, setActiveTab] = useState<ReportTab>(initialTab);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey | null>(null);
@@ -327,6 +329,19 @@ export function FoundReportListContent({
     setControlsVisible(true);
   }, [controlsProgress]);
 
+  const refreshList = useCallback(async () => {
+    if (refreshingTabs[activeTab]) {
+      return;
+    }
+    setRefreshingTabs(current => ({ ...current, [activeTab]: true }));
+    try {
+      const fetchReports = activeTab === 'found' ? fetchFoundReports : fetchLostReports;
+      await fetchReports(reportSearchParams);
+    } finally {
+      setRefreshingTabs(current => ({ ...current, [activeTab]: false }));
+    }
+  }, [activeTab, fetchFoundReports, fetchLostReports, refreshingTabs, reportSearchParams]);
+
   const handleListScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const currentOffset = Math.max(0, event.nativeEvent.contentOffset.y);
     const delta = currentOffset - lastScrollOffset.current;
@@ -423,78 +438,82 @@ export function FoundReportListContent({
     const bookmarkPending = pendingBookmarkKeys.includes(key);
     const bookmarked = bookmarkKeys.includes(key);
     return (
-    <Pressable
-      accessibilityLabel={`${item.name} ${activeTab === 'found' ? '발견 제보' : '실종 신고'} 상세`}
-      accessibilityRole="button"
-      onPress={() =>
-        activeTab === 'found'
-          ? navigation.navigate('FoundReportDetail', { reportId: item.id })
-          : navigation.navigate('LostReportDetail', { reportId: item.id })
-      }
-      style={({ pressed }) => [
-        styles.card,
-        { height: cardWidth + 118, width: cardWidth },
-        pressed && styles.pressed,
-      ]}
-    >
-      <Image source={item.images[0]} style={[styles.cardImage, { height: cardWidth }]} />
       <Pressable
-        accessibilityLabel={`${item.name} 북마크 ${
-          bookmarked ? '해제' : '등록'
-        }`}
+        accessibilityLabel={`${item.name} ${
+          activeTab === 'found' ? '발견 제보' : '실종 신고'
+        } 상세`}
         accessibilityRole="button"
-        accessibilityState={{ busy: bookmarkPending, disabled: bookmarkPending, selected: bookmarked }}
-        disabled={bookmarkPending}
-        hitSlop={8}
-        onPress={event => {
-          event.stopPropagation();
-          toggleBookmark(bookmarkType, item.id).catch(() =>
-            Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
-          );
-        }}
-        style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
-      >
-        {bookmarkPending ? (
-          <ActivityIndicator color={colors.green400} size="small" />
-        ) : bookmarked ? (
-          <BookmarkActiveIcon />
-        ) : (
-          <BookmarkIcon />
-        )}
-      </Pressable>
-      <View
-        style={[
-          styles.badge,
-          { top: cardWidth - 24 },
-          (item.status === '완료' || item.status === '종료') && styles.closedBadge,
-          activeTab === 'lost' && item.status === '실종' && styles.lostBadge,
+        onPress={() =>
+          activeTab === 'found'
+            ? navigation.navigate('FoundReportDetail', { reportId: item.id })
+            : navigation.navigate('LostReportDetail', { reportId: item.id })
+        }
+        style={({ pressed }) => [
+          styles.card,
+          { height: cardWidth + 118, width: cardWidth },
+          pressed && styles.pressed,
         ]}
       >
-        <Text style={styles.badgeText}>
-          {activeTab === 'found' ? (item.status === '완료' ? '종료' : '제보') : item.status}
+        <Image source={item.images[0]} style={[styles.cardImage, { height: cardWidth }]} />
+        <Pressable
+          accessibilityLabel={`${item.name} 북마크 ${bookmarked ? '해제' : '등록'}`}
+          accessibilityRole="button"
+          accessibilityState={{
+            busy: bookmarkPending,
+            disabled: bookmarkPending,
+            selected: bookmarked,
+          }}
+          disabled={bookmarkPending}
+          hitSlop={8}
+          onPress={event => {
+            event.stopPropagation();
+            toggleBookmark(bookmarkType, item.id).catch(() =>
+              Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
+            );
+          }}
+          style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
+        >
+          {bookmarkPending ? (
+            <ActivityIndicator color={colors.green400} size="small" />
+          ) : bookmarked ? (
+            <BookmarkActiveIcon />
+          ) : (
+            <BookmarkIcon />
+          )}
+        </Pressable>
+        <View
+          style={[
+            styles.badge,
+            { top: cardWidth - 24 },
+            (item.status === '완료' || item.status === '종료') && styles.closedBadge,
+            activeTab === 'lost' && item.status === '실종' && styles.lostBadge,
+          ]}
+        >
+          <Text style={styles.badgeText}>
+            {activeTab === 'found' ? (item.status === '완료' ? '종료' : '제보') : item.status}
+          </Text>
+        </View>
+        <Text numberOfLines={1} style={styles.cardTitle}>
+          {item.name}
         </Text>
-      </View>
-      <Text numberOfLines={1} style={styles.cardTitle}>
-        {item.name}
-      </Text>
-      <View style={styles.metaRow}>
-        <MapIcon height={18} width={18} />
-        <Text numberOfLines={1} style={styles.metaText}>
-          {item.location}
+        <View style={styles.metaRow}>
+          <MapIcon height={18} width={18} />
+          <Text numberOfLines={1} style={styles.metaText}>
+            {item.location}
+          </Text>
+        </View>
+        <View style={styles.metaRow}>
+          <DateIcon height={18} width={18} />
+          <Text style={styles.metaText}>{item.date}</Text>
+        </View>
+        <Text
+          numberOfLines={1}
+          style={styles.summary}
+        >{`${item.age} | ${item.gender} | ${item.color} | ${item.weight}`}</Text>
+        <Text numberOfLines={1} style={styles.summary}>
+          {item.description}
         </Text>
-      </View>
-      <View style={styles.metaRow}>
-        <DateIcon height={18} width={18} />
-        <Text style={styles.metaText}>{item.date}</Text>
-      </View>
-      <Text
-        numberOfLines={1}
-        style={styles.summary}
-      >{`${item.age} | ${item.gender} | ${item.color} | ${item.weight}`}</Text>
-      <Text numberOfLines={1} style={styles.summary}>
-        {item.description}
-      </Text>
-    </Pressable>
+      </Pressable>
     );
   };
 
@@ -521,52 +540,63 @@ export function FoundReportListContent({
         </Pressable>
       </View>
       <View style={styles.listArea}>
-        <FlatList
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              {activeTab === 'found' && foundReportsLoading ? (
-                <ReportListSkeleton label="발견 신고 목록 불러오는 중" />
-              ) : activeTab === 'lost' && lostReportsLoading ? (
-                <ReportListSkeleton label="실종 신고 목록 불러오는 중" />
-              ) : activeTab === 'found' && foundReportsError ? (
-                <>
-                  <Text style={styles.emptyTitle}>{foundReportsError}</Text>
-                  <Pressable accessibilityRole="button" onPress={() => fetchFoundReports()}>
-                    <Text style={styles.retryText}>다시 시도</Text>
-                  </Pressable>
-                </>
-              ) : activeTab === 'lost' && lostReportsError ? (
-                <>
-                  <Text style={styles.emptyTitle}>{lostReportsError}</Text>
-                  <Pressable accessibilityRole="button" onPress={() => fetchLostReports()}>
-                    <Text style={styles.retryText}>다시 시도</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.emptyTitle}>검색 결과가 없습니다</Text>
-                  <Text style={styles.emptyBody}>다른 검색어나 필터 조건을 선택해보세요.</Text>
-                </>
-              )}
-            </View>
-          }
-          columnWrapperStyle={reports.length ? styles.columns : undefined}
-          contentContainerStyle={[
-            styles.list,
-            { paddingBottom: 104 + bottomInset, paddingTop: SEARCH_FILTERS_HEIGHT },
-            !reports.length && styles.emptyList,
-          ]}
-          data={reports}
-          decelerationRate="fast"
-          keyExtractor={item => item.id}
-          keyboardDismissMode="on-drag"
-          numColumns={2}
-          onScroll={handleListScroll}
-          ref={listRef}
-          renderItem={renderReport}
-          scrollEventThrottle={16}
-          showsVerticalScrollIndicator={false}
-        />
+        <PullRefreshContainer style={styles.pullList}>
+          <FlatList
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                {activeTab === 'found' && foundReportsLoading ? (
+                  <ReportListSkeleton label="발견 신고 목록 불러오는 중" />
+                ) : activeTab === 'lost' && lostReportsLoading ? (
+                  <ReportListSkeleton label="실종 신고 목록 불러오는 중" />
+                ) : activeTab === 'found' && foundReportsError ? (
+                  <>
+                    <Text style={styles.emptyTitle}>{foundReportsError}</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => fetchFoundReports(reportSearchParams)}
+                    >
+                      <Text style={styles.retryText}>다시 시도</Text>
+                    </Pressable>
+                  </>
+                ) : activeTab === 'lost' && lostReportsError ? (
+                  <>
+                    <Text style={styles.emptyTitle}>{lostReportsError}</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => fetchLostReports(reportSearchParams)}
+                    >
+                      <Text style={styles.retryText}>다시 시도</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.emptyTitle}>검색 결과가 없습니다</Text>
+                    <Text style={styles.emptyBody}>다른 검색어나 필터 조건을 선택해보세요.</Text>
+                  </>
+                )}
+              </View>
+            }
+            columnWrapperStyle={reports.length ? styles.columns : undefined}
+            contentContainerStyle={[
+              styles.list,
+              { paddingBottom: 104 + bottomInset, paddingTop: SEARCH_FILTERS_HEIGHT },
+              !reports.length && styles.emptyList,
+            ]}
+            refreshing={refreshingTabs[activeTab]}
+            progressViewOffset={SEARCH_FILTERS_HEIGHT}
+            onRefresh={refreshList}
+            data={reports}
+            decelerationRate="fast"
+            keyExtractor={item => item.id}
+            keyboardDismissMode="on-drag"
+            numColumns={2}
+            onScroll={handleListScroll}
+            ref={listRef}
+            renderItem={renderReport}
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}
+          />
+        </PullRefreshContainer>
         <Animated.View
           pointerEvents={controlsVisible ? 'auto' : 'none'}
           style={[
@@ -664,6 +694,7 @@ const styles = StyleSheet.create({
   tabText: { ...typography.bodyRegular16, color: colors.gray600, height: 20 },
   activeIndicator: { backgroundColor: colors.green400, height: 4, width: '100%' },
   inactiveIndicator: { backgroundColor: colors.gray200, height: 1, width: '100%' },
+  pullList: { flex: 1 },
   listArea: { flex: 1 },
   searchAndFilters: {
     backgroundColor: colors.white,
