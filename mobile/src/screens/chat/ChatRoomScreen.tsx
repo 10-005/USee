@@ -47,6 +47,38 @@ const dateFormat = new Intl.DateTimeFormat('ko-KR', {
 });
 const timeFormat = new Intl.DateTimeFormat('ko-KR', { hour: 'numeric', minute: '2-digit' });
 
+function MessagePhoto({
+  photo,
+  maxSize,
+}: {
+  photo?: { uri: string; width: number; height: number };
+  maxSize: number;
+}) {
+  const [ratio, setRatio] = useState(() =>
+    photo && photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 1,
+  );
+  if (!photo) {
+    return null;
+  }
+  return (
+    <Image
+      accessible
+      accessibilityLabel="채팅 사진"
+      source={{ uri: photo.uri }}
+      resizeMode="contain"
+      onLoad={({ nativeEvent: { source } }) => {
+        if (source.width > 0 && source.height > 0) {
+          setRatio(source.width / source.height);
+        }
+      }}
+      style={[
+        s.photo,
+        { width: maxSize * Math.min(1, ratio), height: maxSize * Math.min(1, 1 / ratio) },
+      ]}
+    />
+  );
+}
+
 function PostCard({
   reference,
   navigation,
@@ -359,23 +391,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
                       )}
                       {item.mine && meta}
                       {item.kind === 'photo' ? (
-                        <Image
-                          accessibilityLabel="채팅 사진"
-                          accessible
-                          source={{ uri: item.photo?.uri }}
-                          resizeMode="contain"
-                          style={[
-                            s.photo,
-                            {
-                              width:
-                                photoMax *
-                                Math.min(1, (item.photo?.width ?? 1) / (item.photo?.height ?? 1)),
-                              height:
-                                photoMax *
-                                Math.min(1, (item.photo?.height ?? 1) / (item.photo?.width ?? 1)),
-                            },
-                          ]}
-                        />
+                        <MessagePhoto key={item.photo?.uri} photo={item.photo} maxSize={photoMax} />
                       ) : (
                         <View style={[s.bubble, item.mine && s.myBubble]}>
                           <Text selectable style={[s.text, item.mine && s.myText]}>
