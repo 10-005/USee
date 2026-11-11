@@ -20,7 +20,7 @@ test('matches each vertex and gradient to its percentage text across status thre
         />,
       );
     });
-    const expected = ['#A63828', '#89500E', '#89500E', '#036666', '#036666', '#A63828', '#036666'];
+    const expected = ['#DC2626', '#A16207', '#A16207', '#15803D', '#15803D', '#DC2626', '#15803D'];
     const vertices = renderer.root.findAllByType(Circle).filter(node => node.props.r === 3.2);
     const percentages = renderer.root
       .findAllByType(SvgText)

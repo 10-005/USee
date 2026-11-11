@@ -26,7 +26,12 @@ import {
   won,
 } from './reportLabels';
 
-const STAT_COLOR = { low: '#A63828', medium: '#89500E', high: '#036666' };
+const STAT_COLOR = { low: '#DC2626', medium: '#A16207', high: '#15803D' };
+const STAT_LEGEND = [
+  { tone: 'high', label: '양호', range: '70% 이상' },
+  { tone: 'medium', label: '주의', range: '40~69%' },
+  { tone: 'low', label: '부족', range: '40% 미만' },
+] as const;
 const RADAR = { cx: 140, cy: 126, radius: 72, labelRadius: 108 };
 const TRACK = 168;
 const BAR_WIDTH = 18;
@@ -441,7 +446,12 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
     radarPoint(index, REPORT_STAT_ITEMS.length, 100),
   );
   const baseline = baselinePoints.map(point => `${point.x},${point.y}`).join(' ');
-  const summary = points.map(item => `${item.label} ${item.value}%`).join(', ');
+  const summary = points
+    .map(item => {
+      const status = STAT_LEGEND.find(itemTone => itemTone.tone === statTone(item.value))!;
+      return `${item.label} ${item.value}%, ${status.label}`;
+    })
+    .join(', ');
 
   return (
     <View style={styles.radarPanel}>
@@ -581,11 +591,15 @@ export function FinalStateChart({ stats }: { stats: Record<string, number> }) {
           </SvgText>
         ))}
       </Svg>
+      <View style={styles.statLegend}>
+        {STAT_LEGEND.map(item => (
+          <View key={item.tone} style={styles.radarKey}>
+            <View style={[styles.statusDot, { backgroundColor: STAT_COLOR[item.tone] }]} />
+            <Text style={styles.radarKeyLabel}>{`${item.label} ${item.range}`}</Text>
+          </View>
+        ))}
+      </View>
       <View style={styles.radarLegend}>
-        <View style={styles.radarKey}>
-          <View style={[styles.radarLine, styles.radarLineActual]} />
-          <Text style={styles.radarKeyLabel}>최종 상태</Text>
-        </View>
         <View style={styles.radarKey}>
           <View style={[styles.radarLine, styles.radarLineBase]} />
           <Text style={styles.radarKeyLabel}>100% 기준선</Text>
@@ -727,7 +741,15 @@ const styles = StyleSheet.create({
   radarLegend: { flexDirection: 'row', gap: 16, justifyContent: 'center' },
   radarKey: { alignItems: 'center', flexDirection: 'row', gap: 6 },
   radarLine: { borderRadius: 2, height: 2, width: 16 },
-  radarLineActual: { backgroundColor: '#14746F' },
+  statLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 8,
+  },
+  statusDot: { borderRadius: 4, height: 8, width: 8 },
   radarLineBase: { backgroundColor: '#88BFA7' },
   radarKeyLabel: { ...typography.captionSemiBold12, color: '#435E54' },
 });
