@@ -299,12 +299,7 @@ function CommentItem({
   return (
     <View
       onLayout={onTargetLayout}
-      style={[
-        styles.comment,
-        reply && styles.reply,
-        deleted && styles.deletedComment,
-        highlighted && styles.highlightedComment,
-      ]}
+      style={[styles.comment, reply && styles.reply, deleted && styles.deletedComment]}
     >
       {deleted ? (
         <View style={styles.deletedAvatar} />
@@ -380,7 +375,7 @@ function CommentItem({
           </View>
         ) : deleted || hasContent ? (
           <Text style={[styles.content, deleted && styles.deletedContent]}>
-            {getCommentContent(comment)}
+            <Text style={highlighted && styles.highlightedContent}>{getCommentContent(comment)}</Text>
           </Text>
         ) : null}
         {comment.imageUri ? (
@@ -1063,11 +1058,10 @@ const styles = StyleSheet.create({
   photoMenuText: { ...typography.bodyRegular14, color: colors.gray700 },
   replyCancel: { alignSelf: 'flex-end', paddingHorizontal: 4, paddingTop: 6 },
   replyCancelText: { ...typography.captionRegular10, color: colors.gray400 },
-  highlightedComment: { backgroundColor: 'rgba(128, 128, 128, 0.1)' },
   comment: {
     alignItems: 'flex-start',
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 8,
     minHeight: 62,
     position: 'relative',
   },
@@ -1095,6 +1089,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   content: { ...typography.bodyRegular14, color: colors.black, marginTop: 5 },
+  highlightedContent: { backgroundColor: `${colors.green400}1A`, color: colors.green400 },
   deletedContent: { color: colors.gray400, marginTop: 0 },
   commentImageWrap: { borderRadius: 8, height: 120, marginTop: 8, overflow: 'hidden', width: 120 },
   commentImage: { height: '100%', width: '100%' },
