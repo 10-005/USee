@@ -106,7 +106,19 @@ export const usePetStore = create<PetState>((set, get) => ({
     set({ error: null, isLoading: true });
     try {
       const page = await getMyPets();
-      set({ pets: page.content.map(mapPetListItem) });
+      const pets = await Promise.all(
+        page.content.map(async item => {
+          const pet = mapPetListItem(item);
+          try {
+            const detail = await getMyPet(item.petSeq);
+            return { ...pet, age: numericValue(detail.age) };
+          } catch {
+            const cached = get().pets.find(previous => previous.id === pet.id);
+            return { ...pet, age: cached?.age ?? null };
+          }
+        }),
+      );
+      set({ pets });
     } catch (error) {
       set({ error: getApiErrorDisplayMessage(error, '반려동물 목록을 불러오지 못했어요.') });
     } finally {
