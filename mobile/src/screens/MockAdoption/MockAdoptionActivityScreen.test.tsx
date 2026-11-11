@@ -999,3 +999,38 @@ test('leaves the activity when the fetched session has already ended', async () 
   expect(await getActiveMockAdoption()).toBeNull();
   await ReactTestRenderer.act(() => renderer.unmount());
 });
+
+test.each([
+  ['dog-1', '가득 찬 배변 패드', '배변패드가 필요해요!'],
+  ['cat-2', '가득 찬 고양이 화장실', '배변판이 필요해요!'],
+])('keeps poop and shows missing equipment for %s', async (petId, label, message) => {
+  await AsyncStorage.clear();
+  jest.mocked(performCareAction).mockClear();
+  const session = await startMockAdoption(petId, 35000);
+  useShopStore.getState().open(session);
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.MOCK_ADOPTION_TOILET,
+    JSON.stringify({
+      petId,
+      startedAt: session.startedAt,
+      cleanedAt: session.startedAt - 2000,
+      events: [session.startedAt - 1000],
+    }),
+  );
+  const props = {
+    navigation: {},
+    route: { key: 'missing-toilet', name: 'MockAdoptionActivity', params: { petId } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() =>
+    renderer.root.findAllByProps({ accessibilityLabel: label })[0].props.onPress(),
+  );
+  expect(renderer.root.findAllByProps({ children: message }).length).toBeGreaterThan(0);
+  expect(renderer.root.findAllByProps({ accessibilityLabel: label }).length).toBeGreaterThan(0);
+  expect(performCareAction).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => renderer.unmount());
+  await AsyncStorage.clear();
+});

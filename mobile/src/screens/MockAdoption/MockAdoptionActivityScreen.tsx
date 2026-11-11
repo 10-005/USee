@@ -555,7 +555,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           onHidden={onPetHidden}
         />
       ) : null}
-      {pet && !bathing && showLitter ? (
+      {pet && !bathing && (showLitter || toilet.full) ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
@@ -570,6 +570,16 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           disabled={!toilet.full || !!care || leaving || busy || bathReturning}
           onPress={async () => {
             if (careBusy.current || bathingRef.current) {
+              return;
+            }
+            if (!showLitter) {
+              showToast(pet.category === 'dog' ? '배변패드가 필요해요!' : '배변판이 필요해요!');
+              return;
+            }
+            if (!findCareSupply(pet.category, 'clean')) {
+              showToast(
+                pet.category === 'dog' ? '배변패드가 필요해요!' : '고양이 모래가 필요해요!',
+              );
               return;
             }
             try {
