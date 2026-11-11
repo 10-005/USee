@@ -18,7 +18,7 @@ export type FoundReportDraft = {
   location: string;
   longitude: number | null;
   microchipNumber: string;
-  microchipStatus: 'done' | 'not-done' | 'unknown' | null;
+  microchipStatus: 'done' | 'not-done' | null;
   neutered: 'done' | 'not-done' | 'unknown' | null;
   species: string;
   terrain: string;

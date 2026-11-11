@@ -54,7 +54,7 @@ type ChatState = {
   loaded: boolean;
   loading: boolean;
   rooms: ChatRoom[];
-  ensureRoom: (id: string) => Promise<void>;
+  ensureRoom: (id: string) => Promise<number | null>;
   leave: (id: string) => Promise<void>;
   load: (force?: boolean, unreadOnly?: boolean) => Promise<void>;
   loadMoreRooms: (unreadOnly?: boolean) => Promise<void>;
@@ -268,6 +268,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         return { rooms: [room, ...state.rooms.filter(item => item.id !== id)] };
       });
       subscribe(id);
+      return detail.counterpartLastReadMessageSeq;
     },
     loadMoreMessages: async id => {
       const cursor = messageCursors.get(id);

@@ -25,6 +25,8 @@ import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { colors, radius, typography } from '../../theme';
 import { formatKoreanAddress } from '../../utils/address';
 
+import { PostTabPager } from './PostTabPager';
+
 type Props = NativeStackScreenProps<RootStackParamList, 'SavedPosts'>;
 type SavedPostTab = 'adoption' | 'found' | 'lost';
 
@@ -65,8 +67,7 @@ const statusLabel = (item: BookmarkItem) => {
 
 const mapSavedPost = (item: BookmarkItem): SavedPost => {
   const summary = item.postSummary;
-  const gender =
-    summary.gender === 'MALE' ? '수컷' : summary.gender === 'FEMALE' ? '암컷' : '모름';
+  const gender = summary.gender === 'MALE' ? '수컷' : summary.gender === 'FEMALE' ? '암컷' : '모름';
   return {
     date: summary.occurredDttm?.slice(0, 10) ?? '-',
     description: '',
@@ -75,45 +76,77 @@ const mapSavedPost = (item: BookmarkItem): SavedPost => {
     location: formatKoreanAddress(summary.address),
     name: summary.classification?.breedName ?? '동물 정보 없음',
     status: statusLabel(item),
-    summary: [summary.age ?? '나이 모름', gender, summary.classification?.colorName ?? '털색 모름'].join(' | '),
+    summary: [
+      summary.age ?? '나이 모름',
+      gender,
+      summary.classification?.colorName ?? '털색 모름',
+    ].join(' | '),
   };
 };
 
 export function SavedPostsScreen({ navigation }: Props) {
+  return (
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
+      <AppHeader onBackPress={navigation.goBack} title="저장한 게시글" />
+      <PostTabPager
+        tabs={tabs}
+        tabStyle={styles.tabs}
+        renderTab={(label, selected, select) => (
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            onPress={select}
+            style={styles.tab}
+          >
+            <Text style={selected ? styles.activeTabText : styles.tabText}>{label}</Text>
+            <View style={selected ? styles.activeIndicator : styles.indicator} />
+          </Pressable>
+        )}
+        renderPage={tab => <SavedPostsPage navigation={navigation} tab={tab} />}
+      />
+    </SafeAreaView>
+  );
+}
+
+function SavedPostsPage({ navigation, tab }: Pick<Props, 'navigation'> & { tab: SavedPostTab }) {
   const { width } = useWindowDimensions();
   const cardWidth = (width - 52) / 2;
-  const [activeTab, setActiveTab] = useState<SavedPostTab>('adoption');
-  const [loadedTabs, setLoadedTabs] = useState<Record<SavedPostTab, boolean>>({
-    adoption: false,
-    found: false,
-    lost: false,
-  });
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState('');
   const items = useAdoptionBookmarkStore(state => state.items);
-  const loading = useAdoptionBookmarkStore(state => state.isLoading);
-  const error = useAdoptionBookmarkStore(state => state.error);
+
   const loadBookmarks = useAdoptionBookmarkStore(state => state.loadBookmarks);
   const pendingBookmarkKeys = useAdoptionBookmarkStore(state => state.pendingKeys);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
-  const targetType = targetTypeByTab[activeTab];
+  const cardHeight = cardWidth + 118;
+  const rowHeight = cardHeight + 18;
+  const targetType = targetTypeByTab[tab];
 
   const posts = useMemo<SavedPost[]>(() => {
     return items.filter(item => item.targetType === targetType).map(mapSavedPost);
   }, [items, targetType]);
 
+  const loadPosts = useCallback(async () => {
+    setError('');
+    try {
+      await loadBookmarks(targetType);
+      setLoaded(true);
+    } catch {
+      setError(useAdoptionBookmarkStore.getState().error ?? '저장한 게시글을 불러오지 못했어요.');
+    }
+  }, [loadBookmarks, targetType]);
   useFocusEffect(
     useCallback(() => {
-      loadBookmarks(targetType)
-        .then(() => setLoadedTabs(current => ({ ...current, [activeTab]: true })))
-        .catch(() => undefined);
-    }, [activeTab, loadBookmarks, targetType]),
+      loadPosts();
+    }, [loadPosts]),
   );
 
   const openPost = (postId: string) => {
-    if (activeTab === 'adoption') {
+    if (tab === 'adoption') {
       navigation.navigate('AdoptionDetail', { animalId: postId });
       return;
     }
-    navigation.navigate(activeTab === 'found' ? 'FoundReportDetail' : 'LostReportDetail', {
+    navigation.navigate(tab === 'found' ? 'FoundReportDetail' : 'LostReportDetail', {
       reportId: postId,
     });
   };
@@ -121,118 +154,108 @@ export function SavedPostsScreen({ navigation }: Props) {
   const renderPost = ({ item }: { item: SavedPost }) => {
     const bookmarkPending = pendingBookmarkKeys.includes(`${targetType}:${item.id}`);
     return (
-    <Pressable
-      accessibilityLabel={`${item.name} 저장한 게시글 상세`}
-      accessibilityRole="button"
-      onPress={() => openPost(item.id)}
-      style={({ pressed }) => [
-        styles.card,
-        { height: cardWidth + 118, width: cardWidth },
-        pressed && styles.pressed,
-      ]}
-    >
-      <SavedPostImage size={cardWidth} source={item.image} />
       <Pressable
-        accessibilityLabel={`${item.name} 북마크 해제`}
+        accessibilityLabel={`${item.name} 저장한 게시글 상세`}
         accessibilityRole="button"
-        accessibilityState={{ busy: bookmarkPending, disabled: bookmarkPending, selected: true }}
-        disabled={bookmarkPending}
-        hitSlop={8}
-        onPress={event => {
-          event.stopPropagation();
-          toggleBookmark(targetType, item.id).catch(() =>
-            Alert.alert('북마크 해제 실패', '잠시 후 다시 시도해 주세요.'),
-          );
-        }}
-        style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
-      >
-        {bookmarkPending ? (
-          <ActivityIndicator color={colors.green400} size="small" />
-        ) : (
-          <BookmarkActiveIcon />
-        )}
-      </Pressable>
-      <View
-        style={[
-          styles.statusBadge,
-          { top: cardWidth - 24 },
-          item.status === '종료' && styles.endedBadge,
+        onPress={() => openPost(item.id)}
+        style={({ pressed }) => [
+          styles.card,
+          { height: cardHeight, width: cardWidth },
+          pressed && styles.pressed,
         ]}
       >
-        <Text style={styles.statusText}>{item.status}</Text>
-      </View>
-      <Text numberOfLines={1} style={styles.cardTitle}>
-        {item.name}
-      </Text>
-      <View style={styles.metaRow}>
-        <MapIcon height={15} width={15} />
-        <Text numberOfLines={1} style={styles.metaText}>
-          {item.location}
+        <Image
+          resizeMode="cover"
+          source={item.image}
+          style={[styles.cardImage, { height: cardWidth }]}
+        />
+        <Pressable
+          accessibilityLabel={`${item.name} 북마크 해제`}
+          accessibilityRole="button"
+          accessibilityState={{ busy: bookmarkPending, disabled: bookmarkPending, selected: true }}
+          disabled={bookmarkPending}
+          hitSlop={8}
+          onPress={event => {
+            event.stopPropagation();
+            toggleBookmark(targetType, item.id).catch(() =>
+              Alert.alert('북마크 해제 실패', '잠시 후 다시 시도해 주세요.'),
+            );
+          }}
+          style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
+        >
+          {bookmarkPending ? (
+            <ActivityIndicator color={colors.green400} size="small" />
+          ) : (
+            <BookmarkActiveIcon />
+          )}
+        </Pressable>
+        <View
+          style={[
+            styles.statusBadge,
+            { top: cardWidth - 24 },
+            item.status === '종료' && styles.endedBadge,
+          ]}
+        >
+          <Text style={styles.statusText}>{item.status}</Text>
+        </View>
+        <Text numberOfLines={1} style={styles.cardTitle}>
+          {item.name}
         </Text>
-      </View>
-      <View style={styles.metaRow}>
-        <DateIcon height={15} width={15} />
-        <Text style={styles.metaText}>{item.date}</Text>
-      </View>
-      <Text numberOfLines={1} style={styles.summary}>
-        {item.summary}
-      </Text>
-      <Text numberOfLines={1} style={styles.description}>
-        {item.description}
-      </Text>
-    </Pressable>
+        <View style={styles.metaRow}>
+          <MapIcon height={15} width={15} />
+          <Text numberOfLines={1} style={styles.metaText}>
+            {item.location}
+          </Text>
+        </View>
+        <View style={styles.metaRow}>
+          <DateIcon height={15} width={15} />
+          <Text style={styles.metaText}>{item.date}</Text>
+        </View>
+        <Text numberOfLines={1} style={styles.summary}>
+          {item.summary}
+        </Text>
+        <Text numberOfLines={1} style={styles.description}>
+          {item.description}
+        </Text>
+      </Pressable>
     );
   };
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <AppHeader onBackPress={navigation.goBack} title="저장한 게시글" />
-      <View accessibilityRole="tablist" style={styles.tabs}>
-        {tabs.map(tab => {
-          const selected = tab.key === activeTab;
-          return (
-            <Pressable
-              accessibilityRole="tab"
-              accessibilityState={{ selected }}
-              key={tab.key}
-              onPress={() => setActiveTab(tab.key)}
-              style={styles.tab}
-            >
-              <Text style={selected ? styles.activeTabText : styles.tabText}>{tab.label}</Text>
-              <View style={selected ? styles.activeIndicator : styles.indicator} />
-            </Pressable>
-          );
-        })}
-      </View>
-      {loading && !loadedTabs[activeTab] ? (
+    <View style={styles.tabContent}>
+      {!loaded && !error ? (
         <SavedPostsSkeleton cardWidth={cardWidth} />
       ) : error ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>{error}</Text>
-          <Pressable onPress={() => loadBookmarks(targetType)} style={styles.retryButton}>
+          <Pressable onPress={loadPosts} style={styles.retryButton}>
             <Text style={styles.retryText}>다시 시도</Text>
           </Pressable>
         </View>
       ) : (
         <FlatList
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>저장한 게시글이 없어요</Text>
-            <Text style={styles.emptyBody}>관심 있는 게시글을 북마크해 보세요.</Text>
-          </View>
-        }
-        columnWrapperStyle={posts.length ? styles.columns : undefined}
-        contentContainerStyle={[styles.list, !posts.length && styles.emptyList]}
-        data={posts}
-        decelerationRate="fast"
-        key={activeTab}
-        keyExtractor={item => item.id}
-        numColumns={2}
-        renderItem={renderPost}
-        showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>저장한 게시글이 없어요</Text>
+              <Text style={styles.emptyBody}>관심 있는 게시글을 북마크해 보세요.</Text>
+            </View>
+          }
+          columnWrapperStyle={posts.length ? styles.columns : undefined}
+          contentContainerStyle={[styles.list, !posts.length && styles.emptyList]}
+          data={posts}
+          getItemLayout={(_, index) => ({
+            index,
+            length: rowHeight,
+            offset: 27 + index * rowHeight,
+          })}
+          decelerationRate="fast"
+          keyExtractor={item => item.id}
+          numColumns={2}
+          renderItem={renderPost}
+          showsVerticalScrollIndicator={false}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -252,26 +275,8 @@ function SavedPostsSkeleton({ cardWidth }: { cardWidth: number }) {
   );
 }
 
-function SavedPostImage({ size, source }: { size: number; source: ImageSourcePropType }) {
-  const remote = typeof source === 'object' && source !== null && 'uri' in source;
-  const [loading, setLoading] = useState(remote);
-
-  return (
-    <View style={[styles.cardImage, { height: size }]}>
-      <Image
-        onError={() => setLoading(false)}
-        onLoadEnd={() => setLoading(false)}
-        onLoadStart={() => remote && setLoading(true)}
-        resizeMode="cover"
-        source={source}
-        style={styles.cardImageContent}
-      />
-      {loading ? <SkeletonBlock style={styles.cardImageSkeleton} /> : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
+  tabContent: { flex: 1 },
   safeArea: { backgroundColor: colors.white, flex: 1 },
   tabs: { flexDirection: 'row', height: 60 },
   tab: { alignItems: 'center', flex: 1, justifyContent: 'space-between', paddingTop: 20 },
@@ -282,15 +287,7 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 20, paddingTop: 27 },
   columns: { gap: 12 },
   card: { marginBottom: 18 },
-  cardImage: { borderRadius: radius.sm, overflow: 'hidden', width: '100%' },
-  cardImageContent: { height: '100%', width: '100%' },
-  cardImageSkeleton: {
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-  },
+  cardImage: { backgroundColor: colors.gray200, borderRadius: radius.sm, width: '100%' },
   bookmarkButton: {
     alignItems: 'center',
     height: 24,

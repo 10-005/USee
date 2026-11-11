@@ -1,11 +1,37 @@
 jest.mock('../api/client', () => ({ apiClient: { get: jest.fn() } }));
 
 import { apiClient } from '../api/client';
+import { NativeModules } from 'react-native';
 import { getCandidateAddress, searchGeocodeCandidates } from './geocode';
 
 const mockGet = apiClient.get as jest.Mock;
 
 describe('geocode', () => {
+  it('주소 후보가 없으면 장소명으로 기기에서 검색한다', async () => {
+    const original = NativeModules.LocationGeocoder;
+    const places = [
+      { placeName: '인동초등학교', roadAddress: '테스트 주소', latitude: 36, longitude: 128 },
+      {
+        placeName: '34',
+        roadAddress: '경상북도 구미시 여헌로3길 34',
+        latitude: 36,
+        longitude: 128,
+      },
+    ];
+    const searchPlaces = jest.fn().mockResolvedValue(places);
+    NativeModules.LocationGeocoder = { searchPlaces };
+    try {
+      mockGet.mockResolvedValueOnce({ data: { data: [] } });
+      await expect(searchGeocodeCandidates(' 인동초등학교 ')).resolves.toEqual([
+        places[0],
+        { ...places[1], placeName: null },
+      ]);
+      expect(searchPlaces).toHaveBeenCalledWith('인동초등학교');
+    } finally {
+      NativeModules.LocationGeocoder = original;
+    }
+  });
+
   it('도로명 주소를 우선 사용한다', () => {
     expect(
       getCandidateAddress({
