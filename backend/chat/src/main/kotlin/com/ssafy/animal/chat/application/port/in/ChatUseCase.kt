@@ -176,6 +176,8 @@ data class ChatRoomDetail(
     val lastHiddenMessageSeq: Long?,
     @field:Schema(description = "이 방의 미읽음 수(목록과 같은 정의)", example = "2")
     val unreadCount: Long,
+    @field:Schema(description = "상대가 마지막으로 읽은 메시지 번호. 내 메시지 중 이 번호 이하는 상대가 읽은 것. 상대가 읽은 적 없으면 null", nullable = true, example = "4001")
+    val counterpartLastReadMessageSeq: Long?,
 )
 
 /** 14.4 목록 항목이자 14.5 브로드캐스트 본문(clientMessageId는 브로드캐스트에서만) */
@@ -242,9 +244,15 @@ data class UnreadCount(
     val totalUnreadMessageCount: Long,
 )
 
-enum class RoomUpdateType { MESSAGE, READ, LEFT }
+enum class RoomUpdateType { MESSAGE, READ, LEFT, COUNTERPART_READ }
 
-/** /user/queue/room-updates 페이로드(Q454). room은 ChatRoomItem, LEFT(또는 목록에 안 보이는 방)는 {chatRoomSeq}만 */
+/**
+ * /user/queue/room-updates 페이로드(Q454). room은 ChatRoomItem, LEFT(또는 목록에 안 보이는 방)는 {chatRoomSeq}만,
+ * COUNTERPART_READ는 CounterpartRead
+ */
 data class RoomUpdate(val type: RoomUpdateType, val room: Any, val totalUnreadMessageCount: Long)
 
 data class RoomRef(val chatRoomSeq: Long)
+
+/** 상대가 읽음 포인터를 앞으로 옮겼을 때 보낸 쪽에 알리는 room(COUNTERPART_READ) */
+data class CounterpartRead(val chatRoomSeq: Long, val counterpartLastReadMessageSeq: Long)
