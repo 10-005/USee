@@ -716,7 +716,7 @@ class FoundReportController(
         foundReportUseCase.delete(user.userSeq, foundReportSeq)
     }
 
-    private companion object {
+    internal companion object {
         // 문서 예시 전용
         const val SUMMARY_FIELDS =
             """"foundReportSeq":210,"classification":{"combinationSeq":88,"speciesSeq":1,"speciesCode":"DOG","speciesName":"개","breedSeq":12,"breedName":"말티즈","colorSeq":3,"colorName":"흰색"},"gender":"UNKNOWN","age":null,"isNeutered":null,"weight":"약 3kg","status":"ACTIVE","shelterSeq":7,"address":"대구광역시 중구 동인동1가","districtCode":"27110","occurredDttm":"2026-10-29T10:00:00+09:00","representativeImageUrl":"https://storage.example.com/images/1201.jpg","regDttm":"2026-10-29T12:00:00+09:00""""

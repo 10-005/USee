@@ -38,3 +38,13 @@ data class AnimalClassification(
     @field:Schema(description = "색상 이름", example = "흰색")
     val colorName: String,
 )
+
+/** AI 품종 추천(8.9)이 AI 라벨을 품종으로 바꿀 때 쓴다. CatalogUseCase와 따로 둔 것은 그쪽 가짜 구현(테스트)을 건드리지 않기 위해서다 */
+interface BreedLookupUseCase {
+    /** 종의 품종 전체를 공식 품종 코드(breed_code)로 찾을 수 있게 돌려준다. 종이 시드에 없으면 null */
+    fun findBreedsByCode(speciesCode: SpeciesCode): SpeciesBreeds?
+}
+
+data class SpeciesBreeds(val speciesSeq: Int, val byCode: Map<String, BreedRef>)
+
+data class BreedRef(val breedSeq: Int, val breedName: String)

@@ -11,6 +11,7 @@ enum class FoundErrorCode(
     FOUND_REPORT_NOT_FOUND(HttpStatus.NOT_FOUND, "발견 신고를 찾을 수 없습니다."),
     FOUND_REPORT_CLOSED(HttpStatus.CONFLICT, "종료된 발견 신고는 수정할 수 없습니다."),
     FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE(HttpStatus.CONFLICT, "배정할 수 있는 보호소가 없습니다."),
+    FOUND_BREED_PREDICTION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "품종 추천을 일시적으로 사용할 수 없습니다."),
 }
 
 /**
