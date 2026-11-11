@@ -17,6 +17,9 @@ import { handleRemoteMessage } from '../remoteMessage';
 jest.mock('../remoteMessage', () => ({
   handleRemoteMessage: jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock('../notificationSettings', () => ({
+  initializeNotificationPermission: jest.fn().mockResolvedValue(undefined),
+}));
 
 afterEach(() => jest.restoreAllMocks());
 
@@ -27,9 +30,9 @@ it('백그라운드 및 포그라운드 수신기를 등록하고 구독을 해�
   registerBackgroundMessaging();
   expect(setBackgroundMessageHandler).toHaveBeenCalledWith(expect.anything(), expect.any(Function));
   const stop = startForegroundMessaging();
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let i = 0; i < 10; i++) {
+    await Promise.resolve();
+  }
   expect(getToken).toHaveBeenCalled();
   expect(await getStoredFcmToken()).toBe('test-fcm-token');
   const refresh = jest.mocked(onTokenRefresh).mock.calls.at(-1)![1];

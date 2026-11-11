@@ -16,6 +16,7 @@ import {
 } from '../services/auth';
 import { registerDeviceTokenIfSignedIn } from '../services/notifications/deviceTokenRegistration';
 import { getStoredFcmToken } from '../services/notifications/firebaseMessaging';
+import { syncInitialNotificationSettings } from '../services/notifications/notificationSettings';
 
 type RegistrationInput = Omit<KakaoRegisterRequest, 'registrationToken'>;
 
@@ -146,6 +147,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 }));
 
 async function registerCurrentDeviceToken() {
+  await syncInitialNotificationSettings().catch(() => {
+    console.warn('[FCM] 최초 알림 설정 저장에 실패했습니다.');
+  });
   try {
     await registerDeviceTokenIfSignedIn(await getStoredFcmToken());
   } catch {

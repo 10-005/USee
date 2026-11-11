@@ -1,4 +1,4 @@
-import { PermissionsAndroid, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import {
   getMessaging,
   getToken,
@@ -12,6 +12,7 @@ import { STORAGE_KEYS } from '../../constants/storageKeys';
 import { getStoredValue, setStoredValue } from '../storage/jsonStorage';
 import { registerDeviceTokenIfSignedIn } from './deviceTokenRegistration';
 import { handleRemoteMessage } from './remoteMessage';
+import { initializeNotificationPermission } from './notificationSettings';
 
 const reportError = () => console.warn('[FCM] 알림 초기화 또는 저장에 실패했습니다.');
 const saveToken = async (token: string) => {
@@ -49,9 +50,7 @@ export function startForegroundMessaging(): () => void {
     .catch(reportError);
 
   async function initialize() {
-    if (Number(Platform.Version) >= 33) {
-      await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-    }
+    await initializeNotificationPermission().catch(reportError);
     await saveToken(await getToken(messaging));
   }
   initialize().catch(reportError);
