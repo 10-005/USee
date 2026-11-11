@@ -342,10 +342,11 @@ function CommentItem({
                   : undefined
               }
               numberOfLines={1}
-              style={[styles.nickname, comment.isMine && styles.myNickname]}
+              style={styles.nickname}
             >
               {comment.nickname}
             </Text>
+            {comment.isMine && <Text style={[styles.nickname, styles.selfLabel]}>(본인)</Text>}
             <Text style={styles.createdAt}>{comment.createdAt}</Text>
           </View>
         ) : null}
@@ -1080,12 +1081,12 @@ const styles = StyleSheet.create({
   nickname: {
     color: '#636363',
     fontFamily: 'Pretendard-Medium',
-    fontSize: 12,
+    fontSize: 10,
     includeFontPadding: false,
     lineHeight: 15,
     maxWidth: 150,
   },
-  myNickname: { color: colors.green400 },
+  selfLabel: { marginLeft: 4 },
   createdAt: {
     ...typography.captionRegular10,
     color: '#C1C1C1',
