@@ -935,7 +935,7 @@ function StepOne({
             {animal?.age ?? '모름'} | {gender} | {animal?.weight ?? '모름'}
           </Text>
           <Text style={styles.animalMeta}>
-            중성화 여부 <Text style={styles.greenText}>{neutered}</Text>
+            중성화 여부 {neutered}
           </Text>
         </View>
         <View style={styles.numberRows}>
@@ -1369,7 +1369,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     top: -51,
   },
-  greenText: { color: colors.green400 },
   numberRows: { flexDirection: 'row', flexWrap: 'wrap', marginTop: -32 },
   numberLabel: {
     ...typography.bodyRegular14,

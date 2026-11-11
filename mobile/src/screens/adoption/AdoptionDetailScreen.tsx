@@ -83,6 +83,7 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
     return () => { active = false; };
   }, [shelterSeq]);
   const gender = detail?.gender === 'MALE' ? '수컷' : detail?.gender === 'FEMALE' ? '암컷' : '모름';
+  const neutered = detail?.isNeutered == null ? '모름' : detail.isNeutered ? 'O' : 'X';
   const basicInfo = [
     ['공고번호', String(detail?.animalSeq ?? route.params.animalId)],
     ['동물등록번호', detail?.registrationNumber ?? '미등록'],
@@ -93,15 +94,7 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
         ? `[${detail.classification.speciesName}] ${detail.classification.breedName}`
         : '모름',
     ],
-    ['성별', gender],
-    [
-      '중성화',
-      detail?.isNeutered === null || detail?.isNeutered === undefined
-        ? '모름'
-        : detail.isNeutered
-        ? '예'
-        : '아니오',
-    ],
+    ['성별', `${gender} (중성화 ${neutered})`],
     ['나이 / 체중', `${detail?.age ?? '모름'} / ${detail?.weight ?? '모름'}`],
     ['색상', detail?.classification?.colorName ?? '모름'],
   ];
