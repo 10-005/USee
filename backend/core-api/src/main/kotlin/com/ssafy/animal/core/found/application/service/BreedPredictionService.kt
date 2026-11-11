@@ -6,12 +6,13 @@ import com.ssafy.animal.common.response.ErrorDetail
 import com.ssafy.animal.core.catalog.application.port.`in`.BreedLookupUseCase
 import com.ssafy.animal.core.catalog.domain.SpeciesCode
 import com.ssafy.animal.core.found.application.port.`in`.BreedCandidate
+import com.ssafy.animal.core.found.application.port.`in`.BreedColor
 import com.ssafy.animal.core.found.application.port.`in`.BreedPrediction
 import com.ssafy.animal.core.found.application.port.`in`.BreedPredictionUseCase
 import com.ssafy.animal.core.found.application.port.out.BreedPredictionClient
 import com.ssafy.animal.core.found.domain.FoundErrorCode
 import com.ssafy.animal.core.found.domain.FoundImageErrorCode
-import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
+import com.ssafy.animal.core.image.application.port.`in`.UploadedImageUseCase
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
@@ -21,19 +22,19 @@ import org.springframework.stereotype.Service
  */
 @Service
 class BreedPredictionService(
-    private val imageUseCase: ImageUseCase,
+    private val uploadedImageUseCase: UploadedImageUseCase,
     private val breedLookupUseCase: BreedLookupUseCase,
     private val breedPredictionClient: BreedPredictionClient,
 ) : BreedPredictionUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    override fun predict(userSeq: Long, imageSeqs: List<Long>): BreedPrediction {
-        if (imageSeqs.size !in 1..MAX_IMAGES) throw BusinessException(FoundImageErrorCode.IMAGE_INVALID_COUNT)
-        if (imageSeqs.toSet().size != imageSeqs.size) {
-            throw BusinessException(CommonErrorCode.COMMON_INVALID_INPUT, errors = listOf(ErrorDetail("imageSeqs", "같은 사진이 중복되었습니다.")))
+    override fun predict(userSeq: Long, imageKeys: List<String>): BreedPrediction {
+        if (imageKeys.size !in 1..MAX_IMAGES) throw BusinessException(FoundImageErrorCode.IMAGE_INVALID_COUNT)
+        if (imageKeys.toSet().size != imageKeys.size) {
+            throw BusinessException(CommonErrorCode.COMMON_INVALID_INPUT, errors = listOf(ErrorDetail("imageKeys", "같은 사진이 중복되었습니다.")))
         }
-        val imageUrls = imageSeqs.map { imageUseCase.requireOwned(userSeq, it).imageUrl }
+        val imageUrls = imageKeys.map { uploadedImageUseCase.requireUploadedUrl(userSeq, it) }
 
         val ai = try {
             breedPredictionClient.predict(imageUrls)
@@ -53,6 +54,7 @@ class BreedPredictionService(
             breedSeq = top?.breedSeq,
             breedName = top?.breedName,
             candidates = ai.candidates.mapNotNull { c -> breed(c.label)?.let { BreedCandidate(it.breedSeq, it.breedName, c.score) } },
+            colors = top?.let { breedLookupUseCase.findBreedColors(it.breedSeq) }.orEmpty().map { BreedColor(it.combinationSeq, it.colorSeq, it.colorName) },
         )
     }
 

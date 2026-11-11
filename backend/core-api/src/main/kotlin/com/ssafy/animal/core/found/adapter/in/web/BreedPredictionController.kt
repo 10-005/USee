@@ -34,9 +34,11 @@ class BreedPredictionController(
     @Operation(
         summary = "사진으로 종·품종 추천",
         description = "- USER만. 발견 신고 작성 화면에서 사진을 올린 직후 호출해 종·품종 입력란을 미리 채운다(품종을 모르는 제보자용).\n" +
-            "- `imageSeqs`는 이미지 등록(4.2)으로 받은 번호 1~3개. 본인이 올린 사진만, 중복 불가. 사진이 바뀌면 전체 배열로 다시 호출한다.\n" +
-            "- 저장하는 것이 없다. 결과는 추천일 뿐이고, 사용자가 확인·수정한 뒤 색상을 골라 `combinationSeq`를 정해 발견 신고 등록(8.4)을 호출한다. " +
-            "색상 후보는 `GET /api/core/v1/animal-combinations?breedSeq=`.\n" +
+            "- `imageKeys`는 업로드 주소 발급(4.1)으로 받은 키 1~3개. **S3 업로드(PUT)를 마친 뒤, 이미지 확정(4.2) 전에** 호출한다. " +
+            "본인이 발급받은 키만, 중복 불가. 사진이 바뀌면 전체 배열로 다시 호출한다.\n" +
+            "- 키는 발급 후 10분 동안만 쓸 수 있다. 지났거나 이미 확정(4.2)한 키는 404이며, 그때는 추천 없이 수동 입력으로 진행한다.\n" +
+            "- 저장하는 것이 없다. 결과는 추천일 뿐이고, 사용자가 확인·수정한 뒤 `colors`에서 색상을 골라 그 `combinationSeq`로 발견 신고 등록(8.4)을 호출한다.\n" +
+            "- `colors`는 추천 품종의 색상 선택지다. `breedSeq`가 null이거나 사용자가 품종을 바꾸면 `GET /api/core/v1/animal-combinations?breedSeq=`로 다시 받는다.\n" +
             "- 사진이 여러 장이면 개·고양이가 보이는 사진만 쓰고, 종은 다수결(동률이면 앞 사진), 품종은 사진별 점수의 평균으로 정한다.\n" +
             "- `speciesSeq`가 null이면 개·고양이를 찾지 못한 것, `breedSeq`만 null이면 품종 확신이 낮거나 우리 품종표에 없는 품종이다. null인 칸은 채우지 않는다.\n" +
             "- 모델은 개 15품종·고양이 15품종만 안다. 믹스나 그 밖의 품종도 아는 품종 중 하나로 답할 수 있으니 반드시 사용자가 확인하게 한다.\n" +
@@ -60,7 +62,7 @@ class BreedPredictionController(
         ),
         ApiResponse(
             responseCode = "400",
-            description = "imageSeqs 누락·중복, 또는 1~3개가 아님",
+            description = "imageKeys 누락·중복, 또는 1~3개가 아님",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -85,21 +87,18 @@ class BreedPredictionController(
         ),
         ApiResponse(
             responseCode = "403",
-            description = "SHELTER 계정, 또는 남이 올린 사진",
+            description = "SHELTER 계정",
             content = [
                 Content(
                     mediaType = "application/json",
                     schema = Schema(implementation = FailResponseSchema::class),
-                    examples = [
-                        ExampleObject(name = "AUTH_FORBIDDEN", value = FailExamples.AUTH_FORBIDDEN),
-                        ExampleObject(name = "IMAGE_NOT_OWNED", value = FoundReportController.IMAGE_NOT_OWNED),
-                    ],
+                    examples = [ExampleObject(name = "AUTH_FORBIDDEN", value = FailExamples.AUTH_FORBIDDEN)],
                 ),
             ],
         ),
         ApiResponse(
             responseCode = "404",
-            description = "없는 사진 번호",
+            description = "쓸 수 없는 키: 발급받은 적 없음, 남이 발급받음, 10분 경과, 이미 확정(4.2)함. 추천 없이 수동 입력으로 진행한다",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -125,23 +124,26 @@ class BreedPredictionController(
     fun predict(
         @Parameter(hidden = true) @AuthenticationPrincipal user: AuthUser,
         @Valid @RequestBody request: BreedPredictionRequest,
-    ): BreedPrediction = breedPredictionUseCase.predict(user.userSeq, request.imageSeqs!!)
+    ): BreedPrediction = breedPredictionUseCase.predict(user.userSeq, request.imageKeys!!)
 
     companion object {
         const val SUCCESS =
-            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"speciesSeq":1,"speciesCode":"DOG","breedSeq":21,"breedName":"말티즈","candidates":[{"breedSeq":21,"breedName":"말티즈","score":0.69},{"breedSeq":63,"breedName":"믹스견","score":0.29},{"breedSeq":5,"breedName":"비숑 프리제","score":0.005}]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"speciesSeq":1,"speciesCode":"DOG","breedSeq":21,"breedName":"말티즈","candidates":[{"breedSeq":21,"breedName":"말티즈","score":0.69},{"breedSeq":63,"breedName":"믹스견","score":0.29},{"breedSeq":5,"breedName":"비숑 프리제","score":0.005}],"colors":[{"combinationSeq":88,"colorSeq":3,"colorName":"흰색"},{"combinationSeq":89,"colorSeq":12,"colorName":"크림색"}]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val SPECIES_ONLY =
-            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"speciesSeq":1,"speciesCode":"DOG","breedSeq":null,"breedName":null,"candidates":[{"breedSeq":48,"breedName":"시츄","score":0.41},{"breedSeq":21,"breedName":"말티즈","score":0.38}]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"speciesSeq":1,"speciesCode":"DOG","breedSeq":null,"breedName":null,"candidates":[{"breedSeq":48,"breedName":"시츄","score":0.41},{"breedSeq":21,"breedName":"말티즈","score":0.38}],"colors":[]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val NONE =
-            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"speciesSeq":null,"speciesCode":null,"breedSeq":null,"breedName":null,"candidates":[]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"speciesSeq":null,"speciesCode":null,"breedSeq":null,"breedName":null,"candidates":[],"colors":[]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val UNAVAILABLE =
             """{"status":503,"code":"FOUND_BREED_PREDICTION_UNAVAILABLE","message":"품종 추천을 일시적으로 사용할 수 없습니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
     }
 }
 
 data class BreedPredictionRequest(
-    @field:Schema(description = "사진 번호 1~3개. 본인이 올린 사진만, 중복 불가", example = "[1201, 1202]")
-    @field:NotNull val imageSeqs: List<Long>? = null,
+    @field:Schema(
+        description = "업로드 주소 발급(4.1)으로 받은 imageKey 1~3개. S3 업로드를 마친 뒤, 확정(4.2) 전의 키. 본인이 발급받은 키만, 중복 불가",
+        example = "[\"images/2026/11/3f1c2a9e.jpg\"]",
+    )
+    @field:NotNull val imageKeys: List<String>? = null,
 )
 
 // Swagger 문서 전용 성공 응답 미러(런타임 미사용)

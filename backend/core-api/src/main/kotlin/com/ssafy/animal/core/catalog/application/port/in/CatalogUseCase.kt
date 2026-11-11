@@ -43,6 +43,9 @@ data class AnimalClassification(
 interface BreedLookupUseCase {
     /** 종의 품종 전체를 공식 품종 코드(breed_code)로 찾을 수 있게 돌려준다. 종이 시드에 없으면 null */
     fun findBreedsByCode(speciesCode: SpeciesCode): SpeciesBreeds?
+
+    /** 품종의 유효 색상 조합(5.4의 ?breedSeq= 와 같은 결과). 8.9가 색상 드롭다운용으로 함께 내려준다 */
+    fun findBreedColors(breedSeq: Int): List<AnimalClassification>
 }
 
 data class SpeciesBreeds(val speciesSeq: Int, val byCode: Map<String, BreedRef>)

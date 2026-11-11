@@ -61,6 +61,8 @@ class CatalogService(
     override fun findDistricts(sidoName: String?) =
         catalogRepository.findDistricts(sidoName).map { DistrictView(it.districtCode, it.sidoName, it.sigunguName) }
 
+    override fun findBreedColors(breedSeq: Int) = catalogRepository.findCombinations(breedSeq, null)
+
     override fun findBreedsByCode(speciesCode: SpeciesCode): SpeciesBreeds? {
         val species = catalogRepository.findAllSpecies().firstOrNull { it.speciesCode == speciesCode } ?: return null
         val breeds = catalogRepository.findBreeds(species.speciesSeq).filter { it.breedCode != null }
