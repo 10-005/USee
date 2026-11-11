@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import TrashIcon from '../../assets/icons/common/chat-trash.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,10 +8,28 @@ import { ChatActions } from './ChatActions';
 import { useChatStore } from '../../stores/chatStore';
 import { colors, radius, typography } from '../../theme';
 
-const avatarSource = require('../../assets/images/chat/avatar.png');
+const avatarSource = require('../../assets/images/mypage/profile-default.png');
 export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => void }) {
-  const rooms = useChatStore(state => state.rooms);
+  const storedRooms = useChatStore(state => state.rooms);
+  const rooms = useMemo(
+    () =>
+      storedRooms
+        .flatMap(room => {
+          const last = room.messages.reduce<(typeof room.messages)[number] | undefined>(
+            (latest, message) =>
+              !message.pending && (!latest || Number(message.id) > Number(latest.id))
+                ? message
+                : latest,
+            undefined,
+          );
+          return last ? [{ ...room, last }] : [];
+        })
+        .sort((a, b) => Number(b.last.id) - Number(a.last.id)),
+    [storedRooms],
+  );
   const loaded = useChatStore(state => state.loaded);
+  const loading = useChatStore(state => state.loading);
+  const loadMoreRooms = useChatStore(state => state.loadMoreRooms);
   useEffect(() => {
     const load = () =>
       useChatStore
@@ -27,6 +45,14 @@ export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => voi
   const unreadRooms = rooms.filter(room => room.unreadCount > 0);
   const unreadTotal = unreadRooms.reduce((sum, room) => sum + room.unreadCount, 0);
   const [filter, setFilter] = useState<'전체' | '안 읽음'>('전체');
+  useEffect(() => {
+    if (loaded) {
+      useChatStore
+        .getState()
+        .load(true, filter === '안 읽음')
+        .catch(() => undefined);
+    }
+  }, [filter, loaded]);
   const insets = useSafeAreaInsets();
   const [revealed, setRevealed] = useState<string>();
   const [leaving, setLeaving] = useState<string>();
@@ -60,13 +86,22 @@ export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => voi
         data={filter === '전체' ? rooms : unreadRooms}
         decelerationRate="fast"
         keyExtractor={room => room.id}
+        onEndReached={() => loadMoreRooms(filter === '안 읽음').catch(() => undefined)}
+        onEndReachedThreshold={0.4}
+        onRefresh={() =>
+          useChatStore
+            .getState()
+            .load(true, filter === '안 읽음')
+            .catch(() => undefined)
+        }
+        refreshing={loading}
         ListEmptyComponent={
           <Text style={styles.empty}>
             {loaded ? '표시할 대화가 없습니다.' : '대화를 불러오는 중이에요.'}
           </Text>
         }
         renderItem={({ item }) => {
-          const last = item.messages[item.messages.length - 1];
+          const last = item.last;
           const open = revealed === item.id;
           const swipe = PanResponder.create({
             onMoveShouldSetPanResponderCapture: (_, g) =>
@@ -91,8 +126,13 @@ export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => voi
               )}
               <View style={open && styles.shift}>
                 <ChatListItem
-                  avatarSource={avatarSource}
+                  avatarSource={
+                    item.counterpart.profileImage?.imageUrl
+                      ? { uri: item.counterpart.profileImage.imageUrl }
+                      : avatarSource
+                  }
                   name={item.name}
+                  isShelter={item.counterpart.type === 'SHELTER'}
                   lastMessage={last?.kind === 'photo' ? '사진' : last?.text ?? ''}
                   time={last ? roomTime(last.sentAt) : ''}
                   unreadCount={item.unreadCount}

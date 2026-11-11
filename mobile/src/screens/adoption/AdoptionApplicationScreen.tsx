@@ -366,33 +366,52 @@ function ChoiceGroup({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const columnCount = options.length === 3 ? 3 : 2;
+  const rows = Array.from({ length: Math.ceil(options.length / columnCount) }, (_, index) =>
+    options.slice(index * columnCount, (index + 1) * columnCount),
+  );
   return (
     <View style={styles.choiceGroup}>
-      {options.map(option => (
-        <Pressable
-          key={option}
-          onPress={() => onChange(option)}
-          style={[
-            styles.choice,
-            options.length === 3 ? styles.choiceThird : styles.choiceHalf,
-            value === option && styles.choiceSelected,
-          ]}
-        >
-          <Text
-            adjustsFontSizeToFit
-            minimumFontScale={0.65}
-            numberOfLines={1}
-            style={[styles.choiceText, value === option && styles.choiceTextSelected]}
-          >
-            {option}
-          </Text>
-        </Pressable>
+      {rows.map((row, rowIndex) => (
+        <View key={rowIndex} style={styles.choiceRow}>
+          {row.map(option => (
+            <Pressable
+              key={option}
+              onPress={() => onChange(option)}
+              style={[styles.choice, value === option && styles.choiceSelected]}
+            >
+              <Text
+                adjustsFontSizeToFit
+                minimumFontScale={0.65}
+                numberOfLines={1}
+                style={[styles.choiceText, value === option && styles.choiceTextSelected]}
+              >
+                {option}
+              </Text>
+            </Pressable>
+          ))}
+          {row.length < columnCount
+            ? Array.from({ length: columnCount - row.length }, (_, index) => (
+                <View key={`spacer-${index}`} style={styles.choiceSpacer} />
+              ))
+            : null}
+        </View>
       ))}
     </View>
   );
 }
 
-function CalendarField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function CalendarField({
+  value,
+  onChange,
+  minimumDate,
+  maximumDate,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  minimumDate?: Date;
+  maximumDate?: Date;
+}) {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const parsedValue = value.split('.').map(Number);
   const selectedValue = value
@@ -412,7 +431,9 @@ function CalendarField({ value, onChange }: { value: string; onChange: (value: s
         <CalendarIcon />
       </Pressable>
       <DatePickerModal
-        minimumDate={new Date()}
+        hasValue={Boolean(value)}
+        minimumDate={minimumDate}
+        maximumDate={maximumDate}
         onClose={() => setCalendarOpen(false)}
         onConfirm={selectedDate => {
           const year = selectedDate.getFullYear();
@@ -970,7 +991,11 @@ function StepOne({
         <Text style={styles.fieldError}>이메일 형식에 맞게 입력해 주세요.</Text>
       ) : null}
       <FieldLabel compact>방문 상담 희망일*</FieldLabel>
-      <CalendarField onChange={value => update('visitDate', value)} value={form.visitDate} />
+      <CalendarField
+        minimumDate={new Date()}
+        onChange={value => update('visitDate', value)}
+        value={form.visitDate}
+      />
     </>
   );
 }
@@ -1161,6 +1186,7 @@ function StepThree({ form, questions, update }: StepProps & { questions: Adoptio
           />
           <FieldLabel>이수일*</FieldLabel>
           <CalendarField
+            maximumDate={new Date()}
             onChange={value => update('educationDate', value)}
             value={form.educationDate}
           />
@@ -1293,19 +1319,21 @@ const styles = StyleSheet.create({
   },
   compactInput: { fontSize: 14, lineHeight: 20 },
   textArea: { height: 98, paddingTop: 14 },
-  choiceGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  choiceGroup: { gap: 8 },
+  choiceRow: { flexDirection: 'row', gap: 8 },
   choice: {
     alignItems: 'center',
     borderColor: colors.gray200,
     borderRadius: radius.md,
     borderWidth: 1,
     justifyContent: 'center',
+    flex: 1,
+    minWidth: 0,
     minHeight: 42,
     paddingHorizontal: 14,
   },
   choiceSelected: { backgroundColor: '#3DDC97', borderColor: '#3DDC97' },
-  choiceHalf: { width: '48.8%' },
-  choiceThird: { width: '31.8%' },
+  choiceSpacer: { flex: 1 },
   choiceText: {
     ...typography.bodyRegular14,
     color: colors.gray400,

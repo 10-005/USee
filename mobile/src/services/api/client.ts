@@ -35,3 +35,9 @@ export const notificationClient = createApiClient({
   getAccessToken,
   refresh,
 });
+
+export const chatClient = createApiClient({
+  baseURL: `${API_ORIGIN}/api/chat/v1`,
+  getAccessToken,
+  refresh,
+});

@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Image,
@@ -35,7 +36,7 @@ import {
 } from '../../components/report/ContentReportModal';
 import { useChatStore } from '../../stores/chatStore';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
-import { useContentReportStore } from '../../stores/contentReportStore';
+import { bookmarkKey } from '../../services/bookmarks';
 import { useFoundReportDraftStore } from '../../stores/foundReportDraftStore';
 import { useFoundReportEditStore } from '../../stores/foundReportEditStore';
 import { useFoundReportStore } from '../../stores/foundReportStore';
@@ -62,6 +63,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 export function getContactDisplayValue(contact?: string) {
   return contact ?? '비공개';
 }
+
+import { getPublicProfile } from '../../services/users/userApi';
 
 export function FoundReportDetailScreen({ navigation, route }: Props) {
   const isLostReport = route.name === 'LostReportDetail';
@@ -97,6 +100,8 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [commentPhotoMenuVisible, setCommentPhotoMenuVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [viewerMenuVisible, setViewerMenuVisible] = useState(false);
@@ -108,11 +113,19 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const listRef = useRef<FlatList>(null);
   const scrollRef = useRef<ScrollViewInstance>(null);
   const focusedCommentInputRef = useRef<number | null>(null);
-  const bookmarked = useAdoptionBookmarkStore(state => state.bookmarkedIds.includes(report.id));
+  const bookmarkType = isLostReport ? 'MISSING' : 'FOUND';
+  const bookmarked = useAdoptionBookmarkStore(state =>
+    state.bookmarkKeys.includes(bookmarkKey(bookmarkType, report.id)),
+  );
+  const loadBookmarks = useAdoptionBookmarkStore(state => state.loadBookmarks);
+  const bookmarkPending = useAdoptionBookmarkStore(state =>
+    state.pendingKeys.includes(bookmarkKey(bookmarkType, report.id)),
+  );
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
+  useEffect(() => {
+    loadBookmarks(bookmarkType).catch(() => undefined);
+  }, [bookmarkType, loadBookmarks]);
   const storedStatus = useReportStatusStore(state => state.statusById[report.id]);
-  const contentReports = useContentReportStore(state => state.reports);
-  const addContentReport = useContentReportStore(state => state.addReport);
 
   useEffect(() => {
     if (isLostReport) {
@@ -135,6 +148,25 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const reporterName =
     (isLostReport ? apiLostDetail?.user?.displayName : apiFoundDetail?.reporter?.displayName) ??
     (report.isMine ? '내 닉네임' : '사용자');
+  const reporterId = String(
+    (isLostReport ? apiLostDetail?.user?.userSeq : apiFoundDetail?.reporter?.userSeq) ?? '',
+  );
+  const userSeq = Number(reporterId);
+  const detailPhoto = isLostReport ? null : apiFoundDetail?.reporter?.profileImage;
+  const [profile, setProfile] = useState<{ id: number; uri?: string }>();
+  useEffect(() => {
+    if (!userSeq || detailPhoto) return;
+    let active = true;
+    getPublicProfile(userSeq)
+      .then(result => {
+        if (active) setProfile({ id: userSeq, uri: result.profileImage?.imageUrl });
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [userSeq, detailPhoto]);
+  const reporterPhoto = detailPhoto || (profile?.id === userSeq ? profile?.uri : undefined);
   const openChat = async (name: string, authorId: string) => {
     try {
       const params = await useChatStore
@@ -153,8 +185,9 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   };
 
   useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', event => {
       setKeyboardVisible(true);
+      setKeyboardHeight(event.endCoordinates.height);
       const inputHandle = focusedCommentInputRef.current;
       if (inputHandle !== null) {
         setTimeout(() => {
@@ -166,6 +199,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
     });
     const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
       setKeyboardVisible(false);
+      setKeyboardHeight(0);
       focusedCommentInputRef.current = null;
     });
 
@@ -263,7 +297,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
         title="게시글"
       />
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
+        contentContainerStyle={{ paddingBottom: 120 + insets.bottom + keyboardHeight }}
         decelerationRate="fast"
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
@@ -272,7 +306,11 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
       >
         <View style={styles.reporter}>
           <Image
-            source={require('../../assets/images/found-report/reporter-profile.png')}
+            source={
+              reporterPhoto
+                ? { uri: reporterPhoto }
+                : require('../../assets/images/mypage/profile-default.png')
+            }
             style={styles.profileImage}
           />
           <Text style={[styles.reporterName, report.isMine && styles.myReporterName]}>
@@ -318,11 +356,26 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           <Pressable
             accessibilityLabel="북마크"
             accessibilityRole="button"
-            accessibilityState={{ selected: bookmarked }}
+            accessibilityState={{
+              busy: bookmarkPending,
+              disabled: bookmarkPending,
+              selected: bookmarked,
+            }}
+            disabled={bookmarkPending}
             hitSlop={10}
-            onPress={() => toggleBookmark(report.id)}
+            onPress={() =>
+              toggleBookmark(bookmarkType, report.id).catch(() =>
+                Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
+              )
+            }
           >
-            {bookmarked ? <BookmarkActiveIcon /> : <BookmarkIcon />}
+            {bookmarkPending ? (
+              <ActivityIndicator color={colors.green400} size="small" />
+            ) : bookmarked ? (
+              <BookmarkActiveIcon />
+            ) : (
+              <BookmarkIcon />
+            )}
           </Pressable>
         </View>
         <View style={styles.section}>
@@ -353,16 +406,15 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           }}
           onChat={openChat}
           onEditFocus={revealCommentInput}
+          onPhotoMenuVisibilityChange={setCommentPhotoMenuVisible}
           reportId={report.id}
+          targetType={isLostReport ? 'MISSING' : 'FOUND'}
           targetCommentId={highlightCommentId}
         />
       </ScrollView>
-      {!keyboardVisible && !isCompleted ? (
+      {!keyboardVisible && !commentPhotoMenuVisible && !isCompleted ? (
         <View style={[styles.buttonWrap, { bottom: Math.max(insets.bottom, 12) }]}>
-          <Button
-            onPress={() => openChat(reporterName, report.isMine ? 'self' : 'sisha')}
-            style={styles.chatButton}
-          >
+          <Button onPress={() => openChat(reporterName, reporterId)} style={styles.chatButton}>
             채팅 보내기
           </Button>
         </View>
@@ -542,7 +594,12 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             <Pressable
               onPress={() => {
                 setViewerMenuVisible(false);
-                setReportTarget({ id: `post:${report.id}`, type: 'post' });
+                setReportTarget({
+                  id: `post:${bookmarkType}:${report.id}`,
+                  targetSeq: Number(report.id),
+                  targetType: bookmarkType,
+                  type: 'post',
+                });
               }}
               style={({ pressed }) => [styles.postMenuItem, pressed && styles.pressed]}
             >
@@ -552,22 +609,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
           </View>
         </>
       ) : null}
-      <ContentReportModal
-        alreadyReported={contentReports.some(item => item.targetId === reportTarget?.id)}
-        onClose={() => setReportTarget(null)}
-        onSubmit={reason => {
-          if (!reportTarget) {
-            return;
-          }
-          if (contentReports.some(item => item.targetId === reportTarget.id)) {
-            setReportTarget(null);
-            return;
-          }
-          addContentReport({ reason, targetId: reportTarget.id, targetType: reportTarget.type });
-          setReportTarget(null);
-        }}
-        target={reportTarget}
-      />
+      <ContentReportModal onClose={() => setReportTarget(null)} target={reportTarget} />
       <Modal
         animationType="fade"
         onRequestClose={() => setStatusSheetVisible(false)}

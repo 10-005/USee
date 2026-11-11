@@ -1,10 +1,14 @@
 export type FoundReportReply = {
+  commentSeq?: number;
+  commentType?: 'MISSING_COMMENT' | 'FOUND_COMMENT';
   content: string;
   createdAt: string;
   deleted?: boolean;
   id: string;
   imageUri?: string;
+  imageSeq?: number;
   isMine?: boolean;
+  profileUri?: string;
   nickname: string;
   authorId?: string;
 };
@@ -84,7 +88,8 @@ export type CommentAction =
   | { comment: FoundReportComment; type: 'addComment' }
   | { commentId: string; reply: FoundReportReply; type: 'addReply' }
   | { commentId: string; type: 'delete' }
-  | { commentId: string; content: string; type: 'update' };
+  | { commentId: string; content: string; type: 'update' }
+  | { comments: FoundReportComment[]; type: 'replace' };
 
 const updateReply = (
   comments: FoundReportComment[],
@@ -100,6 +105,9 @@ export function commentReducer(
   comments: FoundReportComment[],
   action: CommentAction,
 ): FoundReportComment[] {
+  if (action.type === 'replace') {
+    return action.comments;
+  }
   if (action.type === 'addComment') {
     return [action.comment, ...comments];
   }

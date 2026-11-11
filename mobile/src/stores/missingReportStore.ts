@@ -3,6 +3,7 @@ import { create } from 'zustand';
 
 import type { LostReport } from '../screens/lost-report/data';
 import { formatKoreanAddress } from '../utils/address';
+import { formatReportDateTime } from '../utils/dateTime';
 import { getApiErrorDisplayMessage } from '../services/api';
 import {
   changeMissingReportStatus,
@@ -57,6 +58,7 @@ export const mapMissingSummary = (report: MissingReportSummary, isMine: boolean)
 export const mapMissingDetail = (report: MissingReportDetail, isMine: boolean): LostReport => ({
   ...mapMissingSummary(report, isMine),
   contact: report.contactPhone ?? undefined,
+  date: formatReportDateTime(report.occurredDttm),
   description: report.description ?? '',
   images: imageSources(report.images.map(image => image.imageUrl)),
 });

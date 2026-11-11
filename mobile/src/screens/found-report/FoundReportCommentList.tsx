@@ -1,5 +1,6 @@
-import { useRef, useReducer, useState } from 'react';
+import { useCallback, useEffect, useRef, useReducer, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -30,12 +31,22 @@ import {
   ContentReportModal,
   type ContentReportTarget,
 } from '../../components/report/ContentReportModal';
-import { useContentReportStore } from '../../stores/contentReportStore';
+import { useProfileStore } from '../../stores/profileStore';
+import {
+  createComment,
+  deleteComment,
+  getCommentType,
+  getCommentThreads,
+  updateComment,
+  type CommentDetail,
+  type CommentTargetType,
+} from '../../services/comments';
+import { getApiErrorDisplayMessage } from '../../services/api';
+import { confirmImage, uploadImageToPendingStorage } from '../../services/images';
 import { colors, typography } from '../../theme';
 import { validatePetImage } from '../MyPage/petRegistration';
 import {
   commentReducer,
-  foundReportComments,
   getCommentContent,
   getCommentCount,
   type FoundReportComment,
@@ -44,17 +55,19 @@ import {
 
 type ComposerProps = {
   compact?: boolean;
+  isSubmitting?: boolean;
   onCancel?: () => void;
   onDismissMenus: () => void;
   onFocus?: (inputHandle: number) => void;
   onPhotoMenuChange: (open: boolean) => void;
   onStartWriting?: () => void;
-  onSubmit: (content: string, imageUri?: string) => void;
+  onSubmit: (content: string, image?: Asset) => Promise<boolean>;
   photoMenuOpen: boolean;
 };
 
 function CommentComposer({
   compact = false,
+  isSubmitting = false,
   onCancel,
   onDismissMenus,
   onFocus,
@@ -66,7 +79,7 @@ function CommentComposer({
   const [content, setContent] = useState('');
   const [focused, setFocused] = useState(false);
   const [image, setImage] = useState<Asset | null>(null);
-  const canSubmit = Boolean(content.trim() || image?.uri);
+  const canSubmit = !isSubmitting && Boolean(content.trim() || image?.uri);
 
   const acceptImage = (asset?: Asset) => {
     if (!asset) {
@@ -131,11 +144,14 @@ function CommentComposer({
     }
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!canSubmit) {
       return;
     }
-    onSubmit(content.trim(), image?.uri);
+    const submitted = await onSubmit(content.trim(), image ?? undefined);
+    if (!submitted) {
+      return;
+    }
     setContent('');
     setImage(null);
     setFocused(false);
@@ -146,6 +162,8 @@ function CommentComposer({
       <View style={[styles.commentInput, focused && styles.commentInputFocused]}>
         <Pressable
           accessibilityLabel="댓글 사진 첨부"
+          accessibilityState={{ disabled: isSubmitting }}
+          disabled={isSubmitting}
           hitSlop={8}
           onPress={event => {
             event.stopPropagation();
@@ -157,6 +175,7 @@ function CommentComposer({
           <PlusIcon height={20} width={20} />
         </Pressable>
         <TextInput
+          editable={!isSubmitting}
           multiline
           onBlur={() => setFocused(false)}
           onChangeText={setContent}
@@ -174,15 +193,15 @@ function CommentComposer({
         <Pressable
           accessibilityLabel="댓글 전송"
           accessibilityRole="button"
-          accessibilityState={{ disabled: !canSubmit }}
+          accessibilityState={{ busy: isSubmitting, disabled: !canSubmit }}
           disabled={!canSubmit}
           onPress={submit}
         >
-          <SendIcon
-            color={canSubmit ? colors.green400 : '#797770'}
-            height={20}
-            width={20}
-          />
+          {isSubmitting ? (
+            <ActivityIndicator color={colors.green400} size="small" />
+          ) : (
+            <SendIcon color={canSubmit ? colors.green400 : '#797770'} height={20} width={20} />
+          )}
         </Pressable>
       </View>
       {image?.uri ? (
@@ -191,6 +210,8 @@ function CommentComposer({
             <Image source={{ uri: image.uri }} style={styles.imagePreview} />
             <Pressable
               accessibilityLabel="첨부 사진 삭제"
+              accessibilityState={{ disabled: isSubmitting }}
+              disabled={isSubmitting}
               hitSlop={8}
               onPress={() => setImage(null)}
               style={styles.removeImage}
@@ -292,7 +313,11 @@ function CommentItem({
           accessibilityState={{ expanded: authorMenuOpen }}
         >
           <Image
-            source={require('../../assets/images/found-report/reporter-profile.png')}
+            source={
+              comment.profileUri
+                ? { uri: comment.profileUri }
+                : require('../../assets/images/mypage/profile-default.png')
+            }
             style={styles.avatar}
           />
         </Pressable>
@@ -377,53 +402,57 @@ function CommentItem({
           style={styles.commentMenu}
         >
           <DotsIcon height={12} width={12} />
+          {menuOpen && comment.isMine ? (
+            <View style={styles.myCommentMenu}>
+              <Pressable
+                onPress={event => {
+                  event.stopPropagation();
+                  onEdit(comment.content);
+                }}
+                style={styles.myCommentMenuItem}
+              >
+                <PetEditIcon height={20} width={20} />
+                <Text style={styles.myCommentMenuText}>수정하기</Text>
+              </Pressable>
+              <Pressable
+                onPress={event => {
+                  event.stopPropagation();
+                  onDelete();
+                }}
+                style={styles.myCommentMenuItem}
+              >
+                <PetTrashIcon height={20} width={20} />
+                <Text style={styles.deleteMenuText}>삭제하기</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          {menuOpen && !comment.isMine ? (
+            <View style={styles.viewerCommentMenu}>
+              <Pressable
+                onPress={event => {
+                  event.stopPropagation();
+                  onReport();
+                }}
+                style={styles.myCommentMenuItem}
+              >
+                <ReportIcon height={20} width={20} />
+                <Text style={styles.reportMenuText}>신고하기</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </Pressable>
       ) : null}
-      {menuOpen && comment.isMine ? (
-        <View style={styles.myCommentMenu}>
+      {authorMenuOpen && !comment.isMine ? (
+        <View style={[styles.viewerCommentMenu, styles.authorMenu]}>
           <Pressable
             onPress={event => {
               event.stopPropagation();
-              onEdit(comment.content);
+              onChat();
             }}
             style={styles.myCommentMenuItem}
           >
-            <PetEditIcon height={20} width={20} />
-            <Text style={styles.myCommentMenuText}>수정하기</Text>
-          </Pressable>
-          <Pressable
-            onPress={event => {
-              event.stopPropagation();
-              onDelete();
-            }}
-            style={styles.myCommentMenuItem}
-          >
-            <PetTrashIcon height={20} width={20} />
-            <Text style={styles.deleteMenuText}>삭제하기</Text>
-          </Pressable>
-        </View>
-      ) : null}
-      {(menuOpen || authorMenuOpen) && !comment.isMine ? (
-        <View style={[styles.viewerCommentMenu, authorMenuOpen && styles.authorMenu]}>
-          <Pressable
-            onPress={event => {
-              event.stopPropagation();
-              if (authorMenuOpen) {
-                onChat();
-              } else {
-                onReport();
-              }
-            }}
-            style={styles.myCommentMenuItem}
-          >
-            {authorMenuOpen ? (
-              <ChatIcon height={20} width={20} />
-            ) : (
-              <ReportIcon height={20} width={20} />
-            )}
-            <Text style={authorMenuOpen ? styles.myCommentMenuText : styles.reportMenuText}>
-              {authorMenuOpen ? '채팅하기' : '신고하기'}
-            </Text>
+            <ChatIcon height={20} width={20} />
+            <Text style={styles.myCommentMenuText}>채팅하기</Text>
           </Pressable>
         </View>
       ) : null}
@@ -437,7 +466,8 @@ type CommentThreadProps = {
   comment: FoundReportComment;
   editingId: string | null;
   menuId: string | null;
-  onAddReply: (commentId: string, content: string, imageUri?: string) => void;
+  submittingReplyId: string | null;
+  onAddReply: (commentId: string, content: string, image?: Asset) => Promise<boolean>;
   onDelete: (commentId: string) => void;
   onEdit: (commentId: string, content: string) => void;
   onEditFocus?: (inputHandle: number) => void;
@@ -458,6 +488,7 @@ function CommentThread({
   comment,
   editingId,
   menuId,
+  submittingReplyId,
   onAddReply,
   onDelete,
   onEdit,
@@ -523,12 +554,13 @@ function CommentThread({
       {replyTargetId === comment.id ? (
         <CommentComposer
           compact
+          isSubmitting={submittingReplyId === comment.id}
           onCancel={() => onReply(null)}
           onDismissMenus={() => onPhotoMenuChange(null)}
           onFocus={onEditFocus}
           onPhotoMenuChange={open => onPhotoMenuChange(open ? `reply-${comment.id}` : null)}
           onStartWriting={() => onReply(comment.id)}
-          onSubmit={(content, imageUri) => onAddReply(comment.id, content, imageUri)}
+          onSubmit={(content, image) => onAddReply(comment.id, content, image)}
           photoMenuOpen={photoMenuId === `reply-${comment.id}`}
         />
       ) : null}
@@ -540,23 +572,72 @@ function CommentThread({
 type FoundReportCommentListProps = {
   onChat: (name: string, authorId: string) => void;
   onEditFocus?: (inputHandle: number) => void;
+  onPhotoMenuVisibilityChange?: (visible: boolean) => void;
   onTargetLayout?: (y: number) => void;
   reportId: string;
+  targetType: CommentTargetType;
   targetCommentId?: string;
 };
+
+function formatCommentDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const year = String(date.getFullYear()).slice(2);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${year}.${month}.${day} ${hour}:${minute}`;
+}
+
+function mapComment(detail: CommentDetail, currentUserSeq: number): FoundReportReply {
+  return {
+    authorId: String(detail.author.userSeq),
+    commentSeq: detail.commentSeq,
+    commentType: detail.commentType,
+    content: detail.body ?? '',
+    createdAt: formatCommentDate(detail.regDttm),
+    deleted: detail.isDeleted,
+    id: String(detail.commentSeq),
+    imageSeq: detail.image?.imageSeq,
+    imageUri: detail.image?.imageUrl,
+    isMine: detail.author.userSeq === currentUserSeq,
+    profileUri: detail.author.profileImage?.imageUrl,
+    nickname: detail.author.displayName,
+  };
+}
+
+async function uploadCommentImage(asset?: Asset) {
+  if (!asset?.uri) {
+    return null;
+  }
+  const contentType = asset.type === 'image/png' ? 'image/png' : 'image/jpeg';
+  const issued = await uploadImageToPendingStorage({
+    byteSize: asset.fileSize ?? 0,
+    contentType,
+    fileName:
+      asset.fileName ?? `comment-${Date.now()}.${contentType === 'image/png' ? 'png' : 'jpg'}`,
+    uri: asset.uri,
+  });
+  return confirmImage(issued.imageKey);
+}
 
 export function FoundReportCommentList({
   onChat,
   onEditFocus,
+  onPhotoMenuVisibilityChange,
   onTargetLayout,
   reportId,
+  targetType,
   targetCommentId,
 }: FoundReportCommentListProps) {
   const listYRef = useRef<number | null>(null);
   const targetRelativeYRef = useRef<number | null>(null);
   const targetReportedRef = useRef(false);
   const insets = useSafeAreaInsets();
-  const [comments, dispatch] = useReducer(commentReducer, foundReportComments);
+  const [comments, dispatch] = useReducer(commentReducer, []);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
@@ -564,8 +645,44 @@ export function FoundReportCommentList({
   const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
   const [reportTarget, setReportTarget] = useState<ContentReportTarget | null>(null);
   const [viewerImageUri, setViewerImageUri] = useState<string | null>(null);
-  const contentReports = useContentReportStore(state => state.reports);
-  const addContentReport = useContentReportStore(state => state.addReport);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [mutating, setMutating] = useState(false);
+  const [submittingTarget, setSubmittingTarget] = useState<string | null>(null);
+  const currentUserSeq = useProfileStore(state => state.profile.userSeq);
+  const loadProfile = useProfileStore(state => state.loadProfile);
+
+  useEffect(() => {
+    onPhotoMenuVisibilityChange?.(photoMenuId !== null);
+    return () => onPhotoMenuVisibilityChange?.(false);
+  }, [onPhotoMenuVisibilityChange, photoMenuId]);
+
+  const targetSeq = Number(reportId);
+  const refreshComments = useCallback(async () => {
+    if (!Number.isFinite(targetSeq)) {
+      throw new Error('댓글 대상 번호가 올바르지 않습니다.');
+    }
+    const threads = await getCommentThreads(targetType, targetSeq);
+    dispatch({
+      comments: threads.map(thread => ({
+        ...mapComment(thread, currentUserSeq),
+        replies: thread.replies.map(reply => mapComment(reply, currentUserSeq)),
+      })),
+      type: 'replace',
+    });
+  }, [currentUserSeq, targetSeq, targetType]);
+
+  useEffect(() => {
+    loadProfile().catch(() => undefined);
+  }, [loadProfile]);
+
+  useEffect(() => {
+    setLoading(true);
+    setLoadError('');
+    refreshComments()
+      .catch(error => setLoadError(getApiErrorDisplayMessage(error, '다시 시도해 주세요.')))
+      .finally(() => setLoading(false));
+  }, [refreshComments]);
 
   const reportTargetPosition = () => {
     if (
@@ -579,35 +696,116 @@ export function FoundReportCommentList({
     onTargetLayout?.(listYRef.current + targetRelativeYRef.current);
   };
 
-  const addComment = (content: string, imageUri?: string) => {
-    dispatch({
-      comment: {
-        content,
-        createdAt: '방금 전',
-        id: `comment-${Date.now()}`,
-        imageUri,
-        isMine: true,
-        nickname: '내 닉네임',
-        replies: [],
-      },
-      type: 'addComment',
-    });
+  const addComment = async (content: string, image?: Asset) => {
+    if (mutating) {
+      return false;
+    }
+    try {
+      setMutating(true);
+      setSubmittingTarget('root');
+      const uploaded = await uploadCommentImage(image);
+      await createComment({
+        body: content || null,
+        imageSeq: uploaded?.imageSeq ?? null,
+        targetSeq,
+        targetType,
+      });
+      await refreshComments();
+      return true;
+    } catch (error) {
+      Alert.alert(
+        '댓글을 등록하지 못했어요',
+        getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'),
+      );
+      return false;
+    } finally {
+      setMutating(false);
+      setSubmittingTarget(null);
+    }
   };
 
-  const addReply = (commentId: string, content: string, imageUri?: string) => {
-    dispatch({
-      commentId,
-      reply: {
-        content,
-        createdAt: '방금 전',
-        id: `reply-${Date.now()}`,
-        imageUri,
-        isMine: true,
-        nickname: '내 닉네임',
-      },
-      type: 'addReply',
-    });
-    setReplyTargetId(null);
+  const addReply = async (commentId: string, content: string, image?: Asset) => {
+    if (mutating) {
+      return false;
+    }
+    try {
+      setMutating(true);
+      setSubmittingTarget(commentId);
+      const uploaded = await uploadCommentImage(image);
+      await createComment({
+        body: content || null,
+        imageSeq: uploaded?.imageSeq ?? null,
+        parentCommentSeq: Number(commentId),
+        targetSeq,
+        targetType,
+      });
+      setReplyTargetId(null);
+      await refreshComments();
+      return true;
+    } catch (error) {
+      Alert.alert(
+        '답글을 등록하지 못했어요',
+        getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'),
+      );
+      return false;
+    } finally {
+      setMutating(false);
+      setSubmittingTarget(null);
+    }
+  };
+
+  const findComment = (commentId: string) => {
+    for (const root of comments) {
+      if (root.id === commentId) {
+        return root;
+      }
+      const reply = root.replies.find(item => item.id === commentId);
+      if (reply) {
+        return reply;
+      }
+    }
+    return null;
+  };
+
+  const editComment = async (commentId: string, content: string) => {
+    const comment = findComment(commentId);
+    if (!comment?.commentSeq || !comment.commentType || mutating) {
+      return;
+    }
+    try {
+      setMutating(true);
+      await updateComment(comment.commentType, comment.commentSeq, { body: content.trim() });
+      setEditingId(null);
+      await refreshComments();
+    } catch (error) {
+      Alert.alert(
+        '댓글을 수정하지 못했어요',
+        getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'),
+      );
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const removeComment = async (commentId: string) => {
+    const comment = findComment(commentId);
+    if (!comment?.commentSeq || !comment.commentType || mutating) {
+      return;
+    }
+    try {
+      setMutating(true);
+      await deleteComment(comment.commentType, comment.commentSeq);
+      setDeleteTargetId(null);
+      setMenuId(null);
+      await refreshComments();
+    } catch (error) {
+      Alert.alert(
+        '댓글을 삭제하지 못했어요',
+        getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'),
+      );
+    } finally {
+      setMutating(false);
+    }
   };
 
   const openMenu = (comment: FoundReportReply, _isReply: boolean) => {
@@ -621,6 +819,8 @@ export function FoundReportCommentList({
       excerpt: getCommentContent(comment),
       id: `${reportId}:${isReply ? 'reply' : 'comment'}:${comment.id}`,
       nickname: comment.nickname,
+      targetSeq: comment.commentSeq ?? Number(comment.id),
+      targetType: comment.commentType ?? getCommentType(targetType),
       type: isReply ? 'reply' : 'comment',
     });
   };
@@ -646,7 +846,26 @@ export function FoundReportCommentList({
       style={styles.container}
     >
       <Text style={styles.title}>{getCommentCount(comments)}개의 댓글</Text>
+      {loading ? <Text style={styles.commentState}>댓글을 불러오는 중이에요</Text> : null}
+      {!loading && loadError ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            setLoading(true);
+            setLoadError('');
+            refreshComments()
+              .catch(error => setLoadError(getApiErrorDisplayMessage(error, '다시 시도해 주세요.')))
+              .finally(() => setLoading(false));
+          }}
+        >
+          <Text style={styles.commentState}>
+            {loadError}
+            {'\n'}다시 시도
+          </Text>
+        </Pressable>
+      ) : null}
       <CommentComposer
+        isSubmitting={submittingTarget === 'root'}
         onDismissMenus={dismissMenus}
         onFocus={onEditFocus}
         onPhotoMenuChange={open => changePhotoMenu(open ? 'root' : null)}
@@ -674,12 +893,12 @@ export function FoundReportCommentList({
           editingId={editingId}
           key={comment.id}
           menuId={menuId}
+          submittingReplyId={submittingTarget}
           onAddReply={addReply}
           onDelete={setDeleteTargetId}
           onEdit={(commentId, content) => {
             if (editingId === commentId) {
-              dispatch({ commentId, content, type: 'update' });
-              setEditingId(null);
+              editComment(commentId, content);
             } else {
               setEditingId(commentId);
               setMenuId(null);
@@ -707,22 +926,7 @@ export function FoundReportCommentList({
           }}
         />
       ))}
-      <ContentReportModal
-        alreadyReported={contentReports.some(item => item.targetId === reportTarget?.id)}
-        onClose={() => setReportTarget(null)}
-        onSubmit={reason => {
-          if (!reportTarget) {
-            return;
-          }
-          if (contentReports.some(item => item.targetId === reportTarget.id)) {
-            setReportTarget(null);
-            return;
-          }
-          addContentReport({ reason, targetId: reportTarget.id, targetType: reportTarget.type });
-          setReportTarget(null);
-        }}
-        target={reportTarget}
-      />
+      <ContentReportModal onClose={() => setReportTarget(null)} target={reportTarget} />
       <Modal
         animationType="fade"
         onRequestClose={() => setDeleteTargetId(null)}
@@ -743,10 +947,8 @@ export function FoundReportCommentList({
               <Pressable
                 onPress={() => {
                   if (deleteTargetId) {
-                    dispatch({ commentId: deleteTargetId, type: 'delete' });
+                    removeComment(deleteTargetId);
                   }
-                  setDeleteTargetId(null);
-                  setMenuId(null);
                 }}
                 style={[styles.modalButton, styles.deleteButton]}
               >
@@ -794,6 +996,7 @@ export function FoundReportCommentList({
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 22, paddingTop: 20 },
   title: { ...typography.bodyRegular14, color: colors.black },
+  commentState: { ...typography.bodyRegular14, color: colors.gray500, marginVertical: 12 },
   composerWrap: { marginBottom: 18, marginTop: 10, position: 'relative', zIndex: 5 },
   compactComposerWrap: { marginLeft: 44, marginTop: 0 },
   commentInput: {
@@ -909,7 +1112,12 @@ const styles = StyleSheet.create({
     width: 142,
     zIndex: 10,
   },
-  authorMenu: { left: 47, right: undefined, top: 19 },
+  authorMenu: {
+    elevation: 4,
+    left: 0,
+    right: undefined,
+    top: 38,
+  },
   myCommentMenuItem: {
     alignItems: 'center',
     flexDirection: 'row',

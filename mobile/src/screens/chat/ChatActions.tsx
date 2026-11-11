@@ -10,12 +10,13 @@ export type ChatAction = 'menu' | 'report' | 'leave';
 
 type Props = {
   action: Exclude<ChatAction, 'report'>;
+  canReport?: boolean;
   onChoose?: (action: 'report' | 'leave') => void;
   onClose: () => void;
   onLeave: () => void;
 };
 
-export function ChatActions({ action, onChoose, onClose, onLeave }: Props) {
+export function ChatActions({ action, canReport = true, onChoose, onClose, onLeave }: Props) {
   const insets = useSafeAreaInsets();
   useEffect(() => {
     if (action !== 'menu') {
@@ -33,14 +34,16 @@ export function ChatActions({ action, onChoose, onClose, onLeave }: Props) {
       <>
         <Pressable accessibilityLabel="메뉴 닫기" style={styles.backdrop} onPress={onClose} />
         <View style={styles.menu}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => onChoose?.('report')}
-            style={styles.option}
-          >
-            <ReportIcon width={20} height={20} />
-            <Text style={styles.dangerText}>신고하기</Text>
-          </Pressable>
+          {canReport ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => onChoose?.('report')}
+              style={styles.option}
+            >
+              <ReportIcon width={20} height={20} />
+              <Text style={styles.dangerText}>신고하기</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             onPress={() => onChoose?.('leave')}

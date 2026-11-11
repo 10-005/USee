@@ -1,6 +1,8 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Animated,
   Easing,
   FlatList,
@@ -42,6 +44,7 @@ import {
   SkeletonGroup,
 } from '../../components/common';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
+import { bookmarkKey } from '../../services/bookmarks';
 import { useAdoptionAnimalStore } from '../../stores/adoptionAnimalStore';
 import { useCatalogStore } from '../../stores/catalogStore';
 import {
@@ -82,15 +85,10 @@ const filterItems: Array<{ key: FilterKey; label: string }> = [
   { key: 'neutered', label: '중성화여부' },
   { key: 'sort', label: '최신순' },
 ];
-const today = new Date();
-const todayLabel = `${today.getFullYear()}.${String(today.getMonth() + 1).padStart(
-  2,
-  '0',
-)}.${String(today.getDate()).padStart(2, '0')}`;
 const initialFilters: AdoptionFilters = {
   gender: '전체',
   neutered: '전체',
-  period: `전체|${todayLabel}`,
+  period: '전체',
   region: '전체',
   sort: '최신순',
   species: '전체',
@@ -155,8 +153,13 @@ export function HomeScreen({ navigation, route }: Props) {
   const [registrationMenuOpen, setRegistrationMenuOpen] = useState(false);
   const [reportFilterOpen, setReportFilterOpen] = useState(false);
   const [filterValues, setFilterValues] = useState(initialFilters);
-  const bookmarkedIds = useAdoptionBookmarkStore(state => state.bookmarkedIds);
+  const bookmarkKeys = useAdoptionBookmarkStore(state => state.bookmarkKeys);
+  const loadBookmarks = useAdoptionBookmarkStore(state => state.loadBookmarks);
+  const pendingBookmarkKeys = useAdoptionBookmarkStore(state => state.pendingKeys);
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
+  useEffect(() => {
+    loadBookmarks('SHELTER_ANIMAL').catch(() => undefined);
+  }, [loadBookmarks]);
   const apiAnimals = useAdoptionAnimalStore(state => state.animals);
   const fetchAnimals = useAdoptionAnimalStore(state => state.fetchAnimals);
   const animalsLoading = useAdoptionAnimalStore(state => state.isLoading);
@@ -392,7 +395,11 @@ export function HomeScreen({ navigation, route }: Props) {
     return value === '전체' ? defaultLabel : value;
   };
 
-  const renderAnimal = ({ item }: { item: AdoptionAnimal }) => (
+  const renderAnimal = ({ item }: { item: AdoptionAnimal }) => {
+    const key = bookmarkKey('SHELTER_ANIMAL', item.id);
+    const bookmarkPending = pendingBookmarkKeys.includes(key);
+    const bookmarked = bookmarkKeys.includes(key);
+    return (
     <Pressable
       accessibilityRole="button"
       onPress={() => navigation.navigate('AdoptionDetail', { animalId: item.id })}
@@ -408,19 +415,32 @@ export function HomeScreen({ navigation, route }: Props) {
         style={[styles.cardImage, { height: cardWidth, width: cardWidth }]}
       />
       <Pressable
-        accessibilityLabel={`[${item.species}]${item.name} 북마크 ${
-          bookmarkedIds.includes(item.id) ? '해제' : '등록'
+        accessibilityLabel={`[${item.species}] ${item.name} 북마크 ${
+          bookmarked ? '해제' : '등록'
         }`}
         accessibilityRole="button"
-        accessibilityState={{ selected: bookmarkedIds.includes(item.id) }}
+        accessibilityState={{
+          busy: bookmarkPending,
+          disabled: bookmarkPending,
+          selected: bookmarked,
+        }}
+        disabled={bookmarkPending}
         hitSlop={8}
         onPress={event => {
           event.stopPropagation();
-          toggleBookmark(item.id);
+          toggleBookmark('SHELTER_ANIMAL', item.id).catch(() =>
+            Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
+          );
         }}
         style={({ pressed }) => [styles.bookmarkButton, pressed && styles.pressed]}
       >
-        {bookmarkedIds.includes(item.id) ? <BookmarkActiveIcon /> : <BookmarkIcon />}
+        {bookmarkPending ? (
+          <ActivityIndicator color={colors.green400} size="small" />
+        ) : bookmarked ? (
+          <BookmarkActiveIcon />
+        ) : (
+          <BookmarkIcon />
+        )}
       </Pressable>
       <View
         style={[
@@ -432,7 +452,7 @@ export function HomeScreen({ navigation, route }: Props) {
         <Text style={styles.statusText}>{item.status}</Text>
       </View>
       <Text numberOfLines={1} style={styles.cardTitle}>
-        [{item.species}]{item.name}
+        [{item.species}] {item.name}
       </Text>
       <View style={styles.cardMetaRow}>
         <MapIcon />
@@ -451,7 +471,8 @@ export function HomeScreen({ navigation, route }: Props) {
         {item.description}
       </Text>
     </Pressable>
-  );
+    );
+  };
 
   const navigationBar = (
     <View style={[styles.navigationWrap, { bottom: insets.bottom + 16 }]}>

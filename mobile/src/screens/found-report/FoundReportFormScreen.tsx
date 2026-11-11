@@ -270,6 +270,7 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
         )}
       </Pressable>
       <DatePickerModal
+        hasValue={Boolean(draft.foundAt)}
         maximumDate={new Date()}
         onClose={() => setDatePickerOpen(false)}
         onConfirm={selectFoundDate}
@@ -572,7 +573,12 @@ function OptionRow({
           }}
           style={[styles.optionButton, value === key && styles.optionButtonSelected]}
         >
-          <Text style={[styles.optionLabel, value === key && styles.optionLabelSelected]}>
+          <Text
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+            numberOfLines={1}
+            style={[styles.optionLabel, value === key && styles.optionLabelSelected]}
+          >
             {label}
           </Text>
         </Pressable>
@@ -656,9 +662,15 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 46,
     justifyContent: 'center',
+    minWidth: 0,
   },
   optionButtonSelected: { backgroundColor: 'rgba(0, 157, 88, 0.08)', borderColor: colors.green400 },
-  optionLabel: { ...typography.bodyRegular16, color: colors.gray300 },
+  optionLabel: {
+    ...typography.bodyRegular16,
+    color: colors.gray300,
+    flexShrink: 1,
+    textAlign: 'center',
+  },
   optionLabelSelected: { color: colors.green400 },
   twoColumn: { flexDirection: 'row', gap: 12 },
   half: { flex: 1 },

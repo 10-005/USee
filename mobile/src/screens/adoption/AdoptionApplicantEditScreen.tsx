@@ -127,6 +127,7 @@ export function AdoptionApplicantEditScreen({ navigation }: Props) {
         </Pressable>
       </View>
       <DatePickerModal
+        hasValue={Boolean(birthDate)}
         maximumDate={new Date()}
         onClose={() => setDatePickerOpen(false)}
         onConfirm={date => {

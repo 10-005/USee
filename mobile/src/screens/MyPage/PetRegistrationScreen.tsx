@@ -65,6 +65,12 @@ type Neutered = '완료' | '미완료' | '모름';
 type Microchip = '완료' | '미완료' | '모름';
 type ApiSpeciesLabel = '개' | '고양이' | '기타';
 
+const uploadPhotoPickerOptions = {
+  maxHeight: 1600,
+  maxWidth: 1600,
+  quality: 0.8 as const,
+};
+
 export function PetRegistrationScreen({ navigation, route }: Props) {
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const isLostReportFlow = route.params?.flow === 'lost-report';
@@ -367,6 +373,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
     setPhotoMenuOpen(false);
     try {
       const result = await launchImageLibrary({
+        ...uploadPhotoPickerOptions,
         mediaType: 'photo',
         selectionLimit: 3 - photos.length,
         includeExtra: true,
@@ -404,7 +411,11 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       }
     }
     try {
-      const result = await launchCamera({ mediaType: 'photo', saveToPhotos: false });
+      const result = await launchCamera({
+        ...uploadPhotoPickerOptions,
+        mediaType: 'photo',
+        saveToPhotos: false,
+      });
       if (result.errorCode) {
         Alert.alert('카메라를 열 수 없어요', result.errorMessage ?? '잠시 후 다시 시도해주세요.');
         return;
@@ -1005,7 +1016,12 @@ function ChoiceField({
             onPress={() => onChange(option)}
             style={[styles.choice, value === option && styles.choiceSelected]}
           >
-            <Text style={[styles.choiceText, value === option && styles.choiceTextSelected]}>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              numberOfLines={1}
+              style={[styles.choiceText, value === option && styles.choiceTextSelected]}
+            >
               {option}
             </Text>
           </Pressable>
@@ -1158,9 +1174,15 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 46,
     justifyContent: 'center',
+    minWidth: 0,
   },
   choiceSelected: { backgroundColor: colors.green200, borderColor: colors.green200 },
-  choiceText: { ...typography.bodyRegular14, color: colors.gray300 },
+  choiceText: {
+    ...typography.bodyRegular14,
+    color: colors.gray300,
+    flexShrink: 1,
+    textAlign: 'center',
+  },
   choiceTextSelected: { color: colors.white, fontFamily: 'Pretendard-Medium' },
   row: { flexDirection: 'row', gap: 13 },
   half: { flex: 1 },

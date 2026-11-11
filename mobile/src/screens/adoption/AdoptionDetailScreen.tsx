@@ -1,14 +1,25 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import BookmarkActiveIcon from '../../assets/icons/common/bookmark-active.svg';
 import BookmarkIcon from '../../assets/icons/common/bookmark.svg';
 import RightArrowGreenIcon from '../../assets/icons/common/right-arrow-green.svg';
+import BadgeIcon from '../../assets/icons/common/badge.svg';
 import { AppHeader, Button, DetailScreenSkeleton } from '../../components/common';
-import { getMyAdoptionApplications } from '../../services/adoption';
+import { getMyAdoptionApplications, getShelter } from '../../services/adoption';
+import { bookmarkKey } from '../../services/bookmarks';
 import { useChatStore } from '../../stores/chatStore';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { useAdoptionAnimalStore } from '../../stores/adoptionAnimalStore';
@@ -46,10 +57,31 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
   const isClosed = detail?.protectionStatus !== 'PROTECTING';
   const canApply = !isClosed && detail?.adoptionStatus === 'AVAILABLE';
   const bookmarked = useAdoptionBookmarkStore(state =>
-    state.bookmarkedIds.includes(route.params.animalId),
+    state.bookmarkKeys.includes(bookmarkKey('SHELTER_ANIMAL', route.params.animalId)),
+  );
+  const loadBookmarks = useAdoptionBookmarkStore(state => state.loadBookmarks);
+  const bookmarkPending = useAdoptionBookmarkStore(state =>
+    state.pendingKeys.includes(bookmarkKey('SHELTER_ANIMAL', route.params.animalId)),
   );
   const toggleBookmark = useAdoptionBookmarkStore(state => state.toggleBookmark);
+  useEffect(() => {
+    loadBookmarks('SHELTER_ANIMAL').catch(() => undefined);
+  }, [loadBookmarks]);
   const shelterName = detail?.shelter?.shelterName ?? apiAnimal?.location ?? '보호소 정보 없음';
+  const shelterSeq = detail?.shelter?.shelterSeq;
+  const [avatar, setAvatar] = useState<{ seq: number; uri: string } | null>(null);
+  useEffect(() => {
+    let active = true;
+    setAvatar(null);
+    if (shelterSeq) {
+      getShelter(shelterSeq).then(shelter => {
+        if (active && shelter.profileImage?.imageUrl) {
+          setAvatar({ seq: shelterSeq, uri: shelter.profileImage.imageUrl });
+        }
+      }).catch(() => undefined);
+    }
+    return () => { active = false; };
+  }, [shelterSeq]);
   const gender = detail?.gender === 'MALE' ? '수컷' : detail?.gender === 'FEMALE' ? '암컷' : '모름';
   const basicInfo = [
     ['공고번호', String(detail?.animalSeq ?? route.params.animalId)],
@@ -77,7 +109,12 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
     try {
       const params = await useChatStore
         .getState()
-        .openPostRoom('adoption', route.params.animalId, shelterName, 'iksan-shelter');
+        .openPostRoom(
+          'adoption',
+          route.params.animalId,
+          shelterName,
+          detail?.shelter?.shelterSeq ?? 0,
+        );
       if (navigation.isFocused()) {
         navigation.navigate('ChatRoom', params);
       }
@@ -143,10 +180,19 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
       >
         <View style={styles.shelterProfile}>
           <Image
-            source={require('../../assets/images/adoption/shelter-profile.jpg')}
+            source={
+              avatar && avatar.seq === shelterSeq
+                ? { uri: avatar.uri }
+                : require('../../assets/images/adoption/shelter-avatar.jpeg')
+            }
             style={styles.profileImage}
           />
-          <Text style={styles.shelterName}>{shelterName}</Text>
+          <View style={styles.shelterNameRow}>
+            <Text numberOfLines={1} style={styles.shelterName}>
+              {shelterName}
+            </Text>
+            <BadgeIcon height={18} width={18} />
+          </View>
           <Text style={styles.profileMeta}>{detail?.regDttm?.slice(0, 10) ?? ''}</Text>
         </View>
         <Image
@@ -168,12 +214,23 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
           <Pressable
             accessibilityLabel="북마크"
             accessibilityRole="button"
-            accessibilityState={{ selected: bookmarked }}
+            accessibilityState={{
+              busy: bookmarkPending,
+              disabled: bookmarkPending,
+              selected: bookmarked,
+            }}
+            disabled={bookmarkPending}
             hitSlop={8}
-            onPress={() => toggleBookmark(route.params.animalId)}
+            onPress={() =>
+              toggleBookmark('SHELTER_ANIMAL', route.params.animalId).catch(() =>
+                Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
+              )
+            }
             style={({ pressed }) => [styles.bookmark, pressed && styles.pressed]}
           >
-            {bookmarked ? (
+            {bookmarkPending ? (
+              <ActivityIndicator color={colors.green400} size="small" />
+            ) : bookmarked ? (
               <BookmarkActiveIcon height={20} width={20} />
             ) : (
               <BookmarkIcon height={20} width={20} />
@@ -259,7 +316,15 @@ const styles = StyleSheet.create({
   errorText: { ...typography.bodyRegular14, color: colors.gray600, textAlign: 'center' },
   shelterProfile: { alignItems: 'center', flexDirection: 'row', height: 62, paddingHorizontal: 26 },
   profileImage: { borderRadius: 20, height: 40, width: 40 },
-  shelterName: { ...typography.bodySemiBold16, color: colors.gray600, flex: 1, marginLeft: 12 },
+  shelterNameRow: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 4,
+    marginLeft: 12,
+    minWidth: 0,
+  },
+  shelterName: { ...typography.bodySemiBold16, color: colors.gray600, flexShrink: 1 },
   profileMeta: { ...typography.captionRegular10, color: colors.gray300 },
   heroImage: { height: 412, width: '100%' },
   titleRow: {

@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   BackHandler,
   FlatList,
@@ -22,24 +23,18 @@ import SendIcon from '../../assets/icons/common/chat-send.svg';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { AppHeader } from '../../components/common';
 import { type PostRef, samePost, useChatStore } from '../../stores/chatStore';
-import {
-  saveChatPhoto,
-  removeChatPhoto,
-  chatPhotoUri,
-} from '../../services/storage/chatPhotoStorage';
 import { colors, typography } from '../../theme';
-import { adoptionAnimals } from '../adoption/data';
-import { foundReports } from '../found-report/data';
-import { lostReports } from '../lost-report/data';
-import { useReportStatusStore } from '../../stores/reportStatusStore';
+import { getShelterAnimal } from '../../services/adoption';
+import { getFoundReport } from '../../services/foundReports';
+import { getMissingReport } from '../../services/missingReports';
 import { ChatActions, type ChatAction } from './ChatActions';
 import {
   ContentReportModal,
   type ContentReportTarget,
 } from '../../components/report/ContentReportModal';
-import { useContentReportStore } from '../../stores/contentReportStore';
 import DotsIcon from '../../assets/icons/common/dots-vertical.svg';
 import PlusIcon from '../../assets/icons/common/plus.svg';
+import BadgeIcon from '../../assets/icons/common/badge.svg';
 
 import CameraIcon from '../../assets/icons/common/photo-camera.svg';
 import LibraryIcon from '../../assets/icons/common/photo-library.svg';
@@ -59,45 +54,89 @@ function PostCard({
   reference: PostRef;
   navigation: Props['navigation'];
 }) {
-  const animal =
-    reference.type === 'adoption'
-      ? adoptionAnimals.find(item => item.id === reference.id)
-      : undefined;
-  const isLost = reference.type === 'lost';
-  const report =
-    reference.type === 'adoption'
-      ? undefined
-      : (isLost ? lostReports : foundReports).find(item => item.id === reference.id);
-  const progress = useReportStatusStore(state => report && state.statusById[report.id]);
-  const post = animal ?? report;
+  const [card, setCard] = useState<{
+    badge: string;
+    imageUrl: string | null;
+    summary: string;
+    title: string;
+  }>();
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const seq = Number(reference.id);
+      if (!Number.isFinite(seq)) {
+        return;
+      }
+      const detail =
+        reference.type === 'adoption'
+          ? await getShelterAnimal(seq)
+          : reference.type === 'lost'
+          ? await getMissingReport(seq)
+          : await getFoundReport(seq);
+      if (!active) {
+        return;
+      }
+      const gender =
+        detail.gender === 'MALE' ? '수컷' : detail.gender === 'FEMALE' ? '암컷' : '모름';
+      const classification = detail.classification;
+      setCard({
+        badge: reference.type === 'adoption' ? '보호' : reference.type === 'lost' ? '실종' : '제보',
+        imageUrl: detail.representativeImageUrl,
+        summary: [
+          detail.age ?? '나이 모름',
+          gender,
+          classification?.colorName ?? '털색 모름',
+          detail.weight ?? '몸무게 모름',
+        ].join(' | '),
+        title: classification
+          ? `[${classification.speciesName}] ${classification.breedName}`
+          : '동물 정보 없음',
+      });
+    };
+    load().catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [reference.id, reference.type]);
   const openPost = () => {
-    if (animal) {
-      navigation.navigate('AdoptionDetail', { animalId: animal.id });
-    } else if (report) {
-      navigation.navigate(isLost ? 'LostReportDetail' : 'FoundReportDetail', {
-        reportId: report.id,
+    if (reference.type === 'adoption') {
+      navigation.navigate('AdoptionDetail', { animalId: reference.id });
+    } else {
+      navigation.navigate(reference.type === 'lost' ? 'LostReportDetail' : 'FoundReportDetail', {
+        reportId: reference.id,
       });
     }
   };
-  const completed = progress
-    ? progress === 'completed'
-    : report?.status === '완료' || report?.status === '종료';
-  const reportBadge = isLost ? (completed ? '종료' : '실종') : completed ? '완료' : '제보';
-  if (!post) {
+  if (!card) {
     return null;
   }
   return (
     <Pressable accessibilityRole="button" onPress={openPost} style={s.post}>
-      <Image source={animal?.image ?? report?.images[0]} style={s.thumb} />
+      <Image
+        source={
+          card.imageUrl
+            ? { uri: card.imageUrl }
+            : require('../../assets/images/mypage/img_pet_card.png')
+        }
+        style={s.thumb}
+      />
       <View style={s.postContent}>
         <View style={s.postHeading}>
-          <Text style={[s.badge, report && (isLost ? s.lostBadge : s.foundBadge)]}>
-            {animal?.status ?? reportBadge}
+          <Text
+            style={[
+              s.badge,
+              reference.type === 'lost' && s.lostBadge,
+              reference.type === 'found' && s.foundBadge,
+            ]}
+          >
+            {card.badge}
           </Text>
-          <Text style={s.postTitle}>{post.name}</Text>
+          <Text numberOfLines={1} style={s.postTitle}>
+            {card.title}
+          </Text>
         </View>
         <Text numberOfLines={2} style={s.postText}>
-          {post.description}
+          {card.summary}
         </Text>
       </View>
     </Pressable>
@@ -108,10 +147,11 @@ export function ChatRoomScreen({ route, navigation }: Props) {
   const { roomId, preview } = route.params;
   const room = useChatStore(state => state.rooms.find(item => item.id === roomId));
   const draft = useChatStore(state => state.drafts[roomId] ?? '');
-  const { setDraft, send, markRead, leave } = useChatStore.getState();
+  const { setDraft, send, markRead, leave, ensureRoom, loadMoreMessages } = useChatStore.getState();
   const list = useRef<FlatList>(null);
   const picking = useRef(false);
   const [action, setAction] = useState<ChatAction>();
+  const [roomLoading, setRoomLoading] = useState(true);
   const [photoMenuOpen, setPhotoMenuOpen] = useState(false);
   useEffect(() => {
     if (!photoMenuOpen) {
@@ -124,21 +164,50 @@ export function ChatRoomScreen({ route, navigation }: Props) {
     return () => back.remove();
   }, [photoMenuOpen]);
   const nickname = room?.name ?? preview?.name;
-  const reportTarget = useMemo<ContentReportTarget | null>(
-    () =>
-      action === 'report' && nickname
-        ? { id: 'chat-user:' + roomId, nickname, type: 'user' }
-        : null,
-    [action, roomId, nickname],
-  );
-  const reported = useContentReportStore(state =>
-    state.reports.some(item => item.targetId === reportTarget?.id),
-  );
+  const reportTarget = useMemo<ContentReportTarget | null>(() => {
+    const userSeq = room?.counterpart.userSeq;
+    return action === 'report' && nickname && typeof userSeq === 'number'
+      ? {
+          id: 'chat-user:' + userSeq,
+          nickname,
+          targetSeq: userSeq,
+          targetType: 'USER',
+          type: 'user',
+        }
+      : null;
+  }, [action, room, nickname]);
+  useEffect(() => {
+    ensureRoom(roomId)
+      .then(() => markRead(roomId))
+      .catch(() => Alert.alert('채팅', '대화 내역을 불러올 수 없어요.'))
+      .finally(() => setRoomLoading(false));
+  }, [ensureRoom, markRead, roomId]);
+  useEffect(() => {
+    if (action === 'report' && nickname && !reportTarget) {
+      Alert.alert('사용자를 신고할 수 없어요', '상대 회원 정보를 확인할 수 없습니다.');
+      setAction(undefined);
+    }
+  }, [action, nickname, reportTarget]);
   const { width } = useWindowDimensions();
   const photoMax = Math.min(260, width * 0.63);
   const newestFirst = useMemo(() => room?.messages.slice().reverse() ?? [], [room?.messages]);
   const pendingPost =
     preview?.post && !samePost(preview.post, newestFirst[0]?.post) ? preview.post : undefined;
+  const sendingPreview = useRef(false);
+  const sendFromRoom = async (photo?: Parameters<typeof send>[1]) => {
+    if (sendingPreview.current) {
+      return;
+    }
+    sendingPreview.current = Boolean(preview);
+    try {
+      await send(roomId, photo, pendingPost ? preview : undefined);
+      if (preview) {
+        navigation.setParams({ preview: undefined });
+      }
+    } finally {
+      sendingPreview.current = false;
+    }
+  };
   const latestId = newestFirst[0]?.id;
   useEffect(() => {
     // In an inverted list the newest message is always at offset zero,
@@ -146,8 +215,8 @@ export function ChatRoomScreen({ route, navigation }: Props) {
     list.current?.scrollToOffset({ offset: 0, animated: false });
   }, [roomId, latestId]);
   useEffect(() => {
-    markRead(roomId).catch(() => Alert.alert('채팅', '대화 내역을 불러올 수 없어요.'));
-  }, [roomId, markRead]);
+    markRead(roomId).catch(() => undefined);
+  }, [latestId, roomId, markRead]);
   const pickPhoto = async (source: 'library' | 'camera') => {
     setPhotoMenuOpen(false);
     if (picking.current) {
@@ -186,17 +255,16 @@ export function ChatRoomScreen({ route, navigation }: Props) {
         Alert.alert('사진 첨부', 'JPG 또는 PNG 사진을 10MB 이하로 선택해 주세요.');
         return;
       }
-      const filename = await saveChatPhoto(asset.uri, asset.type!);
-      try {
-        await send(
-          roomId,
-          { filename, width: asset.width || 1, height: asset.height || 1 },
-          preview,
-        );
-      } catch (error) {
-        await removeChatPhoto(filename).catch(() => {});
-        throw error;
-      }
+      await sendFromRoom(
+        {
+          byteSize: asset.fileSize,
+          contentType: asset.type as 'image/jpeg' | 'image/png',
+          fileName: asset.fileName ?? `chat-${Date.now()}.jpg`,
+          height: asset.height || 1,
+          uri: asset.uri,
+          width: asset.width || 1,
+        },
+      );
     } catch {
       Alert.alert('사진 첨부', '사진을 저장할 수 없어요. 다시 시도해 주세요.');
     } finally {
@@ -207,6 +275,9 @@ export function ChatRoomScreen({ route, navigation }: Props) {
     <SafeAreaView style={s.screen}>
       <AppHeader
         title={nickname ?? '채팅'}
+        titleAccessory={
+          room?.counterpart.type === 'SHELTER' ? <BadgeIcon height={18} width={18} /> : undefined
+        }
         onBackPress={() => navigation.goBack()}
         rightAction={
           <Pressable
@@ -239,6 +310,8 @@ export function ChatRoomScreen({ route, navigation }: Props) {
               contentContainerStyle={s.history}
               keyExtractor={item => item.id}
               keyboardShouldPersistTaps="handled"
+              onEndReached={() => loadMoreMessages(roomId).catch(() => undefined)}
+              onEndReachedThreshold={0.4}
               ListHeaderComponentStyle={pendingPost ? s.previewContainer : undefined}
               ListHeaderComponent={
                 pendingPost ? (
@@ -253,7 +326,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
                 const first = newDay || showCard || previous?.mine !== item.mine;
                 const meta = (
                   <View style={s.meta}>
-                    {item.mine && <Text style={s.unread}>안읽음</Text>}
+                    {item.pending && <Text style={s.sendStatus}>전송 중</Text>}
                     <Text style={s.time}>{timeFormat.format(item.sentAt)}</Text>
                   </View>
                 );
@@ -274,7 +347,11 @@ export function ChatRoomScreen({ route, navigation }: Props) {
                         <View style={s.avatarSlot}>
                           {first && (
                             <Image
-                              source={require('../../assets/images/chat/avatar.png')}
+                              source={
+                                room?.counterpart.profileImage?.imageUrl
+                                  ? { uri: room.counterpart.profileImage.imageUrl }
+                                  : require('../../assets/images/mypage/profile-default.png')
+                              }
                               style={s.avatar}
                             />
                           )}
@@ -285,13 +362,17 @@ export function ChatRoomScreen({ route, navigation }: Props) {
                         <Image
                           accessibilityLabel="채팅 사진"
                           accessible
-                          source={{ uri: chatPhotoUri(item.photo.filename) }}
+                          source={{ uri: item.photo?.uri }}
                           resizeMode="contain"
                           style={[
                             s.photo,
                             {
-                              width: photoMax * Math.min(1, item.photo.width / item.photo.height),
-                              height: photoMax * Math.min(1, item.photo.height / item.photo.width),
+                              width:
+                                photoMax *
+                                Math.min(1, (item.photo?.width ?? 1) / (item.photo?.height ?? 1)),
+                              height:
+                                photoMax *
+                                Math.min(1, (item.photo?.height ?? 1) / (item.photo?.width ?? 1)),
                             },
                           ]}
                         />
@@ -363,8 +444,11 @@ export function ChatRoomScreen({ route, navigation }: Props) {
               accessibilityState={{ disabled: !draft.trim() }}
               onPress={() => {
                 setPhotoMenuOpen(false);
-                send(roomId, undefined, preview).catch(() =>
-                  Alert.alert('채팅', '메시지를 저장할 수 없어요.'),
+                sendFromRoom().catch(error =>
+                  Alert.alert(
+                    '메시지를 보내지 못했어요',
+                    error instanceof Error ? error.message : '잠시 후 다시 시도해 주세요.',
+                  ),
                 );
               }}
               style={s.icon}
@@ -373,25 +457,18 @@ export function ChatRoomScreen({ route, navigation }: Props) {
             </Pressable>
           </View>
         </KeyboardAvoidingView>
+      ) : roomLoading ? (
+        <View style={s.loading}>
+          <ActivityIndicator color={colors.green400} />
+        </View>
       ) : (
         <Text>채팅방을 찾을 수 없어요.</Text>
       )}
-      <ContentReportModal
-        target={reportTarget}
-        alreadyReported={reported}
-        onClose={() => setAction(undefined)}
-        onSubmit={reason => {
-          if (reportTarget) {
-            useContentReportStore
-              .getState()
-              .addReport({ reason, targetId: reportTarget.id, targetType: reportTarget.type });
-          }
-          setAction(undefined);
-        }}
-      />
+      <ContentReportModal target={reportTarget} onClose={() => setAction(undefined)} />
       {action && action !== 'report' && (
         <ChatActions
           action={action}
+          canReport={room?.counterpart.type !== 'SHELTER'}
           onChoose={setAction}
           onClose={() => setAction(undefined)}
           onLeave={async () => {
@@ -410,6 +487,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
 }
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: 'white' },
+  loading: { alignItems: 'center', flex: 1, justifyContent: 'center' },
   history: { flexGrow: 1, justifyContent: 'flex-end' },
   date: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 10 },
   dateText: { ...typography.bodyRegular14, fontSize: 12, color: colors.gray300 },
@@ -440,7 +518,7 @@ const s = StyleSheet.create({
   myText: { color: colors.gray700 },
   meta: { alignItems: 'flex-end' },
   time: { ...typography.captionRegular10, color: colors.gray500 },
-  unread: { ...typography.captionRegular10, color: colors.gray200 },
+  sendStatus: { ...typography.captionRegular10, color: colors.gray500 },
   previewContainer: { paddingBottom: 8 },
   post: {
     flexDirection: 'row',
