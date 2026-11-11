@@ -443,7 +443,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                     gender: report.gender,
                     images: [...report.images],
                     imageSeqs: apiLostDetail?.images.map(image => image.imageSeq) ?? [],
-                    microchipNumber: '',
+                    microchipNumber: apiLostDetail?.microchipNumber ?? '',
                     name: report.name,
                     neutered: report.neutered,
                     sourcePetId: null,
@@ -453,9 +453,9 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                       : Number.parseFloat(report.weight),
                   });
                   updateLostReportDetails({
-                    contact: report.contact ?? '',
+                    contact: apiLostDetail?.contactPhone ?? report.contact ?? '',
                     detailAddress: '',
-                    exposeContact: Boolean(report.contact),
+                    exposeContact: apiLostDetail?.isPhonePublic ?? Boolean(report.contact),
                     latitude: apiLostDetail?.latitude ?? null,
                     location: report.location,
                     longitude: apiLostDetail?.longitude ?? null,

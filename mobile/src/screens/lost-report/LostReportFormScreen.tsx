@@ -108,7 +108,7 @@ export function LostReportFormScreen({ navigation, route }: Props) {
             details.latitude !== null &&
             details.longitude !== null,
         )
-      : PHONE_PATTERN.test(details.contact);
+      : PHONE_PATTERN.test(formatPhone(details.contact));
 
   const goBack = useCallback(() => {
     Keyboard.dismiss();
@@ -398,7 +398,7 @@ function ContactStep({
         placeholder="010-0000-0000"
         placeholderTextColor={colors.gray300}
         style={styles.textInput}
-        value={details.contact}
+        value={formatPhone(details.contact)}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </>

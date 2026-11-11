@@ -134,7 +134,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         : foundReportDraft.neutered === 'unknown'
         ? '모름'
         : ''
-      : isLostReportFlow && lostReportEntryMode === 'manual'
+      : isLostReportFlow && lostReportEntryMode === 'manual' && !route.params?.reportId
       ? ''
       : initialAnimal
       ? initialAnimal.neutered === null
@@ -162,11 +162,13 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         : foundReportDraft.microchipStatus === 'unknown'
         ? '모름'
         : ''
-      : isLostReportFlow && lostReportEntryMode === 'manual'
+      : isLostReportFlow && lostReportEntryMode === 'manual' && !route.params?.reportId
       ? ''
       : initialAnimal
       ? initialAnimal.microchipNumber
         ? '완료'
+        : isLostReportFlow && route.params?.reportId
+        ? '모름'
         : '미완료'
       : '',
   );
