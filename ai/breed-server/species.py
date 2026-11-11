@@ -18,7 +18,8 @@ PROMPTS = {"dog": "a photo of a dog", "cat": "a photo of a cat", "none": "a phot
 
 class SpeciesClassifier:
     def __init__(self):
-        self.model = CLIPModel.from_pretrained(MODEL).eval()
+        # 이 저장소 main에는 .bin만 있다. 변환본(safetensors)까지 받지 않게 .bin만 쓰고, 자동 변환은 Dockerfile ENV로 끈다
+        self.model = CLIPModel.from_pretrained(MODEL, use_safetensors=False).eval()
         self.processor = CLIPProcessor.from_pretrained(MODEL)
         with torch.inference_mode():
             text = self.model.get_text_features(**self.processor(text=list(PROMPTS.values()), return_tensors="pt", padding=True))

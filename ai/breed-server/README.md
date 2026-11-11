@@ -82,6 +82,8 @@ uv pip install --python .venv -r requirements.txt
 
 Docker: `docker build -t breed-server .` (빌드 전에 `models/`가 있어야 한다)
 
+이미지 크기 약 2.2GB(2026-11-11, `docker history` 층 합계: torch 등 패키지 1.27GB, CLIP 가중치 611MB, 품종 모델 223MB, 베이스 약 130MB). 레지스트리 전송량(압축)은 약 1.0GB.
+
 ## 속도 (2026-11-11, CPU 스레드 2개 기준)
 
 종 판별 약 0.3초/장, 품종 약 0.5초/장(개발 PC). 서버 노드 1에서는 종 0.75초, 품종 0.21초였다. 사진 3장이면 3초 안쪽.

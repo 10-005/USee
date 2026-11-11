@@ -8,7 +8,8 @@ RUN pip install --no-cache-dir torch==2.14.1 torchvision==0.29.1 --index-url htt
     && pip install --no-cache-dir -r requirements.txt
 
 # 종 판별용 공개 가중치는 빌드할 때 받아 이미지에 넣는다(실행 중 외부 다운로드 없음)
-ENV HF_HOME=/app/.cache/hf TORCH_HOME=/app/.cache/torch
+# DISABLE_SAFETENSORS_CONVERSION: .bin을 읽을 때 transformers가 safetensors 변환본(605MB)을 따로 내려받는 것을 막는다(빌드·실행 모두)
+ENV HF_HOME=/app/.cache/hf TORCH_HOME=/app/.cache/torch DISABLE_SAFETENSORS_CONVERSION=1
 COPY species.py .
 RUN python -c "from species import SpeciesClassifier; SpeciesClassifier()"
 
