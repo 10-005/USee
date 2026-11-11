@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, {
   Circle,
@@ -15,27 +15,16 @@ import Svg, {
 } from 'react-native-svg';
 
 import { colors, typography } from '../../theme';
+import FilterArrowIcon from '../../assets/icons/common/filter-arrow.svg';
 import {
   dailyAxisStep,
-  expenseItems,
+  expenseGroups,
   reportDailyAmounts,
   REPORT_STAT_ITEMS,
   statTone,
   won,
 } from './reportLabels';
 
-const EXPENSE_PALETTE = [
-  '#99E2B4',
-  '#88D4AB',
-  '#78C6A3',
-  '#67B99A',
-  '#56AB91',
-  '#469D89',
-  '#358F80',
-  '#248277',
-  '#14746F',
-  '#036666',
-];
 const STAT_COLOR = { low: '#A63828', medium: '#89500E', high: '#036666' };
 const RADAR = { cx: 140, cy: 126, radius: 72, labelRadius: 108 };
 const TRACK = 168;
@@ -164,28 +153,30 @@ export function CategorySpending({
   spent: Record<string, number>;
   total: number;
 }) {
-  const items = expenseItems(spent);
+  const groups = useMemo(() => expenseGroups(spent), [spent]);
   const [selected, setSelected] = useState<string>();
-  const active = items.find(item => item.key === selected) ?? items[0];
+  const [expanded, setExpanded] = useState<string>();
+  const active = groups.find(item => item.key === selected) ?? groups.find(item => item.amount > 0);
   let angle = -Math.PI / 2;
-  const slices = items.map((item, index) => {
-    const start = angle;
-    const share = total > 0 ? item.amount / total : 0;
-    angle += share * Math.PI * 2;
-    const middle = (start + angle) / 2;
-    return {
-      ...item,
-      color: EXPENSE_PALETTE[index % EXPENSE_PALETTE.length],
-      path: donutPath(start, angle),
-      dx: Math.cos(middle) * 7,
-      dy: Math.sin(middle) * 7,
-    };
-  });
+  const slices = groups
+    .filter(item => item.amount > 0)
+    .map(item => {
+      const start = angle;
+      const share = total > 0 ? item.amount / total : 0;
+      angle += share * Math.PI * 2;
+      const middle = (start + angle) / 2;
+      return {
+        ...item,
+        path: donutPath(start, angle),
+        dx: Math.cos(middle) * 7,
+        dy: Math.sin(middle) * 7,
+      };
+    });
 
   return (
     <View style={styles.breakdown}>
       <View style={styles.figure}>
-        <Svg overflow="visible" viewBox="0 0 200 200" width="100%" height="100%">
+        <Svg viewBox="0 0 200 200" width="100%" height="100%">
           <Defs>
             {slices.map(item => (
               <RadialGradient
@@ -215,7 +206,10 @@ export function CategorySpending({
               dx={item.dx}
               dy={item.dy}
               gradientId={`expense-${item.key}`}
-              onPress={() => setSelected(item.key)}
+              onPress={() => {
+                setSelected(item.key);
+                setExpanded(item.key);
+              }}
             />
           ))}
         </Svg>
@@ -238,25 +232,55 @@ export function CategorySpending({
         )}
       </View>
       <View>
-        {slices.map(item => {
+        {groups.map(item => {
           const pressed = item.key === active?.key;
+          const open = expanded === item.key;
           return (
-            <Pressable
-              key={item.key}
-              accessibilityRole="button"
-              accessibilityLabel={`${item.label} ${won(item.amount)}`}
-              accessibilityState={{ selected: pressed }}
-              onPress={() => setSelected(item.key)}
-              style={[styles.legendItem, pressed && styles.legendItemActive]}
-            >
-              <View style={[styles.swatch, { backgroundColor: item.color }]} />
-              <Text style={[styles.legendLabel, pressed && styles.legendLabelActive]}>
-                {item.label}
-              </Text>
-              <Text style={[styles.legendAmount, pressed && styles.legendAmountActive]}>
-                {won(item.amount)}
-              </Text>
-            </Pressable>
+            <View key={item.key}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${item.label} ${won(item.amount)}`}
+                accessibilityState={{ selected: pressed, expanded: open }}
+                onPress={() => {
+                  setSelected(item.key);
+                  setExpanded(current => (current === item.key ? undefined : item.key));
+                }}
+                style={[
+                  styles.legendItem,
+                  pressed && { backgroundColor: `${item.color}33`, borderColor: item.color },
+                ]}
+              >
+                <View style={[styles.swatch, { backgroundColor: item.color }]} />
+                <Text style={[styles.legendLabel, pressed && styles.legendLabelActive]}>
+                  {item.label}
+                </Text>
+                <Text style={[styles.legendAmount, pressed && styles.legendAmountActive]}>
+                  {won(item.amount)}
+                </Text>
+                <FilterArrowIcon
+                  width={12}
+                  height={12}
+                  style={open ? styles.expandedArrow : undefined}
+                />
+              </Pressable>
+              {open ? (
+                <View
+                  accessibilityLabel={`${item.label} 구매 내역`}
+                  style={[styles.purchaseList, { borderLeftColor: item.color }]}
+                >
+                  {item.purchases.length > 0 ? (
+                    item.purchases.map(purchase => (
+                      <View key={purchase.key} style={styles.purchaseRow}>
+                        <Text style={styles.purchaseLabel}>{purchase.label}</Text>
+                        <Text style={styles.purchaseAmount}>{won(purchase.amount)}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.emptyPurchases}>구매 내역이 없어요.</Text>
+                  )}
+                </View>
+              ) : null}
+            </View>
           );
         })}
       </View>
@@ -541,7 +565,20 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: 8,
   },
-  legendItemActive: { backgroundColor: '#E8F5EE', borderColor: '#B7DDCA' },
+  expandedArrow: { transform: [{ rotate: '180deg' }] },
+  purchaseList: {
+    borderLeftWidth: 2,
+    gap: 10,
+    marginBottom: 12,
+    marginLeft: 12,
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  purchaseRow: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  purchaseLabel: { ...typography.bodyRegular14, color: colors.gray600, flex: 1 },
+  purchaseAmount: { ...typography.bodyRegular14, color: colors.gray700 },
+  emptyPurchases: { ...typography.bodyRegular14, color: colors.gray500 },
   swatch: { borderRadius: 3, height: 10, width: 10 },
   legendLabel: { ...typography.bodyRegular14, color: colors.gray700, flex: 1 },
   legendLabelActive: { color: '#245C48', fontFamily: 'Pretendard-SemiBold' },
@@ -574,7 +611,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     width: BAR_WIDTH,
   },
-  barShade: { ...StyleSheet.absoluteFillObject },
+  barShade: { ...StyleSheet.absoluteFill },
   barDot: {
     backgroundColor: '#248277',
     borderColor: colors.white,

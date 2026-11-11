@@ -115,7 +115,7 @@ test('shows the finished report sections from the web report layout', async () =
     0,
   );
   expect(
-    renderer.root.findAllByProps({ accessibilityLabel: `선택한 지출 사료 ${won(21200)}` }).length,
+    renderer.root.findAllByProps({ accessibilityLabel: `선택한 지출 식사 ${won(41200)}` }).length,
   ).toBeGreaterThan(0);
   expect(renderer.root.findAllByProps({ children: '1일차 지출' }).length).toBeGreaterThan(0);
   expect(renderer.root.findAllByProps({ children: won(31200) }).length).toBeGreaterThan(0);
@@ -141,10 +141,10 @@ test('shows the finished report sections from the web report layout', async () =
   expect(renderer.root.findAllByProps({ children: '84%' }).length).toBeGreaterThan(0);
 
   await ReactTestRenderer.act(() => {
-    renderer.root.findByProps({ accessibilityLabel: `진료비 ${won(11600)}` }).props.onPress();
+    renderer.root.findByProps({ accessibilityLabel: `생활 ${won(11600)}` }).props.onPress();
   });
   expect(
-    renderer.root.findAllByProps({ accessibilityLabel: `선택한 지출 진료비 ${won(11600)}` }).length,
+    renderer.root.findAllByProps({ accessibilityLabel: `선택한 지출 생활 ${won(11600)}` }).length,
   ).toBeGreaterThan(0);
 
   await ReactTestRenderer.act(() => {
@@ -158,6 +158,32 @@ test('shows the finished report sections from the web report layout', async () =
   });
   expect(navigation.goBack).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('expands grouped purchase amounts and collapses them again', async () => {
+  jest.mocked(getSimulationReport).mockResolvedValue(detail);
+  const renderer = await renderReport();
+  try {
+    const meal = () => renderer.root.findByProps({ accessibilityLabel: `식사 ${won(41200)}` });
+    expect(meal().props.accessibilityState.expanded).toBe(false);
+    expect(renderer.root.findAllByProps({ accessibilityLabel: '식사 구매 내역' })).toHaveLength(0);
+    await ReactTestRenderer.act(() => meal().props.onPress());
+    const purchases = renderer.root.findByProps({ accessibilityLabel: '식사 구매 내역' });
+    expect(purchases.findAllByProps({ children: '사료' }).length).toBeGreaterThan(0);
+    expect(purchases.findAllByProps({ children: '밥그릇' }).length).toBeGreaterThan(0);
+    expect(purchases.findAllByProps({ children: '물그릇' }).length).toBeGreaterThan(0);
+    expect(purchases.findAllByProps({ children: won(21200) }).length).toBeGreaterThan(0);
+    await ReactTestRenderer.act(() => meal().props.onPress());
+    expect(renderer.root.findAllByProps({ accessibilityLabel: '식사 구매 내역' })).toHaveLength(0);
+    await ReactTestRenderer.act(() => {
+      renderer.root.findByProps({ accessibilityLabel: '간식 0원' }).props.onPress();
+    });
+    expect(
+      renderer.root.findAllByProps({ children: '구매 내역이 없어요.' }).length,
+    ).toBeGreaterThan(0);
+  } finally {
+    await ReactTestRenderer.act(() => renderer.unmount());
+  }
 });
 
 test('marks spending over the expected cost', async () => {
