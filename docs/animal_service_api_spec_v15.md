@@ -28,6 +28,7 @@
 | Q516 | **채팅 푸시에 title·body와 `CHAT` 구분값(2026-11-11, 모바일 연동).** data만 보내면 OS가 알림을 띄우지 않고 앱이 직접 로컬 알림을 만들어야 해서, 채팅 푸시도 notification 메시지 **title = `senderDisplayName`, body = `preview`**로 보냅니다. data에는 `notificationType: "CHAT"`을 더해 앱이 저장형 알림과 같은 키로 구분하게 합니다. `CHAT`은 저장 유형(17.1의 9종)에 넣지 않는 푸시 전용 값이라 알림함·`notificationType` 필터·DB CHECK는 그대로이고 `notificationSeq`는 없습니다. 앱이 포그라운드면 OS가 띄우지 않으므로 지금처럼 현재 방 기준으로 판단합니다. 모든 푸시는 Android high priority(절전 중 지연 방지) | 14장·17.8·17.10 |
 | Q517 | **리포트 요약 LLM 생성과 일차별 돌봄 집계 (2026-11-11, 254 구현).** ① 18.18 응답에 `evaluatedDays`·`careGuideline`(하루 권장 횟수 [가안] 밥 3·물 3·배변 청소 2·놀이·간식 2·산책 1)·`dailyCare`(1~7일차 × 행동 5종 횟수)를 더합니다. 저장하지 않고 조회할 때 행동 이력에서 계산하므로 DB 변경이 없습니다. ② 요약 생성기 포트(Q497)에 LLM 구현(OpenAI)을 붙입니다. 서버가 일차별 집계에서 **근거 문장 후보**(잘한 점·아쉬운 점·조언 근거)를 만들어 보내고(일차별 숫자 표·원본 이력은 보내지 않음), LLM은 후보를 골라 `{ overall, good, lacking }` 세 문단으로 잇기만 합니다. 서버가 빈 줄로 이어 `summary`에 저장합니다(일반 텍스트, 마크다운 없음). API 키가 없거나 생성·검증에 실패하면 지금처럼 규칙 문구로 저장합니다(Q444·Q497 유지). 정답 기준은 하루 권장 횟수·건강이 깎이는 위험 구간·돌발 이벤트 정답 행동·최소 예산 네 가지입니다 | 18.18 |
 | Q518 | **채팅 상대 읽음 위치(2026-11-11, 모바일 요청).** 내가 보낸 메시지 옆 미읽음 표시용입니다. ① 14.3 응답에 `counterpartLastReadMessageSeq`(상대 참여자의 `last_read_message_seq`, 읽은 적 없으면 `null`)를 더합니다. 회원↔보호소 방에서 상대가 보호소면 보호소 참여자의 값입니다. ② 14.6으로 읽음 포인터가 **실제로 앞으로 갔을 때만** 커밋 후 상대에게 `room-updates`(`COUNTERPART_READ`, `room` = `{ chatRoomSeq, counterpartLastReadMessageSeq }`)를 보냅니다(되돌리기·같은 값이면 보내지 않음). 보호소에는 담당 계정으로 보냅니다. 앱은 내 메시지 중 `chatMessageSeq`가 이 값보다 큰 것에만 미읽음을 표시합니다. DB 변경 없음 | 14장·14.3·14.6 |
+| Q519 | **발견 신고 사진으로 종·품종 추천(2026-11-11, AI 팀 모델 연동).** 품종을 모르는 제보자를 위해 **8.9 `POST /found-reports/breed-prediction`**을 신설합니다(USER 전용, `imageSeqs` 1~3개). 응답은 `speciesSeq`·`speciesCode`·`breedSeq`·`breedName`·`candidates`이며 확신이 없으면 `null`입니다. **색상은 추천하지 않아** `combinationSeq`는 주지 않고, 앱이 5.4로 그 품종의 색상을 보여 준 뒤 8.4를 그대로 호출합니다(8.4 변경 없음). core-api가 내부 AI 서버(`ai/breed-server`)를 동기 HTTP로 부르고, AI 라벨 → 공식 품종 코드 → `breedSeq` 변환은 core-api가 합니다. 종 판별은 공개 사전학습 모델(COCO 탐지 + ImageNet 분류), 품종은 AI 팀의 개·고양이 각 15품종 분류기입니다. 사진 여러 장은 종 다수결·품종 점수 평균, 기준 미달이면 비웁니다(기준값 [가안]). AI 서버를 쓸 수 없으면 503 `FOUND_BREED_PREDICTION_UNAVAILABLE`이고 앱은 수동 입력으로 진행합니다. DB 변경 없음 | 8.9·19장 |
 | Q520 | **품종표 축소 254 → 234 (2026-11-11, 103).** 발견 신고 사진 품종 추천(AI 품종 모델 개 15·고양이 15)이 품종 **이름**으로 품종표를 찾도록, AI 팀과 정리한 표로 품종 기준정보를 바꿉니다. ① 같은 품종의 공식 코드 중복·별칭·크기/피모 변종 17건과 웰시코기(펨브로크·카디건)를 **대표 품종 하나로 합칩니다**(예: 토이·미니어쳐·미디엄·스탠다드 푸들 → `푸들`, 래빗·미니어쳐·스탠다드 닥스훈트 → `닥스훈트`). 대표 품종의 `breedSeq`는 그대로이고 나머지 `breedSeq`는 **사라집니다**(5.2 목록에서 빠지고 18.1에 보내면 404 `SIMULATION_BREED_NOT_FOUND`). ② 그 품종을 쓰던 반려동물·신고·보호동물은 대표 품종의 **같은 색상** 조합으로 옮기므로 응답의 `breedSeq`·`combinationSeq`·품종 이름이 바뀔 수 있습니다(데이터는 지우지 않음). ③ 이름을 AI 표시 이름에 맞춥니다(골든리트리버·시바견·시추·요크셔테리어·진돗개·프렌치불독·노르웨이숲·랙돌·코리안 숏헤어). ④ 공식 코드가 없는 AI 모델 전용 품종 `말티푸`(개)·`스코티시 스트레이트`(고양이)를 더합니다. 결과 개 196·고양이 37·기타 1. 응답 형태는 그대로이며 앱이 품종 목록을 저장해 두었다면 다시 받아야 합니다. DB는 `animal_service_db_spec_v23.md` | 5.2·5.4 |
 
 ## v14 변경 요약 (v13 → v14)
@@ -748,6 +749,7 @@ v4의 `POST /files/upload-urls`(입양 수료증 비공개 업로드)는 **수�
 | 8.6 | PATCH | `/found-reports/{foundReportSeq}/status` | 작성자/담당 SHELTER | ACTIVE↔CLOSED |
 | 8.7 | DELETE | `/found-reports/{foundReportSeq}` | 작성자 | 발견 신고 소프트 삭제 |
 | 8.8 | GET | `/found-reports/assigned` | SHELTER | 내 보호소 담당 발견 신고 목록 |
+| 8.9 | POST | `/found-reports/breed-prediction` | USER | 사진으로 종·품종 추천(AI, Q519) |
 
 ### 8.1 GET /found-reports · 8.2 GET /found-reports/{id}
 
@@ -846,6 +848,36 @@ v4의 `POST /files/upload-urls`(입양 수료증 비공개 업로드)는 **수�
 - **응답 200 `Page<T>` [초안]** 각 항목에 8.1 목록 필드(Q468로 `gender`·`age`·`isNeutered`·`weight`·`regDttm` 포함) + `reporter:{ name, phone }` + `rescueStatus`(위 4값) + `activeRescueSeq`(비삭제 PROCESSING/DONE 구조의 `rescueSeq`, 없으면 null).
 - **[확정 정책] 신고자 정보(Q470):** `reporter.name`은 `users.name` **실명**이고 `reporter.phone`은 신고의 `reporterPhone`입니다(담당 보호소이므로 둘 다 열람 가능, 현장 연락용). 사용자 앱의 `ActorSummary.displayName`(닉네임)과 달리 **보호소 화면은 실명**을 씁니다. v8까지 항목에 따로 두던 `reporterPhone`은 `reporter.phone`으로 흡수합니다. 작성자가 탈퇴했으면 `name`은 탈퇴 회원 표시 규칙(1.4 `ActorSummary`와 동일)을 따릅니다. 10.2 `foundReportSummary.reporter`와 같은 구성입니다.
 - **오류 [초안]** 400 `COMMON_INVALID_INPUT`(허용값 밖 `status`·`period`·`rescueStatus`, 화이트리스트 밖 정렬), `CATALOG_INVALID_DISTRICT_CODE`.
+
+### 8.9 POST /found-reports/breed-prediction (Q519)
+
+품종을 모르는 제보자를 위해, 발견 신고 작성 화면에서 사진을 올린 직후 종·품종 입력란을 미리 채우는 추천 API입니다. 저장하는 것은 없습니다.
+
+**요청** `{ "imageSeqs": [1201, 1202] }` (4.2로 받은 번호 1~3개, 본인 업로드만, 중복 불가)
+
+**성공 200 `data`**
+```json
+{
+  "speciesSeq": 1,
+  "speciesCode": "DOG",
+  "breedSeq": 21,
+  "breedName": "말티즈",
+  "candidates": [
+    { "breedSeq": 21, "breedName": "말티즈", "score": 0.69 },
+    { "breedSeq": 63, "breedName": "믹스견", "score": 0.29 }
+  ]
+}
+```
+
+- **[확정 정책] 권한:** USER만(SHELTER 403 `AUTH_FORBIDDEN`). 발견 신고 작성(8.4)과 같습니다.
+- **[확정 정책] null의 뜻:** `speciesSeq`·`speciesCode`가 `null`이면 사진에서 개·고양이를 찾지 못한 것이고(나머지도 모두 `null`·빈 배열), `breedSeq`·`breedName`만 `null`이면 품종 확신이 낮거나 우리 품종표에 맞는 품종이 없는 것입니다. 앱은 `null`이 아닌 칸만 채웁니다. `candidates`는 점수 높은 순 최대 3개이며 `breedSeq`가 `null`이어도 참고용으로 내려갑니다.
+- **[확정 정책] 색상은 추천하지 않습니다.** 응답에 `combinationSeq`가 없습니다. 앱은 추천된 품종의 허용 색상을 5.4(`?breedSeq=`)로 보여 주고, 사용자가 색상을 고르면 `combinationSeq`를 정해 8.4를 호출합니다(8.4는 변경 없음).
+- **[확정 정책] 사진 여러 장:** 사진마다 종(개·고양이·없음)을 판정해 동물이 없는 사진은 빼고, 종은 다수결(동률이면 앞 사진), 품종은 그 종으로 판정된 사진들의 점수를 평균해 1등을 고릅니다. 평균이 기준 **[가안 0.6]** 미만이면 `breedSeq`는 `null`입니다. 종 판정 기준은 **[가안 0.5]**. 두 값은 AI 서버 설정값이며 검증 데이터로 정한 값이 아닙니다.
+- **[확정 정책] 호출 시점:** 앱은 사진 구성이 바뀔 때마다 전체 `imageSeqs`로 다시 호출하되, 사용자가 종·품종을 직접 고친 뒤에는 덮어쓰지 않습니다. 서버는 상태를 저장하지 않습니다.
+- **[확정 정책] 모델 범위:** AI 팀 모델은 개 15품종·고양이 15품종만 구분하는 폐쇄형 분류라, 믹스나 그 밖의 품종도 아는 품종 중 하나로 답할 수 있습니다. `score`는 정답 확률로 보정된 값이 아닙니다. 결과는 추천이며 반드시 사용자가 확인합니다.
+- **[확정 정책] 구성:** core-api가 사진 공개 URL을 내부 AI 서버(`ai/breed-server`, 클러스터 내부 전용)에 동기 HTTP로 보냅니다(폼을 바로 채워야 하므로 RabbitMQ를 쓰지 않음, Q432 매칭과 별개). AI 서버는 서비스 DB를 모르고 AI 라벨(`maltese` 등)만 돌려주며, core-api가 라벨 → 공식 품종 코드(`breed_code`, Q507) → `breedSeq`로 바꿉니다.
+- **[가안] 라벨 매핑:** 30개 중 26개는 공식 품종과 일대일입니다. 공식 코드표에서 여러 개로 나뉜 품종은 흔한 쪽으로(`dachshund` → 미니어쳐 닥스훈트 000076, `welsh_corgi` → 웰시 코기 펨브로크 000108), 공식 코드표에 없는 `maltipoo`는 믹스견(000114)으로 둡니다. `scottish_straight`는 맞는 품종이 없어 품종을 비웁니다(종만 채움).
+- **오류** 400 `IMAGE_INVALID_COUNT`, `COMMON_INVALID_INPUT`(누락·중복); 403 `IMAGE_NOT_OWNED`(Q407); 404 `IMAGE_NOT_FOUND`; **503 `FOUND_BREED_PREDICTION_UNAVAILABLE`**(AI 서버 미설정·오류·시간 초과). 앱은 503이면 추천 없이 수동 입력으로 진행합니다(재시도 불필요). 사진 3장이면 2~3초 걸릴 수 있습니다(서버 읽기 대기 10초).
 
 ---
 
@@ -2522,7 +2554,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | `USER_` (반려동물, Q452) | `USER_PET_NOT_FOUND` | 404 | 없음·삭제·**타인 소유**(Q434; `PET_NOT_OWNED` 삭제, v4에서 `PET_NOT_FOUND` 개명). 6장 전용이며 7.4에서는 더 이상 발생하지 않음(Q466) |
 | `MISSING_` | `MISSING_REPORT_NOT_FOUND` | 404 | 없음·삭제·비노출·**타인 신고**(Q434) |
 | `MISSING_` | `MISSING_REPORT_CLOSED` | 409 | CLOSED 본문 수정(Q425). `MISSING_ACTIVE_ALREADY_EXISTS`는 Q505로 삭제 |
-| `FOUND_` | `FOUND_REPORT_NOT_FOUND`, `FOUND_REPORT_CLOSED`, `FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE` | 404/409/409 | 없음·삭제·**타인 신고**(8.6은 작성자·담당 보호소 외, Q434) / CLOSED 본문 수정 / 비삭제 보호소가 하나도 없음 |
+| `FOUND_` | `FOUND_REPORT_NOT_FOUND`, `FOUND_REPORT_CLOSED`, `FOUND_SHELTER_ASSIGNMENT_UNAVAILABLE`, `FOUND_BREED_PREDICTION_UNAVAILABLE` | 404/409/409/503 | 없음·삭제·**타인 신고**(8.6은 작성자·담당 보호소 외, Q434) / CLOSED 본문 수정 / 비삭제 보호소가 하나도 없음 / AI 품종 추천 서버를 쓸 수 없음(8.9, Q519) |
 | `SHELTER_` | `SHELTER_NOT_FOUND` | 404 | 보호소 없음·삭제(`SHELTER_NOT_OWNED`는 토큰 기반이라 발생 경로 없어 삭제, Q442) |
 | `RESCUE_` | `RESCUE_ACTIVE_ALREADY_EXISTS` | 409 | 동일 발견 PROCESSING/DONE 1건 제약 |
 | `RESCUE_` | `RESCUE_NOT_FOUND`, `RESCUE_INVALID_TRANSITION`, `RESCUE_NOT_DONE` | 404/409/409 | 없음·삭제·**다른 보호소의 구조**(Q434) / 전이 불가 / 11.4에서 DONE 아닌 구조 참조(Q442) |
@@ -2784,6 +2816,7 @@ AI 매칭 규칙: 실종×발견은 ACTIVE·비삭제·비탈퇴 양쪽 검증, 
 | Q516 채팅 푸시 title·body (2026-11-11) | title=`senderDisplayName`, body=`preview`, data에 `notificationType: "CHAT"` 추가(저장 유형 아님, `notificationSeq` 없음). 포그라운드 표시는 앱이 현재 방 기준. 모든 푸시 Android high priority | 14장·17.8 |
 | Q517 리포트 LLM 요약·일차별 돌봄 집계 (2026-11-11, 254 구현) | 18.18에 `evaluatedDays`·`careGuideline`·`dailyCare` 추가(조회 시 계산, DB 변경 없음). 요약은 서버가 만든 근거 문장 후보(잘한 점·아쉬운 점·조언 근거)를 LLM에 보내 `{ overall, good, lacking }`을 받아 빈 줄로 이어 저장, 키 없음·실패·검증 탈락(이름 누락·후보에 없는 일차나 숫자 포함)이면 규칙 문구. 권장 횟수·모델·최소 예산은 설정값 [가안] | 18.18 |
 | Q518 채팅 상대 읽음 위치 (2026-11-11) | 14.3에 `counterpartLastReadMessageSeq`(읽은 적 없으면 null). 14.6으로 포인터가 실제로 앞으로 가면 상대에게 `room-updates`(`COUNTERPART_READ`, room=`{ chatRoomSeq, counterpartLastReadMessageSeq }`). 보호소는 담당 계정에게. DB 변경 없음 | 14.3·14.6 |
+| Q519 발견 신고 사진 종·품종 추천 (2026-11-11) | 8.9 `POST /found-reports/breed-prediction` 신설(USER, 사진 1~3장). 종·품종만 추천하고 색상·`combinationSeq`는 사용자가 정함. core-api → 내부 AI 서버 동기 HTTP, 라벨→품종 코드 변환은 core-api. 사진 여러 장은 종 다수결·품종 점수 평균, 기준값·애매한 라벨 4개 매핑은 [가안]. 실패 시 503 `FOUND_BREED_PREDICTION_UNAVAILABLE` | 8.9 |
 | Q520 품종표 축소 (2026-11-11, 103) | 품종 254 → 234(개 196·고양이 37·기타 1). 중복·별칭·변종은 대표 품종 하나로 합치고 나머지 `breedSeq` 삭제, 기존 반려동물·신고·보호동물은 대표 품종의 같은 색상 조합으로 이동. 이름은 AI 품종 모델 한글 표시 이름에 맞춤, AI 전용 말티푸·스코티시 스트레이트 추가. 응답 형태 변경 없음 | 5.2·5.4·DB v23 |
 
 ### 20.2 미결 안건
