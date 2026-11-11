@@ -27,7 +27,7 @@ test('keeps the catalog breed code for every selectable pet', () => {
   ]);
 });
 
-test('starts a simulation with the breed code and reads the session id', async () => {
+test('starts a simulation with the numeric server breed id and reads the session id', async () => {
   const post = jest.fn().mockResolvedValue({
     data: {
       status: 201,
@@ -40,13 +40,10 @@ test('starts a simulation with the breed code and reads the session id', async (
   });
 
   await expect(
-    startSimulationSession(
-      { breedSeq: '000018', animalName: '초코', expectedCost: 150000 },
-      { post },
-    ),
+    startSimulationSession({ breedSeq: 501, animalName: '초코', expectedCost: 150000 }, { post }),
   ).resolves.toEqual({ sessionSeq: 3001 });
   expect(post).toHaveBeenCalledWith('/simulations', {
-    breedSeq: '000018',
+    breedSeq: 501,
     animalName: '초코',
     expectedCost: 150000,
   });
@@ -65,12 +62,27 @@ test('rejects a success body that does not include a session id', async () => {
   });
 
   await expect(
-    startSimulationSession(
-      { breedSeq: '00214', animalName: '나비', expectedCost: 20000 },
-      { post },
-    ),
+    startSimulationSession({ breedSeq: 602, animalName: '나비', expectedCost: 20000 }, { post }),
   ).rejects.toMatchObject({ code: 'UNKNOWN_ERROR' });
 });
+
+test.each(['000100', 0, -1, 1.5, NaN])(
+  'rejects an invalid server breed id %s before sending',
+  async value => {
+    const post = jest.fn();
+    await expect(
+      startSimulationSession(
+        {
+          breedSeq: value as number,
+          animalName: '초코',
+          expectedCost: 150000,
+        },
+        { post },
+      ),
+    ).rejects.toMatchObject({ code: 'COMMON_INVALID_INPUT' });
+    expect(post).not.toHaveBeenCalled();
+  },
+);
 
 test.each([
   ['SIMULATION_ACTIVE_ALREADY_EXISTS', '이미 진행 중인 모의입양이 있어요.'],

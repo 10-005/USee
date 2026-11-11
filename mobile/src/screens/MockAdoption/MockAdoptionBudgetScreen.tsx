@@ -27,6 +27,7 @@ import {
   getShopItemsErrorMessage,
 } from '../../services/simulation/shopItems';
 import { startMockAdoption } from '../../services/storage/mockAdoptionStorage';
+import { resolveSimulationBreedSeq } from '../../services/simulation/breeds';
 import { colors, radius, typography } from '../../theme';
 import { getBudgetError } from './budget';
 import { getPetNameError } from './petName';
@@ -73,18 +74,20 @@ export function MockAdoptionBudgetScreen({ navigation, route }: Props) {
     setSaving(true);
     setSaveError(undefined);
     const request = {
-      breedSeq: pet.breedCode,
       animalName,
       expectedCost: Number(value),
     };
-    const requestKey = `${request.breedSeq}|${request.animalName}|${request.expectedCost}`;
+    const requestKey = `${pet.id}|${request.animalName}|${request.expectedCost}`;
     try {
       let remote: SimulationSession;
       try {
         remote =
           pendingSession.current?.key === requestKey
             ? pendingSession.current.session
-            : await startSimulationSession(request);
+            : await startSimulationSession({
+                ...request,
+                breedSeq: await resolveSimulationBreedSeq(pet),
+              });
         pendingSession.current = { key: requestKey, session: remote };
       } catch (caught) {
         setSaveError(

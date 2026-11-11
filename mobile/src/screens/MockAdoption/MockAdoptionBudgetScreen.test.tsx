@@ -7,6 +7,7 @@ import { Button, TextInput } from '../../components/common';
 import { ApiClientError } from '../../services/api';
 import { startSimulationSession } from '../../services/simulation/session';
 import { ensureSessionShopCatalog } from '../../services/simulation/shopItems';
+import { resolveSimulationBreedSeq } from '../../services/simulation/breeds';
 import { getActiveMockAdoption } from '../../services/storage/mockAdoptionStorage';
 import { getBudgetError } from './budget';
 import { MockAdoptionBudgetScreen } from './MockAdoptionBudgetScreen';
@@ -23,6 +24,14 @@ const startSession = startSimulationSession as jest.MockedFunction<typeof startS
 const ensureCatalog = ensureSessionShopCatalog as jest.MockedFunction<
   typeof ensureSessionShopCatalog
 >;
+
+jest.mock('../../services/simulation/breeds', () => ({
+  resolveSimulationBreedSeq: jest.fn().mockResolvedValue(501),
+}));
+
+beforeEach(() => {
+  jest.mocked(resolveSimulationBreedSeq).mockReset().mockResolvedValue(501);
+});
 
 jest.mock('../../services/simulation/shopItems', () => {
   const actual = jest.requireActual('../../services/simulation/shopItems');
@@ -98,7 +107,7 @@ test('accepts digits only and persists only when starting, with retry on save fa
   });
   expect(startSession).toHaveBeenCalledTimes(1);
   expect(startSession).toHaveBeenCalledWith({
-    breedSeq: '000018',
+    breedSeq: 501,
     animalName: '초코',
     expectedCost: 35000,
   });
@@ -239,7 +248,7 @@ test('does not open the activity when the server already has a session', async (
     await renderer.root.findByType(Button).props.onPress();
   });
   expect(startSession).toHaveBeenCalledWith({
-    breedSeq: '00214',
+    breedSeq: 501,
     animalName: '나비',
     expectedCost: 20000,
   });
@@ -249,6 +258,49 @@ test('does not open the activity when the server already has a session', async (
     renderer.root.findAllByProps({ children: '이미 진행 중인 모의입양이 있어요.' }).length,
   ).toBeGreaterThan(0);
   await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test('sends the resolved numeric shiba id and blocks creation if lookup fails', async () => {
+  await AsyncStorage.clear();
+  startSession.mockReset().mockResolvedValue({ sessionSeq: 3001 });
+  const reset = jest.fn();
+  const props = {
+    navigation: { reset, goBack: jest.fn() },
+    route: {
+      key: 'budget',
+      name: 'MockAdoptionBudget',
+      params: { petId: 'dog-5', petName: '초코' },
+    },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionBudget'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  try {
+    await ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(<MockAdoptionBudgetScreen {...props} />);
+    });
+    await ReactTestRenderer.act(() =>
+      renderer.root.findByType(TextInput).props.onChangeText('35000'),
+    );
+    jest.mocked(resolveSimulationBreedSeq).mockRejectedValueOnce(new Error('offline'));
+    await ReactTestRenderer.act(async () => {
+      await renderer.root.findByType(Button).props.onPress();
+    });
+    expect(startSession).not.toHaveBeenCalled();
+    expect(reset).not.toHaveBeenCalled();
+    jest.mocked(resolveSimulationBreedSeq).mockResolvedValueOnce(812);
+    await ReactTestRenderer.act(async () => {
+      await renderer.root.findByType(Button).props.onPress();
+    });
+    expect(resolveSimulationBreedSeq).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'dog-5', breedCode: '000100' }),
+    );
+    expect(startSession).toHaveBeenCalledWith({
+      breedSeq: 812,
+      animalName: '초코',
+      expectedCost: 35000,
+    });
+  } finally {
+    await ReactTestRenderer.act(() => renderer?.unmount());
+  }
 });
 
 test('dismisses the keyboard and clears focus when the surrounding area is pressed', async () => {
