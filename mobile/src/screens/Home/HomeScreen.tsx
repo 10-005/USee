@@ -74,6 +74,7 @@ import {
   type FilterKey,
   type TwoColumnFilterOptions,
 } from './AdoptionFilterSheet';
+import { useUnreadNotificationBadge } from './useUnreadNotificationBadge';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 const filterItems: Array<{ key: FilterKey; label: string }> = [
@@ -176,6 +177,7 @@ export function HomeScreen({ navigation, route }: Props) {
   const [selectedTab, setSelectedTab] = useState<(typeof navigationItems)[number]['key']>(
     route.params?.initialTab ?? 'adoption',
   );
+  const hasUnreadNotification = useUnreadNotificationBadge();
   const [shortcutSession, setShortcutSession] = useState<MockAdoptionSession | null>(null);
   useEffect(() => {
     let mounted = true;
@@ -585,6 +587,9 @@ export function HomeScreen({ navigation, route }: Props) {
               style={styles.headerIcon}
             >
               <NotificationIcon />
+              {hasUnreadNotification ? (
+                <View accessibilityLabel="읽지 않은 알림" style={styles.notificationDot} />
+              ) : null}
             </Pressable>
           </View>
           <View style={styles.listArea}>
@@ -753,6 +758,17 @@ const styles = StyleSheet.create({
   logo: { height: 34, width: 88 },
   headerIcon: { position: 'absolute', right: 20 },
   pullList: { flex: 1 },
+  notificationDot: {
+    backgroundColor: '#FA705B',
+    borderColor: colors.white,
+    borderRadius: 5,
+    borderWidth: 1,
+    height: 10,
+    position: 'absolute',
+    right: -1,
+    top: -1,
+    width: 10,
+  },
   listArea: { flex: 1 },
   emptyState: { alignItems: 'center', flex: 1, justifyContent: 'center' },
   emptyTitle: { ...typography.bodySemiBold16, color: colors.gray700 },

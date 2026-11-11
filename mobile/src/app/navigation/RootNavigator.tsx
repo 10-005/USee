@@ -1,4 +1,5 @@
 import { StyleSheet, Text } from 'react-native';
+import { useCallback, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -44,6 +45,8 @@ import { ProductDetailScreen } from '../../screens/shop/ProductDetailScreen';
 import { CartScreen } from '../../screens/shop/CartScreen';
 import { InventoryScreen } from '../../screens/shop/InventoryScreen';
 import { useAuthStore } from '../../stores/authStore';
+import { subscribeNotificationOpens } from '../../services/notifications/notificationOpen';
+import { notificationNavigationRef, openPendingNotification } from './notificationNavigation';
 
 const styles = StyleSheet.create({
   walkExitTitle: {
@@ -63,10 +66,19 @@ installSimulationEndedHandler();
 
 export function RootNavigator() {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const openNotification = useCallback(
+    () => openPendingNotification(isAuthenticated),
+    [isAuthenticated],
+  );
+  useEffect(() => subscribeNotificationOpens(openNotification), [openNotification]);
 
   return (
     <>
-      <NavigationContainer>
+      <NavigationContainer
+        ref={notificationNavigationRef}
+        onReady={openNotification}
+        onStateChange={openNotification}
+      >
         <Stack.Navigator
           initialRouteName={isAuthenticated ? 'Home' : 'Login'}
           screenOptions={{ headerShown: false }}

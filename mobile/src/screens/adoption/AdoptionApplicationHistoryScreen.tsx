@@ -148,6 +148,9 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
   }, [route]);
 
   const presentation = applicationStatusPresentation[status];
+  const animalId =
+    route.params.animalId ??
+    (application?.animalSummary ? String(application.animalSummary.animalSeq) : undefined);
   const isDraft = status === 'DRAFT';
   const canCancel = status === 'SUBMITTED';
   const isCanceled = status === 'CANCELED';
@@ -155,20 +158,25 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
   const isApproved = status === 'ADOPTED';
 
   const handleDocumentPress = () => {
+    if (!animalId) {
+      return;
+    }
     if (isDraft) {
-      navigation.navigate('AdoptionApplication', { animalId: route.params.animalId });
+      navigation.navigate('AdoptionApplication', { animalId });
       return;
     }
     if (route.params.applicationSeq) {
       navigation.navigate('AdoptionApplicationReview', {
-        animalId: route.params.animalId,
+        animalId,
         applicationSeq: route.params.applicationSeq,
       });
     }
   };
 
   const handleDeleteOrCancel = async () => {
-    if (!route.params.applicationSeq || isChanging) {return;}
+    if (!route.params.applicationSeq || isChanging) {
+      return;
+    }
     try {
       setIsChanging(true);
       setActionError('');
@@ -187,9 +195,7 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
       setActionError(
         getApiErrorDisplayMessage(
           error,
-          isDraft
-            ? '입양 신청서를 삭제하지 못했어요.'
-            : '입양 신청을 취소하지 못했어요.',
+          isDraft ? '입양 신청서를 삭제하지 못했어요.' : '입양 신청을 취소하지 못했어요.',
         ),
       );
     } finally {
@@ -273,8 +279,8 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
                     application?.animalSummary?.gender === 'MALE'
                       ? '수컷'
                       : application?.animalSummary?.gender === 'FEMALE'
-                        ? '암컷'
-                        : '모름',
+                      ? '암컷'
+                      : '모름',
                     application?.animalSummary?.weight,
                   ]
                     .filter(Boolean)
@@ -286,8 +292,8 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
                     {application?.animalSummary?.isNeutered == null
                       ? '모름'
                       : application.animalSummary.isNeutered
-                        ? 'O'
-                        : 'X'}
+                      ? 'O'
+                      : 'X'}
                   </Text>
                 </Text>
               </View>
@@ -308,9 +314,8 @@ export function AdoptionApplicationHistoryScreen({ navigation, route }: Props) {
             </View>
             <Pressable
               accessibilityRole="button"
-              onPress={() =>
-                navigation.navigate('AdoptionDetail', { animalId: route.params.animalId })
-              }
+              disabled={!animalId}
+              onPress={() => animalId && navigation.navigate('AdoptionDetail', { animalId })}
               style={styles.animalDetailLink}
             >
               <Text style={styles.animalDetailText}>보호동물 상세보기</Text>

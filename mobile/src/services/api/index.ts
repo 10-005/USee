@@ -1,5 +1,11 @@
 export { createApiClient } from './apiClient';
-export { API_BASE_URL, API_ORIGIN, apiClient, simulationClient } from './client';
+export {
+  API_BASE_URL,
+  API_ORIGIN,
+  apiClient,
+  notificationClient,
+  simulationClient,
+} from './client';
 export { ApiClientError, getApiErrorDisplayMessage, getApiFieldError } from './errors';
 export { isApiResponse, readApiData } from './response';
 export type {

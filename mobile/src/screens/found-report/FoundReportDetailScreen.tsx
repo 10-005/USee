@@ -1,7 +1,8 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Alert,
   FlatList,
   Image,
@@ -11,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  type TextInput,
   useWindowDimensions,
   View,
   type NativeScrollEvent,
@@ -45,7 +47,10 @@ import { useLostReportEditStore } from '../../stores/lostReportEditStore';
 import { useMissingReportStore } from '../../stores/missingReportStore';
 import { type ReportProgressStatus, useReportStatusStore } from '../../stores/reportStatusStore';
 import { colors, radius, typography } from '../../theme';
-import { FoundReportCommentList } from './FoundReportCommentList';
+import ChatIcon from '../../assets/icons/common/chat-white.svg';
+import type { Asset } from 'react-native-image-picker';
+import { CommentComposer, FoundReportCommentList } from './FoundReportCommentList';
+import { useInitialCommentScroll } from './useInitialCommentScroll';
 import { getFoundReport } from './data';
 import { getLostReport } from '../lost-report/data';
 
@@ -99,6 +104,42 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const updateLostReportDetails = useLostReportDraftStore(state => state.updateDetails);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const [commentsVisible, setCommentsVisible] = useState(false);
+  const sectionY = useRef(Infinity);
+  const viewport = useRef({ y: 0, height: 0 });
+  const transition = useRef(new Animated.Value(0)).current;
+  const submitComment = useRef<((content: string, image?: Asset) => Promise<boolean>) | null>(null);
+  const composerInput = useRef<ComponentRef<typeof TextInput>>(null);
+  const replyY = useRef<number | null>(null);
+  const draftEmpty = useRef(true);
+  const resetReply = useRef<(() => void) | null>(null);
+  const clearEmptyReply = () => {
+    if (!draftEmpty.current) {
+      return;
+    }
+    resetReply.current?.();
+    setReplyName(undefined);
+    replyY.current = null;
+  };
+  const [replyName, setReplyName] = useState<string>();
+  const [sendingComment, setSendingComment] = useState(false);
+  const [floatingPhotoMenu, setFloatingPhotoMenu] = useState(false);
+  useEffect(() => {
+    const animation = Animated.timing(transition, { toValue: commentsVisible ? 1 : 0, duration: 220, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [commentsVisible, transition]);
+  const updateCommentVisibility = () => {
+    setCommentsVisible(viewport.current.y + viewport.current.height > sectionY.current);
+  };
+  const screenRef = useRef<ComponentRef<typeof View>>(null);
+  const keyboardTop = useRef<number | null>(null);
+  const [keyboardOverlap, setKeyboardOverlap] = useState(0);
+  const updateKeyboardOverlap = () => {
+    screenRef.current?.measureInWindow((_x, y, _width, height) => {
+      setKeyboardOverlap(keyboardTop.current === null ? 0 : Math.max(0, y + height - keyboardTop.current));
+    });
+  };
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [commentPhotoMenuVisible, setCommentPhotoMenuVisible] = useState(false);
@@ -112,6 +153,11 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const [statusSheetVisible, setStatusSheetVisible] = useState(false);
   const listRef = useRef<FlatList>(null);
   const scrollRef = useRef<ScrollViewInstance>(null);
+  const commentScroll = useInitialCommentScroll(
+    scrollRef,
+    route.params.reportId,
+    highlightCommentId,
+  );
   const focusedCommentInputRef = useRef<number | null>(null);
   const bookmarkType = isLostReport ? 'MISSING' : 'FOUND';
   const bookmarked = useAdoptionBookmarkStore(state =>
@@ -155,11 +201,11 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   const detailPhoto = isLostReport ? null : apiFoundDetail?.reporter?.profileImage;
   const [profile, setProfile] = useState<{ id: number; uri?: string }>();
   useEffect(() => {
-    if (!userSeq || detailPhoto) return;
+    if (!userSeq || detailPhoto) {return;}
     let active = true;
     getPublicProfile(userSeq)
       .then(result => {
-        if (active) setProfile({ id: userSeq, uri: result.profileImage?.imageUrl });
+        if (active) {setProfile({ id: userSeq, uri: result.profileImage?.imageUrl });}
       })
       .catch(() => undefined);
     return () => {
@@ -186,8 +232,18 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener('keyboardDidShow', event => {
+      Keyboard.scheduleLayoutAnimation(event);
+      keyboardTop.current = event.endCoordinates.screenY;
+      updateKeyboardOverlap();
       setKeyboardVisible(true);
       setKeyboardHeight(event.endCoordinates.height);
+      requestAnimationFrame(() => {
+        if (replyY.current !== null) {
+          scrollRef.current?.scrollTo({ y: Math.max(0, replyY.current - 24), animated: true });
+        } else {
+          scrollRef.current?.scrollTo({ y: viewport.current.y + event.endCoordinates.height, animated: true });
+        }
+      });
       const inputHandle = focusedCommentInputRef.current;
       if (inputHandle !== null) {
         setTimeout(() => {
@@ -198,6 +254,8 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
       }
     });
     const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      keyboardTop.current = null;
+      setKeyboardOverlap(0);
       setKeyboardVisible(false);
       setKeyboardHeight(0);
       focusedCommentInputRef.current = null;
@@ -272,7 +330,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
   }
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
+    <SafeAreaView onTouchStart={clearEmptyReply} ref={screenRef} onLayout={updateKeyboardOverlap} edges={['top']} style={styles.safeArea}>
       <AppHeader
         onBackPress={navigation.goBack}
         rightAction={
@@ -296,132 +354,216 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
         }
         title="게시글"
       />
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 120 + insets.bottom + keyboardHeight }}
-        decelerationRate="fast"
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
-        ref={scrollRef}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.reporter}>
-          <Image
-            source={
-              reporterPhoto
-                ? { uri: reporterPhoto }
-                : require('../../assets/images/mypage/profile-default.png')
-            }
-            style={styles.profileImage}
-          />
-          <Text style={[styles.reporterName, report.isMine && styles.myReporterName]}>
-            {reporterName}
-          </Text>
-          <Text style={styles.reportMeta}>1시간 전</Text>
-        </View>
-        <View>
-          <FlatList
-            data={report.images}
-            horizontal
-            keyExtractor={(_item, index) => `${report.id}-image-${index}`}
-            onMomentumScrollEnd={onMomentumEnd}
-            pagingEnabled
-            ref={listRef}
-            renderItem={({ item }) => (
-              <Image resizeMode="cover" source={item} style={{ height: width, width }} />
-            )}
-            showsHorizontalScrollIndicator={false}
-          />
-          {report.images.length > 1 ? (
-            <View style={styles.indicators}>
-              {report.images.map((_image, index) => (
-                <View
-                  key={index}
-                  style={[styles.indicator, index === page && styles.activeIndicator]}
-                />
-              ))}
-            </View>
-          ) : null}
-        </View>
-        <View style={styles.titleRow}>
-          <View
-            style={[
-              styles.badge,
-              isLostReport && styles.lostBadge,
-              isCompleted && styles.closedBadge,
-            ]}
-          >
-            <Text style={styles.badgeText}>{displayStatus}</Text>
-          </View>
-          <Text style={styles.title}>{report.name}</Text>
-          <Pressable
-            accessibilityLabel="북마크"
-            accessibilityRole="button"
-            accessibilityState={{
-              busy: bookmarkPending,
-              disabled: bookmarkPending,
-              selected: bookmarked,
-            }}
-            disabled={bookmarkPending}
-            hitSlop={10}
-            onPress={() =>
-              toggleBookmark(bookmarkType, report.id).catch(() =>
-                Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
-              )
-            }
-          >
-            {bookmarkPending ? (
-              <ActivityIndicator color={colors.green400} size="small" />
-            ) : bookmarked ? (
-              <BookmarkActiveIcon />
-            ) : (
-              <BookmarkIcon />
-            )}
-          </Pressable>
-        </View>
-        <View style={styles.section}>
-          <InfoRow
-            label="성별"
-            value={`${report.gender} (중성화 ${
-              report.neutered === null ? '모름' : report.neutered ? 'O' : 'X'
-            })`}
-          />
-          <InfoRow label="나이" value={report.age} />
-          <InfoRow label="몸무게" value={report.weight} />
-          <InfoRow label="털색" value={report.color} />
-        </View>
-        <View style={styles.section}>
-          <InfoRow label={isLostReport ? '실종일' : '발견일'} value={report.date} />
-          <InfoRow label={isLostReport ? '실종장소' : '발견장소'} value={report.location} />
-          <InfoRow
-            label="연락처"
-            value={isLostReport
-              ? getContactDisplayValue(apiLostDetail?.contactPhone, apiLostDetail?.isPhonePublic)
-              : getContactDisplayValue(apiFoundDetail?.reporterPhone, apiFoundDetail?.isPhonePublic)}
-          />
-        </View>
-        <View style={styles.descriptionSection}>
-          <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
-          <Text style={styles.description}>{report.description.trim() || '-'}</Text>
-        </View>
-        <FoundReportCommentList
-          onTargetLayout={y => {
-            setTimeout(() => {
-              scrollRef.current?.scrollTo({ animated: true, y: Math.max(0, y - 80) });
-            }, 250);
+      <View style={styles.contentBody}>
+        <ScrollView
+          key={`${route.params.reportId}:${highlightCommentId ?? ''}`}
+          style={commentScroll.waiting ? styles.hiddenContent : undefined}
+          pointerEvents={commentScroll.waiting ? 'none' : 'auto'}
+          accessibilityElementsHidden={commentScroll.waiting}
+          importantForAccessibility={commentScroll.waiting ? 'no-hide-descendants' : 'auto'}
+          onLayout={event => {
+            commentScroll.onLayout(event);
+            viewport.current.height = event.nativeEvent.layout.height;
+            updateCommentVisibility();
           }}
-          onChat={openChat}
-          onEditFocus={revealCommentInput}
-          onPhotoMenuVisibilityChange={setCommentPhotoMenuVisible}
-          reportId={report.id}
-          targetType={isLostReport ? 'MISSING' : 'FOUND'}
-          targetCommentId={highlightCommentId}
-        />
-      </ScrollView>
-      {!keyboardVisible && !commentPhotoMenuVisible && !isCompleted ? (
-        <View style={[styles.buttonWrap, { bottom: Math.max(insets.bottom, 12) }]}>
-          <Button onPress={() => openChat(reporterName, reporterId)} style={styles.chatButton}>
-            채팅 보내기
-          </Button>
+          onContentSizeChange={commentScroll.onContentSizeChange}
+          onScroll={event => {
+            commentScroll.onScroll(event);
+            viewport.current.y = event.nativeEvent.contentOffset.y;
+            updateCommentVisibility();
+          }}
+          onTouchStart={clearEmptyReply}
+          onScrollBeginDrag={clearEmptyReply}
+          scrollEventThrottle={16}
+          contentContainerStyle={{ paddingBottom: 120 + insets.bottom + keyboardHeight }}
+          decelerationRate="fast"
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          ref={scrollRef}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.reporter}>
+            <Image
+              source={
+                reporterPhoto
+                  ? { uri: reporterPhoto }
+                  : require('../../assets/images/mypage/profile-default.png')
+              }
+              style={styles.profileImage}
+            />
+            <Text style={[styles.reporterName, report.isMine && styles.myReporterName]}>
+              {reporterName}
+            </Text>
+            <Text style={styles.reportMeta}>1시간 전</Text>
+          </View>
+          <View>
+            <FlatList
+              data={report.images}
+              horizontal
+              keyExtractor={(_item, index) => `${report.id}-image-${index}`}
+              onMomentumScrollEnd={onMomentumEnd}
+              pagingEnabled
+              ref={listRef}
+              renderItem={({ item }) => (
+                <Image resizeMode="cover" source={item} style={{ height: width, width }} />
+              )}
+              showsHorizontalScrollIndicator={false}
+            />
+            {report.images.length > 1 ? (
+              <View style={styles.indicators}>
+                {report.images.map((_image, index) => (
+                  <View
+                    key={index}
+                    style={[styles.indicator, index === page && styles.activeIndicator]}
+                  />
+                ))}
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.titleRow}>
+            <View
+              style={[
+                styles.badge,
+                isLostReport && styles.lostBadge,
+                isCompleted && styles.closedBadge,
+              ]}
+            >
+              <Text style={styles.badgeText}>{displayStatus}</Text>
+            </View>
+            <Text style={styles.title}>{report.name}</Text>
+            <Pressable
+              accessibilityLabel="북마크"
+              accessibilityRole="button"
+              accessibilityState={{
+                busy: bookmarkPending,
+                disabled: bookmarkPending,
+                selected: bookmarked,
+              }}
+              disabled={bookmarkPending}
+              hitSlop={10}
+              onPress={() =>
+                toggleBookmark(bookmarkType, report.id).catch(() =>
+                  Alert.alert('북마크 변경 실패', '잠시 후 다시 시도해 주세요.'),
+                )
+              }
+            >
+              {bookmarkPending ? (
+                <ActivityIndicator color={colors.green400} size="small" />
+              ) : bookmarked ? (
+                <BookmarkActiveIcon />
+              ) : (
+                <BookmarkIcon />
+              )}
+            </Pressable>
+          </View>
+          <View style={styles.section}>
+            <InfoRow
+              label="성별"
+              value={`${report.gender} (중성화 ${
+                report.neutered === null ? '모름' : report.neutered ? 'O' : 'X'
+              })`}
+            />
+            <InfoRow label="나이" value={report.age} />
+            <InfoRow label="몸무게" value={report.weight} />
+            <InfoRow label="털색" value={report.color} />
+          </View>
+          <View style={styles.section}>
+            <InfoRow label={isLostReport ? '실종일' : '발견일'} value={report.date} />
+            <InfoRow label={isLostReport ? '실종장소' : '발견장소'} value={report.location} />
+            <InfoRow
+              label="연락처"
+              value={
+                isLostReport
+                  ? getContactDisplayValue(apiLostDetail?.contactPhone, apiLostDetail?.isPhonePublic)
+                  : getContactDisplayValue(apiFoundDetail?.reporterPhone, apiFoundDetail?.isPhonePublic)
+              }
+            />
+          </View>
+          <View style={styles.descriptionSection}>
+            <Text style={styles.descriptionLabel}>특징 및 상세내용</Text>
+            <Text style={styles.description}>{report.description.trim() || '-'}</Text>
+          </View>
+          <FoundReportCommentList
+            onReplySelect={(name, y) => {
+              setReplyName(name);
+              replyY.current = y;
+              scrollRef.current?.scrollTo({ y: Math.max(0, y - 24), animated: true });
+              composerInput.current?.focus();
+            }}
+            resetReplyRef={resetReply}
+            floatingComposer
+            submitRef={submitComment}
+            onSectionLayout={y => {
+              sectionY.current = y;
+              updateCommentVisibility();
+            }}
+            onTargetLayout={commentScroll.onTargetLayout}
+            onTargetUnavailable={commentScroll.onTargetUnavailable}
+            onChat={openChat}
+            onEditFocus={revealCommentInput}
+            onPhotoMenuVisibilityChange={setCommentPhotoMenuVisible}
+            reportId={report.id}
+            targetType={isLostReport ? 'MISSING' : 'FOUND'}
+            targetCommentId={highlightCommentId}
+          />
+        </ScrollView>
+        {commentScroll.waiting ? (
+          <View style={StyleSheet.absoluteFill}>
+            <DetailScreenSkeleton accessibilityLabel="알림 댓글 위치 불러오는 중" />
+          </View>
+        ) : null}
+      </View>
+      {!commentScroll.waiting && !commentPhotoMenuVisible ? (
+        <View onTouchStart={event => event.stopPropagation()} style={[styles.buttonWrap, styles.floatingRow, keyboardVisible ? [styles.keyboardDock, { bottom: keyboardOverlap }] : { bottom: Math.max(insets.bottom, 12) }]}>
+          <Animated.View pointerEvents={commentsVisible ? 'auto' : 'none'} style={{
+            width: width - 52,
+            opacity: transition,
+            transform: [
+              { translateY: transition.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
+              { scale: transition.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
+            ],
+          }}>
+            <CommentComposer
+              floating
+              inputRef={composerInput}
+              replyName={replyName}
+              onDraftEmptyChange={empty => { draftEmpty.current = empty; }}
+              isSubmitting={sendingComment}
+              onDismissMenus={() => setFloatingPhotoMenu(false)}
+              onPhotoMenuChange={setFloatingPhotoMenu}
+              onStartWriting={() => {}}
+              photoMenuOpen={floatingPhotoMenu}
+              onSubmit={async (content, image) => {
+                setSendingComment(true);
+                try {
+                  const sent = await submitComment.current?.(content, image) ?? false;
+                  if (sent) { setReplyName(undefined); replyY.current = null; }
+                  return sent;
+                }
+                finally { setSendingComment(false); }
+              }}
+            />
+          </Animated.View>
+          {!isCompleted && !keyboardVisible ? (
+            <>
+              <Animated.View pointerEvents={commentsVisible ? 'none' : 'auto'} style={[styles.fullChat, {
+                opacity: transition.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }),
+                transform: [{ scaleX: transition.interpolate({ inputRange: [0, 1], outputRange: [1, 48 / (width - 52)] }) }],
+              }]}>
+                <Pressable accessibilityLabel="채팅 보내기" onPress={() => openChat(reporterName, reporterId)} style={[styles.chatButton, styles.floatingChat]}>
+                  <Text style={{ color: colors.white }}>채팅 보내기</Text>
+                </Pressable>
+              </Animated.View>
+              <Animated.View pointerEvents={commentsVisible ? 'auto' : 'none'} style={[styles.raisedChat, {
+                opacity: transition,
+                transform: [{ translateY: transition.interpolate({ inputRange: [0, 1], outputRange: [68, 0] }) }],
+              }]}>
+                <Pressable accessibilityLabel="채팅 보내기" onPress={() => openChat(reporterName, reporterId)} style={[styles.chatButton, styles.floatingChat]}>
+                  <ChatIcon width={24} height={24} color={colors.white} />
+                </Pressable>
+              </Animated.View>
+            </>
+          ) : null}
         </View>
       ) : null}
       {menuVisible ? (
@@ -729,6 +871,8 @@ function StatusOption({
 }
 
 const styles = StyleSheet.create({
+  contentBody: { flex: 1 },
+  hiddenContent: { opacity: 0 },
   loadError: {
     alignItems: 'center',
     flex: 1,
@@ -803,6 +947,11 @@ const styles = StyleSheet.create({
   },
   descriptionLabel: { ...typography.bodyRegular14, color: colors.gray400 },
   description: { ...typography.bodyRegular14, color: colors.black, marginTop: 10 },
+  fullChat: { position: 'absolute', left: 26, right: 26, bottom: 12 },
+  raisedChat: { width: 48, position: 'absolute', right: 26, bottom: '100%', marginBottom: 20 },
+  keyboardDock: { bottom: 0, paddingBottom: 0 },
+  floatingRow: { alignItems: 'flex-end' },
+  floatingChat: { height: 48, borderRadius: 24, backgroundColor: colors.green400, alignItems: 'center', justifyContent: 'center' },
   buttonWrap: {
     left: 0,
     paddingHorizontal: 26,

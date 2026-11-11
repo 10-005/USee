@@ -1,5 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -30,6 +31,7 @@ import { colors, typography } from '../../theme';
 import { getShelterAnimal } from '../../services/adoption';
 import { getFoundReport } from '../../services/foundReports';
 import { getMissingReport } from '../../services/missingReports';
+import { trackVisibleChatRoom } from '../../services/notifications/visibleChatRoom';
 import { ChatActions, type ChatAction } from './ChatActions';
 import {
   ContentReportModal,
@@ -180,6 +182,7 @@ function PostCard({
 
 export function ChatRoomScreen({ route, navigation }: Props) {
   const { roomId, preview } = route.params;
+  useFocusEffect(useCallback(() => trackVisibleChatRoom(roomId), [roomId]));
   const room = useChatStore(state => state.rooms.find(item => item.id === roomId));
   const draft = useChatStore(state => state.drafts[roomId] ?? '');
   const { setDraft, send, markRead, leave, ensureRoom, loadMoreMessages } = useChatStore.getState();

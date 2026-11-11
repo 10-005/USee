@@ -1,20 +1,45 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useState } from 'react';
-import { FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  AppState,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../../app/navigation/types';
 import { AppHeader } from '../../components/common';
+import { getApiErrorDisplayMessage } from '../../services/api';
 import {
-  type AppNotification,
-  type NotificationCategory,
-  useNotificationStore,
-} from '../../stores/notificationStore';
+  deleteAllNotifications,
+  deleteNotification,
+  getMyNotifications,
+  markNotificationAsRead,
+  type NotificationListQuery,
+} from '../../services/notifications/notificationApi';
+import {
+  toNotificationListEntry,
+  type NotificationListEntry,
+} from '../../services/notifications/notificationListItem';
+import {
+  appearsInNotificationList,
+  resolveNotificationDestination,
+} from '../../services/notifications/pushDestination';
+import { subscribePushMessages } from '../../services/notifications/remoteMessage';
+import type { NotificationCategory } from '../../stores/notificationStore';
 import { colors, radius, typography } from '../../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Notifications'>;
 type NotificationFilter = 'all' | 'unread' | 'aiMatching';
-type DeleteTarget = AppNotification | 'all' | null;
+type DeleteTarget = NotificationListEntry | 'all' | null;
 
 const filters: Array<{ key: NotificationFilter; label: string }> = [
   { key: 'all', label: '전체' },
@@ -23,45 +48,110 @@ const filters: Array<{ key: NotificationFilter; label: string }> = [
 ];
 
 export function NotificationListScreen({ navigation }: Props) {
-  const notifications = useNotificationStore(state => state.notifications);
-  const markAsRead = useNotificationStore(state => state.markAsRead);
-  const deleteNotification = useNotificationStore(state => state.deleteNotification);
-  const deleteAll = useNotificationStore(state => state.deleteAll);
+  const [notifications, setNotifications] = useState<NotificationListEntry[]>([]);
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
 
-  const filteredNotifications = useMemo(() => {
-    if (filter === 'unread') {
-      return notifications.filter(notification => !notification.isRead);
-    }
-    if (filter === 'aiMatching') {
-      return notifications.filter(notification => notification.category === 'aiMatching');
-    }
-    return notifications;
-  }, [filter, notifications]);
+  const loadNotifications = useCallback(() => {
+    const version = ++requestVersion.current;
+    setIsLoading(true);
+    getMyNotifications(queryFor(filter))
+      .then(page => {
+        if (version !== requestVersion.current) {
+          return;
+        }
+        setNotifications(
+          page.content.flatMap(item => {
+            const entry = toNotificationListEntry(item);
+            return entry ? [entry] : [];
+          }),
+        );
+        setError(null);
+      })
+      .catch(loadError => {
+        if (version !== requestVersion.current) {
+          return;
+        }
+        setError(getApiErrorDisplayMessage(loadError, '알림을 불러오지 못했어요.'));
+      })
+      .finally(() => {
+        if (version === requestVersion.current) {
+          setIsLoading(false);
+        }
+      });
+  }, [filter]);
 
-  const openNotification = (notification: AppNotification) => {
-    markAsRead(notification.id);
-    if (!notification.targetId || notification.category === 'aiMatching') {
+  useFocusEffect(
+    useCallback(() => {
+      loadNotifications();
+      const stop = subscribePushMessages(message => {
+        if (appearsInNotificationList(message)) {
+          loadNotifications();
+        }
+      });
+      const appState = AppState.addEventListener('change', state => {
+        if (state === 'active') {
+          loadNotifications();
+        }
+      });
+      return () => {
+        stop();
+        appState.remove();
+        requestVersion.current++;
+      };
+    }, [loadNotifications]),
+  );
+
+  const visibleNotifications = useMemo(
+    () =>
+      filter === 'unread'
+        ? notifications.filter(notification => !notification.isRead)
+        : notifications,
+    [filter, notifications],
+  );
+
+  const openNotification = (notification: NotificationListEntry) => {
+    openNotificationDestination(navigation, notification);
+    if (notification.isRead) {
       return;
     }
-    if (notification.category === 'adoption') {
-      navigation.navigate('AdoptionApplicationHistory', { animalId: notification.targetId });
-      return;
-    }
-    navigation.navigate('FoundReportDetail', {
-      highlightCommentId: notification.targetCommentId,
-      reportId: notification.targetId,
-    });
+    markNotificationAsRead(Number(notification.id))
+      .then(() => {
+        setNotifications(current =>
+          current.map(item => (item.id === notification.id ? { ...item, isRead: true } : item)),
+        );
+      })
+      .catch(() => undefined);
   };
 
   const confirmDelete = () => {
-    if (deleteTarget === 'all') {
-      deleteAll();
-    } else if (deleteTarget) {
-      deleteNotification(deleteTarget.id);
+    if (!deleteTarget || isDeleting) {
+      return;
     }
-    setDeleteTarget(null);
+    const target = deleteTarget;
+    setIsDeleting(true);
+    const request =
+      target === 'all' ? deleteAllNotifications() : deleteNotification(Number(target.id));
+    request
+      .then(() => {
+        setNotifications(current =>
+          target === 'all' ? [] : current.filter(item => item.id !== target.id),
+        );
+      })
+      .catch(deleteError => {
+        Alert.alert(
+          '알림 삭제 실패',
+          getApiErrorDisplayMessage(deleteError, '알림을 삭제하지 못했어요.'),
+        );
+      })
+      .finally(() => {
+        setIsDeleting(false);
+        setDeleteTarget(null);
+      });
   };
 
   return (
@@ -73,6 +163,7 @@ export function NotificationListScreen({ navigation }: Props) {
             const selected = item.key === filter;
             return (
               <Pressable
+                accessibilityLabel={item.label}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
                 key={item.key}
@@ -88,11 +179,16 @@ export function NotificationListScreen({ navigation }: Props) {
         </View>
         <Pressable
           accessibilityRole="button"
-          disabled={notifications.length === 0}
+          disabled={visibleNotifications.length === 0}
           hitSlop={8}
           onPress={() => setDeleteTarget('all')}
         >
-          <Text style={[styles.deleteAll, notifications.length === 0 && styles.disabledDeleteAll]}>
+          <Text
+            style={[
+              styles.deleteAll,
+              visibleNotifications.length === 0 && styles.disabledDeleteAll,
+            ]}
+          >
             전체 삭제
           </Text>
         </Pressable>
@@ -102,11 +198,19 @@ export function NotificationListScreen({ navigation }: Props) {
         decelerationRate="fast"
         contentContainerStyle={[
           styles.listContent,
-          filteredNotifications.length === 0 && styles.emptyListContent,
+          visibleNotifications.length === 0 && styles.emptyListContent,
         ]}
-        data={filteredNotifications}
+        data={visibleNotifications}
         keyExtractor={item => item.id}
-        ListEmptyComponent={<NotificationEmptyState />}
+        ListEmptyComponent={
+          isLoading ? (
+            <ActivityIndicator style={styles.loading} />
+          ) : error ? (
+            <NotificationErrorState message={error} onRetry={loadNotifications} />
+          ) : (
+            <NotificationEmptyState />
+          )
+        }
         renderItem={({ item }) => (
           <NotificationItem
             notification={item}
@@ -127,12 +231,66 @@ export function NotificationListScreen({ navigation }: Props) {
   );
 }
 
+function queryFor(filter: NotificationFilter): NotificationListQuery {
+  if (filter === 'unread') {
+    return { isRead: false };
+  }
+  if (filter === 'aiMatching') {
+    return { notificationType: 'AI_MATCH' };
+  }
+  return {};
+}
+
+function openNotificationDestination(
+  navigation: Props['navigation'],
+  notification: NotificationListEntry,
+) {
+  const destination = resolveNotificationDestination({
+    body: notification.body,
+    kind: 'server',
+    notificationSeq: notification.id,
+    notificationType: notification.notificationType,
+    title: notification.title,
+    ...(notification.targetCommentId ? { commentSeq: notification.targetCommentId } : {}),
+    ...(notification.targetId ? { targetSeq: notification.targetId } : {}),
+    ...(notification.targetType ? { targetType: notification.targetType } : {}),
+  });
+  if (!destination) {
+    return;
+  }
+  switch (destination.name) {
+    case 'AdoptionApplicationHistory':
+      navigation.navigate('AdoptionApplicationHistory', {
+        applicationSeq: destination.applicationSeq,
+      });
+      return;
+    case 'FoundReportDetail':
+      navigation.navigate('FoundReportDetail', {
+        highlightCommentId: destination.highlightCommentId,
+        reportId: destination.reportId,
+      });
+      return;
+    case 'ChatRoom':
+      navigation.navigate('ChatRoom', { roomId: destination.roomId });
+      return;
+    case 'LostReportDetail':
+      navigation.navigate('LostReportDetail', {
+        highlightCommentId: destination.highlightCommentId,
+        reportId: destination.reportId,
+      });
+      return;
+    case 'Simulation':
+      navigation.navigate('MockAdoptionOverview');
+      return;
+  }
+}
+
 function NotificationItem({
   notification,
   onLongPress,
   onPress,
 }: {
-  notification: AppNotification;
+  notification: NotificationListEntry;
   onLongPress: () => void;
   onPress: () => void;
 }) {
@@ -179,6 +337,17 @@ function NotificationTypeIcon({ category }: { category: NotificationCategory }) 
           iconCategory === 'adoption' && styles.adoptionIcon,
         ]}
       />
+    </View>
+  );
+}
+
+function NotificationErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyText}>{message}</Text>
+      <Pressable accessibilityRole="button" onPress={onRetry}>
+        <Text style={styles.retryText}>다시 시도</Text>
+      </Pressable>
     </View>
   );
 }
@@ -298,6 +467,8 @@ const styles = StyleSheet.create({
   emptyImageViewport: { height: 160, overflow: 'hidden', width: 160 },
   emptyImageSprite: { height: 333, left: -68, position: 'absolute', top: -174, width: 667 },
   emptyText: { ...typography.bodyRegular14, color: '#777671', marginTop: 18 },
+  loading: { marginTop: 48 },
+  retryText: { ...typography.bodySemiBold16, color: colors.green400, marginTop: 12 },
   modalOverlay: {
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
