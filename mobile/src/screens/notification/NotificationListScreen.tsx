@@ -1,9 +1,10 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   FlatList,
   Image,
   Modal,
@@ -28,7 +29,11 @@ import {
   toNotificationListEntry,
   type NotificationListEntry,
 } from '../../services/notifications/notificationListItem';
-import { resolveNotificationDestination } from '../../services/notifications/pushDestination';
+import {
+  appearsInNotificationList,
+  resolveNotificationDestination,
+} from '../../services/notifications/pushDestination';
+import { subscribePushMessages } from '../../services/notifications/remoteMessage';
 import type { NotificationCategory } from '../../stores/notificationStore';
 import { colors, radius, typography } from '../../theme';
 
@@ -49,11 +54,16 @@ export function NotificationListScreen({ navigation }: Props) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
 
   const loadNotifications = useCallback(() => {
+    const version = ++requestVersion.current;
     setIsLoading(true);
     getMyNotifications(queryFor(filter))
       .then(page => {
+        if (version !== requestVersion.current) {
+          return;
+        }
         setNotifications(
           page.content.flatMap(item => {
             const entry = toNotificationListEntry(item);
@@ -63,14 +73,36 @@ export function NotificationListScreen({ navigation }: Props) {
         setError(null);
       })
       .catch(loadError => {
+        if (version !== requestVersion.current) {
+          return;
+        }
         setError(getApiErrorDisplayMessage(loadError, '알림을 불러오지 못했어요.'));
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (version === requestVersion.current) {
+          setIsLoading(false);
+        }
+      });
   }, [filter]);
 
   useFocusEffect(
     useCallback(() => {
       loadNotifications();
+      const stop = subscribePushMessages(message => {
+        if (appearsInNotificationList(message)) {
+          loadNotifications();
+        }
+      });
+      const appState = AppState.addEventListener('change', state => {
+        if (state === 'active') {
+          loadNotifications();
+        }
+      });
+      return () => {
+        stop();
+        appState.remove();
+        requestVersion.current++;
+      };
     }, [loadNotifications]),
   );
 
@@ -131,6 +163,7 @@ export function NotificationListScreen({ navigation }: Props) {
             const selected = item.key === filter;
             return (
               <Pressable
+                accessibilityLabel={item.label}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
                 key={item.key}
