@@ -31,6 +31,8 @@ type Props = {
   loading?: boolean;
   notice?: string;
   onClose: () => void;
+  onQuit?: () => void;
+  quitDisabled?: boolean;
 };
 
 export function PetStatsDialog({
@@ -40,6 +42,8 @@ export function PetStatsDialog({
   loading = false,
   notice,
   onClose,
+  onQuit,
+  quitDisabled = false,
 }: Props) {
   const { width, height } = useWindowDimensions();
   const [cardSize, setCardSize] = useState({ width: 0, height: 0 });
@@ -172,6 +176,18 @@ export function PetStatsDialog({
               <Text style={styles.empty}>아직 상태 정보가 없어요.</Text>
             ) : null}
           </ScrollView>
+          {onQuit ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="파양하기"
+              accessibilityState={{ disabled: quitDisabled }}
+              disabled={quitDisabled}
+              onPress={onQuit}
+              style={({ pressed }) => [styles.quit, pressed && styles.pressed]}
+            >
+              <Text style={styles.quitLabel}>파양하기</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -262,4 +278,6 @@ const styles = StyleSheet.create({
   fill: { height: '100%', borderRadius: 4 },
   empty: { ...typography.captionRegular10, color: '#788C7D', textAlign: 'center', marginTop: 2 },
   pressed: { opacity: 0.65 },
+  quit: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  quitLabel: { ...typography.bodyRegular14, color: colors.danger },
 });
