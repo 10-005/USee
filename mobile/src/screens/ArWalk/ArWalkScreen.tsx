@@ -519,7 +519,13 @@ export function ArWalkScreen({
           <Text style={styles.messageText}>강아지와 산책하려면 카메라 권한이 필요합니다.</Text>
         </View>
       )}
-      <View style={[styles.walkTimer, { top: headerHeight + 8 }]}>
+      <View
+        style={[
+          styles.walkTimer,
+          { top: insets.top + Math.max(0, (headerHeight - insets.top - 24) / 2) },
+        ]}
+      >
+        <WalkRouteMap route={walkRoute} />
         <Text accessibilityLabel={`산책 시간 ${walkTime}`} style={styles.walkTimerText}>
           {walkTime}
         </Text>
@@ -528,7 +534,23 @@ export function ArWalkScreen({
             ? `${Math.round(walkRoute.meters)} m`
             : `${(walkRoute.meters / 1000).toFixed(2)} km`}
         </Text>
-        <WalkRouteMap route={walkRoute} />
+        {hasPermission && (
+          <View pointerEvents="box-none" style={styles.displayControls}>
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityLabel="이동 가능 영역 표시"
+              accessibilityState={{ checked: showTraversalDebug }}
+              onPress={() => setShowTraversalDebug(value => !value)}
+              style={styles.areaToggle}
+              hitSlop={4}
+            >
+              <Text style={styles.areaToggleLabel}>영역 표시</Text>
+              <View style={[styles.toggleTrack, showTraversalDebug && styles.toggleTrackOn]}>
+                <View style={[styles.toggleThumb, showTraversalDebug && styles.toggleThumbOn]} />
+              </View>
+            </Pressable>
+          </View>
+        )}
       </View>
       {isRecognizing && (
         <View pointerEvents="none" style={styles.loadingOverlay}>
@@ -541,26 +563,6 @@ export function ArWalkScreen({
       {hasPermission && !hasSeenDog && startupError && (
         <View pointerEvents="none" style={styles.loadingOverlay}>
           <Text style={styles.messageText}>{startupError}</Text>
-        </View>
-      )}
-      {hasPermission && (
-        <View
-          pointerEvents="box-none"
-          style={[styles.displayControls, { top: headerHeight + 192 }]}
-        >
-          <Pressable
-            accessibilityRole="switch"
-            accessibilityLabel="이동 가능 영역 표시"
-            accessibilityState={{ checked: showTraversalDebug }}
-            onPress={() => setShowTraversalDebug(value => !value)}
-            style={styles.areaToggle}
-            hitSlop={4}
-          >
-            <Text style={styles.areaToggleLabel}>영역 표시</Text>
-            <View style={[styles.toggleTrack, showTraversalDebug && styles.toggleTrackOn]}>
-              <View style={[styles.toggleThumb, showTraversalDebug && styles.toggleThumbOn]} />
-            </View>
-          </Pressable>
         </View>
       )}
       {hasPermission && (

@@ -39,8 +39,9 @@ export const styles = StyleSheet.create({
   },
   walkTimer: {
     position: 'absolute',
-    right: 20,
+    right: 16,
     alignItems: 'flex-end',
+    gap: 6,
   },
   walkTimerText: {
     color: '#FFFFFF',
@@ -74,8 +75,6 @@ export const styles = StyleSheet.create({
   displayControls: {
     flexDirection: 'column',
     alignItems: 'flex-end',
-    position: 'absolute',
-    right: 16,
     zIndex: 10,
     elevation: 10,
     gap: 4,
