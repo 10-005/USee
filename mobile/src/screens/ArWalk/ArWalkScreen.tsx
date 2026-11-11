@@ -164,10 +164,6 @@ export function ArWalkScreen({
       finish('배변봉투 상품 정보를 불러오지 못했어요.');
       return;
     }
-    if (state.budget - state.spent < product.price) {
-      finish('남은 예산이 부족해요.');
-      return;
-    }
     getActiveMockAdoption()
       .then(active => {
         if (!active?.sessionSeq || !product.itemSeq) {
@@ -198,7 +194,11 @@ export function ArWalkScreen({
   };
   const consumeWalkBag = () => {
     const product = walkBagProduct();
-    return product ? useShopStore.getState().consume({ [product.id]: 1 }) : false;
+    const consumed = product ? useShopStore.getState().consume({ [product.id]: 1 }) : false;
+    if (consumed && serverWalk.current) {
+      invalidateSimulationInventory(serverWalk.current.sessionSeq);
+    }
+    return consumed;
   };
   const [cleanupResponse, setCleanupResponse] = useState('');
   const lastCleanupRequest = useRef(0);
@@ -444,9 +444,11 @@ export function ArWalkScreen({
               respond(consumeWalkBag());
               return undefined;
             }
-            return performSimulationWalkAction(active.sessionSeq, active.walkSeq, {
+            const sessionSeq = active.sessionSeq;
+            return performSimulationWalkAction(sessionSeq, active.walkSeq, {
               actionCode: SimulationWalkAction.CleanUpPoop,
             }).then(result => {
+              invalidateSimulationInventory(sessionSeq);
               closeResolvedWalkEvent(
                 result.resolvedEvent?.occurrenceSeq ?? poopEvent.occurrenceSeq,
               );
@@ -517,7 +519,13 @@ export function ArWalkScreen({
           <Text style={styles.messageText}>강아지와 산책하려면 카메라 권한이 필요합니다.</Text>
         </View>
       )}
-      <View style={[styles.walkTimer, { top: headerHeight + 8 }]}>
+      <View
+        style={[
+          styles.walkTimer,
+          { top: insets.top + Math.max(0, (headerHeight - insets.top - 24) / 2) },
+        ]}
+      >
+        <WalkRouteMap route={walkRoute} />
         <Text accessibilityLabel={`산책 시간 ${walkTime}`} style={styles.walkTimerText}>
           {walkTime}
         </Text>
@@ -526,7 +534,23 @@ export function ArWalkScreen({
             ? `${Math.round(walkRoute.meters)} m`
             : `${(walkRoute.meters / 1000).toFixed(2)} km`}
         </Text>
-        <WalkRouteMap route={walkRoute} />
+        {hasPermission && (
+          <View pointerEvents="box-none" style={styles.displayControls}>
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityLabel="이동 가능 영역 표시"
+              accessibilityState={{ checked: showTraversalDebug }}
+              onPress={() => setShowTraversalDebug(value => !value)}
+              style={styles.areaToggle}
+              hitSlop={4}
+            >
+              <Text style={styles.areaToggleLabel}>영역 표시</Text>
+              <View style={[styles.toggleTrack, showTraversalDebug && styles.toggleTrackOn]}>
+                <View style={[styles.toggleThumb, showTraversalDebug && styles.toggleThumbOn]} />
+              </View>
+            </Pressable>
+          </View>
+        )}
       </View>
       {isRecognizing && (
         <View pointerEvents="none" style={styles.loadingOverlay}>
@@ -539,26 +563,6 @@ export function ArWalkScreen({
       {hasPermission && !hasSeenDog && startupError && (
         <View pointerEvents="none" style={styles.loadingOverlay}>
           <Text style={styles.messageText}>{startupError}</Text>
-        </View>
-      )}
-      {hasPermission && (
-        <View
-          pointerEvents="box-none"
-          style={[styles.displayControls, { top: headerHeight + 192 }]}
-        >
-          <Pressable
-            accessibilityRole="switch"
-            accessibilityLabel="이동 가능 영역 표시"
-            accessibilityState={{ checked: showTraversalDebug }}
-            onPress={() => setShowTraversalDebug(value => !value)}
-            style={styles.areaToggle}
-            hitSlop={4}
-          >
-            <Text style={styles.areaToggleLabel}>영역 표시</Text>
-            <View style={[styles.toggleTrack, showTraversalDebug && styles.toggleTrackOn]}>
-              <View style={[styles.toggleThumb, showTraversalDebug && styles.toggleThumbOn]} />
-            </View>
-          </Pressable>
         </View>
       )}
       {hasPermission && (

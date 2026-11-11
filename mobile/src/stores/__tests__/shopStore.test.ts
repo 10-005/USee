@@ -93,7 +93,9 @@ it('contains all 32 products with valid prices and species filters', () => {
   expect(new Set(products.map(p => p.id)).size).toBe(32);
   expect(products.every(p => p.price > 0 && p.market.sources.length > 0)).toBe(true);
   expect(filterProducts('dog', '전체', '', '기본순').some(p => p.species === 'cat')).toBe(false);
-  expect(filterProducts('cat', '필수 준비', '', '낮은 가격순').every(p => p.essential)).toBe(true);
+  expect(filterProducts('cat', '위생', '', '낮은 가격순').every(p => p.category === '위생')).toBe(
+    true,
+  );
   expect(filterProducts('cat', '전체', '물그릇', '기본순').map(p => p.id)).toEqual(['waterBowl']);
 });
 
@@ -177,15 +179,17 @@ it('buys only walk bags, saves purchase history and budget, and preserves the ca
   expect(shop().inventory.bags).toBe(9);
 });
 
-it('rejects walk bag purchases without enough budget or after the session expires', () => {
-  useShopStore.setState({ budget: 499, spent: 0 });
-  expect(shop().buyWalkBags()).toBe('남은 예산이 부족해요.');
-  expect(shop().spent).toBe(0);
-  expect(shop().ownedItems).toEqual([]);
-  expect(shop().inventory.bags).toBeUndefined();
+it('allows walk bag purchases with a negative balance and rejects expired sessions', () => {
+  useShopStore.setState({ budget: 100, spent: 200 });
+  expect(shop().buyWalkBags()).toBeNull();
+  expect(shop().budget - shop().spent).toBe(-600);
+  expect(shop().inventory.bags).toBe(10);
+  expect(shop().expenses?.at(-1)?.balanceAfter).toBe(-600);
+  shop().open(session);
+  expect(shop().budget - shop().spent).toBe(-600);
   useShopStore.setState({ budget: 50000, expiresAt: Date.now() - 1 });
   expect(shop().buyWalkBags()).toBe('모의 입양 기간이 종료되었어요.');
-  expect(shop().spent).toBe(0);
+  expect(shop().spent).toBe(700);
 });
 
 it('does not debit the budget or grant walk bags when saving fails', () => {

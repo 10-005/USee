@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RootStackParamList } from '../../app/navigation/types';
 import BackIcon from '../../assets/icons/common/left-arrow.svg';
 import { colors, typography } from '../../theme';
+import { AppDialog } from '../../components/common/AppDialog';
 import { ApiClientError } from '../../services/api';
 import {
   abandonSimulation,
@@ -100,6 +101,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
   const hasLeash =
     pet?.category !== 'dog' || !!synced?.equipment.leash || owns('harness') || ownsServer('LEASH');
   const [statsVisible, setStatsVisible] = useState(false);
+  const [quitVisible, setQuitVisible] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
   const [petStats, setPetStats] = useState<CareStats>();
   const [statsNotice, setStatsNotice] = useState<string>();
@@ -555,7 +557,7 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           onHidden={onPetHidden}
         />
       ) : null}
-      {pet && !bathing && showLitter ? (
+      {pet && !bathing && (showLitter || toilet.full) ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
@@ -570,6 +572,16 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           disabled={!toilet.full || !!care || leaving || busy || bathReturning}
           onPress={async () => {
             if (careBusy.current || bathingRef.current) {
+              return;
+            }
+            if (!showLitter) {
+              showToast(pet.category === 'dog' ? '배변패드가 필요해요!' : '배변판이 필요해요!');
+              return;
+            }
+            if (!findCareSupply(pet.category, 'clean')) {
+              showToast(
+                pet.category === 'dog' ? '배변패드가 필요해요!' : '고양이 모래가 필요해요!',
+              );
               return;
             }
             try {
@@ -728,16 +740,6 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
                   style={styles.actionImage}
                 />
                 <Text style={styles.actionCaption}>목욕하기</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="모의입양 그만두기"
-                accessibilityState={{ disabled: busy || leaving }}
-                disabled={busy || leaving}
-                onPress={quit}
-                style={({ pressed }) => [styles.quit, pressed && styles.pressed]}
-              >
-                <Text style={styles.quitLabel}>모의입양 그만두기</Text>
               </Pressable>
             </View>
             <View style={styles.rightActions}>
@@ -965,6 +967,19 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           onClose={() => setSuddenEvent(null)}
         />
       ) : null}
+      {quitVisible ? (
+        <AppDialog
+          title="파양하기"
+          message="정말 파양하시겠습니까?"
+          confirmLabel="파양하기"
+          cancelLabel="취소"
+          onClose={() => setQuitVisible(false)}
+          onConfirm={() => {
+            setQuitVisible(false);
+            return quit();
+          }}
+        />
+      ) : null}
       {pet ? (
         <PetStatsDialog
           visible={statsVisible}
@@ -972,6 +987,13 @@ export function MockAdoptionActivityScreen({ navigation, route }: Props) {
           stats={petStats}
           loading={statsLoading}
           notice={statsNotice}
+          quitDisabled={busy || leaving}
+          onQuit={() => {
+            statsRequest.current += 1;
+            setStatsLoading(false);
+            setStatsVisible(false);
+            setQuitVisible(true);
+          }}
           onClose={() => {
             statsRequest.current += 1;
             setStatsLoading(false);
@@ -1035,8 +1057,6 @@ const styles = StyleSheet.create({
   bowl: { flex: 1, aspectRatio: 1 },
   bowlContent: { flex: 1 },
   bowlImage: { width: '100%', height: '100%' },
-  quit: { justifyContent: 'center', minHeight: 48, paddingHorizontal: 4 },
-  quitLabel: { ...typography.bodyRegular14, color: colors.gray700 },
   actionColumns: {
     flexDirection: 'row',
     justifyContent: 'space-between',

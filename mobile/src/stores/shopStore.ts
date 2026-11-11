@@ -396,9 +396,6 @@ export const useShopStore = create<ShopState>((set, get) => {
       if (!product) {
         return '배변봉투 상품 정보를 불러오지 못했어요.';
       }
-      if (state.budget - state.spent < product.price) {
-        return '남은 예산이 부족해요.';
-      }
       const count = state.ownedItems.filter(item => item.productId === product.id).length;
       return commit({
         spent: state.spent + product.price,

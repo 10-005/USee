@@ -35,7 +35,7 @@ export let products: Product[] = [];
 export function setShopCatalog(catalog: Product[]) {
   products = catalog;
 }
-export const categories = ['전체', '필수 준비', '식사', '간식', '놀이', '가구', '위생', '생활'];
+export const categories = ['전체', '식사', '간식', '놀이', '가구', '위생', '생활'];
 export const money = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
 export const findProduct = (id: string) => products.find(product => product.id === id);
 export const isFoodProduct = (product: Pick<Product, 'id' | 'serverCategory'>) =>
@@ -45,7 +45,7 @@ export const availableProducts = (species: Species) =>
 export function filterProducts(species: Species, category: string, query: string, sort: string) {
   const filtered = availableProducts(species).filter(
     p =>
-      (category === '전체' || (category === '필수 준비' ? p.essential : p.category === category)) &&
+      (category === '전체' || p.category === category) &&
       `${p.name} ${p.description}`.includes(query.trim()),
   );
   return sort === '기본순'

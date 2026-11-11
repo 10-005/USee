@@ -25,6 +25,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import { Alert, Animated, BackHandler, StyleSheet } from 'react-native';
 import type { RootStackParamList } from '../../app/navigation/types';
 import { MockAdoptionActivityScreen } from './MockAdoptionActivityScreen';
+import { AppDialog } from '../../components/common/AppDialog';
 import { PetStatsDialog } from './PetStatsDialog';
 import { VetVisitDialog } from './VetVisitDialog';
 import { useShopStore } from '../../stores/shopStore';
@@ -327,10 +328,11 @@ test('quitting clears the session and replaces the main screen with fresh select
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
   });
+  await ReactTestRenderer.act(() => renderer.root.findByType(PetStatsDialog).props.onQuit());
+  expect(renderer.root.findByType(AppDialog).props.message).toBe('정말 파양하시겠습니까?');
+  expect(await getActiveMockAdoption()).not.toBeNull();
   await ReactTestRenderer.act(async () => {
-    await renderer.root
-      .findAllByProps({ accessibilityLabel: '모의입양 그만두기' })[0]
-      .props.onPress();
+    renderer.root.findByType(AppDialog).props.onConfirm();
   });
   expect(reset).toHaveBeenCalledWith({
     index: 1,
@@ -365,10 +367,11 @@ test('quitting abandons the server session before leaving the activity', async (
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
   });
+  await ReactTestRenderer.act(() => renderer.root.findByType(PetStatsDialog).props.onQuit());
+  expect(renderer.root.findByType(AppDialog).props.message).toBe('정말 파양하시겠습니까?');
+  expect(await getActiveMockAdoption()).not.toBeNull();
   await ReactTestRenderer.act(async () => {
-    await renderer.root
-      .findAllByProps({ accessibilityLabel: '모의입양 그만두기' })[0]
-      .props.onPress();
+    renderer.root.findByType(AppDialog).props.onConfirm();
   });
   expect(abandonSimulation).toHaveBeenCalledWith(3001);
   expect(invalidateSimulationReports).toHaveBeenCalledTimes(1);
@@ -398,10 +401,11 @@ test('quitting leaves when the server session is already closed', async () => {
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
   });
+  await ReactTestRenderer.act(() => renderer.root.findByType(PetStatsDialog).props.onQuit());
+  expect(renderer.root.findByType(AppDialog).props.message).toBe('정말 파양하시겠습니까?');
+  expect(await getActiveMockAdoption()).not.toBeNull();
   await ReactTestRenderer.act(async () => {
-    await renderer.root
-      .findAllByProps({ accessibilityLabel: '모의입양 그만두기' })[0]
-      .props.onPress();
+    renderer.root.findByType(AppDialog).props.onConfirm();
   });
   expect(reset).toHaveBeenCalledWith({
     index: 1,
@@ -427,10 +431,11 @@ test('quitting keeps the session when abandon fails', async () => {
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
   });
+  await ReactTestRenderer.act(() => renderer.root.findByType(PetStatsDialog).props.onQuit());
+  expect(renderer.root.findByType(AppDialog).props.message).toBe('정말 파양하시겠습니까?');
+  expect(await getActiveMockAdoption()).not.toBeNull();
   await ReactTestRenderer.act(async () => {
-    await renderer.root
-      .findAllByProps({ accessibilityLabel: '모의입양 그만두기' })[0]
-      .props.onPress();
+    renderer.root.findByType(AppDialog).props.onConfirm();
   });
   expect(navigate).not.toHaveBeenCalled();
   expect(invalidateSimulationReports).not.toHaveBeenCalled();
@@ -998,4 +1003,70 @@ test('leaves the activity when the fetched session has already ended', async () 
   });
   expect(await getActiveMockAdoption()).toBeNull();
   await ReactTestRenderer.act(() => renderer.unmount());
+});
+
+test.each([
+  ['dog-1', '가득 찬 배변 패드', '배변패드가 필요해요!'],
+  ['cat-2', '가득 찬 고양이 화장실', '배변판이 필요해요!'],
+])('keeps poop and shows missing equipment for %s', async (petId, label, message) => {
+  await AsyncStorage.clear();
+  jest.mocked(performCareAction).mockClear();
+  const session = await startMockAdoption(petId, 35000);
+  useShopStore.getState().open(session);
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.MOCK_ADOPTION_TOILET,
+    JSON.stringify({
+      petId,
+      startedAt: session.startedAt,
+      cleanedAt: session.startedAt - 2000,
+      events: [session.startedAt - 1000],
+    }),
+  );
+  const props = {
+    navigation: {},
+    route: { key: 'missing-toilet', name: 'MockAdoptionActivity', params: { petId } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() =>
+    renderer.root.findAllByProps({ accessibilityLabel: label })[0].props.onPress(),
+  );
+  expect(renderer.root.findAllByProps({ children: message }).length).toBeGreaterThan(0);
+  expect(renderer.root.findAllByProps({ accessibilityLabel: label }).length).toBeGreaterThan(0);
+  expect(performCareAction).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => renderer.unmount());
+  await AsyncStorage.clear();
+});
+
+test('cancelling abandonment preserves the active session', async () => {
+  await AsyncStorage.clear();
+  jest.mocked(abandonSimulation).mockClear();
+  await startMockAdoption('dog-1', 35000);
+  const props = {
+    navigation: {},
+    route: { key: 'cancel-quit', name: 'MockAdoptionActivity', params: { petId: 'dog-1' } },
+  } as unknown as NativeStackScreenProps<RootStackParamList, 'MockAdoptionActivity'>;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<MockAdoptionActivityScreen {...props} />);
+  });
+  await ReactTestRenderer.act(() =>
+    renderer.root
+      .findAll(node => typeof node.props.onLayout === 'function')[0]
+      .props.onLayout({ nativeEvent: { layout: { width: 390, height: 844 } } }),
+  );
+  await ReactTestRenderer.act(() => renderer.root.findByType('RoomPet' as never).props.onPress());
+  expect(renderer.root.findByType(PetStatsDialog).props.visible).toBe(true);
+  await ReactTestRenderer.act(() =>
+    renderer.root.findAllByProps({ accessibilityLabel: '파양하기' })[0].props.onPress(),
+  );
+  expect(renderer.root.findByType(PetStatsDialog).props.visible).toBe(false);
+  await ReactTestRenderer.act(() => renderer.root.findByType(AppDialog).props.onClose());
+  expect(renderer.root.findAllByType(AppDialog)).toHaveLength(0);
+  expect(await getActiveMockAdoption()).not.toBeNull();
+  expect(abandonSimulation).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(() => renderer.unmount());
+  await AsyncStorage.clear();
 });

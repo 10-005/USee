@@ -93,6 +93,27 @@ export function CartScreen({ navigation, route }: Props) {
   const showPurchaseResult = (message: string) => {
     setPurchaseDialog({ kind: 'result', title: '구매 확인', message });
   };
+  const showPurchasedInventory = () => {
+    const state = navigation.getState();
+    const shopIndex = state.routes.map(item => item.name).lastIndexOf('PetShop');
+    const routes =
+      shopIndex >= 0
+        ? state.routes.slice(0, shopIndex + 1)
+        : [
+            ...state.routes.filter(
+              item => !['ShopCart', 'ShopProductDetail', 'ShopInventory'].includes(item.name),
+            ),
+            { key: `${route.key}-shop`, name: 'PetShop' as const, params: { petId } },
+          ];
+    navigation.reset({
+      ...state,
+      index: routes.length,
+      routes: [
+        ...routes,
+        { key: `${route.key}-inventory`, name: 'ShopInventory', params: { petId } },
+      ],
+    });
+  };
   const confirmPurchase = () => {
     if (!confirming.current || purchasing.current || !pet) {
       return;
@@ -108,7 +129,7 @@ export function CartScreen({ navigation, route }: Props) {
         return;
       }
       setPurchaseDialog(null);
-      navigation.popTo('ShopInventory', { petId });
+      showPurchasedInventory();
       return;
     }
     if (serverItems.some(item => !item?.itemSeq)) {
@@ -176,7 +197,7 @@ export function CartScreen({ navigation, route }: Props) {
         return;
       }
       setPurchaseDialog(null);
-      navigation.popTo('ShopInventory', { petId });
+      showPurchasedInventory();
     } finally {
       purchasing.current = false;
     }

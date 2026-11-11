@@ -58,7 +58,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: '#F0F3F5',
-    marginTop: 6,
   },
   map: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   status: {

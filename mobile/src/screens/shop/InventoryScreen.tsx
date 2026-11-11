@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -77,31 +77,35 @@ export function InventoryScreen({ navigation, route }: Props) {
   const [expenseLoading, setExpenseLoading] = useState(false);
   const [expenseError, setExpenseError] = useState<string>();
   const purchased = products.filter(p => shop.ownedItems.some(item => item.productId === p.id));
-  useEffect(() => {
-    if (status !== 'ready' || !session?.sessionSeq) {
-      return undefined;
-    }
-    let active = true;
-    setRemoteError(undefined);
-    loadInventoryOnEntry(session.sessionSeq)
-      .then(inventory => {
-        if (active) {
-          setRemoteInventory(inventory);
-        }
-      })
-      .catch(error => {
-        if (active) {
-          setRemoteError(
-            error instanceof ApiClientError
-              ? getInventoryErrorMessage(error)
-              : '보유 물품을 불러오지 못했어요. 다시 시도해주세요.',
-          );
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [attempt, session?.sessionSeq, status]);
+  useFocusEffect(
+    useCallback(() => {
+      if (status !== 'ready' || !session?.sessionSeq) {
+        return undefined;
+      }
+      let active = true;
+      setRemoteError(undefined);
+      loadInventoryOnEntry(session.sessionSeq)
+        .then(inventory => {
+          if (active) {
+            setRemoteInventory(inventory);
+          }
+        })
+        .catch(error => {
+          if (active) {
+            setRemoteError(
+              error instanceof ApiClientError
+                ? getInventoryErrorMessage(error)
+                : '보유 물품을 불러오지 못했어요. 다시 시도해주세요.',
+            );
+          }
+        });
+      return () => {
+        active = false;
+      };
+      // Keep the explicit retry counter so failed entry requests can be retried.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [attempt, session?.sessionSeq, status]),
+  );
   const reloadExpenses = useCallback(async () => {
     const sessionSeq = session?.sessionSeq;
     if (!sessionSeq) {

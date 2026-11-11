@@ -16,6 +16,7 @@ import {
   clearActiveSimulationRefresh,
   isActiveSimulationStale,
 } from '../../../services/simulation/activeSession';
+import { CommonActions } from '@react-navigation/native';
 import { StackRouter, StackActions } from '@react-navigation/routers';
 import { colors } from '../../../theme';
 
@@ -50,11 +51,19 @@ jest.mock('../../../services/simulation/purchase', () => {
   };
 });
 
+const mockShopFocusEffects = new Set<() => void | (() => void)>();
 jest.mock('@react-navigation/native', () => ({
+  CommonActions: jest.requireActual('@react-navigation/routers').CommonActions,
   useFocusEffect: (effect: () => void | (() => void)) => {
     require('react').useEffect(() => {
+      mockShopFocusEffects.add(effect);
       const cleanup = effect();
-      return typeof cleanup === 'function' ? cleanup : undefined;
+      return () => {
+        mockShopFocusEffects.delete(effect);
+        if (typeof cleanup === 'function') {
+          cleanup();
+        }
+      };
     }, [effect]);
   },
 }));
@@ -500,14 +509,25 @@ it('blocks another food purchase until the owned pack is used up', () => {
 });
 
 it('changes cart quantity and completes a confirmed mock purchase', () => {
-  const popTo = jest.fn();
+  const reset = jest.fn();
   useShopStore.getState().setQuantity('food', 1, 'dog');
   let screen!: renderer.ReactTestRenderer;
   act(() => {
     screen = renderer.create(
       wrap(
         <CartScreen
-          navigation={{ popTo } as never}
+          navigation={
+            {
+              reset,
+              getState: () => ({
+                routes: [
+                  { name: 'PetShop', key: 'shop', params: { petId: 'dog-1' } },
+                  { name: 'ShopProductDetail', key: 'detail' },
+                  { name: 'ShopCart', key: 'cart' },
+                ],
+              }),
+            } as never
+          }
           route={{ key: 'cart', name: 'ShopCart', params: { petId: 'dog-1' } }}
         />,
       ),
@@ -528,8 +548,14 @@ it('changes cart quantity and completes a confirmed mock purchase', () => {
   expect(useShopStore.getState().spent).toBe(10600);
   expect(useShopStore.getState().inventory.food).toBe(12);
   expect(useShopStore.getState().cart).toEqual({});
-  expect(popTo).toHaveBeenCalledWith('ShopInventory', { petId: 'dog-1' });
-  expect(popTo).toHaveBeenCalledTimes(1);
+  expect(reset).toHaveBeenCalledWith({
+    index: 1,
+    routes: [
+      { name: 'PetShop', key: 'shop', params: { petId: 'dog-1' } },
+      { key: 'cart-inventory', name: 'ShopInventory', params: { petId: 'dog-1' } },
+    ],
+  });
+  expect(reset).toHaveBeenCalledTimes(1);
   expect(screen.root.findAllByProps({ children: '구매 완료' })).toHaveLength(0);
   act(() => screen.unmount());
 });
@@ -585,7 +611,7 @@ const serverFood = {
 };
 
 it('purchases a server item from the cart and keeps the cart when purchase fails', async () => {
-  const popTo = jest.fn();
+  const reset = jest.fn();
   const session = {
     petId: 'dog-1',
     startedAt: 1,
@@ -617,7 +643,18 @@ it('purchases a server item from the cart and keeps the cart when purchase fails
     screen = renderer.create(
       wrap(
         <CartScreen
-          navigation={{ popTo } as never}
+          navigation={
+            {
+              reset,
+              getState: () => ({
+                routes: [
+                  { name: 'PetShop', key: 'shop', params: { petId: 'dog-1' } },
+                  { name: 'ShopProductDetail', key: 'detail' },
+                  { name: 'ShopCart', key: 'cart' },
+                ],
+              }),
+            } as never
+          }
           route={{ key: 'cart', name: 'ShopCart', params: { petId: 'dog-1' } }}
         />,
       ),
@@ -641,7 +678,13 @@ it('purchases a server item from the cart and keeps the cart when purchase fails
   expect(useShopStore.getState().inventory['11']).toBe(1);
   expect(useShopStore.getState().spent).toBe(8000);
   expect(useShopStore.getState().cart).toEqual({});
-  expect(popTo).toHaveBeenCalledWith('ShopInventory', { petId: 'dog-1' });
+  expect(reset).toHaveBeenCalledWith({
+    index: 1,
+    routes: [
+      { name: 'PetShop', key: 'shop', params: { petId: 'dog-1' } },
+      { key: 'cart-inventory', name: 'ShopInventory', params: { petId: 'dog-1' } },
+    ],
+  });
 
   await act(async () => {
     useShopStore.setState({ inventory: { '11': 0 } });
@@ -660,7 +703,7 @@ it('purchases a server item from the cart and keeps the cart when purchase fails
   });
   expect(screen.root.findByProps({ children: '이미 가지고 있는 기구예요.' })).toBeDefined();
   expect(useShopStore.getState().cart['11']).toBe(1);
-  expect(popTo).toHaveBeenCalledTimes(1);
+  expect(reset).toHaveBeenCalledTimes(1);
   act(() => screen.unmount());
 });
 
@@ -809,3 +852,117 @@ it('reuses existing destinations when leaving cart instead of growing the stack'
   expect(state.routes.map(r => r.name)).toEqual(['PetShop']);
   act(() => screen.unmount());
 });
+
+it('reloads inventory when an existing inventory screen regains focus', async () => {
+  mockShopSession.session = { sessionSeq: 3001 };
+  const inventory = (quantity: number) => ({
+    balance: 49500,
+    expectedCost: 0,
+    equipment: [],
+    items: [
+      {
+        itemSeq: 31,
+        itemName: '배변봉투',
+        category: 'POOP_BAG' as const,
+        isConsumable: true,
+        quantity,
+        imageUrl: null,
+      },
+    ],
+  });
+  jest
+    .mocked(loadInventoryOnEntry)
+    .mockResolvedValueOnce(inventory(10))
+    .mockResolvedValueOnce(inventory(9));
+  let screen!: renderer.ReactTestRenderer;
+  await act(async () => {
+    screen = renderer.create(
+      wrap(
+        <InventoryScreen
+          navigation={{ goBack: jest.fn() } as never}
+          route={{ key: 'inventory', name: 'ShopInventory', params: { petId: 'dog-1' } }}
+        />,
+      ),
+    );
+  });
+  expect(screen.root.findByProps({ children: '보유 10개' })).toBeDefined();
+  await act(async () => {
+    mockShopFocusEffects.forEach(effect => effect());
+  });
+  expect(loadInventoryOnEntry).toHaveBeenCalledTimes(2);
+  expect(screen.root.findByProps({ children: '보유 9개' })).toBeDefined();
+  expect(screen.root.findAllByProps({ children: '보유 10개' })).toHaveLength(0);
+  act(() => screen.unmount());
+});
+
+it.each([true, false])(
+  'returns directly to the shop after purchase (shop in stack: %s)',
+  hasShop => {
+    const router = StackRouter({ initialRouteName: 'Home' });
+    const options = {
+      routeNames: [
+        'Home',
+        'MockAdoptionActivity',
+        'PetShop',
+        'ShopProductDetail',
+        'ShopCart',
+        'ShopInventory',
+      ],
+      routeParamList: {},
+      routeGetIdList: {},
+    };
+    let state = router.getInitialState(options);
+    const dispatch = (action: Parameters<typeof router.getStateForAction>[1]) => {
+      const next = router.getStateForAction(state, action, options);
+      if (!next) {
+        throw new Error('Expected navigation to handle action');
+      }
+      state = router.getRehydratedState(next, options);
+    };
+    dispatch(StackActions.push('MockAdoptionActivity', { petId: 'dog-1' }));
+    if (hasShop) {
+      dispatch(StackActions.push('PetShop', { petId: 'dog-1' }));
+    }
+    dispatch(StackActions.push('ShopProductDetail', { petId: 'dog-1', productId: 'food' }));
+    dispatch(StackActions.push('ShopCart', { petId: 'dog-1' }));
+    useShopStore.getState().setQuantity('food', 1, 'dog');
+    let screen!: renderer.ReactTestRenderer;
+    act(() => {
+      screen = renderer.create(
+        wrap(
+          <CartScreen
+            navigation={
+              {
+                getState: () => state,
+                reset: (next: Parameters<typeof CommonActions.reset>[0]) =>
+                  dispatch(CommonActions.reset(next)),
+              } as never
+            }
+            route={{ key: 'cart', name: 'ShopCart', params: { petId: 'dog-1' } }}
+          />,
+        ),
+      );
+    });
+    const buy = screen.root.findAll(
+      node =>
+        node.props.accessibilityRole === 'button' &&
+        node.props.onPress &&
+        node.findAllByProps({ children: '1종 모의 구매하기' }).length > 0,
+    )[0];
+    act(() => buy.props.onPress());
+    act(() => screen.root.findByProps({ accessibilityLabel: '구매하기' }).props.onPress());
+    expect(state.routes.map(route => route.name)).toEqual([
+      'Home',
+      'MockAdoptionActivity',
+      'PetShop',
+      'ShopInventory',
+    ]);
+    dispatch(StackActions.pop());
+    expect(state.routes.map(route => route.name)).toEqual([
+      'Home',
+      'MockAdoptionActivity',
+      'PetShop',
+    ]);
+    act(() => screen.unmount());
+  },
+);
