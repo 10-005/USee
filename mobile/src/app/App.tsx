@@ -9,6 +9,7 @@ import { ActivityIndicator, StyleSheet, StatusBar, View, useColorScheme } from '
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { PushPopup } from './PushPopup';
 import { RootNavigator } from './navigation/RootNavigator';
 import { startForegroundMessaging } from '../services/notifications/firebaseMessaging';
 import { installMockAdoptionWalkExpiry } from '../services/simulation/walkLifecycle';
@@ -40,6 +41,7 @@ function App() {
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <RootNavigator />
+      <PushPopup />
     </SafeAreaProvider>
   );
 }
