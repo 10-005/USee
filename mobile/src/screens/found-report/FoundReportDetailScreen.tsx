@@ -617,7 +617,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                     return;
                   }
                   updateFoundReportDraft({
-                    age: report.age,
+                    age: apiFoundDetail?.age?.trim() === '모름' ? '' : apiFoundDetail?.age ?? '',
                     breed: report.name,
                     color: report.color,
                     combinationSeq: apiFoundDetail?.classification?.combinationSeq ?? null,
@@ -644,9 +644,9 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                     microchipStatus: apiFoundDetail?.microchipNumber?.trim() ? 'done' : 'not-done',
                     neutered:
                       report.neutered === null ? 'unknown' : report.neutered ? 'done' : 'not-done',
-                    species: report.species === '개' ? '강아지' : report.species,
+                    species: report.species,
                     terrain: apiFoundDetail?.landmarkDescription ?? '',
-                    weight: report.weight,
+                    weight: apiFoundDetail?.weight?.trim() === '모름' ? '' : apiFoundDetail?.weight ?? '',
                   });
                   navigation.navigate('PetRegistration', {
                     flow: 'found-report',
