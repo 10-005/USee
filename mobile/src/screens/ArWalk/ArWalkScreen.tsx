@@ -164,10 +164,6 @@ export function ArWalkScreen({
       finish('배변봉투 상품 정보를 불러오지 못했어요.');
       return;
     }
-    if (state.budget - state.spent < product.price) {
-      finish('남은 예산이 부족해요.');
-      return;
-    }
     getActiveMockAdoption()
       .then(active => {
         if (!active?.sessionSeq || !product.itemSeq) {

@@ -263,7 +263,7 @@ test('empty-bag dialog buys only bags, debits the budget once and enables the na
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
-test('insufficient budget keeps bag purchase dialog open without granting bags', async () => {
+test('negative budget still purchases bags and closes the dialog', async () => {
   useShopStore.getState().open({
     petId: 'walk-poor-dog',
     startedAt: 124,
@@ -276,15 +276,14 @@ test('insufficient budget keeps bag purchase dialog open without granting bags',
   });
   await ReactTestRenderer.act(() => renderer.root.findByType(ArFloorView).props.onBagPurchase());
   await ReactTestRenderer.act(() => renderer.root.findByType(AppDialog).props.onConfirm());
-  expect(renderer.root.findByType(AppDialog).props.message).toContain('남은 예산이 부족해요.');
-  expect(renderer.root.findByType(ArFloorView).props.bagAvailable).toBe(false);
-  expect(useShopStore.getState().spent).toBe(0);
-  await ReactTestRenderer.act(() => renderer.root.findByType(AppDialog).props.onClose());
+  expect(renderer.root.findByType(ArFloorView).props.bagAvailable).toBe(true);
+  expect(useShopStore.getState().spent).toBe(500);
+  expect(useShopStore.getState().budget - useShopStore.getState().spent).toBe(-400);
   expect(renderer.root.findAllByType(AppDialog)).toHaveLength(0);
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
-test('buys server poop bags through the cart purchase api', async () => {
+test('buys server poop bags through the cart purchase api with a negative balance', async () => {
   const product = {
     id: '31',
     name: '배변봉투',
@@ -312,6 +311,7 @@ test('buys server poop bags through the cart purchase api', async () => {
     { displayOrder: 0, product },
   ]);
   useShopStore.getState().open(session);
+  useShopStore.setState({ spent: 50100 });
   jest
     .mocked(getActiveMockAdoption)
     .mockResolvedValue({ version: 1, ...session, sessionSeq: 3001 });
@@ -322,12 +322,12 @@ test('buys server poop bags through the cart purchase api', async () => {
         item: { itemSeq: 31, itemName: '배변봉투', category: 'POOP_BAG' },
         quantity: 1,
         amount: 500,
-        balanceAfter: 49500,
+        balanceAfter: -600,
         inventoryQuantity: 10,
       },
     ],
     totalAmount: 500,
-    balanceAfter: 49500,
+    balanceAfter: -600,
   });
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
@@ -342,7 +342,8 @@ test('buys server poop bags through the cart purchase api', async () => {
   });
   expect(purchaseSimulationItems).toHaveBeenCalledWith(3001, [{ itemSeq: 31, quantity: 1 }]);
   expect(useShopStore.getState().inventory['31']).toBe(10);
-  expect(useShopStore.getState().spent).toBe(500);
+  expect(useShopStore.getState().spent).toBe(50600);
+  expect(useShopStore.getState().budget - useShopStore.getState().spent).toBe(-600);
   expect(renderer.root.findByType(ArFloorView).props.bagAvailable).toBe(true);
   expect(renderer.root.findAllByType(AppDialog)).toHaveLength(0);
   await ReactTestRenderer.act(() => renderer.unmount());
