@@ -65,7 +65,7 @@ export const mockAdoptionPets: Array<{
     breedCode: '000181',
     costGroup: 'cat',
     category: 'cat',
-    image: require('../../assets/images/mock-adoption/img_cat_korean_shorthair.png'),
+    image: require('../../assets/images/mock-adoption/img_cat_british_shorthair.png'),
   },
   {
     id: 'cat-2',
@@ -81,7 +81,7 @@ export const mockAdoptionPets: Array<{
     breedCode: '000182',
     costGroup: 'cat',
     category: 'cat',
-    image: require('../../assets/images/mock-adoption/img_cat_ragdoll.png'),
+    image: require('../../assets/images/mock-adoption/img_cat_savannah.png'),
   },
   {
     id: 'cat-4',
