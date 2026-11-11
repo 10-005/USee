@@ -294,6 +294,7 @@ export function LostReportFormScreen({ navigation, route }: Props) {
         visible={datePickerOpen}
       />
       <TimePickerModal
+        centered
         onClose={() => setPendingDate(null)}
         onConfirm={selected => {
           updateDetails({ lostAt: selected.toISOString() });

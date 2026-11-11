@@ -279,6 +279,7 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
         visible={datePickerOpen}
       />
       <TimePickerModal
+        centered
         onClose={() => setPendingDate(null)}
         onConfirm={selected => {
           updateDraft({ foundAt: selected.toISOString() });
