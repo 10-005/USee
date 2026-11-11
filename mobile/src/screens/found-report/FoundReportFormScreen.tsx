@@ -188,7 +188,7 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
       landmarkDescription: draft.terrain.trim() || null,
       latitude: draft.latitude,
       longitude: draft.longitude,
-      microchipNumber: draft.microchipNumber.trim() || null,
+      microchipNumber: draft.microchipStatus === 'done' ? draft.microchipNumber.trim() || null : null,
       occurredDttm: draft.foundAt,
       reporterPhone: draft.contact.replace(/\D/g, ''),
       weight: draft.weight.trim() || null,
@@ -400,13 +400,12 @@ function _AnimalStep({
       />
       <FieldLabel required>마이크로칩(RFID) 등록 여부</FieldLabel>
       <OptionRow
-        onSelect={microchipStatus =>
-          onUpdate({ microchipStatus: microchipStatus as FoundReportDraft['microchipStatus'] })
+        onSelect={value =>
+          onUpdate(value === 'done' ? { microchipStatus: 'done' } : { microchipStatus: 'not-done', microchipNumber: '' })
         }
         options={[
           ['done', '완료'],
           ['not-done', '미완료'],
-          ['unknown', '모름'],
         ]}
         value={draft.microchipStatus}
       />

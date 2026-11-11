@@ -498,7 +498,7 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                     location: report.location,
                     longitude: apiFoundDetail?.longitude ?? null,
                     microchipNumber: apiFoundDetail?.microchipNumber ?? '',
-                    microchipStatus: apiFoundDetail?.microchipNumber ? 'done' : 'unknown',
+                    microchipStatus: apiFoundDetail?.microchipNumber?.trim() ? 'done' : 'not-done',
                     neutered:
                       report.neutered === null ? 'unknown' : report.neutered ? 'done' : 'not-done',
                     species: report.species === '개' ? '강아지' : report.species,
