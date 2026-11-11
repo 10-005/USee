@@ -38,7 +38,9 @@ import { colors, radius, typography } from '../../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'LostReportForm'>;
 type Step = 3 | 4;
 
-const PHONE_PATTERN = /^01[016789]-\d{3,4}-\d{4}$/;
+export function isValidLostReportPhone(value: string) {
+  return /^01[016789]\d{8}$/.test(value.replace(/-/g, ''));
+}
 
 export function formatLostDateTime(value: string) {
   if (!value) {
@@ -108,7 +110,7 @@ export function LostReportFormScreen({ navigation, route }: Props) {
             details.latitude !== null &&
             details.longitude !== null,
         )
-      : PHONE_PATTERN.test(formatPhone(details.contact));
+      : isValidLostReportPhone(details.contact);
 
   const goBack = useCallback(() => {
     Keyboard.dismiss();
