@@ -388,18 +388,24 @@ function ContactStep({
         </View>
         <Switch
           label="전화번호 공개"
-          onValueChange={exposeContact => onUpdate({ exposeContact })}
+          onValueChange={exposeContact => {
+            if (!exposeContact) {
+              Keyboard.dismiss();
+            }
+            onUpdate({ exposeContact });
+          }}
           value={details.exposeContact}
         />
       </View>
-      <Text style={styles.label}>전화번호</Text>
+      <Text style={[styles.label, !details.exposeContact && styles.disabledLabel]}>전화번호</Text>
       <KeyboardAwareTextInput
-        editable
+        editable={details.exposeContact}
+        accessibilityState={{ disabled: !details.exposeContact }}
         keyboardType="phone-pad"
         onChangeText={contact => onUpdate({ contact: formatPhone(contact) })}
         placeholder="010-0000-0000"
         placeholderTextColor={colors.gray300}
-        style={styles.textInput}
+        style={[styles.textInput, !details.exposeContact && styles.disabledInput]}
         value={formatPhone(details.contact)}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
