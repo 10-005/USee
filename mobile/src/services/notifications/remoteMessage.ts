@@ -1,5 +1,6 @@
 import type { RemoteMessage } from '@react-native-firebase/messaging';
 
+import { showPushBanner } from './pushBanner';
 import { parsePushMessage, type ParsedPushMessage } from './pushMessage';
 
 export type PushMessageListener = (message: ParsedPushMessage) => void;
@@ -24,6 +25,9 @@ export async function handleRemoteMessage(message: RemoteMessage): Promise<void>
   if (!parsed) {
     return;
   }
+  await showPushBanner(parsed.title, parsed.body).catch(() => {
+    console.warn('[FCM] 알림 배너를 표시하지 못했습니다.');
+  });
   if (listeners.size === 0) {
     pending.push(parsed);
     return;

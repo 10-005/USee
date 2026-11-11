@@ -56,8 +56,9 @@
 `MISSING` 댓글은 실종 상세, 그 외 댓글과 `SHELTER`는 발견 상세, 입양 상태는 신청 이력이다.
 `CHAT`은 알림 목록에 넣지 않고 채팅 탭으로 보낸다. `AI_MATCH`와 `SYSTEM`은 목적지를 정하지 않는다.
 
-백그라운드 notification 메시지는 OS가 알림으로 표시한다. 포그라운드 시스템 알림 배너와
-data-only 로컬 알림 표시는 구현하지 않았다. data-only 백그라운드 전송은 Android high priority가 필요하다.
+해석된 메시지는 `usee_push` 채널에 높은 중요도로 배너를 띄운다. 앱이 켜져 있을 때와
+data만 있는 백그라운드 메시지는 이 배너로 표시한다. `notification`이 있는 백그라운드
+메시지는 운영체제가 같은 채널로 표시한다. data-only 백그라운드 전송은 Android high priority가 필요하다.
 
 ## 기기 확인
 

@@ -26,6 +26,9 @@
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
       <meta-data android:name="com.google.ar.core" android:value="optional" />
+      <meta-data
+        android:name="com.google.firebase.messaging.default_notification_channel_id"
+        android:value="usee_push" />
       <meta-data android:name="com.naver.maps.map.NCP_KEY_ID" android:value="q6yzj1wy8x" />
       <activity
         android:name="com.kakao.sdk.auth.AuthCodeHandlerActivity"
