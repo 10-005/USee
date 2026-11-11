@@ -469,13 +469,13 @@ export function HomeScreen({ navigation, route }: Props) {
           [{item.species}] {item.name}
         </Text>
         <View style={styles.cardMetaRow}>
-          <MapIcon />
+          <MapIcon height={14} width={14} />
           <Text numberOfLines={1} style={styles.cardMeta}>
             {item.location}
           </Text>
         </View>
         <View style={styles.cardMetaRow}>
-          <DateIcon />
+          <DateIcon height={14} width={14} />
           <Text style={styles.cardMeta}>{item.date}</Text>
         </View>
         <Text numberOfLines={1} style={styles.cardSummary}>
@@ -707,7 +707,7 @@ export function HomeScreen({ navigation, route }: Props) {
                     >
                       {getFilterLabel(filter.key, filter.label)}
                     </Text>
-                    <FilterArrowIcon />
+                    <FilterArrowIcon height={12} width={12} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -864,7 +864,7 @@ const styles = StyleSheet.create({
     ...typography.bodyRegular14,
     color: colors.gray700,
     flex: 1,
-    marginTop: 3,
+    includeFontPadding: false,
     minWidth: 0,
   },
   cardMetaRow: { alignItems: 'center', flexDirection: 'row', gap: 4, width: '100%' },
