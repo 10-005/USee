@@ -25,7 +25,10 @@ export function registerBackgroundMessaging() {
   if (Platform.OS !== 'android') {
     return;
   }
-  setBackgroundMessageHandler(getMessaging(), handleRemoteMessage);
+  setBackgroundMessageHandler(getMessaging(), message =>
+    // FCM already displays notification payloads while the app is in the background.
+    handleRemoteMessage(message, { displayNotification: !message.notification }),
+  );
 }
 
 export function startForegroundMessaging(): () => void {
@@ -38,11 +41,11 @@ export function startForegroundMessaging(): () => void {
     handleRemoteMessage(message).catch(reportError),
   );
   const stopOpened = onNotificationOpenedApp(messaging, message => {
-    handleRemoteMessage(message).catch(reportError);
+    handleRemoteMessage(message, { displayNotification: false }).catch(reportError);
   });
   const stopToken = onTokenRefresh(messaging, token => saveToken(token).catch(reportError));
   getInitialNotification(messaging)
-    .then(message => message && handleRemoteMessage(message))
+    .then(message => message && handleRemoteMessage(message, { displayNotification: false }))
     .catch(reportError);
 
   async function initialize() {

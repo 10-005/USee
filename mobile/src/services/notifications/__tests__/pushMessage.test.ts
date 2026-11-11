@@ -1,8 +1,11 @@
 import type { RemoteMessage } from '@react-native-firebase/messaging';
+import { showPushBanner } from '../pushBanner';
 
 import { appearsInNotificationList, resolveNotificationDestination } from '../pushDestination';
 import { parsePushMessage, SERVER_NOTIFICATION_TYPES } from '../pushMessage';
 import { handleRemoteMessage, subscribePushMessages } from '../remoteMessage';
+
+jest.mock('../pushBanner', () => ({ showPushBanner: jest.fn().mockResolvedValue(undefined) }));
 
 const commentMessage = {
   data: {
@@ -158,9 +161,29 @@ describe('handleRemoteMessage', () => {
   const stops: Array<() => void> = [];
 
   afterEach(() => {
+    jest.clearAllMocks();
     stops.splice(0).forEach(stop => stop());
     const drain = subscribePushMessages(() => {});
     drain();
+  });
+
+  it('수신 메시지로 Android 시스템 알림을 요청한다', async () => {
+    await handleRemoteMessage(commentMessage);
+
+    expect(showPushBanner).toHaveBeenCalledWith(
+      commentMessage.notification?.title,
+      commentMessage.notification?.body,
+    );
+  });
+
+  it('표시를 생략해도 메시지는 구독자에게 전달한다', async () => {
+    const received: unknown[] = [];
+    stops.push(subscribePushMessages(message => received.push(message)));
+
+    await handleRemoteMessage(commentMessage, { displayNotification: false });
+
+    expect(showPushBanner).not.toHaveBeenCalled();
+    expect(received).toHaveLength(1);
   });
 
   it('구독자에게 해석된 메시지를 전달하고 잘못된 메시지는 버린다', async () => {

@@ -20,14 +20,19 @@ export function subscribePushMessages(listener: PushMessageListener): () => void
   };
 }
 
-export async function handleRemoteMessage(message: RemoteMessage): Promise<void> {
+export async function handleRemoteMessage(
+  message: RemoteMessage,
+  { displayNotification = true }: { displayNotification?: boolean } = {},
+): Promise<void> {
   const parsed = parsePushMessage(message);
   if (!parsed) {
     return;
   }
-  await showPushBanner(parsed.title, parsed.body).catch(() => {
-    console.warn('[FCM] 알림 배너를 표시하지 못했습니다.');
-  });
+  if (displayNotification) {
+    await showPushBanner(parsed.title, parsed.body).catch(() => {
+      console.warn('[FCM] 알림 배너를 표시하지 못했습니다.');
+    });
+  }
   if (listeners.size === 0) {
     pending.push(parsed);
     return;
