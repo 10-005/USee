@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   AppState,
@@ -32,8 +32,17 @@ import { colors, radius, typography } from '../../theme';
 import { useAuthStore } from '../../stores/authStore';
 import { getApiErrorDisplayMessage } from '../../services/api';
 import { readAppNotificationPermission } from '../../services/notifications/appNotificationPermission';
-import { deactivateDeviceTokenIfSignedIn } from '../../services/notifications/deviceTokenRegistration';
+import {
+  deactivateDeviceTokenIfSignedIn,
+  registerDeviceTokenIfSignedIn,
+} from '../../services/notifications/deviceTokenRegistration';
 import { getStoredFcmToken } from '../../services/notifications/firebaseMessaging';
+import {
+  loadNotificationSettings,
+  notificationSettingFields,
+  saveNotificationSettings,
+} from '../../services/notifications/notificationSettings';
+import type { NotificationSettings } from '../../services/notifications/notificationSettingsApi';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 type AccountModal = 'logout' | 'withdraw' | null;
@@ -57,7 +66,12 @@ export function SettingsScreen({ navigation }: Props) {
   const resetBookmarks = useAdoptionBookmarkStore(state => state.reset);
   const logout = useAuthStore(state => state.logout);
   const withdraw = useAuthStore(state => state.withdraw);
-  const [notificationsAllowed, setNotificationsAllowed] = useState(true);
+  const [notificationsAllowed, setNotificationsAllowed] = useState<boolean | null>(null);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const savingSettings = useRef(false);
+  const loadingSettings = useRef(false);
   const [accountModal, setAccountModal] = useState<AccountModal>(null);
   const [activeTimeField, setActiveTimeField] = useState<'start' | 'end' | null>(null);
 
@@ -71,20 +85,65 @@ export function SettingsScreen({ navigation }: Props) {
       .catch(() => undefined);
   }, []);
 
+  const refreshSettings = useCallback(async () => {
+    if (savingSettings.current || loadingSettings.current) {
+      return;
+    }
+    loadingSettings.current = true;
+    setIsLoadingSettings(true);
+    setSettingsError(null);
+    try {
+      await loadNotificationSettings();
+    } catch (error) {
+      setSettingsError(
+        getApiErrorDisplayMessage(error, '알림 설정을 불러오지 못했어요. 다시 시도해 주세요.'),
+      );
+    } finally {
+      loadingSettings.current = false;
+      setIsLoadingSettings(false);
+    }
+  }, []);
+
+  const changeSettings = async (changes: Partial<NotificationSettings>) => {
+    if (savingSettings.current || isLoadingSettings || settingsError || !notificationsAllowed) {
+      return;
+    }
+    savingSettings.current = true;
+    setIsSavingSettings(true);
+    try {
+      await saveNotificationSettings(changes);
+    } catch (error) {
+      Alert.alert(
+        '알림 설정 변경 실패',
+        getApiErrorDisplayMessage(error, '잠시 후 다시 시도해 주세요.'),
+      );
+    } finally {
+      savingSettings.current = false;
+      setIsSavingSettings(false);
+    }
+  };
+  const settingsDisabled =
+    !notificationsAllowed || isLoadingSettings || isSavingSettings || Boolean(settingsError);
+
   useFocusEffect(
     useCallback(() => {
       readNotificationPermission();
-    }, [readNotificationPermission]),
+      refreshSettings();
+    }, [readNotificationPermission, refreshSettings]),
   );
 
   useEffect(() => {
-    if (notificationsAllowed) {
+    if (notificationsAllowed === null) {
       return;
     }
     getStoredFcmToken()
-      .then(token => deactivateDeviceTokenIfSignedIn(token))
+      .then(token =>
+        notificationsAllowed
+          ? registerDeviceTokenIfSignedIn(token)
+          : deactivateDeviceTokenIfSignedIn(token),
+      )
       .catch(() => {
-        console.warn('[FCM] 기기 토큰 해제에 실패했습니다.');
+        console.warn('[FCM] 기기 토큰 상태 변경에 실패했습니다.');
       });
   }, [notificationsAllowed]);
 
@@ -92,10 +151,11 @@ export function SettingsScreen({ navigation }: Props) {
     const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') {
         readNotificationPermission();
+        refreshSettings();
       }
     });
     return () => subscription.remove();
-  }, [readNotificationPermission]);
+  }, [readNotificationPermission, refreshSettings]);
 
   const resetUserState = () => {
     resetProfile();
@@ -171,37 +231,69 @@ export function SettingsScreen({ navigation }: Props) {
               <Text style={styles.settingDescription}>휴대폰의 USEE 앱 알림 권한을 관리해요.</Text>
             </View>
             <Text style={[styles.permissionStatus, !notificationsAllowed && styles.blockedStatus]}>
-              {notificationsAllowed ? '허용' : '차단됨'}
+              {notificationsAllowed === null ? '확인 중' : notificationsAllowed ? '허용' : '차단됨'}
             </Text>
             <ChevronRightIcon height={20} width={20} />
           </Pressable>
 
           <View style={styles.divider} />
 
+          {isLoadingSettings ? (
+            <Text style={styles.settingDescription}>알림 설정을 불러오는 중이에요.</Text>
+          ) : null}
+          {settingsError ? (
+            <Pressable
+              accessibilityLabel="알림 설정 다시 불러오기"
+              accessibilityRole="button"
+              onPress={refreshSettings}
+            >
+              <Text style={styles.settingDescription}>{settingsError} 눌러서 다시 시도</Text>
+            </Pressable>
+          ) : null}
+
           {notificationItems.map(item => (
             <View key={item.key}>
               <NotificationRow
                 description={item.description}
-                disabled={!notificationsAllowed}
+                disabled={settingsDisabled}
                 label={item.label}
-                onPress={() => settings.toggleSetting(item.key)}
-                value={settings[item.key]}
+                onPress={() =>
+                  changeSettings({ [notificationSettingFields[item.key]]: !settings[item.key] })
+                }
+                value={
+                  notificationsAllowed === true &&
+                  !isLoadingSettings &&
+                  !settingsError &&
+                  settings[item.key]
+                }
               />
-              {item.key === 'mockAdoption' && settings.mockAdoption && notificationsAllowed ? (
+              {item.key === 'mockAdoption' &&
+              settings.mockAdoption &&
+              notificationsAllowed &&
+              !isLoadingSettings &&
+              !settingsError ? (
                 <View style={styles.doNotDisturb}>
-                  <Text style={styles.doNotDisturbTitle}>방해금지 시간 설정</Text>
-                  <View style={styles.timeRow}>
-                    <TimeSelect
-                      label="시작 시간"
-                      onPress={() => openTimePicker('start')}
-                      value={settings.doNotDisturbStart}
-                    />
-                    <TimeSelect
-                      label="종료 시간"
-                      onPress={() => openTimePicker('end')}
-                      value={settings.doNotDisturbEnd}
-                    />
-                  </View>
+                  <NotificationRow
+                    description="모의입양 알림에만 적용해요."
+                    disabled={settingsDisabled}
+                    label="방해금지 시간 설정"
+                    onPress={() => changeSettings({ quietEnabled: !settings.quietEnabled })}
+                    value={settings.quietEnabled}
+                  />
+                  {settings.quietEnabled ? (
+                    <View style={styles.timeRow}>
+                      <TimeSelect
+                        label="시작 시간"
+                        onPress={() => !settingsDisabled && openTimePicker('start')}
+                        value={settings.doNotDisturbStart}
+                      />
+                      <TimeSelect
+                        label="종료 시간"
+                        onPress={() => !settingsDisabled && openTimePicker('end')}
+                        value={settings.doNotDisturbEnd}
+                      />
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
             </View>
@@ -239,9 +331,9 @@ export function SettingsScreen({ navigation }: Props) {
             time.getMinutes(),
           ).padStart(2, '0')}`;
           if (activeTimeField === 'start') {
-            settings.setDoNotDisturbStart(formatted);
+            changeSettings({ quietStart: formatted });
           } else if (activeTimeField === 'end') {
-            settings.setDoNotDisturbEnd(formatted);
+            changeSettings({ quietEnd: formatted });
           }
           setActiveTimeField(null);
         }}
@@ -384,7 +476,6 @@ const styles = StyleSheet.create({
   },
   switchThumbOn: { marginLeft: 16 },
   doNotDisturb: { marginBottom: 22, marginTop: -8, zIndex: 5 },
-  doNotDisturbTitle: { ...typography.bodyRegular14, color: colors.gray500, marginBottom: 10 },
   timeRow: { flexDirection: 'row', gap: 25 },
   timeField: { flex: 1 },
   timeLabel: {
