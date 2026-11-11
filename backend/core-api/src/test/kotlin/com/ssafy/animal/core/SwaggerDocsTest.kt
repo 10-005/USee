@@ -20,6 +20,7 @@ import com.ssafy.animal.core.pet.application.port.`in`.PetUseCase
 import com.ssafy.animal.core.sample.application.port.`in`.SampleUseCase
 import com.ssafy.animal.core.user.application.port.`in`.UserProfileUseCase
 import com.ssafy.animal.core.shelter.application.port.`in`.ShelterUseCase
+import com.ssafy.animal.core.found.application.port.`in`.BreedPredictionUseCase
 import com.ssafy.animal.core.found.application.port.`in`.FoundReportUseCase
 import com.ssafy.animal.core.rescue.application.port.`in`.RescueUseCase
 import org.hamcrest.Matchers.containsInAnyOrder
@@ -82,6 +83,9 @@ abstract class SwaggerDocsTestBase {
 
     @MockitoBean
     lateinit var foundReportUseCase: FoundReportUseCase
+
+    @MockitoBean
+    lateinit var breedPredictionUseCase: BreedPredictionUseCase
 
     @MockitoBean
     lateinit var rescueUseCase: RescueUseCase
