@@ -1056,7 +1056,7 @@ export function FoundReportCommentList({
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 22, paddingTop: 20 },
-  title: { ...typography.bodyRegular14, color: colors.black },
+  title: { ...typography.bodyRegular14, color: colors.black, marginBottom: 10 },
   commentState: { ...typography.bodyRegular14, color: colors.gray500, marginVertical: 12 },
   floatingComposer: { marginBottom: 0, marginTop: 0 },
   composerWrap: { marginBottom: 18, marginTop: 10, position: 'relative', zIndex: 5 },
