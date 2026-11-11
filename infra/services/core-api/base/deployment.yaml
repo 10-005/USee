@@ -66,6 +66,13 @@ spec:
             - name: JWT_PRIVATE_KEY
               valueFrom:
                 secretKeyRef: { name: core-api-secrets, key: JWT_PRIVATE_KEY }
+            # NCP Maps 키(5.6 주소 검색·좌표→시군구, scripts/add-naver-map-keys.sh). 변수 이름은 naver.map.client-id의 Spring 완화 바인딩
+            - name: NAVER_MAP_CLIENTID
+              valueFrom:
+                secretKeyRef: { name: core-api-secrets, key: NAVER_MAP_CLIENT_ID }
+            - name: NAVER_MAP_CLIENTSECRET
+              valueFrom:
+                secretKeyRef: { name: core-api-secrets, key: NAVER_MAP_CLIENT_SECRET }
             # dev는 Swagger 테스트 편의로 access 2주(운영은 기본값 PT1H). refresh는 기본값 P14D
             - name: JWT_ACCESS_TOKEN_TTL
               value: P14D
