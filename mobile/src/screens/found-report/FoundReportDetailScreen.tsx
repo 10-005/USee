@@ -432,88 +432,90 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             style={styles.menuBackdrop}
           />
           <View style={styles.postMenu}>
-            <Pressable
-              onPress={() => {
-                setMenuVisible(false);
-                if (isLostReport) {
-                  selectManualLostReport();
-                  updateLostReportAnimal({
-                    age: Number.isNaN(Number.parseFloat(report.age))
-                      ? null
-                      : Number.parseFloat(report.age),
+            {!isCompleted && (
+              <Pressable
+                onPress={() => {
+                  setMenuVisible(false);
+                  if (isLostReport) {
+                    selectManualLostReport();
+                    updateLostReportAnimal({
+                      age: Number.isNaN(Number.parseFloat(report.age))
+                        ? null
+                        : Number.parseFloat(report.age),
+                      breed: report.name,
+                      color: report.color,
+                      combinationSeq: apiLostDetail?.classification?.combinationSeq ?? null,
+                      description: report.description,
+                      gender: report.gender,
+                      images: [...report.images],
+                      imageSeqs: apiLostDetail?.images.map(image => image.imageSeq) ?? [],
+                      microchipNumber: apiLostDetail?.microchipNumber ?? '',
+                      name: report.name,
+                      neutered: report.neutered,
+                      sourcePetId: null,
+                      species: report.species === '개' ? '강아지' : report.species,
+                      weight: Number.isNaN(Number.parseFloat(report.weight))
+                        ? null
+                        : Number.parseFloat(report.weight),
+                    });
+                    updateLostReportDetails({
+                      contact: apiLostDetail?.contactPhone ?? report.contact ?? '',
+                      detailAddress: '',
+                      exposeContact: apiLostDetail?.isPhonePublic ?? false,
+                      latitude: apiLostDetail?.latitude ?? null,
+                      location: report.location,
+                      longitude: apiLostDetail?.longitude ?? null,
+                      lostAt: apiLostDetail?.occurredDttm ?? new Date(report.date).toISOString(),
+                    });
+                    navigation.navigate('PetRegistration', {
+                      flow: 'lost-report',
+                      reportId: report.id,
+                    });
+                    return;
+                  }
+                  updateFoundReportDraft({
+                    age: report.age,
                     breed: report.name,
                     color: report.color,
-                    combinationSeq: apiLostDetail?.classification?.combinationSeq ?? null,
+                    combinationSeq: apiFoundDetail?.classification?.combinationSeq ?? null,
+                    contact: apiFoundDetail?.reporterPhone ?? '',
                     description: report.description,
-                    gender: report.gender,
-                    images: [...report.images],
-                    imageSeqs: apiLostDetail?.images.map(image => image.imageSeq) ?? [],
-                    microchipNumber: apiLostDetail?.microchipNumber ?? '',
-                    name: report.name,
-                    neutered: report.neutered,
-                    sourcePetId: null,
-                    species: report.species === '개' ? '강아지' : report.species,
-                    weight: Number.isNaN(Number.parseFloat(report.weight))
-                      ? null
-                      : Number.parseFloat(report.weight),
-                  });
-                  updateLostReportDetails({
-                    contact: apiLostDetail?.contactPhone ?? report.contact ?? '',
-                    detailAddress: '',
-                    exposeContact: apiLostDetail?.isPhonePublic ?? false,
-                    latitude: apiLostDetail?.latitude ?? null,
+                    exposeContact: apiFoundDetail?.isPhonePublic ?? false,
+                    foundAt: new Date(report.date).toISOString(),
+                    foundSituation: report.description,
+                    gender:
+                      report.gender === '수컷'
+                        ? 'male'
+                        : report.gender === '암컷'
+                        ? 'female'
+                        : 'unknown',
+                    images: report.images.map(image => ({
+                      type: 'image/jpeg',
+                      uri: Image.resolveAssetSource(image)?.uri ?? '',
+                    })),
+                    imageSeqs: apiFoundDetail?.images.map(image => image.imageSeq) ?? [],
+                    latitude: apiFoundDetail?.latitude ?? null,
                     location: report.location,
-                    longitude: apiLostDetail?.longitude ?? null,
-                    lostAt: apiLostDetail?.occurredDttm ?? new Date(report.date).toISOString(),
+                    longitude: apiFoundDetail?.longitude ?? null,
+                    microchipNumber: apiFoundDetail?.microchipNumber ?? '',
+                    microchipStatus: apiFoundDetail?.microchipNumber ? 'done' : 'unknown',
+                    neutered:
+                      report.neutered === null ? 'unknown' : report.neutered ? 'done' : 'not-done',
+                    species: report.species === '개' ? '강아지' : report.species,
+                    terrain: apiFoundDetail?.landmarkDescription ?? '',
+                    weight: report.weight,
                   });
                   navigation.navigate('PetRegistration', {
-                    flow: 'lost-report',
+                    flow: 'found-report',
                     reportId: report.id,
                   });
-                  return;
-                }
-                updateFoundReportDraft({
-                  age: report.age,
-                  breed: report.name,
-                  color: report.color,
-                  combinationSeq: apiFoundDetail?.classification?.combinationSeq ?? null,
-                  contact: apiFoundDetail?.reporterPhone ?? '',
-                  description: report.description,
-                  exposeContact: apiFoundDetail?.isPhonePublic ?? false,
-                  foundAt: new Date(report.date).toISOString(),
-                  foundSituation: report.description,
-                  gender:
-                    report.gender === '수컷'
-                      ? 'male'
-                      : report.gender === '암컷'
-                      ? 'female'
-                      : 'unknown',
-                  images: report.images.map(image => ({
-                    type: 'image/jpeg',
-                    uri: Image.resolveAssetSource(image)?.uri ?? '',
-                  })),
-                  imageSeqs: apiFoundDetail?.images.map(image => image.imageSeq) ?? [],
-                  latitude: apiFoundDetail?.latitude ?? null,
-                  location: report.location,
-                  longitude: apiFoundDetail?.longitude ?? null,
-                  microchipNumber: apiFoundDetail?.microchipNumber ?? '',
-                  microchipStatus: apiFoundDetail?.microchipNumber ? 'done' : 'unknown',
-                  neutered:
-                    report.neutered === null ? 'unknown' : report.neutered ? 'done' : 'not-done',
-                  species: report.species === '개' ? '강아지' : report.species,
-                  terrain: apiFoundDetail?.landmarkDescription ?? '',
-                  weight: report.weight,
-                });
-                navigation.navigate('PetRegistration', {
-                  flow: 'found-report',
-                  reportId: report.id,
-                });
-              }}
-              style={({ pressed }) => [styles.postMenuItem, pressed && styles.pressed]}
-            >
-              <PostEditIcon />
-              <Text style={styles.postMenuText}>수정하기</Text>
-            </Pressable>
+                }}
+                style={({ pressed }) => [styles.postMenuItem, pressed && styles.pressed]}
+              >
+                <PostEditIcon />
+                <Text style={styles.postMenuText}>수정하기</Text>
+              </Pressable>
+            )}
             <Pressable
               onPress={() => {
                 setMenuVisible(false);
