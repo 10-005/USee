@@ -367,20 +367,20 @@ function _AnimalStep({
       />
       <View style={styles.twoColumn}>
         <View style={styles.half}>
-          <FieldLabel>나이</FieldLabel>
+          <FieldLabel>나이 (살)</FieldLabel>
           <FormInput
             keyboardType="numeric"
             onChangeText={age => onUpdate({ age })}
-            placeholder="예: 12살"
+            placeholder="예: 12"
             value={draft.age}
           />
         </View>
         <View style={styles.half}>
-          <FieldLabel>몸무게</FieldLabel>
+          <FieldLabel>몸무게 (kg)</FieldLabel>
           <FormInput
             keyboardType="decimal-pad"
             onChangeText={weight => onUpdate({ weight })}
-            placeholder="예: 5kg"
+            placeholder="예: 5"
             value={draft.weight}
           />
         </View>

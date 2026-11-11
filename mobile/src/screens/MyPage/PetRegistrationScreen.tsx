@@ -818,18 +818,18 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
               <View style={styles.half}>
                 <InputField
                   keyboardType="number-pad"
-                  label="나이"
+                  label="나이 (살)"
                   onChangeText={setAge}
-                  placeholder="예: 12살"
+                  placeholder="예: 12"
                   value={age}
                 />
               </View>
               <View style={styles.half}>
                 <InputField
                   keyboardType="decimal-pad"
-                  label="몸무게"
+                  label="몸무게 (kg)"
                   onChangeText={setWeight}
-                  placeholder="예: 5kg"
+                  placeholder="예: 5"
                   value={weight}
                 />
               </View>
