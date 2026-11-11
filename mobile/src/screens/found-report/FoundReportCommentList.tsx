@@ -55,6 +55,10 @@ import {
 
 type ComposerProps = {
   compact?: boolean;
+  floating?: boolean;
+  inputRef?: React.Ref<React.ComponentRef<typeof TextInput>>;
+  replyName?: string;
+  onDraftEmptyChange?: (empty: boolean) => void;
   isSubmitting?: boolean;
   onCancel?: () => void;
   onDismissMenus: () => void;
@@ -65,8 +69,12 @@ type ComposerProps = {
   photoMenuOpen: boolean;
 };
 
-function CommentComposer({
+export function CommentComposer({
   compact = false,
+  floating = false,
+  inputRef,
+  replyName,
+  onDraftEmptyChange,
   isSubmitting = false,
   onCancel,
   onDismissMenus,
@@ -79,6 +87,9 @@ function CommentComposer({
   const [content, setContent] = useState('');
   const [focused, setFocused] = useState(false);
   const [image, setImage] = useState<Asset | null>(null);
+  useEffect(() => {
+    onDraftEmptyChange?.(!content.trim() && !image?.uri);
+  }, [content, image?.uri, onDraftEmptyChange]);
   const canSubmit = !isSubmitting && Boolean(content.trim() || image?.uri);
 
   const acceptImage = (asset?: Asset) => {
@@ -158,8 +169,31 @@ function CommentComposer({
   };
 
   return (
-    <View style={[styles.composerWrap, compact && styles.compactComposerWrap]}>
-      <View style={[styles.commentInput, focused && styles.commentInputFocused]}>
+    <View style={[styles.composerWrap, compact && styles.compactComposerWrap, floating && styles.floatingComposer]}>
+      <View style={[styles.commentInput, (focused || Boolean(replyName) || Boolean(image?.uri)) && styles.commentInputFocused]}>
+        {replyName !== undefined ? (
+          <Text numberOfLines={1} style={styles.replyContext}>
+            ↳ “{Array.from(replyName).slice(0, 10).join('')}{Array.from(replyName).length > 10 ? '…' : ''}”에 대댓글 남기기
+          </Text>
+        ) : null}
+      {image?.uri ? (
+        <View style={styles.imagePreviewWrap}>
+          <View style={styles.imageThumbnailWrap}>
+            <Image source={{ uri: image.uri }} style={styles.imagePreview} />
+            <Pressable
+              accessibilityLabel="첨부 사진 삭제"
+              accessibilityState={{ disabled: isSubmitting }}
+              disabled={isSubmitting}
+              hitSlop={8}
+              onPress={() => setImage(null)}
+              style={styles.removeImage}
+            >
+              <XCircleIcon height={20} width={20} />
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+        <View style={styles.composerRow}>
         <Pressable
           accessibilityLabel="댓글 사진 첨부"
           accessibilityState={{ disabled: isSubmitting }}
@@ -175,6 +209,7 @@ function CommentComposer({
           <PlusIcon height={20} width={20} />
         </Pressable>
         <TextInput
+          ref={inputRef}
           editable={!isSubmitting}
           multiline
           onBlur={() => setFocused(false)}
@@ -204,24 +239,7 @@ function CommentComposer({
           )}
         </Pressable>
       </View>
-      {image?.uri ? (
-        <View style={styles.imagePreviewWrap}>
-          <View style={styles.imageThumbnailWrap}>
-            <Image source={{ uri: image.uri }} style={styles.imagePreview} />
-            <Pressable
-              accessibilityLabel="첨부 사진 삭제"
-              accessibilityState={{ disabled: isSubmitting }}
-              disabled={isSubmitting}
-              hitSlop={8}
-              onPress={() => setImage(null)}
-              style={styles.removeImage}
-            >
-              <XCircleIcon height={20} width={20} />
-            </Pressable>
-          </View>
-          <Text style={styles.imageGuide}>사진은 1장만 첨부 가능해요.</Text>
-        </View>
-      ) : null}
+      </View>
       {photoMenuOpen ? (
         <View style={styles.photoMenu}>
           <Pressable
@@ -468,6 +486,7 @@ function CommentItem({
 }
 
 type CommentThreadProps = {
+  onThreadLayout?: (y: number) => void;
   onAuthor: (comment: FoundReportReply) => void;
   onChat: (comment: FoundReportReply) => void;
   comment: FoundReportComment;
@@ -490,6 +509,7 @@ type CommentThreadProps = {
 };
 
 function CommentThread({
+  onThreadLayout,
   onAuthor,
   onChat,
   comment,
@@ -553,6 +573,7 @@ function CommentThread({
     <View
       onLayout={event => {
         threadYRef.current = event.nativeEvent.layout.y;
+        onThreadLayout?.(event.nativeEvent.layout.y);
         reportTargetLayout();
       }}
     >
@@ -576,6 +597,11 @@ function CommentThread({
 }
 
 type FoundReportCommentListProps = {
+  resetReplyRef?: { current: (() => void) | null };
+  onReplySelect?: (name: string, y: number) => void;
+  onSectionLayout?: (y: number) => void;
+  floatingComposer?: boolean;
+  submitRef?: { current: ((content: string, image?: Asset) => Promise<boolean>) | null };
   onTargetUnavailable?: () => void;
   onChat: (name: string, authorId: string) => void;
   onEditFocus?: (inputHandle: number) => void;
@@ -633,6 +659,11 @@ async function uploadCommentImage(asset?: Asset) {
 
 export function FoundReportCommentList({
   onTargetUnavailable,
+  onReplySelect,
+  resetReplyRef,
+  onSectionLayout,
+  floatingComposer,
+  submitRef,
   onChat,
   onEditFocus,
   onPhotoMenuVisibilityChange,
@@ -641,6 +672,7 @@ export function FoundReportCommentList({
   targetType,
   targetCommentId,
 }: FoundReportCommentListProps) {
+  const threadPositions = useRef<Record<string, number>>({});
   const listYRef = useRef<number | null>(null);
   const targetRelativeYRef = useRef<number | null>(null);
   const insets = useSafeAreaInsets();
@@ -852,11 +884,19 @@ export function FoundReportCommentList({
     setPhotoMenuId(null);
   };
 
+  if (resetReplyRef) {
+    resetReplyRef.current = () => setReplyTargetId(null);
+  }
+  if (submitRef) {
+    submitRef.current = (content, image) => replyTargetId ? addReply(replyTargetId, content, image) : addComment(content, image);
+  }
+
   return (
     <Pressable
       accessible={false}
       onLayout={event => {
         listYRef.current = event.nativeEvent.layout.y;
+        onSectionLayout?.(event.nativeEvent.layout.y);
         reportTargetPosition();
       }}
       onPress={dismissMenus}
@@ -881,7 +921,7 @@ export function FoundReportCommentList({
           </Text>
         </Pressable>
       ) : null}
-      <CommentComposer
+      {!floatingComposer && <CommentComposer
         isSubmitting={submittingTarget === 'root'}
         onDismissMenus={dismissMenus}
         onFocus={onEditFocus}
@@ -892,7 +932,7 @@ export function FoundReportCommentList({
         }}
         onSubmit={addComment}
         photoMenuOpen={photoMenuId === 'root'}
-      />
+      />}
       {comments.map(comment => (
         <CommentThread
           onAuthor={author => {
@@ -932,10 +972,14 @@ export function FoundReportCommentList({
             setEditingId(null);
             setPhotoMenuId(null);
             setReplyTargetId(commentId);
+            if (commentId && floatingComposer) {
+              onReplySelect?.(comment.content, (listYRef.current ?? 0) + (threadPositions.current[commentId] ?? 0));
+            }
             setMenuId(null);
           }}
           photoMenuId={photoMenuId}
-          replyTargetId={replyTargetId}
+          onThreadLayout={y => { threadPositions.current[comment.id] = y; }}
+          replyTargetId={floatingComposer ? null : replyTargetId}
           targetCommentId={targetCommentId}
           onTargetLayout={y => {
             targetRelativeYRef.current = y;
@@ -1014,15 +1058,16 @@ const styles = StyleSheet.create({
   container: { paddingHorizontal: 22, paddingTop: 20 },
   title: { ...typography.bodyRegular14, color: colors.black },
   commentState: { ...typography.bodyRegular14, color: colors.gray500, marginVertical: 12 },
+  floatingComposer: { marginBottom: 0, marginTop: 0 },
   composerWrap: { marginBottom: 18, marginTop: 10, position: 'relative', zIndex: 5 },
   compactComposerWrap: { marginLeft: 44, marginTop: 0 },
+  replyContext: { ...typography.bodyRegular14, color: colors.gray500, paddingTop: 10, paddingLeft: 10 },
+  composerRow: { flexDirection: 'row', alignItems: 'center', minHeight: 48 },
   commentInput: {
-    alignItems: 'center',
     backgroundColor: '#F1F1F1',
     borderColor: colors.transparent,
     borderRadius: 8,
     borderWidth: 1,
-    flexDirection: 'row',
     minHeight: 48,
     paddingHorizontal: 16,
   },
@@ -1036,11 +1081,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 9,
   },
-  imagePreviewWrap: { alignSelf: 'flex-start', marginTop: 8 },
+  imagePreviewWrap: { alignSelf: 'flex-start', marginTop: 10, marginBottom: 8 },
   imageThumbnailWrap: { height: 76, position: 'relative', width: 76 },
   imagePreview: { borderRadius: 8, height: 76, width: 76 },
-  removeImage: { position: 'absolute', right: -7, top: -7 },
-  imageGuide: { ...typography.captionRegular10, color: colors.gray400, marginTop: 5 },
+  removeImage: { position: 'absolute', right: 4, top: 4 },
   photoMenu: {
     backgroundColor: colors.white,
     borderColor: colors.gray200,
@@ -1072,7 +1116,7 @@ const styles = StyleSheet.create({
   },
   deletedComment: { minHeight: 0, paddingVertical: 10 },
   reply: { marginLeft: 40, minHeight: 0 },
-  avatar: { borderRadius: 14, height: 28, width: 28 },
+  avatar: { borderRadius: 15, height: 32, width: 32 },
   deletedAvatar: { height: 0, width: 0 },
   commentBody: { flex: 1, marginLeft: 7, minWidth: 0 },
   replyBody: { paddingBottom: (typography.captionRegular10.lineHeight + 5) / 2 },
@@ -1086,7 +1130,7 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     maxWidth: 150,
   },
-  selfLabel: { marginLeft: 4 },
+  selfLabel: { marginLeft: 2 },
   createdAt: {
     ...typography.captionRegular10,
     color: '#C1C1C1',
