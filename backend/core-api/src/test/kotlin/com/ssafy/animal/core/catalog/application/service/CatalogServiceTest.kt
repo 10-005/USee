@@ -39,7 +39,7 @@ class CatalogServiceTest {
 
     private val breeds = listOf(
         AnimalBreed(21, 1, "말티즈", Personality.FRIENDLY).also { ReflectionTestUtils.setField(it, "representativeImageSeq", 7L) },
-        AnimalBreed(22, 1, "진도견", Personality.ACTIVE),
+        AnimalBreed(22, 1, "진돗개", Personality.ACTIVE),
     )
     private val imageUseCase = mock(ImageUseCase::class.java)
 
