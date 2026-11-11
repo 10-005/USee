@@ -1066,7 +1066,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   deletedComment: { minHeight: 0, paddingVertical: 10 },
-  reply: { marginLeft: 40 },
+  reply: { marginLeft: 40, minHeight: 0 },
   avatar: { borderRadius: 20, height: 40, width: 40 },
   deletedAvatar: { height: 0, width: 0 },
   commentBody: { flex: 1, marginLeft: 7, minWidth: 0 },
