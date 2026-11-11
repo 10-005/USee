@@ -21,6 +21,17 @@ const commentMessage = {
   },
 } as RemoteMessage;
 
+const chatMessage = {
+  notification: { title: '행복동물보호센터', body: '내일 방문 가능하세요?' },
+  data: {
+    notificationType: 'CHAT',
+    roomSeq: '501',
+    messageSeq: '9001',
+    senderDisplayName: '행복동물보호센터',
+    preview: '내일 방문 가능하세요?',
+  },
+} as RemoteMessage;
+
 function messageWith(
   data: Record<string, string>,
   notification = commentMessage.notification,
@@ -47,12 +58,39 @@ describe('parsePushMessage', () => {
       messageWith({
         notificationSeq: '1',
         notificationType,
+        ...(notificationType === 'CHAT' ? { roomSeq: '501', messageSeq: '9001' } : {}),
         targetSeq: '9',
         targetType: 'MISSING',
       }),
     );
 
     expect(parsed).toMatchObject({ kind: 'server', notificationType });
+  });
+
+  it('채팅 DTO는 notificationSeq 없이 방과 메시지 정보를 해석한다', () => {
+    expect(parsePushMessage(chatMessage)).toEqual({
+      ...chatMessage.data,
+      ...chatMessage.notification,
+      kind: 'server',
+    });
+  });
+
+  it('데이터 전용 채팅은 발신자와 미리보기를 제목과 본문으로 사용한다', () => {
+    expect(parsePushMessage({ data: chatMessage.data } as RemoteMessage)).toEqual(
+      parsePushMessage(chatMessage),
+    );
+  });
+
+  it('채팅 방이나 메시지 번호가 없거나 일반 알림 번호가 없으면 무시한다', () => {
+    for (const key of ['roomSeq', 'messageSeq']) {
+      expect(
+        parsePushMessage({
+          ...chatMessage,
+          data: { ...chatMessage.data, [key]: ' ' },
+        }),
+      ).toBeNull();
+    }
+    expect(parsePushMessage(messageWith({ notificationType: 'COMMENT' }))).toBeNull();
   });
 
   it('알 수 없는 타입과 제목이 없는 메시지는 무시한다', () => {
@@ -135,9 +173,7 @@ describe('resolveNotificationDestination', () => {
   });
 
   it('채팅 알림은 목록에 넣지 않고 채팅 탭으로 보낸다', () => {
-    const parsed = parsePushMessage(
-      messageWith({ notificationSeq: '7', notificationType: 'CHAT' }),
-    )!;
+    const parsed = parsePushMessage(chatMessage)!;
     const listed = parsePushMessage(commentMessage)!;
 
     expect(resolveNotificationDestination(parsed)).toEqual({ initialTab: 'chat', name: 'Home' });
@@ -174,6 +210,16 @@ describe('handleRemoteMessage', () => {
       commentMessage.notification?.title,
       commentMessage.notification?.body,
     );
+  });
+
+  it('새 채팅 DTO로 헤드업 알림을 요청하고 방과 메시지 정보를 전달한다', async () => {
+    const received: unknown[] = [];
+    stops.push(subscribePushMessages(message => received.push(message)));
+
+    await handleRemoteMessage(chatMessage);
+
+    expect(showPushBanner).toHaveBeenCalledWith('행복동물보호센터', '내일 방문 가능하세요?');
+    expect(received).toEqual([parsePushMessage(chatMessage)]);
   });
 
   it('표시를 생략해도 메시지는 구독자에게 전달한다', async () => {

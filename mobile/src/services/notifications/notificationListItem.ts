@@ -8,7 +8,7 @@ export type NotificationListEntry = {
   createdAtLabel: string;
   id: string;
   isRead: boolean;
-  notificationType: ServerNotificationType;
+  notificationType: Exclude<ServerNotificationType, 'CHAT'>;
   targetCommentId?: string;
   targetId?: string;
   targetType?: string;

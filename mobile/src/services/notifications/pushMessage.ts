@@ -25,16 +25,29 @@ export type SimulationPushMessage = {
   title: string;
 };
 
-export type ServerPushMessage = {
+export type ChatPushMessage = {
   body: string;
-  commentSeq?: string;
   kind: 'server';
-  notificationSeq: string;
-  notificationType: ServerNotificationType;
-  targetSeq?: string;
-  targetType?: string;
+  notificationType: 'CHAT';
+  roomSeq: string;
+  messageSeq: string;
+  senderDisplayName: string;
+  preview: string;
   title: string;
 };
+
+export type ServerPushMessage =
+  | ChatPushMessage
+  | {
+      body: string;
+      commentSeq?: string;
+      kind: 'server';
+      notificationSeq: string;
+      notificationType: Exclude<ServerNotificationType, 'CHAT'>;
+      targetSeq?: string;
+      targetType?: string;
+      title: string;
+    };
 
 export type ParsedPushMessage = ServerPushMessage | SimulationPushMessage;
 
@@ -43,8 +56,13 @@ export function isServerNotificationType(value: string): value is ServerNotifica
 }
 
 export function parsePushMessage(message: RemoteMessage): ParsedPushMessage | null {
-  const title = readDisplayText(message, 'title');
-  const body = readDisplayText(message, 'body');
+  const notificationType = readData(message, 'notificationType');
+  const title =
+    readDisplayText(message, 'title') ??
+    (notificationType === 'CHAT' ? readData(message, 'senderDisplayName') : undefined);
+  const body =
+    readDisplayText(message, 'body') ??
+    (notificationType === 'CHAT' ? readData(message, 'preview') : undefined);
   if (!title || !body) {
     return null;
   }
@@ -53,9 +71,30 @@ export function parsePushMessage(message: RemoteMessage): ParsedPushMessage | nu
     return { body, kind: 'simulation', title };
   }
 
-  const notificationType = readData(message, 'notificationType');
+  if (!notificationType || !isServerNotificationType(notificationType)) {
+    return null;
+  }
+
+  if (notificationType === 'CHAT') {
+    const roomSeq = readData(message, 'roomSeq');
+    const messageSeq = readData(message, 'messageSeq');
+    if (!roomSeq || !messageSeq) {
+      return null;
+    }
+    return {
+      body,
+      kind: 'server',
+      notificationType,
+      roomSeq,
+      messageSeq,
+      senderDisplayName: readData(message, 'senderDisplayName') ?? title,
+      preview: readData(message, 'preview') ?? body,
+      title,
+    };
+  }
+
   const notificationSeq = readData(message, 'notificationSeq');
-  if (!notificationType || !notificationSeq || !isServerNotificationType(notificationType)) {
+  if (!notificationSeq) {
     return null;
   }
 
