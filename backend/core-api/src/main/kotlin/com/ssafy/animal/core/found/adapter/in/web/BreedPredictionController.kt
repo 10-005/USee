@@ -38,11 +38,11 @@ class BreedPredictionController(
             "본인이 발급받은 키만, 중복 불가. 사진이 바뀌면 전체 배열로 다시 호출한다.\n" +
             "- 키는 발급 후 10분 동안만 쓸 수 있다. 지났거나 이미 확정(4.2)한 키는 404이며, 그때는 추천 없이 수동 입력으로 진행한다.\n" +
             "- 다시 호출하면 새 결과로 종·품종 칸을 다시 채운다(사용자가 직접 고친 값도 덮어쓴다). " +
-            "화면에는 \"말티즈인 것 같아요\"처럼 추정 문구로 보여 준다.\n" +
+            "화면에는 `breedConfidence`가 `LOW`면 \"말티즈인 것 같아요\"처럼 추정 문구로, `HIGH`면 그대로 보여 준다.\n" +
             "- 저장하는 것이 없다. 결과는 추천일 뿐이고, 사용자가 확인·수정한 뒤 `colors`에서 색상을 골라 그 `combinationSeq`로 발견 신고 등록(8.4)을 호출한다.\n" +
             "- `colors`는 추천 품종의 색상 선택지다. `breedSeq`가 null이거나 사용자가 품종을 바꾸면 `GET /api/core/v1/animal-combinations?breedSeq=`로 다시 받는다.\n" +
             "- 사진이 여러 장이면 개·고양이가 보이는 사진만 쓰고, 종은 다수결(동률이면 앞 사진), 품종은 사진별 점수의 평균으로 정한다.\n" +
-            "- `speciesSeq`가 null이면 개·고양이를 찾지 못한 것, `breedSeq`만 null이면 품종 확신이 낮거나 우리 품종표에 없는 품종이다. null인 칸은 채우지 않는다.\n" +
+            "- `speciesSeq`가 null이면 개·고양이를 찾지 못한 것, `breedSeq`만 null이면 품종 점수가 0.5 미만이다. null인 칸은 채우지 않는다.\n" +
             "- 모델은 개 15품종·고양이 15품종만 안다. 믹스나 그 밖의 품종도 아는 품종 중 하나로 답할 수 있으니 반드시 사용자가 확인하게 한다.\n" +
             "- 사진 3장이면 2~3초 걸릴 수 있다. 503이면 추천 없이 수동 입력으로 진행한다(재시도 불필요).",
     )
@@ -55,8 +55,9 @@ class BreedPredictionController(
                     mediaType = "application/json",
                     schema = Schema(implementation = BreedPredictionSuccessSchema::class),
                     examples = [
-                        ExampleObject(name = "종·품종 추천", value = SUCCESS),
-                        ExampleObject(name = "종만 추천(품종 확신 낮음)", value = SPECIES_ONLY),
+                        ExampleObject(name = "종·품종 추천(HIGH)", value = SUCCESS),
+                        ExampleObject(name = "품종 추정(LOW)", value = LOW),
+                        ExampleObject(name = "종만 추천(품종 점수 0.5 미만)", value = SPECIES_ONLY),
                         ExampleObject(name = "개·고양이를 찾지 못함", value = NONE),
                     ],
                 ),
@@ -130,11 +131,13 @@ class BreedPredictionController(
 
     companion object {
         const val SUCCESS =
-            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"speciesSeq":1,"speciesCode":"DOG","breedSeq":21,"breedName":"말티즈","candidates":[{"breedSeq":21,"breedName":"말티즈","score":0.69},{"breedSeq":63,"breedName":"믹스견","score":0.29},{"breedSeq":5,"breedName":"비숑 프리제","score":0.005}],"colors":[{"combinationSeq":88,"colorSeq":3,"colorName":"흰색"},{"combinationSeq":89,"colorSeq":12,"colorName":"크림색"}]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"speciesSeq":1,"speciesCode":"DOG","breedSeq":21,"breedName":"말티즈","breedConfidence":"HIGH","candidates":[{"breedSeq":21,"breedName":"말티즈","score":0.93},{"breedSeq":255,"breedName":"말티푸","score":0.05},{"breedSeq":5,"breedName":"비숑 프리제","score":0.01}],"colors":[{"combinationSeq":88,"colorSeq":3,"colorName":"흰색"},{"combinationSeq":89,"colorSeq":12,"colorName":"크림색"}]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+        const val LOW =
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"speciesSeq":1,"speciesCode":"DOG","breedSeq":21,"breedName":"말티즈","breedConfidence":"LOW","candidates":[{"breedSeq":21,"breedName":"말티즈","score":0.69},{"breedSeq":255,"breedName":"말티푸","score":0.29},{"breedSeq":5,"breedName":"비숑 프리제","score":0.005}],"colors":[{"combinationSeq":88,"colorSeq":3,"colorName":"흰색"},{"combinationSeq":89,"colorSeq":12,"colorName":"크림색"}]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val SPECIES_ONLY =
-            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"speciesSeq":1,"speciesCode":"DOG","breedSeq":null,"breedName":null,"candidates":[{"breedSeq":48,"breedName":"시츄","score":0.41},{"breedSeq":21,"breedName":"말티즈","score":0.38}],"colors":[]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"speciesSeq":1,"speciesCode":"DOG","breedSeq":null,"breedName":null,"breedConfidence":null,"candidates":[{"breedSeq":48,"breedName":"시추","score":0.41},{"breedSeq":21,"breedName":"말티즈","score":0.38}],"colors":[]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val NONE =
-            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"speciesSeq":null,"speciesCode":null,"breedSeq":null,"breedName":null,"candidates":[],"colors":[]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
+            """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"speciesSeq":null,"speciesCode":null,"breedSeq":null,"breedName":null,"breedConfidence":null,"candidates":[],"colors":[]},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
         const val UNAVAILABLE =
             """{"status":503,"code":"FOUND_BREED_PREDICTION_UNAVAILABLE","message":"품종 추천을 일시적으로 사용할 수 없습니다.","data":null,"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}"""
     }

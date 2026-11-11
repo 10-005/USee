@@ -63,10 +63,10 @@ class CatalogService(
 
     override fun findBreedColors(breedSeq: Int) = catalogRepository.findCombinations(breedSeq, null)
 
-    override fun findBreedsByCode(speciesCode: SpeciesCode): SpeciesBreeds? {
+    override fun findBreedsByName(speciesCode: SpeciesCode): SpeciesBreeds? {
         val species = catalogRepository.findAllSpecies().firstOrNull { it.speciesCode == speciesCode } ?: return null
-        val breeds = catalogRepository.findBreeds(species.speciesSeq).filter { it.breedCode != null }
-        return SpeciesBreeds(species.speciesSeq, breeds.associate { it.breedCode!! to BreedRef(it.breedSeq, it.breedName) })
+        val breeds = catalogRepository.findBreeds(species.speciesSeq)
+        return SpeciesBreeds(species.speciesSeq, breeds.associate { it.breedName to BreedRef(it.breedSeq, it.breedName) })
     }
 }
 

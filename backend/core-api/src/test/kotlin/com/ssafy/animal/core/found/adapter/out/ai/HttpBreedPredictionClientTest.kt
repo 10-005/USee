@@ -1,5 +1,6 @@
 package com.ssafy.animal.core.found.adapter.out.ai
 
+import com.ssafy.animal.core.found.application.port.`in`.BreedConfidence
 import com.ssafy.animal.core.found.application.port.out.AiBreedCandidate
 import com.ssafy.animal.core.found.application.port.out.AiBreedPrediction
 import org.junit.jupiter.api.Test
@@ -29,13 +30,16 @@ class HttpBreedPredictionClientTest {
             .andExpect(content().json("""{"imageUrls":["https://cdn/1.jpg","https://cdn/2.jpg"]}"""))
             .andRespond(
                 withSuccess(
-                    """{"species":"dog","breed":"maltese","candidates":[{"breed":"maltese","score":0.6925380229949951},{"breed":"maltipoo","score":0.2879141569137573}],"images":[{"species":"dog","speciesScore":0.999,"error":null}],"modelVersion":"dog-convnext_mix,cat-convnext_weighted,frcnn_mnv3_320+mobilenetv3_large_100.ra_in1k"}""",
+                    """{"species":"dog","breed":"말티즈","label":"maltese","confidence":"LOW","candidates":[{"breed":"말티즈","label":"maltese","score":0.6925380229949951},{"breed":"말티푸","label":"maltipoo","score":0.2879141569137573}],"images":[{"species":"dog","speciesScore":0.999,"error":null}],"modelVersion":"dog-convnext_mix,cat-convnext_weighted,clip-vit-base-patch32"}""",
                     MediaType.APPLICATION_JSON,
                 ),
             )
 
         assertEquals(
-            AiBreedPrediction("dog", "maltese", listOf(AiBreedCandidate("maltese", 0.6925380229949951), AiBreedCandidate("maltipoo", 0.2879141569137573))),
+            AiBreedPrediction(
+                "dog", "말티즈", BreedConfidence.LOW,
+                listOf(AiBreedCandidate("말티즈", 0.6925380229949951), AiBreedCandidate("말티푸", 0.2879141569137573)),
+            ),
             client.predict(listOf("https://cdn/1.jpg", "https://cdn/2.jpg")),
         )
     }
@@ -43,9 +47,11 @@ class HttpBreedPredictionClientTest {
     @Test
     fun `개·고양이를 못 찾은 응답은 null과 빈 후보`() {
         server.expect(requestTo("http://breed-server:8000/v1/breed-predictions"))
-            .andRespond(withSuccess("""{"species":null,"breed":null,"candidates":[],"images":[],"modelVersion":"v"}""", MediaType.APPLICATION_JSON))
+            .andRespond(
+                withSuccess("""{"species":null,"breed":null,"label":null,"confidence":null,"candidates":[],"images":[],"modelVersion":"v"}""", MediaType.APPLICATION_JSON),
+            )
 
-        assertEquals(AiBreedPrediction(null, null, emptyList()), client.predict(listOf("https://cdn/1.jpg")))
+        assertEquals(AiBreedPrediction(null, null, null, emptyList()), client.predict(listOf("https://cdn/1.jpg")))
     }
 
     @Test

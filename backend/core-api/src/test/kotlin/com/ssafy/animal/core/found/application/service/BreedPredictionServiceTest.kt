@@ -10,6 +10,7 @@ import com.ssafy.animal.core.catalog.application.port.`in`.SpeciesBreeds
 import com.ssafy.animal.core.catalog.domain.SpeciesCode
 import com.ssafy.animal.core.found.application.port.`in`.BreedCandidate
 import com.ssafy.animal.core.found.application.port.`in`.BreedColor
+import com.ssafy.animal.core.found.application.port.`in`.BreedConfidence
 import com.ssafy.animal.core.found.application.port.`in`.BreedPrediction
 import com.ssafy.animal.core.found.application.port.out.AiBreedCandidate
 import com.ssafy.animal.core.found.application.port.out.AiBreedPrediction
@@ -33,9 +34,9 @@ class BreedPredictionServiceTest {
     }
 
     private val breeds = object : BreedLookupUseCase {
-        override fun findBreedsByCode(speciesCode: SpeciesCode) = when (speciesCode) {
-            SpeciesCode.DOG -> SpeciesBreeds(1, mapOf("000072" to BreedRef(21, "말티즈"), "000114" to BreedRef(63, "믹스견"), "000018" to BreedRef(5, "비숑 프리제")))
-            SpeciesCode.CAT -> SpeciesBreeds(2, mapOf("000188" to BreedRef(230, "스코티시폴드")))
+        override fun findBreedsByName(speciesCode: SpeciesCode) = when (speciesCode) {
+            SpeciesCode.DOG -> SpeciesBreeds(1, mapOf("말티즈" to BreedRef(21, "말티즈"), "말티푸" to BreedRef(255, "말티푸"), "비숑 프리제" to BreedRef(5, "비숑 프리제")))
+            SpeciesCode.CAT -> SpeciesBreeds(2, mapOf("스코티시 폴드" to BreedRef(230, "스코티시 폴드")))
             else -> null
         }
 
@@ -62,9 +63,12 @@ class BreedPredictionServiceTest {
     private fun assertCode(code: ErrorCode, block: () -> Unit) = assertEquals(code, assertFailsWith<BusinessException>(block = block).errorCode)
 
     @Test
-    fun `AI 라벨을 공식 품종 코드로 바꿔 종·품종·후보·색상 선택지를 채운다`() {
+    fun `AI 품종 이름으로 품종표를 찾아 종·품종·확신·후보·색상 선택지를 채운다`() {
         aiResult = {
-            AiBreedPrediction("dog", "maltese", listOf(AiBreedCandidate("maltese", 0.69), AiBreedCandidate("maltipoo", 0.29), AiBreedCandidate("bichon_frise", 0.005)))
+            AiBreedPrediction(
+                "dog", "말티즈", BreedConfidence.LOW,
+                listOf(AiBreedCandidate("말티즈", 0.69), AiBreedCandidate("말티푸", 0.29), AiBreedCandidate("비숑 프리제", 0.005)),
+            )
         }
 
         val result = service.predict(1, listOf("u1/a.jpg", "u1/b.jpg"))
@@ -72,8 +76,8 @@ class BreedPredictionServiceTest {
         assertEquals(listOf("https://cdn/u1/a.jpg", "https://cdn/u1/b.jpg"), requestedUrls)
         assertEquals(
             BreedPrediction(
-                1, SpeciesCode.DOG, 21, "말티즈",
-                listOf(BreedCandidate(21, "말티즈", 0.69), BreedCandidate(63, "믹스견", 0.29), BreedCandidate(5, "비숑 프리제", 0.005)),
+                1, SpeciesCode.DOG, 21, "말티즈", BreedConfidence.LOW,
+                listOf(BreedCandidate(21, "말티즈", 0.69), BreedCandidate(255, "말티푸", 0.29), BreedCandidate(5, "비숑 프리제", 0.005)),
                 listOf(BreedColor(88, 3, "흰색"), BreedColor(89, 12, "크림색")),
             ),
             result,
@@ -81,26 +85,26 @@ class BreedPredictionServiceTest {
     }
 
     @Test
-    fun `품종 확신이 없거나 품종표에 없는 라벨이면 종만 채우고 색상은 비운다`() {
-        aiResult = { AiBreedPrediction("dog", null, listOf(AiBreedCandidate("maltese", 0.4))) }
+    fun `품종 확신이 없거나 품종표에 없는 이름이면 종만 채우고 확신·색상은 비운다`() {
+        aiResult = { AiBreedPrediction("dog", null, null, listOf(AiBreedCandidate("말티즈", 0.4))) }
         assertEquals(
-            BreedPrediction(1, SpeciesCode.DOG, null, null, listOf(BreedCandidate(21, "말티즈", 0.4)), emptyList()),
+            BreedPrediction(1, SpeciesCode.DOG, null, null, null, listOf(BreedCandidate(21, "말티즈", 0.4)), emptyList()),
             service.predict(1, listOf("u1/a.jpg")),
         )
 
-        // scottish_straight는 공식 품종표에 없어 후보에서도 뺀다
+        // 품종표 개명 등으로 이름이 안 맞으면 그 품종은 후보에서도 뺀다(afterMigrate 검사가 막아야 하는 상황)
         aiResult = {
-            AiBreedPrediction("cat", "scottish_straight", listOf(AiBreedCandidate("scottish_straight", 0.9), AiBreedCandidate("scottish_fold", 0.05)))
+            AiBreedPrediction("cat", "없는 품종", BreedConfidence.HIGH, listOf(AiBreedCandidate("없는 품종", 0.9), AiBreedCandidate("스코티시 폴드", 0.05)))
         }
         assertEquals(
-            BreedPrediction(2, SpeciesCode.CAT, null, null, listOf(BreedCandidate(230, "스코티시폴드", 0.05)), emptyList()),
+            BreedPrediction(2, SpeciesCode.CAT, null, null, null, listOf(BreedCandidate(230, "스코티시 폴드", 0.05)), emptyList()),
             service.predict(1, listOf("u1/a.jpg")),
         )
     }
 
     @Test
     fun `개·고양이를 찾지 못하면 전부 비운다`() {
-        aiResult = { AiBreedPrediction(null, null, emptyList()) }
+        aiResult = { AiBreedPrediction(null, null, null, emptyList()) }
         assertEquals(BreedPrediction.NONE, service.predict(1, listOf("u1/a.jpg")))
     }
 

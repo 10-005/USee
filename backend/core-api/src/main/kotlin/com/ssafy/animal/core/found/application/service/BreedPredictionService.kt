@@ -4,6 +4,7 @@ import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.common.exception.CommonErrorCode
 import com.ssafy.animal.common.response.ErrorDetail
 import com.ssafy.animal.core.catalog.application.port.`in`.BreedLookupUseCase
+import com.ssafy.animal.core.catalog.application.port.`in`.BreedRef
 import com.ssafy.animal.core.catalog.domain.SpeciesCode
 import com.ssafy.animal.core.found.application.port.`in`.BreedCandidate
 import com.ssafy.animal.core.found.application.port.`in`.BreedColor
@@ -18,7 +19,7 @@ import org.springframework.stereotype.Service
 
 /**
  * 8.9 발견 신고 사진 종·품종 추천(Q519). 트랜잭션을 걸지 않는다: AI 서버 호출을 DB 커넥션을 쥔 채 기다리지 않도록(21.1 2단계).
- * AI 서버는 서비스 DB를 모르므로 AI 라벨 → 공식 품종 코드 → 품종 변환은 여기서 한다.
+ * AI 서버는 서비스 DB를 모르므로 AI 품종 이름(한글 표시 이름) → 품종 변환은 여기서 한다. 품종표 이름을 AI 표시 이름에 맞췄으므로(Q520) 이름이 1:1로 같다.
  */
 @Service
 class BreedPredictionService(
@@ -44,8 +45,12 @@ class BreedPredictionService(
         }
 
         val speciesCode = SPECIES[ai.species] ?: return BreedPrediction.NONE
-        val breeds = breedLookupUseCase.findBreedsByCode(speciesCode) ?: return BreedPrediction.NONE
-        fun breed(label: String?) = BREED_CODES[label]?.let(breeds.byCode::get)
+        val breeds = breedLookupUseCase.findBreedsByName(speciesCode) ?: return BreedPrediction.NONE
+        // 품종표에 없는 이름은 품종표 개명 등으로 연결이 끊긴 것(afterMigrate 검사가 막는다). 로그만 남기고 그 품종은 비운다
+        fun breed(name: String?): BreedRef? {
+            if (name == null) return null
+            return breeds.byName[name] ?: run { log.warn("AI 품종 이름이 품종표에 없습니다: {} {}", speciesCode, name); null }
+        }
 
         val top = breed(ai.breed)
         return BreedPrediction(
@@ -53,7 +58,8 @@ class BreedPredictionService(
             speciesCode = speciesCode,
             breedSeq = top?.breedSeq,
             breedName = top?.breedName,
-            candidates = ai.candidates.mapNotNull { c -> breed(c.label)?.let { BreedCandidate(it.breedSeq, it.breedName, c.score) } },
+            breedConfidence = top?.let { ai.confidence },
+            candidates = ai.candidates.mapNotNull { c -> breed(c.breed)?.let { BreedCandidate(it.breedSeq, it.breedName, c.score) } },
             colors = top?.let { breedLookupUseCase.findBreedColors(it.breedSeq) }.orEmpty().map { BreedColor(it.combinationSeq, it.colorSeq, it.colorName) },
         )
     }
@@ -61,21 +67,5 @@ class BreedPredictionService(
     private companion object {
         const val MAX_IMAGES = 3
         val SPECIES = mapOf("dog" to SpeciesCode.DOG, "cat" to SpeciesCode.CAT)
-
-        /**
-         * AI 팀 품종 라벨(개 15·고양이 15) → 국가동물보호정보시스템 공식 품종 코드(animal_breeds.breed_code, Q507).
-         * [가안] 공식 코드표에 여러 개로 나뉜 품종은 흔한 쪽으로(닥스훈트→미니어쳐, 웰시코기→펨브로크), 없는 말티푸는 믹스견.
-         * scottish_straight는 맞는 품종이 없어 뺐다(스코티시폴드로 넣으면 귀 모양이 다른 틀린 값) → 종만 채운다.
-         */
-        val BREED_CODES = mapOf(
-            "bichon_frise" to "000018", "chihuahua" to "000032", "dachshund" to "000076", "french_bulldog" to "000050",
-            "golden_retriever" to "000054", "japanese_spitz" to "000062", "jindo" to "000067", "maltese" to "000072",
-            "maltipoo" to "000114", "pomeranian" to "000089", "shiba_inu" to "000100", "shih_tzu" to "000101",
-            "siberian_husky" to "000103", "welsh_corgi" to "000108", "yorkshire_terrier" to "000113",
-            "abyssinian" to "000193", "american_shorthair" to "000192", "bengal" to "000179", "british_shorthair" to "000181",
-            "korean_shorthair" to "000200", "maine_coon" to "000176", "munchkin" to "000175", "norwegian_forest" to "000170",
-            "persian" to "000197", "ragdoll" to "000173", "russian_blue" to "000172", "scottish_fold" to "000188",
-            "siamese" to "000184", "turkish_angora" to "000195",
-        )
     }
 }

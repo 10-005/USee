@@ -1,6 +1,7 @@
 package com.ssafy.animal.core.found.adapter.out.ai
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.ssafy.animal.core.found.application.port.`in`.BreedConfidence
 import com.ssafy.animal.core.found.application.port.out.AiBreedCandidate
 import com.ssafy.animal.core.found.application.port.out.AiBreedPrediction
 import com.ssafy.animal.core.found.application.port.out.BreedPredictionClient
@@ -46,11 +47,17 @@ class HttpBreedPredictionClient(
             .body(mapOf("imageUrls" to imageUrls))
             .retrieve()
             .body(Response::class.java) ?: error("AI 추천 서버 응답이 비어 있습니다")
-        return AiBreedPrediction(response.species, response.breed, response.candidates.orEmpty().map { AiBreedCandidate(it.breed, it.score) })
+        return AiBreedPrediction(
+            response.species,
+            response.breed,
+            BreedConfidence.entries.find { it.name == response.confidence },
+            response.candidates.orEmpty().map { AiBreedCandidate(it.breed, it.score) },
+        )
     }
 
+    // label(영문 라벨)은 로그용이라 받지 않는다
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private data class Response(val species: String?, val breed: String?, val candidates: List<Candidate>?)
+    private data class Response(val species: String?, val breed: String?, val confidence: String?, val candidates: List<Candidate>?)
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private data class Candidate(val breed: String, val score: Double)
