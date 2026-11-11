@@ -9,6 +9,7 @@ import {
 } from '../../services/simulation/reports';
 import { MockAdoptionReportScreen } from './MockAdoptionReportScreen';
 import { won } from './reportLabels';
+import { mockAdoptionPets } from './data';
 
 const navigation = { goBack: jest.fn(), navigate: jest.fn() };
 const screenProps = {
@@ -181,6 +182,27 @@ test('expands grouped purchase amounts and collapses them again', async () => {
     expect(
       renderer.root.findAllByProps({ children: '구매 내역이 없어요.' }).length,
     ).toBeGreaterThan(0);
+  } finally {
+    await ReactTestRenderer.act(() => renderer.unmount());
+  }
+});
+
+test('uses the server breed name for the local image even when its id resembles another external code', async () => {
+  jest.mocked(getSimulationReport).mockResolvedValue({
+    ...detail,
+    breed: {
+      breedSeq: '000018',
+      breedName: '시바견',
+      speciesType: 'DOG',
+      representativeImageUrl: null,
+    },
+  });
+  const renderer = await renderReport();
+  try {
+    expect(renderer.root.findAllByProps({ children: '개 · 시바견' }).length).toBeGreaterThan(0);
+    expect(
+      renderer.root.findAllByProps({ accessibilityLabel: '초코 이미지' })[0].props.source,
+    ).toEqual(mockAdoptionPets.find(pet => pet.id === 'dog-5')?.image);
   } finally {
     await ReactTestRenderer.act(() => renderer.unmount());
   }

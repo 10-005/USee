@@ -203,4 +203,14 @@ describe('active simulation', () => {
       weeklyBudget: 150000,
     });
   });
+
+  test('restores a shiba by its breed identity when its database id differs from the external code', async () => {
+    await expect(
+      applyActiveSimulation(
+        session({
+          breed: { ...session().breed, breedSeq: '812', breedName: '시바견' },
+        }),
+      ),
+    ).resolves.toMatchObject({ petId: 'dog-5' });
+  });
 });

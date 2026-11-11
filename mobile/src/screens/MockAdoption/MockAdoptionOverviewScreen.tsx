@@ -32,7 +32,7 @@ import {
   type MockAdoptionSession,
 } from '../../services/storage/mockAdoptionStorage';
 import { colors, radius, typography } from '../../theme';
-import { mockAdoptionPets } from './data';
+import { findMockAdoptionPetForBreed, mockAdoptionPets, type MockAdoptionBreedIdentity } from './data';
 import { SuddenEventDialog } from './SuddenEventDialog';
 import {
   isSimulationAutoEnded,
@@ -48,10 +48,8 @@ function reportDate(value: string): string {
   return match ? `${match[1]}.${match[2]}.${match[3]}` : value;
 }
 
-function localPetImage(breedSeq: string) {
-  return mockAdoptionPets.find(
-    pet => pet.breedCode === breedSeq || pet.breedCode === breedSeq.padStart(5, '0'),
-  )?.image;
+function localPetImage(breed: MockAdoptionBreedIdentity) {
+  return findMockAdoptionPetForBreed(breed)?.image;
 }
 
 function endedPetImage(active: ActiveSimulation): ImageSourcePropType {
@@ -59,7 +57,7 @@ function endedPetImage(active: ActiveSimulation): ImageSourcePropType {
     return { uri: active.breed.representativeImageUrl };
   }
   return (
-    localPetImage(active.breed.breedSeq) ??
+    localPetImage(active.breed) ??
     require('../../assets/images/mock-adoption/intro-dog.png')
   );
 }
@@ -242,7 +240,7 @@ export function MockAdoptionOverviewScreen({ navigation }: Props) {
               const species = report.breed.speciesType === 'CAT' ? '고양이' : '개';
               const image = report.breed.representativeImageUrl
                 ? { uri: report.breed.representativeImageUrl }
-                : localPetImage(report.breed.breedSeq);
+                : localPetImage(report.breed);
               return (
                 <View key={report.sessionSeq} style={styles.card}>
                   <View style={styles.cardHeader}>

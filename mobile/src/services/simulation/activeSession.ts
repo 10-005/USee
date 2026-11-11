@@ -1,7 +1,7 @@
 import type { AxiosInstance } from 'axios';
 
 import { getBudgetError } from '../../screens/MockAdoption/budget';
-import { mockAdoptionPets } from '../../screens/MockAdoption/data';
+import { findMockAdoptionPetForBreed } from '../../screens/MockAdoption/data';
 import { getPetNameError } from '../../screens/MockAdoption/petName';
 import { simulationClient } from '../api/client';
 import { ApiClientError } from '../api/errors';
@@ -266,12 +266,6 @@ function readActiveSimulation(value: unknown): ActiveSimulation {
   };
 }
 
-function petForBreed(breedSeq: string) {
-  return mockAdoptionPets.find(
-    pet => pet.breedCode === breedSeq || pet.breedCode === breedSeq.padStart(5, '0'),
-  );
-}
-
 export function readCurrentActiveSimulation(): ActiveSimulation | null {
   return currentActiveSimulation;
 }
@@ -318,7 +312,7 @@ export async function applyActiveSimulation(
 
   currentActiveSimulation = active;
   const local = await getActiveMockAdoption();
-  const pet = petForBreed(active.breed.breedSeq);
+  const pet = findMockAdoptionPetForBreed(active.breed);
   const sameSession = local?.sessionSeq === active.sessionSeq;
   const samePet = local?.sessionSeq === undefined && pet?.id === local?.petId;
   if (local && (sameSession || samePet)) {
