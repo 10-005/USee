@@ -52,6 +52,7 @@ import type { Asset } from 'react-native-image-picker';
 import { CommentComposer, FoundReportCommentList } from './FoundReportCommentList';
 import { useInitialCommentScroll } from './useInitialCommentScroll';
 import { getFoundReport } from './data';
+import { splitReportDescription } from './reportDescription';
 import { getLostReport } from '../lost-report/data';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FoundReportDetail' | 'LostReportDetail'>;
@@ -617,15 +618,14 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
                     return;
                   }
                   updateFoundReportDraft({
+                    ...splitReportDescription(report.description),
                     age: apiFoundDetail?.age?.trim() === '모름' ? '' : apiFoundDetail?.age ?? '',
                     breed: report.name,
                     color: report.color,
                     combinationSeq: apiFoundDetail?.classification?.combinationSeq ?? null,
                     contact: apiFoundDetail?.reporterPhone ?? '',
-                    description: report.description,
                     exposeContact: apiFoundDetail?.isPhonePublic ?? false,
                     foundAt: apiFoundDetail?.occurredDttm ?? '',
-                    foundSituation: report.description,
                     gender:
                       report.gender === '수컷'
                         ? 'male'
