@@ -231,10 +231,10 @@ class OpenAiReportSummaryGeneratorTest {
 
         @Suppress("UNCHECKED_CAST")
         val context = payload["context"] as List<Map<String, String>>
-        // 결과 → 성격 → 조언 돌봄 → 해결한 이벤트 → 종, 그다음 링크 한 단계
+        // 결과 → 성격 → 첫 해결 이벤트 → 조언 돌봄 → 종, 그다음 링크 한 단계
         assertEquals(
             listOf(
-                "status:ABANDONED", "personality:FRIENDLY", "care:FEED", "care:WATER", "event:1", "species:DOG",
+                "status:ABANDONED", "personality:FRIENDLY", "event:1", "care:FEED", "care:WATER", "species:DOG",
                 "stat:BOND", "stat:SATIETY", "stat:HYDRATION", "care:WALK",
             ),
             context.map { it.getValue("key") },

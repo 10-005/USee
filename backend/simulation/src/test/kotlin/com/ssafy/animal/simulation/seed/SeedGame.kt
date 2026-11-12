@@ -180,7 +180,7 @@ class SeedGame(
         check(created?.scenario?.scenarioSeq == scenarioSeq) { "$now: 시나리오 $scenarioSeq 이(가) 발생하지 않았습니다(조건·쿨다운·조용한 시간·대기 이벤트 확인). 스탯=$stats" }
     }
 
-    /** 산책 minutes분. 하트비트는 1분마다, steps는 그 분의 하트비트 뒤에 한다(산책 이벤트 발생 또는 산책 중 물) */
+    /** 산책 minutes분. 하트비트는 1분마다, steps는 그 분의 하트비트 뒤에 한다(산책 이벤트 발생 또는 산책 중 행동) */
     fun walk(minutes: Int, steps: Map<Int, WalkStep> = emptyMap()) {
         val begin = now
         val walkSeq = checkNotNull(walkService(ScriptedRandom()).start(userSeq, sessionSeq).walk.walkSeq)
@@ -197,6 +197,7 @@ class SeedGame(
             val heartbeat = walkService(random).heartbeat(userSeq, sessionSeq, walkSeq)
             if (step is WalkStep.Event) check(heartbeat.newEvent?.scenario?.scenarioSeq == step.scenarioSeq) { "$now: 산책 이벤트 ${step.scenarioSeq} 발생 실패" }
             if (step == WalkStep.Water) walkService(ScriptedRandom()).act(userSeq, sessionSeq, walkSeq, CareActionCommand(ActionCode.GIVE_WATER, null))
+            if (step is WalkStep.Act) walkService(ScriptedRandom()).act(userSeq, sessionSeq, walkSeq, CareActionCommand(step.code, step.itemSeq))
             track()
         }
         walkService(ScriptedRandom()).end(userSeq, sessionSeq, walkSeq)
@@ -205,6 +206,9 @@ class SeedGame(
 
     sealed interface WalkStep {
         data class Event(val scenarioSeq: Long) : WalkStep
+
+        /** 산책 중 물 말고 다른 행동(GIVE_SNACK·CLEAN_UP_POOP) */
+        data class Act(val code: ActionCode, val itemSeq: Long?) : WalkStep
         data object Water : WalkStep
     }
 

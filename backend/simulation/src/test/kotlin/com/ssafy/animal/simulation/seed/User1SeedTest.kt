@@ -91,42 +91,53 @@ class User1SeedGeneratorTest {
 
     @Test
     fun `시드 SQL을 쓰고 미리보기를 출력한다`() {
-        val game = User1Seed.play()
-        File(SeedSql.PATH).writeText(SeedSql.render(game))
+        println(SeedGenerator.generate(User1Seed))
+    }
+}
 
-        val care = User1Seed.care(game)
-        val input = User1Seed.summaryInput(game)
+/** 시각표를 플레이해 시드 SQL을 쓰고, 검토용 미리보기(시각표·이벤트·지출·스탯·LLM 입력·규칙 문구)를 돌려준다 */
+object SeedGenerator {
+
+    fun generate(story: SeedStory): String {
+        val game = story.play()
+        File(story.sql.path).writeText(SeedSql.render(game, story.sql))
+        return preview(story, game)
+    }
+
+    fun preview(story: SeedStory, game: SeedGame): String = buildString {
+        val care = story.care(game)
+        val input = story.summaryInput(game)
         val report = game.store.reports.single()
         val mapper = JsonMapper.builder().build().writerWithDefaultPrettyPrinter()
         val days = game.properties.sessionDuration.toDays().toInt()
 
-        println("=== 시각표(일차별 CARE·WALK 행동, EVENT_EXPIRE) ===")
-        game.store.logs.filter { it.actionType != ActionType.SYSTEM }.groupBy { ReportAggregator.dayOf(User1Seed.START, it.regDttm!!, days) }.forEach { (day, logs) ->
-            println("$day: " + logs.joinToString(", ") { "${it.regDttm!!.toLocalTime()} ${it.actionCode}" })
+        appendLine("=== 시각표(일차별 CARE·WALK 행동, EVENT_EXPIRE) ===")
+        game.store.logs.filter { it.actionType != ActionType.SYSTEM }.groupBy { ReportAggregator.dayOf(story.start, it.regDttm!!, days) }.forEach { (day, logs) ->
+            appendLine("$day: " + logs.joinToString(", ") { "${it.regDttm!!.toLocalTime()} ${it.actionCode}" })
         }
-        println("=== 이벤트 ===")
-        game.store.occurrences.forEach { println("#${it.scenarioSeq} ${it.status} occurred=${it.occurredDttm} expires=${it.expiresDttm} resolved=${it.resolvedDttm}") }
-        println("=== 지출 ===")
-        game.store.transactions.forEach { println("${it.regDttm} ${it.transactionType} ${it.description} ${it.amount} → ${it.balanceAfter}") }
-        println("total=${report.totalSpent} balance=${game.session.balance}")
-        println("byCategory=${report.spentByCategoryJsonb.filterValues { it > 0 }}")
-        println("daily=${report.dailySpentJsonb}")
-        println("finalStats=${report.finalStatsJsonb}")
-        println("actionCount=${report.actionCount} eventCount=${report.eventCount} resolved=${report.eventResolvedCount} walkCount=${report.walkCount}")
-        println("=== 일차별 최저 스탯 ===")
-        care.days.forEach { println("${it.day}: ${it.lowestStats}") }
-        println("dangerZoneDays=${care.dangerZoneDays} belowGuidelineDays=${care.belowGuidelineDays}")
-        println("=== 보유 물품 ===")
-        game.store.inventory.forEach { println("${game.store.shopItems.getValue(it.itemSeq).itemName}(${it.itemSeq}) ${it.quantity}") }
-        println("=== 다른 CONDITION 시나리오 조건 성립 판정 수(실제였다면 확률로 생길 수 있음) ===")
-        game.conditionChecks.forEach { (seq, times) -> println("#$seq ${times.size}회 처음=${times.first()}") }
-        println("=== 18.18 새 필드 ===")
-        println("evaluatedDays=${care.evaluatedDays}")
-        println("careGuideline=${mapper.writeValueAsString(care.guideline.mapKeys { it.key.name })}")
-        println("dailyCare=${mapper.writeValueAsString(care.days.associate { d -> d.day.toString() to d.counts.mapKeys { it.key.name } })}")
-        println("=== LLM 입력 JSON ===")
-        println(mapper.writeValueAsString(User1Seed.llmPayload(input)))
-        println("=== 규칙 문구 ===")
-        println(ReportSummaryWriter.write(input))
+        appendLine("=== 이벤트 ===")
+        game.store.occurrences.forEach { appendLine("#${it.scenarioSeq} ${it.status} occurred=${it.occurredDttm} expires=${it.expiresDttm} resolved=${it.resolvedDttm}") }
+        appendLine("=== 지출 ===")
+        game.store.transactions.forEach { appendLine("${it.regDttm} ${it.transactionType} ${it.description} ${it.amount} → ${it.balanceAfter}") }
+        appendLine("total=${report.totalSpent} balance=${game.session.balance}")
+        appendLine("byCategory=${report.spentByCategoryJsonb.filterValues { it > 0 }}")
+        appendLine("daily=${report.dailySpentJsonb}")
+        appendLine("finalStats=${report.finalStatsJsonb}")
+        appendLine("actionCount=${report.actionCount} eventCount=${report.eventCount} resolved=${report.eventResolvedCount} walkCount=${report.walkCount}")
+        appendLine("=== 일차별 최저 스탯 ===")
+        care.days.forEach { appendLine("${it.day}: ${it.lowestStats}") }
+        appendLine("dangerZoneDays=${care.dangerZoneDays} belowGuidelineDays=${care.belowGuidelineDays}")
+        appendLine("=== 보유 물품 ===")
+        game.store.inventory.forEach { appendLine("${game.store.shopItems.getValue(it.itemSeq).itemName}(${it.itemSeq}) ${it.quantity}") }
+        appendLine("=== 다른 CONDITION 시나리오 조건 성립 판정 수(실제였다면 확률로 생길 수 있음) ===")
+        game.conditionChecks.forEach { (seq, times) -> appendLine("#$seq ${times.size}회 처음=${times.first()}") }
+        appendLine("=== 18.18 새 필드 ===")
+        appendLine("evaluatedDays=${care.evaluatedDays}")
+        appendLine("careGuideline=${mapper.writeValueAsString(care.guideline.mapKeys { it.key.name })}")
+        appendLine("dailyCare=${mapper.writeValueAsString(care.days.associate { d -> d.day.toString() to d.counts.mapKeys { it.key.name } })}")
+        appendLine("=== LLM 입력 JSON ===")
+        appendLine(mapper.writeValueAsString(story.llmPayload(input)))
+        appendLine("=== 규칙 문구 ===")
+        appendLine(ReportSummaryWriter.write(input))
     }
 }
