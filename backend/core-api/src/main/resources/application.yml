@@ -63,6 +63,16 @@ ai:
   breed-server:
     base-url: ${AI_BREED_SERVER_URL:}
 
+# AI 매칭 후보 조건(Q523 [가안]). MatchRequested.candidates에 가까운 순 limit개까지 싣는다
+match:
+  candidate:
+    max-distance-km: 30
+    date-grace: P1D   # 발견·구조 시각이 실종 시각보다 이만큼 넘게 앞서면 제외
+    limit: 500
+  # true면 기동할 때 유효한 실종·발견·보호동물 전체를 MatchRequested로 다시 보낸다(발견·보호동물 먼저).
+  # 실제 AI_MATCH 알림이 갈 수 있다. 워커가 뜬 뒤 한 번만 켜고 배포한 다음 다시 끈다
+  republish-on-startup: ${MATCH_REPUBLISH_ON_STARTUP:false}
+
 management:
   endpoints:
     web:

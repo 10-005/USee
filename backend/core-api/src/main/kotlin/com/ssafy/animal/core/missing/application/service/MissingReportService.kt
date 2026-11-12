@@ -11,6 +11,7 @@ import com.ssafy.animal.common.response.ErrorDetail
 import com.ssafy.animal.core.catalog.application.port.`in`.CatalogUseCase
 import com.ssafy.animal.core.catalog.application.port.`in`.GeocodeUseCase
 import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
+import com.ssafy.animal.core.match.application.port.`in`.MatchCandidateUseCase
 import com.ssafy.animal.core.missing.application.port.`in`.CreateMissingCommand
 import com.ssafy.animal.core.missing.application.port.`in`.CreatedMissing
 import com.ssafy.animal.core.missing.application.port.`in`.MissingAuthor
@@ -44,6 +45,7 @@ class MissingReportService(
     private val geocodeUseCase: GeocodeUseCase,
     private val imageUseCase: ImageUseCase,
     private val eventPublisher: EventPublisher,
+    private val matchCandidates: MatchCandidateUseCase,
     transactionManager: PlatformTransactionManager,
 ) : MissingReportUseCase {
 
@@ -176,6 +178,7 @@ class MissingReportService(
                 imageKeys = missingReportRepository.findImageKeys(imageSeqs),
                 speciesCode = speciesCode,
                 occurredAt = report.occurredDttm,
+                candidates = matchCandidates.findCandidates(TargetType.MISSING, report.missingReportSeq!!.toLong()),
             ),
         )
     }

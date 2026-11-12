@@ -34,6 +34,7 @@ import com.ssafy.animal.core.found.domain.FoundImageErrorCode
 import com.ssafy.animal.core.found.domain.FoundReport
 import com.ssafy.animal.core.found.domain.FoundStatus
 import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
+import com.ssafy.animal.core.match.application.port.`in`.MatchCandidateUseCase
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
@@ -53,6 +54,7 @@ class FoundReportService(
     private val geocodeUseCase: GeocodeUseCase,
     private val imageUseCase: ImageUseCase,
     private val eventPublisher: EventPublisher,
+    private val matchCandidates: MatchCandidateUseCase,
     private val transactionOperations: TransactionOperations,
 ) : FoundReportUseCase {
 
@@ -247,6 +249,7 @@ class FoundReportService(
                 imageKeys = foundReportRepository.findImageKeys(imageSeqs),
                 speciesCode = classification.speciesCode.name,
                 occurredAt = report.occurredDttm,
+                candidates = matchCandidates.findCandidates(TargetType.FOUND, report.foundReportSeq!!.toLong()),
             ),
         )
 
