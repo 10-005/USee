@@ -151,7 +151,7 @@ describe('resolveNotificationDestination', () => {
     });
   });
 
-  it('입양 알림은 신청 이력으로 보내고 매칭과 시스템 알림은 목적지를 정하지 않는다', () => {
+  it('입양 알림은 신청 이력으로 보내고 시스템 알림은 목적지를 정하지 않는다', () => {
     const adoption = parsePushMessage(
       messageWith({
         notificationSeq: '3',
@@ -165,7 +165,7 @@ describe('resolveNotificationDestination', () => {
       name: 'AdoptionApplicationHistory',
     });
 
-    for (const notificationType of ['AI_MATCH', 'SYSTEM'] as const) {
+    for (const notificationType of ['SYSTEM'] as const) {
       const parsed = parsePushMessage(
         messageWith({
           notificationSeq: '4',
@@ -176,6 +176,32 @@ describe('resolveNotificationDestination', () => {
       )!;
       expect(resolveNotificationDestination(parsed)).toBeNull();
     }
+  });
+
+  it.each([
+    ['MISSING', 'LostReportDetail'],
+    ['FOUND', 'FoundReportDetail'],
+  ])('AI 매칭의 %s 대상 제보 상세로 이동한다', (targetType, name) => {
+    const parsed = parsePushMessage(
+      messageWith({
+        notificationSeq: '4',
+        notificationType: 'AI_MATCH',
+        targetSeq: '202',
+        targetType,
+      }),
+    )!;
+    expect(resolveNotificationDestination(parsed)).toEqual({ name, reportId: '202' });
+  });
+
+  it.each<Record<string, string>>([
+    { targetType: 'FOUND' },
+    { targetSeq: '202' },
+    { targetSeq: '202', targetType: 'USER' },
+  ])('제보 정보가 불완전한 AI 매칭은 이동하지 않는다: %j', target => {
+    const parsed = parsePushMessage(
+      messageWith({ notificationSeq: '4', notificationType: 'AI_MATCH', ...target }),
+    )!;
+    expect(resolveNotificationDestination(parsed)).toBeNull();
   });
 
   it('채팅 알림은 목록에 넣지 않고 해당 채팅방으로 보낸다', () => {

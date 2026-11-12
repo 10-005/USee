@@ -3,6 +3,7 @@ import renderer, { act } from 'react-test-renderer';
 import { NotificationListScreen } from '../NotificationListScreen';
 import {
   getMyNotifications,
+  markNotificationAsRead,
   type NotificationItem,
   type NotificationPage,
 } from '../../../services/notifications/notificationApi';
@@ -55,9 +56,15 @@ const received = {
   body: '내용',
 };
 let screen: renderer.ReactTestRenderer;
+const navigate = jest.fn();
 beforeEach(() => {
   jest.clearAllMocks();
   jest.mocked(getMyNotifications).mockResolvedValue(page(1));
+  jest.mocked(markNotificationAsRead).mockResolvedValue({
+    isRead: true,
+    notificationSeq: 1,
+    readDttm: null,
+  });
 });
 afterEach(async () => {
   await act(async () => screen.unmount());
@@ -66,7 +73,7 @@ async function renderScreen() {
   await act(async () => {
     screen = renderer.create(
       <NotificationListScreen
-        navigation={{ goBack: jest.fn() } as never}
+        navigation={{ goBack: jest.fn(), navigate } as never}
         route={{ name: 'Notifications', key: 'notifications' }}
       />,
     );
@@ -77,6 +84,29 @@ async function receive() {
     jest.mocked(subscribePushMessages).mock.calls.at(-1)![0](received);
   });
 }
+
+it.each([
+  ['FOUND', 'FoundReportDetail'],
+  ['MISSING', 'LostReportDetail'],
+] as const)(
+  'AI 매칭 목록 클릭은 %s 대상 제보 상세를 열고 읽음 처리한다',
+  async (targetType, name) => {
+    jest.mocked(getMyNotifications).mockResolvedValueOnce({
+      ...page(1),
+      content: [{ ...item, notificationType: 'AI_MATCH', targetType, commentSeq: null }],
+    });
+    await renderScreen();
+    const list = screen.root.findByType(FlatList);
+    const notification = list.props.renderItem({ item: list.props.data[0] });
+    await act(async () => notification.props.onPress());
+    expect(navigate).toHaveBeenCalledWith(name, {
+      reportId: '101',
+      highlightCommentId: undefined,
+    });
+    expect(markNotificationAsRead).toHaveBeenCalledWith(1);
+  },
+  15000,
+);
 
 it('새 알림 수신 시 목록 API를 다시 호출하고 응답으로 갱신한다', async () => {
   await renderScreen();
