@@ -88,7 +88,8 @@
 .sim-total {
   margin-top: 12px;
 }
-.sim-total strong {
+.sim-total > strong {
+  color: #036666;
   font-size: 30px;
 }
 .sim-charts,
@@ -157,7 +158,8 @@
 }
 .sim-legend button {
   display: grid;
-  grid-template-columns: 10px 1fr auto;
+  grid-template-columns: 10px 1fr auto 26px;
+  width: 100%;
   align-items: center;
   gap: 7px;
   padding: 5px 7px;
@@ -174,8 +176,7 @@
   background: #f1f8f4;
 }
 .sim-legend button[aria-pressed='true'] {
-  background: #e8f5ee;
-  border-color: #b7ddca;
+  color: #245c48;
 }
 .sim-legend button:focus-visible {
   outline: 2px solid #248277;
@@ -250,7 +251,7 @@
   position: relative;
   width: 78%;
   max-width: 44px;
-  background: linear-gradient(to bottom, #cde8dc, #f5faf7);
+  background: linear-gradient(to bottom, #7dcfb0, #cde8dc);
   border-radius: 8px 8px 0 0;
 }
 .sim-bar::after {
@@ -327,29 +328,39 @@
   margin: 16px 0 0;
   padding: 10px 4px 14px;
   border-radius: 14px;
-  background: radial-gradient(ellipse at 50% 40%, #fafcfb, #edf4f0);
-}
-.sim-radar-tier {
-  filter: drop-shadow(0 5px 5px rgb(30 84 64 / 14%));
+  background: radial-gradient(ellipse at 50% 40%, #fcfcff, #f4f0fd);
 }
 .sim-radar-panel figcaption {
-  display: flex;
-  justify-content: center;
-  gap: 18px;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
   font-size: 12px;
   color: #435e54;
 }
-.sim-radar-panel figcaption span::before {
+.sim-stat-legend {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.sim-stat-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sim-stat-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.sim-radar-baseline::before {
   content: '';
   display: inline-block;
   width: 16px;
   height: 2px;
-  margin-right: 5px;
+  margin-right: 6px;
   vertical-align: middle;
-  background: #14746f;
-}
-.sim-radar-panel figcaption span:last-child::before {
-  background: #88bfa7;
+  background: #c4c6df;
 }
 .sim-radar {
   display: block;
@@ -359,17 +370,17 @@
 }
 .sim-radar text {
   font: 14px var(--ui-font);
-  fill: #344a40;
+  fill: #4d5066;
 }
 .sim-radar .sim-radar-value {
   font-weight: 700;
-  fill: #036666;
+  fill: #4050e0;
 }
 .sim-radar .sim-radar-value[data-level='medium'] {
-  fill: #89500e;
+  fill: #996a36;
 }
 .sim-radar .sim-radar-value[data-level='low'] {
-  fill: #a63828;
+  fill: #c82850;
 }
 .sim-event-track {
   background: #eaf1ed;
@@ -486,4 +497,100 @@
       transform: translateX(0);
     }
   }
+}
+
+.sim-total .sim-saved-budget {
+  color: #009d58;
+  font-weight: 700;
+}
+.sim-total .sim-even-budget {
+  color: #363532;
+  font-weight: 700;
+}
+.sim-category-figure figcaption strong,
+.sim-legend button[aria-pressed='true'] strong,
+.sim-day-tip strong {
+  color: #036666;
+}
+.sim-category-figure figcaption > span:last-child {
+  color: #14746f;
+}
+.sim-purchase-arrow {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #dfeae5;
+  border-radius: 50%;
+  background: #ffffffb3;
+  color: #6c8277;
+  box-shadow: 0 1px 3px #163b2908;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
+}
+.sim-purchase-arrow svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sim-legend button:hover .sim-purchase-arrow,
+.sim-legend button:focus-visible .sim-purchase-arrow {
+  border-color: #a8cbb9;
+  color: #14746f;
+}
+.sim-legend button[aria-expanded='true'] .sim-purchase-arrow {
+  background: #14746f;
+  border-color: #14746f;
+  color: #fff;
+}
+.sim-legend button[aria-expanded='true'] .sim-purchase-arrow svg {
+  transform: rotate(180deg);
+}
+.sim-purchases-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 200ms ease,
+    visibility 0s 280ms;
+}
+.sim-purchases-collapse[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.sim-purchases-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sim-purchase-arrow,
+  .sim-purchase-arrow svg,
+  .sim-purchases-collapse {
+    transition: none;
+  }
+}
+.sim-purchases {
+  border-left: 2px solid;
+  margin: 8px 0 12px 12px;
+  padding: 8px 14px;
+  color: #53524d;
+  font-size: 13px;
+}
+.sim-purchases > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sim-purchases > div + div {
+  margin-top: 10px;
+}
+.sim-purchases > div > span:last-child {
+  white-space: nowrap;
+  color: #363532;
 }
