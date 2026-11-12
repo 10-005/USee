@@ -86,10 +86,10 @@ it('로그인한 담당자가 목록에서 신청서를 열고 승인하면 목�
             spentByCategory: { EVENT: 1200 },
             dailySpent: { '2': 1200 },
             finalStats: {
-              satiety: 55,
-              hydration: 60,
+              satiety: 39,
+              hydration: 40,
               cleanliness: 70,
-              bond: 62,
+              bond: 69,
               calmness: 72,
               health: 84,
               energy: 58,
@@ -142,6 +142,18 @@ it('로그인한 담당자가 목록에서 신청서를 열고 승인하면 목�
     expect(await screen.findByText('중도 포기')).toBeVisible();
     expect(screen.getByText('요약 준비 중')).toBeVisible();
     expect(screen.getByText('200원 초과')).toBeVisible();
+    expect(screen.getByRole('button', { name: '생활 1,200원' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    fireEvent.click(screen.getByRole('button', { name: '생활 1,200원' }));
+    expect(
+      within(screen.getByRole('region', { name: '생활 구매 내역' })).getByText('진료비'),
+    ).toBeVisible();
+    expect(screen.getByText('39%')).toHaveAttribute('data-level', 'low');
+    expect(screen.getByText('40%')).toHaveAttribute('data-level', 'medium');
+    expect(screen.getByText('69%')).toHaveAttribute('data-level', 'medium');
+    expect(screen.getByText('70%')).toHaveAttribute('data-level', 'high');
     expect(screen.getByRole('button', { name: '2일차 지출 1,200원' })).toBeVisible();
     fireEvent.click(screen.getByRole('link', { name: '리포트 목록' }));
     fireEvent.click(await screen.findByRole('link', { name: '입양신청 상세' }));

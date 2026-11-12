@@ -95,6 +95,7 @@ export const reportDetailOptions = (id: string, session: string) =>
         budget: item.expectedCost,
         summary: item.summary,
         expenses: Object.entries(item.spentByCategory).map(([key, amount]) => ({
+          key,
           label: categoryNames[key] ?? key,
           amount,
         })),
@@ -102,7 +103,7 @@ export const reportDetailOptions = (id: string, session: string) =>
         state: (Object.keys(stats) as (keyof typeof stats)[]).map((key) => ({
           label: stats[key][0],
           icon: stats[key][1],
-          value: item.finalStats[key],
+          value: item.finalStats[key] ?? 0,
         })),
         care: item.actionCount,
         walks: item.walkCount,

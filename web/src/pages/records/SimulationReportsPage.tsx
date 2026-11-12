@@ -3,7 +3,7 @@ import { demoMode } from '@/shared/config/demo';
 import { detailOptions } from '@/entities/shelter/data/applications';
 import { reportListOptions, reportDetailOptions } from '@/entities/shelter/data/simulation-reports';
 import { LoadStateMessage } from '@/shared/ui/LoadState';
-import { useId, useState } from 'react';
+import { Fragment, useId, useState } from 'react';
 import { useLocation, useParams } from 'react-router';
 import { getSimulationReports, useAdoption } from '@/entities/shelter/data';
 import { WorkPage, MissingRecord, RecordBadge } from '@/shared/ui/WorkPage';
@@ -21,35 +21,46 @@ type Entry = Pick<Report, 'id' | 'animal' | 'start' | 'end'> & {
   temperament?: string;
   days?: number;
 };
-const expensePalette = [
-  '#99e2b4',
-  '#88d4ab',
-  '#78c6a3',
-  '#67b99a',
-  '#56ab91',
-  '#469d89',
-  '#358f80',
-  '#248277',
-  '#14746f',
-  '#036666',
+const expenseGroups = [
+  { key: 'meal', label: '식사', color: '#B8DCC8', categories: ['FOOD', 'FOOD_BOWL', 'WATER_BOWL'] },
+  { key: 'snack', label: '간식', color: '#F5CCAD', categories: ['SNACK'] },
+  { key: 'play', label: '놀이', color: '#C9C3EB', categories: ['TOY', 'CATNIP'] },
+  { key: 'furniture', label: '가구', color: '#B9D7ED', categories: ['FURNITURE'] },
+  {
+    key: 'hygiene',
+    label: '위생',
+    color: '#F0C2D1',
+    categories: ['LITTER_BOX', 'LITTER', 'SHAMPOO', 'GROOMING_KIT', 'POOP_BAG'],
+  },
+  { key: 'daily', label: '생활', color: '#ECDCAB', categories: ['LEASH', 'MEDICINE', 'EVENT'] },
 ];
-const icons = import.meta.glob<string>('../../shared/assets/icons/simulation-*.svg', {
-  eager: true,
-  import: 'default',
-});
+const statColors = { low: '#C82850', medium: '#996A36', high: '#4050E0' };
+const statLegend = [
+  { tone: 'high', label: '양호', range: '70% 이상' },
+  { tone: 'medium', label: '주의', range: '40~69%' },
+  { tone: 'low', label: '부족', range: '40% 미만' },
+] as const;
+const statTone = (value: number) => (value < 40 ? 'low' : value < 70 ? 'medium' : 'high');
 const won = (amount: number) => amount.toLocaleString('ko-KR') + '원';
 const totalSpent = (report: Report) => report.expenses.reduce((sum, item) => sum + item.amount, 0);
 
 function CategorySpending({ report, total }: { report: Report; total: number }) {
   const chartId = useId();
   const [selected, setSelected] = useState<string>();
-  const sorted = [...report.expenses].sort((a, b) => b.amount - a.amount);
-  const active = sorted.find((item) => item.label === selected) ?? sorted[0];
+  const [expanded, setExpanded] = useState<string>();
+  const groups = expenseGroups.map((group) => {
+    const purchases = report.expenses
+      .filter((item) => item.amount > 0 && group.categories.includes(item.key))
+      .sort((a, b) => b.amount - a.amount || a.key.localeCompare(b.key));
+    return { ...group, purchases, amount: purchases.reduce((sum, item) => sum + item.amount, 0) };
+  });
+  const active =
+    groups.find((item) => item.key === selected) ?? groups.find((item) => item.amount > 0);
   const point = (angle: number, radius: number) =>
     [100 + radius * Math.cos(angle), 100 + radius * Math.sin(angle)].join(' ');
   let angle = -Math.PI / 2;
   const slices = [];
-  for (const [index, item] of sorted.entries()) {
+  for (const item of groups.filter((item) => item.amount > 0)) {
     const start = angle;
     const share = total ? item.amount / total : 0;
     angle += share * Math.PI * 2;
@@ -57,7 +68,7 @@ function CategorySpending({ report, total }: { report: Report; total: number }) 
     slices.push({
       ...item,
       share,
-      color: expensePalette[index % expensePalette.length],
+      color: item.color,
       // Two arcs also cover the case where a single category fills the circle.
       path: [
         `M${point(start, 84)} A84 84 0 0 1 ${point(middle, 84)} A84 84 0 0 1 ${point(angle, 84)}`,
@@ -98,10 +109,13 @@ function CategorySpending({ report, total }: { report: Report; total: number }) 
                   d={item.path}
                   fill={`url(#${chartId}-${i})`}
                   className="sim-category-slice"
-                  data-active={item.label === active?.label}
-                  style={{ transform: item.label === active?.label ? item.offset : undefined }}
-                  onPointerEnter={() => setSelected(item.label)}
-                  onClick={() => setSelected(item.label)}
+                  data-active={item.key === active?.key}
+                  style={{ transform: item.key === active?.key ? item.offset : undefined }}
+                  onPointerEnter={() => setSelected(item.key)}
+                  onClick={() => {
+                    setSelected(item.key);
+                    setExpanded(item.key);
+                  }}
                 />
               ),
           )}
@@ -114,22 +128,57 @@ function CategorySpending({ report, total }: { report: Report; total: number }) 
               <span>{total ? Math.round((active.amount / total) * 100) : 0}%</span>
             </>
           )}
+          {!active && <span>지출한 항목이 없어요.</span>}
         </figcaption>
       </figure>
       <div className="sim-legend" role="group" aria-label="지출 카테고리 선택">
-        {slices.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            aria-pressed={item.label === active?.label}
-            onPointerEnter={() => setSelected(item.label)}
-            onFocus={() => setSelected(item.label)}
-            onClick={() => setSelected(item.label)}
-          >
-            <i aria-hidden="true" style={{ background: item.color }} />
-            <span>{item.label}</span>
-            <strong>{won(item.amount)}</strong>
-          </button>
+        {groups.map((item) => (
+          <div key={item.key}>
+            <button
+              type="button"
+              aria-label={item.label + ' ' + won(item.amount)}
+              aria-pressed={item.key === active?.key}
+              aria-expanded={expanded === item.key}
+              aria-controls={chartId + '-' + item.key + '-purchases'}
+              style={
+                item.key === active?.key
+                  ? { background: item.color + '33', borderColor: item.color }
+                  : undefined
+              }
+              onPointerEnter={() => setSelected(item.key)}
+              onFocus={() => setSelected(item.key)}
+              onClick={() => {
+                setSelected(item.key);
+                setExpanded((current) => (current === item.key ? undefined : item.key));
+              }}
+            >
+              <i aria-hidden="true" style={{ background: item.color }} />
+              <span>{item.label}</span>
+              <strong>{won(item.amount)}</strong>
+              <span className="sim-purchase-arrow" aria-hidden="true">
+                ⌄
+              </span>
+            </button>
+            <div
+              id={chartId + '-' + item.key + '-purchases'}
+              className="sim-purchases"
+              style={{ borderLeftColor: item.color }}
+              hidden={expanded !== item.key}
+              role="region"
+              aria-label={item.label + ' 구매 내역'}
+            >
+              {item.purchases.length ? (
+                item.purchases.map((purchase) => (
+                  <div key={purchase.label}>
+                    <span>{purchase.label}</span>
+                    <span>{won(purchase.amount)}</span>
+                  </div>
+                ))
+              ) : (
+                <span>구매 내역이 없어요.</span>
+              )}
+            </div>
+          </div>
         ))}
       </div>
     </div>
@@ -153,9 +202,9 @@ function Spending({ report }: { report: Report }) {
           {difference > 0 ? (
             <span className="sim-over-budget">{won(difference)} 초과</span>
           ) : difference < 0 ? (
-            won(-difference) + ' 절약'
+            <span className="sim-saved-budget">{won(-difference)} 절약</span>
           ) : (
-            '예산과 일치'
+            <span className="sim-even-budget">예산과 일치</span>
           )}
         </span>
       </div>
@@ -184,7 +233,15 @@ function Spending({ report }: { report: Report }) {
                     onFocus={() => setSelectedDay(i)}
                     onClick={() => setSelectedDay(i)}
                   >
-                    <span className="sim-bar" style={{ height: (amount / (4 * step)) * 100 + '%' }}>
+                    <span
+                      className="sim-bar"
+                      style={{
+                        height:
+                          (amount > 0
+                            ? Math.max((10 / 184) * 100, Math.min(100, (amount / (4 * step)) * 100))
+                            : 0) + '%',
+                      }}
+                    >
                       <span className="sim-day-tip" aria-hidden="true">
                         <small>{i + 1}일차 지출</small>
                         <strong>{won(amount)}</strong>
@@ -204,34 +261,75 @@ function Spending({ report }: { report: Report }) {
 
 function FinalStateChart({ state }: { state: Report['state'] }) {
   const titleId = useId();
-  const gradientId = useId();
+  const chartId = useId();
+  const radius = 92;
+  const labelRadius = radius + 46;
   const axes = state.map((item, index) => {
     const angle = -Math.PI / 2 + (index * 2 * Math.PI) / state.length;
-    return { ...item, dx: Math.cos(angle), dy: Math.sin(angle) };
+    return {
+      ...item,
+      color: statColors[statTone(item.value)],
+      dx: Math.cos(angle),
+      dy: Math.sin(angle),
+      x: 180 + (Math.cos(angle) * radius * item.value) / 100,
+      y: 150 + (Math.sin(angle) * radius * item.value) / 100,
+    };
   });
-  const radius = 92;
-  const labelRadius = radius + 56;
-  const points = (level?: number) =>
-    axes
-      .map(({ dx, dy, value }) => {
-        const distance = (radius * (level ?? value)) / 100;
-        return `${180 + dx * distance},${150 + dy * distance}`;
-      })
-      .join(' ');
+  const outline = axes.map(({ x, y }) => x + ',' + y).join(' ');
+  const baseline = axes
+    .map(({ dx, dy }) => 180 + dx * radius + ',' + (150 + dy * radius))
+    .join(' ');
   return (
     <figure className="sim-radar-panel">
       <svg className="sim-radar" viewBox="-12 -30 384 356" role="img" aria-labelledby={titleId}>
         <title id={titleId}>
-          {axes.map((item) => item.label + ' ' + item.value + '%').join(', ')}
+          {axes
+            .map(
+              (item) =>
+                item.label +
+                ' ' +
+                item.value +
+                '%, ' +
+                statLegend.find((level) => level.tone === statTone(item.value))?.label,
+            )
+            .join(', ')}
         </title>
         <defs>
-          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#469d89" />
-            <stop offset="100%" stopColor="#036666" />
-          </linearGradient>
+          <clipPath id={chartId + '-area'}>
+            <polygon points={outline} />
+          </clipPath>
+          {axes.map((item, index) => {
+            const next = axes[(index + 1) % axes.length] ?? item;
+            return (
+              <Fragment key={item.label}>
+                <radialGradient
+                  id={chartId + '-fill-' + index}
+                  cx={item.x}
+                  cy={item.y}
+                  r={radius * 1.5}
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop offset="0%" stopColor={item.color} stopOpacity=".18" />
+                  <stop offset="55%" stopColor={item.color} stopOpacity=".05" />
+                  <stop offset="100%" stopColor={item.color} stopOpacity="0" />
+                </radialGradient>
+                <linearGradient
+                  id={chartId + '-edge-' + index}
+                  x1={item.x}
+                  y1={item.y}
+                  x2={next.x}
+                  y2={next.y}
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop offset="0%" stopColor={item.color} />
+                  <stop offset="100%" stopColor={next.color} />
+                </linearGradient>
+              </Fragment>
+            );
+          })}
         </defs>
         {[radius + 12, radius * 0.77, radius * 0.42].map((r) => (
-          <circle key={r} cx="180" cy="150" r={r} fill="white" className="sim-radar-tier" />
+          <circle key={r} cx="180" cy="150" r={r} fill="white" />
         ))}
         {axes.map(({ label, dx, dy }) => (
           <line
@@ -240,52 +338,80 @@ function FinalStateChart({ state }: { state: Report['state'] }) {
             y1="150"
             x2={180 + radius * dx}
             y2={150 + radius * dy}
-            stroke="#dfeae5"
-            strokeWidth=".6"
+            stroke="#DFEAE5"
+            strokeWidth=".8"
           />
         ))}
         <polygon
-          points={points(100)}
+          points={baseline}
           fill="none"
-          stroke="#88bfa7"
-          strokeWidth=".85"
+          stroke="#C4C6DF"
+          strokeWidth="1"
           strokeLinejoin="round"
         />
-        <polygon
-          points={points()}
-          fill={`url(#${gradientId})`}
-          fillOpacity=".08"
-          stroke={`url(#${gradientId})`}
-          strokeWidth="1.2"
-          strokeLinejoin="round"
-        />
-        {axes.map(({ label, icon, value, dx, dy }) => (
+        <g clipPath={'url(#' + chartId + '-area)'}>
+          {axes.map((item, index) => (
+            <rect
+              key={item.label}
+              x={180 - radius}
+              y={150 - radius}
+              width={radius * 2}
+              height={radius * 2}
+              fill={'url(#' + chartId + '-fill-' + index + ')'}
+            />
+          ))}
+        </g>
+        {axes.map((item, index) => {
+          const next = axes[(index + 1) % axes.length] ?? item;
+          return (
+            <line
+              key={item.label}
+              x1={item.x}
+              y1={item.y}
+              x2={next.x}
+              y2={next.y}
+              stroke={'url(#' + chartId + '-edge-' + index + ')'}
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          );
+        })}
+        {axes.map((item) => (
+          <circle
+            key={item.label}
+            cx={item.x}
+            cy={item.y}
+            r="3.2"
+            fill={item.color}
+            stroke="white"
+            strokeWidth="1"
+          />
+        ))}
+        {axes.map(({ label, value, dx, dy }) => (
           <g
             key={label}
-            transform={`translate(${180 + labelRadius * dx} ${150 + labelRadius * dy})`}
+            transform={
+              'translate(' + (180 + labelRadius * dx) + ' ' + (150 + labelRadius * dy) + ')'
+            }
             textAnchor="middle"
           >
-            <image
-              href={icons[`../../shared/assets/icons/simulation-${icon}.svg`]}
-              x="-8"
-              y="-19"
-              width="16"
-              height="16"
-            />
-            <text y="11">{label}</text>
-            <text
-              y="27"
-              className="sim-radar-value"
-              data-level={value < 40 ? 'low' : value < 70 ? 'medium' : 'high'}
-            >
+            <text>{label}</text>
+            <text y="18" className="sim-radar-value" data-level={statTone(value)}>
               {value}%
             </text>
           </g>
         ))}
       </svg>
       <figcaption>
-        <span>최종 상태</span>
-        <span>100% 기준선</span>
+        <div className="sim-stat-legend">
+          {statLegend.map((item) => (
+            <span key={item.tone}>
+              <i style={{ background: statColors[item.tone] }} />
+              {item.label} {item.range}
+            </span>
+          ))}
+        </div>
+        <span className="sim-radar-baseline">100% 기준선</span>
       </figcaption>
     </figure>
   );

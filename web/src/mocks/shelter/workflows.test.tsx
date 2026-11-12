@@ -44,6 +44,24 @@ describe('예시 업무 흐름', () => {
     expect(screen.getByRole('heading', { name: '모의 입양 리포트 상세' })).toBeVisible();
     expect(screen.getByText('6일차')).toBeVisible();
     expect(screen.getByText('55%')).toBeVisible();
+    const meal = screen.getByRole('button', { name: '식사 61,000원' });
+    expect(meal).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(meal);
+    const purchases = screen.getByRole('region', { name: '식사 구매 내역' });
+    expect(within(purchases).getByText('사료')).toBeVisible();
+    expect(within(purchases).getByText('밥그릇')).toBeVisible();
+    expect(within(purchases).getByText('물그릇')).toBeVisible();
+    fireEvent.click(meal);
+    expect(purchases).not.toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: '가구 0원' }));
+    expect(
+      within(screen.getByRole('region', { name: '가구 구매 내역' })).getByText(
+        '구매 내역이 없어요.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByText('양호 70% 이상')).toBeVisible();
+    expect(screen.getByText('주의 40~69%')).toBeVisible();
+    expect(screen.getByText('부족 40% 미만')).toBeVisible();
     fireEvent.click(screen.getByRole('link', { name: '리포트 목록' }));
     fireEvent.click(screen.getByRole('link', { name: '입양신청 상세' }));
     expect(screen.getByRole('link', { name: '이전' })).toHaveAttribute('href', '/adoptions?page=2');
