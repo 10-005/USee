@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: match-worker-dog
+  namespace: app
+  labels:
+    app: match-worker-dog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: match-worker-dog
+  # 큐 소비자라 잠깐 멈춰도 메시지는 durable 큐에 남는다. 옛·새 Pod가 겹쳐 메모리를 두 배로 쓰지 않게 Recreate
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: match-worker-dog
+    spec:
+      imagePullSecrets:
+        - name: registry-pull
+      # 노드 1 고정: 이미지가 크고 노드 2(role=worker)는 디스크 여유가 적다
+      nodeSelector:
+        role: primary
+      containers:
+        - name: match-worker
+          image: k15d106.p.ssafy.io/animal/match-worker   # 태그는 overlay(kustomization images)에서 지정. dog·cat이 같은 이미지
+          env:
+            # 한 프로세스에 한 종만 올린다(AI 팀 모듈 이름이 겹침)
+            - name: SPECIES
+              value: dog
+            - name: RABBITMQ_HOST
+              value: rabbitmq.data.svc.cluster.local
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-app, key: RABBITMQ_USERNAME }
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-app, key: RABBITMQ_PASSWORD }
+            # 벡터는 ai 스키마(pgvector)에만 저장한다. 롤 search_path = ai, public
+            - name: DB_HOST
+              value: postgres.data.svc.cluster.local
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: animal
+            - name: DB_USERNAME
+              value: ai_app
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: match-worker-secrets, key: DB_PASSWORD }
+            # 사진 공개 주소 접두어. breed-server와 같은 값(core-api의 STORAGE_PUBLIC_BASE_URL + "/")
+            - name: IMAGE_URL_PREFIX
+              value: https://s15p31d106-media-887324111755.s3.ap-northeast-2.amazonaws.com/
+            # 가안(S15P31D106-396): 사진 3쌍 실측 기준. AI 팀 검증 수치를 받으면 조정
+            - name: MATCH_MIN_SCORE
+              value: "0.6"
+            - name: MATCH_MAX_RESULTS
+              value: "3"
+            - name: CPU_THREADS
+              value: "2"
+          # HTTP가 없어 프로브를 두지 않는다. 프로세스가 죽으면 kubelet이 재시작한다
+          resources:
+            requests: { cpu: 250m, memory: 1536Mi }
+            limits: { memory: 3Gi }   # 가안: 워커 실측 전. 실측 RSS를 받으면 조정
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: match-worker-cat
+  namespace: app
+  labels:
+    app: match-worker-cat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: match-worker-cat
+  # 큐 소비자라 잠깐 멈춰도 메시지는 durable 큐에 남는다. 옛·새 Pod가 겹쳐 메모리를 두 배로 쓰지 않게 Recreate
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: match-worker-cat
+    spec:
+      imagePullSecrets:
+        - name: registry-pull
+      # 노드 1 고정: 이미지가 크고 노드 2(role=worker)는 디스크 여유가 적다
+      nodeSelector:
+        role: primary
+      containers:
+        - name: match-worker
+          image: k15d106.p.ssafy.io/animal/match-worker   # 태그는 overlay(kustomization images)에서 지정. dog·cat이 같은 이미지
+          env:
+            # 한 프로세스에 한 종만 올린다(AI 팀 모듈 이름이 겹침)
+            - name: SPECIES
+              value: cat
+            - name: RABBITMQ_HOST
+              value: rabbitmq.data.svc.cluster.local
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-app, key: RABBITMQ_USERNAME }
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-app, key: RABBITMQ_PASSWORD }
+            # 벡터는 ai 스키마(pgvector)에만 저장한다. 롤 search_path = ai, public
+            - name: DB_HOST
+              value: postgres.data.svc.cluster.local
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: animal
+            - name: DB_USERNAME
+              value: ai_app
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: match-worker-secrets, key: DB_PASSWORD }
+            # 사진 공개 주소 접두어. breed-server와 같은 값(core-api의 STORAGE_PUBLIC_BASE_URL + "/")
+            - name: IMAGE_URL_PREFIX
+              value: https://s15p31d106-media-887324111755.s3.ap-northeast-2.amazonaws.com/
+            # 가안(S15P31D106-396): 사진 3쌍 실측 기준. AI 팀 검증 수치를 받으면 조정
+            - name: MATCH_MIN_SCORE
+              value: "0.6"
+            - name: MATCH_MAX_RESULTS
+              value: "3"
+            - name: CPU_THREADS
+              value: "2"
+          # HTTP가 없어 프로브를 두지 않는다. 프로세스가 죽으면 kubelet이 재시작한다
+          resources:
+            requests: { cpu: 250m, memory: 1536Mi }
+            limits: { memory: 3Gi }   # 가안: 워커 실측 전. 실측 RSS를 받으면 조정

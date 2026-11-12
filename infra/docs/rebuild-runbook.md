@@ -71,6 +71,7 @@ S15P31D106-347. 2026-11-06 기준 infra 브랜치 구성으로 작성했다. 비
    | registry-htpasswd·registry-pull | `gen-registry-secrets.sh` | `~/.s15p31d106/registry.env` |
    | operator-oauth (`tailscale-operator-oauth.yaml`) | `gen-tailscale-oauth-secret.sh` | Tailscale 관리 화면에서 새 OAuth 클라이언트 |
    | postgres-credentials | **전체 생성 스크립트 없음**. `gen-dev-readonly-secret.sh`는 기존 SealedSecret에 `DEV_READONLY_PASSWORD`만 추가하므로, 키를 잃으면 앱 롤 비밀번호까지 새로 만들어 직접 봉인해야 한다 | 새 값 |
+   | postgres-credentials의 `AI_APP_PASSWORD` + match-worker-secrets | `gen-ai-app-secret.sh`(두 곳에 같은 값). DB에는 노드 1에서 `create-ai-schema.sh`로 반영 | 새 값 |
    | rabbitmq-credentials, redis-credentials | **생성 스크립트 없음** (확인 필요) | 새 값으로 직접 봉인 |
 
    dev_readonly 비밀번호는 파일로 보관하지 않는다. 필요하면 클러스터 Secret `data/postgres-credentials`의 `DEV_READONLY_PASSWORD`에서 꺼낸다. `create-dev-readonly-role.sh`도 이 방식을 쓴다
