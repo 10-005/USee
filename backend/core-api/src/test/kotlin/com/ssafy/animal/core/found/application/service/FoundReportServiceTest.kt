@@ -61,7 +61,8 @@ class FoundReportServiceTest {
         }
     }
     // Mockito는 Int? 반환에 0을 돌려주므로 "없음"을 확인하는 테스트는 null을 직접 지정한다
-    private val service = FoundReportService(repository, catalog, geocode, images, publisher, TransactionOperations.withoutTransaction())
+    // 후보가 없어도 MatchRequested는 나간다(candidates 빈 목록, Q523)
+    private val service = FoundReportService(repository, catalog, geocode, images, publisher, { _, _ -> emptyList() }, TransactionOperations.withoutTransaction())
 
     private val author = AuthUser(42, Role.USER, null)
     private val assignedShelter = AuthUser(77, Role.SHELTER, 7)

@@ -3,6 +3,8 @@ package com.ssafy.animal.core.animal
 import com.ssafy.animal.common.auth.AuthUser
 import com.ssafy.animal.common.auth.Role
 import com.ssafy.animal.common.event.EventPublisher
+import com.ssafy.animal.common.event.MatchCandidate
+import com.ssafy.animal.common.event.TargetType
 import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.core.adoption.application.port.out.AdoptionApplicationRepository
 import com.ssafy.animal.core.adoption.application.port.out.AdoptionQuestionRepository
@@ -231,7 +233,8 @@ class AnimalTestWorld {
     }
 
     val animalApplications = AnimalApplicationsService(applicationRepository, eventPublisher)
-    val animalService = ShelterAnimalService(animalRepository, animalRepository, animalApplications, catalog, imageUseCase, eventPublisher)
+    val matchCandidates = listOf(MatchCandidate(TargetType.MISSING, 101))
+    val animalService = ShelterAnimalService(animalRepository, animalRepository, animalApplications, catalog, imageUseCase, eventPublisher) { _, _ -> matchCandidates }
     val adoptionService = AdoptionService(applicationRepository, applicationRepository, applicationRepository, animalService, animalApplications, eventPublisher)
 
     /** 보호소 7의 PROTECTING 동물을 바로 만든다 */

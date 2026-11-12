@@ -74,6 +74,7 @@ class ShelterAnimalServiceTest {
         assertEquals(MatchEventType.SHELTER_ANIMAL_REGISTERED, match.eventType)
         assertEquals("DOG", match.speciesCode)
         assertEquals(listOf("images/2026/11/1701.jpg", "images/2026/11/1702.jpg"), match.imageKeys)
+        assertEquals(world.matchCandidates, match.candidates)
     }
 
     @Test
