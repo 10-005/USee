@@ -72,4 +72,20 @@ class ReportWikiSelectorTest {
         // status:FAILED 페이지가 없어 빠지고, 물만 권장에 못 미쳐 care:WATER 하나
         assertEquals(listOf("personality:TIMID", "care:WATER", "species:DOG", "stat:CALMNESS", "stat:HYDRATION", "care:WALK"), context.map { it.key })
     }
+
+    @Test
+    fun `근거 후보에서 잘려 나간 이벤트와 괄호 속 건강은 고르지 않는다`() {
+        // 7일 동안 매일 놓친 이벤트(시나리오 1~7). 아쉬운 점 후보는 위험 구간 1줄 + 미해결 5줄까지만 실려 6·7일차 이벤트가 빠진다
+        val pages = ReportWiki((1L..7L).map { page("event:$it", missed = "놓침 줄") } + page("stat:CALMNESS") + page("stat:HEALTH"))
+        val care = CareFixtures.care(
+            start,
+            logs = listOf(log(ActionCode.PLAY, start.plusHours(1), CareFixtures.STATS.copy(calmness = 10))),
+            events = (1L..7L).map { CareEventRecord(it, "이벤트$it", ActionCode.PLAY, OccurrenceStatus.EXPIRED, start.plusDays(it - 1).plusHours(2), null) },
+        )
+
+        val context = ReportWikiSelector.select(input(expectedCost = 90_000, care = care), care, pages)
+
+        // 위험 구간 줄 "1일차: 안정감이 10까지 떨어짐(20 이하면 건강이 깎임)"은 안정감만 고르고 건강은 고르지 않는다
+        assertEquals(listOf("event:1", "event:2", "event:3", "event:4", "event:5", "stat:CALMNESS"), context.map { it.key })
+    }
 }

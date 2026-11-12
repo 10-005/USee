@@ -85,7 +85,11 @@ class ReportWiki(pages: List<WikiPage>) {
  * 세션 기록에서 위키 페이지를 고른다(Q521). 순서가 우선순위이고 LIMIT까지만 고른 뒤, 고른 페이지의 링크를 한 단계 따라
  * TOTAL_LIMIT까지 채운다. 위키에 없는 키는 건너뛴다(빠진 페이지는 ReportWikiTest가 잡는다).
  *
- * 우선순위: 결과 → 성격 → 놓친 이벤트 → 위험 구간 스탯 → 권장 미달 돌봄(조언 근거와 같은 순서) → 예산 초과 → 해결한 이벤트 → 종
+ * 우선순위: 결과 → 성격 → 놓친 이벤트 → 위험 구간 스탯 → 첫 해결 이벤트 → 권장 미달 돌봄(조언 근거와 같은 순서) → 예산 초과
+ * → 나머지 해결 이벤트 → 종. 아쉬운 점이 많아도 잘한 점 문단에 쓸 맥락이 하나는 남도록 첫 해결 이벤트를 앞에 둔다(Q522).
+ *
+ * 이벤트·위험 구간 스탯은 **근거 문장 후보(SummaryEvidence)에 실린 것만** 고른다(Q522). 후보는 목록마다 잘리므로(LIMIT),
+ * 잘려 나간 이벤트의 맥락을 보내면 LLM이 후보에 없는 체험 사실을 지어낼 수 있다.
  */
 object ReportWikiSelector {
 
@@ -93,18 +97,31 @@ object ReportWikiSelector {
     const val TOTAL_LIMIT = 10
 
     fun select(input: ReportSummaryInput, care: CareReport, wiki: ReportWiki): List<WikiContext> {
-        val events = care.days.take(care.evaluatedDays).flatMap { it.events }
+        val evidence = SummaryEvidence.build(input, care)
+        // (일차, 이벤트) 중 후보에 실린 것: 해결은 good의 "n일차: '제목'…", 놓침은 lacking의 "n일차: '제목' 미해결"
+        val events = care.days.take(care.evaluatedDays).flatMap { day ->
+            day.events.filter { event ->
+                when (event.status) {
+                    OccurrenceStatus.RESOLVED -> evidence.good.any { it.startsWith("${day.day}일차: '${event.title}'") }
+                    OccurrenceStatus.EXPIRED -> evidence.lacking.any { it.startsWith("${day.day}일차: '${event.title}' 미해결") }
+                    OccurrenceStatus.PENDING -> false
+                }
+            }
+        }
         // 같은 시나리오가 여러 번 나왔으면 한 페이지에 결과 줄을 모은다
         val outcomes = events.groupBy { it.scenarioSeq }.mapValues { (_, same) -> same.map { it.status }.toSet() }
         val missed = events.filter { it.status == OccurrenceStatus.EXPIRED }.map { eventKey(it.scenarioSeq) }
         val resolved = events.filter { it.status == OccurrenceStatus.RESOLVED }.map { eventKey(it.scenarioSeq) }
-        val danger = Stat.entries.filter { it.key in care.dangerZoneDays }.map { "stat:${it.name}" }
+        // 위험 구간 줄: "n일차: 수분이 12까지 떨어짐(20 미만이면 건강이 깎임)". 괄호 안 "건강이"와 헷갈리지 않게 일차 바로 뒤만 본다
+        val danger = Stat.entries
+            .filter { stat -> evidence.lacking.any { "일차: ${KoreanLabels.josa(KoreanLabels.stat(stat), "이", "가")} " in it && "까지 떨어짐" in it } }
+            .map { "stat:${it.name}" }
         val advice = SummaryEvidence.adviceKeys(input, care).map { "care:${it.first.name}" }
         val budget = if (input.difference < 0) listOf("topic:budget") else emptyList()
 
         val primary = (
             listOf("status:${input.status.name}", "personality:${input.personality.name}") +
-                missed + danger + advice + budget + resolved + "species:${input.speciesType.name}"
+                missed + danger + resolved.take(1) + advice + budget + resolved.drop(1) + "species:${input.speciesType.name}"
             ).distinct().filter { it in wiki.pages }.take(LIMIT)
         val linked = primary.flatMap { wiki.getValue(it).links }.filter { it in wiki.pages && it !in primary }.distinct()
         val keys = (primary + linked).take(TOTAL_LIMIT)
