@@ -1,6 +1,7 @@
 package com.ssafy.animal.simulation.adapter.out.summary
 
 import com.ssafy.animal.simulation.config.LlmConfig
+import com.ssafy.animal.simulation.config.SimulationConfig
 import com.ssafy.animal.simulation.domain.ReportSummaryWriter
 import com.ssafy.animal.simulation.seed.User1Seed
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
@@ -21,7 +22,7 @@ class User1SeedSummaryManualTest {
     fun `회원 1번 시드 데이터로 요약을 만들어 출력한다`() {
         val mapper = JsonMapper.builder().build()
         val config = LlmConfig(apiKey = System.getenv("OPENAI_API_KEY"), model = System.getenv("LLM_MODEL") ?: "gpt-4o-mini")
-        val generator = OpenAiReportSummaryGenerator(config, mapper)
+        val generator = OpenAiReportSummaryGenerator(config, mapper, SimulationConfig.loadReportWiki())
         val input = User1Seed.summaryInput(User1Seed.play())
 
         println("=== 입력 JSON ===")

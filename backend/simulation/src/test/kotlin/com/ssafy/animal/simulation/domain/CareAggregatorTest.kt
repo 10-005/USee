@@ -83,8 +83,8 @@ class CareAggregatorTest {
                 log(ActionCode.FEED, start.plusDays(3)), // 평가 일차 뒤(종료 뒤) 로그는 세지 않는다
             ),
             events = listOf(
-                CareEventRecord("물그릇을 엎었어요", ActionCode.WATER, OccurrenceStatus.RESOLVED, start.plusHours(2), start.plusHours(2).plusMinutes(42)),
-                CareEventRecord("쿠션을 물어뜯어요", ActionCode.PLAY, OccurrenceStatus.EXPIRED, start.plusDays(1).plusHours(3), null),
+                CareEventRecord(1L, "물그릇을 엎었어요", ActionCode.WATER, OccurrenceStatus.RESOLVED, start.plusHours(2), start.plusHours(2).plusMinutes(42)),
+                CareEventRecord(5L, "쿠션을 물어뜯어요", ActionCode.PLAY, OccurrenceStatus.EXPIRED, start.plusDays(1).plusHours(3), null),
             ),
             dailySpent = mapOf("1" to 31_200, "2" to 0),
         )
@@ -96,7 +96,7 @@ class CareAggregatorTest {
         assertEquals(listOf(1, 2), report.belowGuidelineDays[CareKey.WATER])
         assertEquals(mapOf("hydration" to listOf(2), "calmness" to listOf(2)), report.dangerZoneDays)
         assertEquals(1, report.unresolvedEventCount)
-        assertEquals(listOf(DayEvent("물그릇을 엎었어요", ActionCode.WATER, OccurrenceStatus.RESOLVED, 42)), report.days[0].events)
+        assertEquals(listOf(DayEvent(1L, "물그릇을 엎었어요", ActionCode.WATER, OccurrenceStatus.RESOLVED, 42)), report.days[0].events)
         assertNull(report.days[1].events.single().minutesToResolve)
         assertEquals(31_200, report.days[0].spent)
         assertEquals(0, report.days[6].spent)

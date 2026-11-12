@@ -74,14 +74,24 @@ object ReportSummaryWriter {
     /** 낮은 스탯은 낮은 순서로 이만큼만 말한다 */
     private const val LOW_STAT_LIMIT = 2
 
-    fun write(input: ReportSummaryInput): String = listOfNotNull(
-        ending(input),
-        care(input),
-        cost(input),
-        topCategory(input),
-        events(input),
-        condition(input),
-    ).joinToString(" ")
+    /**
+     * LLM 요약과 같은 네 문단(결과 / 돌봄·돌발 상황 / 지출·컨디션 / 실제 입양 조언)을 빈 줄로 잇는다(Q521).
+     * 빈 문단은 빼고, 각 문단 안의 문장은 공백으로 잇는다
+     */
+    fun write(input: ReportSummaryInput): String = listOf(
+        listOfNotNull(ending(input)),
+        listOfNotNull(care(input), events(input)),
+        listOfNotNull(cost(input), topCategory(input), condition(input)),
+        listOfNotNull(guide(input)),
+    ).filter { it.isNotEmpty() }.joinToString("\n\n") { it.joinToString(" ") }
+
+    /** 조언 근거(SummaryEvidence.adviceKeys) 첫 키의 권장 횟수. 일차별 집계가 없거나 모두 채웠으면 기본 조언 */
+    private fun guide(input: ReportSummaryInput): String {
+        val (key, times) = input.care?.let { SummaryEvidence.adviceKeys(input, it).firstOrNull() }
+            ?: return "실제 입양에서는 밥, 물, 배변 관리 같은 기본 돌봄을 매일 같은 시간에 챙기는 습관이 가장 중요해요."
+        return "실제 입양에서는 기본 돌봄을 매일 같은 시간에 챙기는 습관이 가장 중요해요. " +
+            "${KoreanLabels.josa(KoreanLabels.care(key), "을", "를")} 하루 ${times}회 챙겨 보세요."
+    }
 
     private fun ending(input: ReportSummaryInput) = when (input.status) {
         SessionStatus.COMPLETED -> "${input.animalName}의 ${input.sessionDays}일 돌봄을 끝까지 마쳤어요."
