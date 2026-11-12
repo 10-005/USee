@@ -1,4 +1,5 @@
 import { notificationNavigationRef, openPendingNotification } from '../notificationNavigation';
+import { markNotificationAsRead } from '../../../services/notifications/notificationApi';
 import {
   handleNotificationOpened,
   handleNotificationURL,
@@ -36,6 +37,48 @@ it('채팅 알림 클릭은 기존 스택을 홈과 해당 채팅방으로 교�
   expect(nav.resetRoot).toHaveBeenCalledWith({
     index: 1,
     routes: [{ name: 'Home' }, { name: 'ChatRoom', params: { roomId: '501' } }],
+  });
+});
+
+it.each([
+  ['FOUND', 'FoundReportDetail'],
+  ['MISSING', 'LostReportDetail'],
+])('AI 매칭 푸시 클릭은 홈 위에 %s 제보 상세를 쌓는다', (targetType, name) => {
+  handleNotificationOpened({
+    notification: chat.notification,
+    data: {
+      notificationType: 'AI_MATCH',
+      notificationSeq: '42',
+      targetSeq: '202',
+      targetType,
+    },
+  });
+  openPendingNotification(true);
+  expect(nav.resetRoot).toHaveBeenCalledWith({
+    index: 1,
+    routes: [{ name: 'Home' }, { name, params: { reportId: '202' } }],
+  });
+  expect(markNotificationAsRead).toHaveBeenCalledWith(42);
+});
+
+it('로그인 전 누른 AI 매칭 푸시는 로그인 후 홈 위에 제보 상세를 한 번 연다', () => {
+  handleNotificationOpened({
+    notification: chat.notification,
+    data: {
+      notificationType: 'AI_MATCH',
+      notificationSeq: '43',
+      targetSeq: '203',
+      targetType: 'FOUND',
+    },
+  });
+  openPendingNotification(false);
+  expect(nav.resetRoot).not.toHaveBeenCalled();
+  openPendingNotification(true);
+  openPendingNotification(true);
+  expect(nav.resetRoot).toHaveBeenCalledTimes(1);
+  expect(nav.resetRoot).toHaveBeenCalledWith({
+    index: 1,
+    routes: [{ name: 'Home' }, { name: 'FoundReportDetail', params: { reportId: '203' } }],
   });
 });
 
