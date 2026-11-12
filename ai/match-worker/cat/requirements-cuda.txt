@@ -1,0 +1,8 @@
+# Original release CUDA environment: Python 3.12, CUDA 12.4, physical GPU 1.
+# Separate environment; do not install both onnxruntime and onnxruntime-gpu.
+--extra-index-url https://download.pytorch.org/whl/cu124
+numpy==1.26.4
+Pillow==11.3.0
+torch==2.6.0+cu124
+torchvision==0.21.0+cu124
+onnxruntime-gpu==1.23.2

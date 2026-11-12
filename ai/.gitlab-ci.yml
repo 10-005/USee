@@ -1,4 +1,4 @@
-# AI CI (breed-server)
+# AI CI (breed-server, match-worker)
 #   develop-ai 에 push 되고 ai/breed-server 가 바뀌었으면
 #   1) S3 에서 AI 팀 품종 모델을 내려받아 이미지를 빌드해 자체 레지스트리에 push  (태그 = 커밋 짧은 SHA)
 #   2) infra 브랜치의 overlays/dev/kustomization.yaml newTag 를 그 SHA로 커밋 → ArgoCD 가 배포
@@ -79,3 +79,48 @@ breed-server:deploy:
         git pull --rebase origin infra
       done
       exit 1
+
+# match-worker: 개·고양이 개체 인식 가중치를 S3 에서 받아 한 이미지로 빌드한다(SPECIES 로 종을 고른다)
+# 배포 태그 파일: infra/services/match-worker/overlays/dev/kustomization.yaml (infra 에 먼저 있어야 한다)
+.match-worker-rules:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop-ai"
+      changes:
+        - ai/match-worker/**/*
+        - ai/.gitlab-ci.yml
+        - .gitlab-ci.yml
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == "develop-ai"
+
+match-worker:build:
+  extends: .match-worker-rules
+  stage: build
+  image: docker:29-cli
+  variables:
+    SERVICE: match-worker
+    REGISTRY: k15d106.p.ssafy.io
+    MODELS_S3: s3://s15p31d106-media-887324111755/models/reid/20261110
+    AWS_DEFAULT_REGION: ap-northeast-2
+  script:
+    - apk add --no-cache aws-cli
+    - |
+      for species in dog cat; do
+        AWS_ACCESS_KEY_ID="$AI_MODELS_AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$AI_MODELS_AWS_SECRET_ACCESS_KEY" \
+          aws s3 cp --recursive --only-show-errors "$MODELS_S3/$species/" "ai/match-worker/$species/models/"
+      done
+    - ls -lR ai/match-worker/dog/models ai/match-worker/cat/models
+    - echo "$REGISTRY_CI_PASSWORD" | docker login "$REGISTRY" -u ci --password-stdin
+    - docker build -t "$REGISTRY/animal/$SERVICE:$CI_COMMIT_SHORT_SHA" ai/match-worker
+    - docker push "$REGISTRY/animal/$SERVICE:$CI_COMMIT_SHORT_SHA"
+  after_script:
+    - docker logout "$REGISTRY" || true
+    - docker image rm "$REGISTRY/animal/match-worker:$CI_COMMIT_SHORT_SHA" || true
+    - docker image prune -f || true
+
+# breed-server:deploy 와 같은 절차(태그 커밋), 서비스 이름·조건만 바꾼다
+match-worker:deploy:
+  extends:
+    - breed-server:deploy
+    - .match-worker-rules
+  needs: ["match-worker:build"]
+  variables:
+    SERVICE: match-worker
