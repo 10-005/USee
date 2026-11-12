@@ -108,11 +108,13 @@ internal class SemanticFloorMask(
       return decodeDetails(logits, classes, width, height).walkable
     }
 
-    fun decodeDetails(logits: FloatBuffer, classes: Int, width: Int, height: Int): SemanticPixels {
+    fun decodeDetails(logits: FloatBuffer, classes: Int, width: Int, height: Int,
+      scratch: FloatArray? = null): SemanticPixels {
       require(classes == 150 && width > 0 && height > 0)
       val pixels = width * height
       require(logits.remaining() == classes * pixels)
-      val values = FloatArray(logits.remaining())
+      val values = scratch ?: FloatArray(logits.remaining())
+      require(values.size == logits.remaining())
       logits.get(values)
       val labels = IntArray(pixels) { -1 }
       val confident = BooleanArray(pixels)
