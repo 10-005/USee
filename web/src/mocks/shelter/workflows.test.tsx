@@ -52,7 +52,8 @@ describe('예시 업무 흐름', () => {
     expect(within(purchases).getByText('밥그릇')).toBeVisible();
     expect(within(purchases).getByText('물그릇')).toBeVisible();
     fireEvent.click(meal);
-    expect(purchases).not.toBeVisible();
+    expect(purchases).toHaveAttribute('aria-hidden', 'true');
+    expect(purchases).toHaveAttribute('inert');
     fireEvent.click(screen.getByRole('button', { name: '가구 0원' }));
     expect(
       within(screen.getByRole('region', { name: '가구 구매 내역' })).getByText(

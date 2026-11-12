@@ -156,27 +156,40 @@ function CategorySpending({ report, total }: { report: Report; total: number }) 
               <span>{item.label}</span>
               <strong>{won(item.amount)}</strong>
               <span className="sim-purchase-arrow" aria-hidden="true">
-                ⌄
+                <svg viewBox="0 0 20 20" fill="none">
+                  <path
+                    d="m6 8 4 4 4-4"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               </span>
             </button>
             <div
               id={chartId + '-' + item.key + '-purchases'}
-              className="sim-purchases"
-              style={{ borderLeftColor: item.color }}
-              hidden={expanded !== item.key}
+              className="sim-purchases-collapse"
+              data-open={expanded === item.key}
+              aria-hidden={expanded !== item.key}
+              inert={expanded !== item.key}
               role="region"
               aria-label={item.label + ' 구매 내역'}
             >
-              {item.purchases.length ? (
-                item.purchases.map((purchase) => (
-                  <div key={purchase.label}>
-                    <span>{purchase.label}</span>
-                    <span>{won(purchase.amount)}</span>
-                  </div>
-                ))
-              ) : (
-                <span>구매 내역이 없어요.</span>
-              )}
+              <div className="sim-purchases-clip">
+                <div className="sim-purchases" style={{ borderLeftColor: item.color }}>
+                  {item.purchases.length ? (
+                    item.purchases.map((purchase) => (
+                      <div key={purchase.label}>
+                        <span>{purchase.label}</span>
+                        <span>{won(purchase.amount)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <span>구매 내역이 없어요.</span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         ))}
