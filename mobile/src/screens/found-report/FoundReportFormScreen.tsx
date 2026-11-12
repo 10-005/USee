@@ -40,6 +40,7 @@ import {
   TimePickerModal,
 } from '../../components/common';
 import { MAX_IMAGE_SIZE_MB } from '../../constants/upload';
+import { confirmImage } from '../../services/images';
 import { getApiErrorDisplayMessage } from '../../services/api';
 import { createFoundReport, updateFoundReport } from '../../services/foundReports';
 import {
@@ -182,7 +183,7 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
           : draft.gender === 'female'
           ? ('FEMALE' as const)
           : ('UNKNOWN' as const),
-      imageSeqs: draft.imageSeqs,
+      imageSeqs: [...draft.imageSeqs],
       isNeutered: draft.neutered === 'done' ? true : draft.neutered === 'not-done' ? false : null,
       isPhonePublic: draft.exposeContact,
       landmarkDescription: draft.terrain.trim() || null,
@@ -195,6 +196,13 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
     };
     setIsSubmitting(true);
     try {
+      for (const [index, photo] of draft.images.entries()) {
+        if (request.imageSeqs[index]) continue;
+        const key = draft.pendingImageKeys?.[photo.uri ?? ''];
+        if (!key) throw new Error('사진을 다시 선택해 주세요.');
+        request.imageSeqs[index] = (await confirmImage(key)).imageSeq;
+        updateDraft({ imageSeqs: [...request.imageSeqs] });
+      }
       if (isEditing && route.params?.reportId) {
         await updateFoundReport(Number(route.params.reportId), request);
         resetDraft();
