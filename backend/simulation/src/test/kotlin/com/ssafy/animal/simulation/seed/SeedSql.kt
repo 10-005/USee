@@ -13,9 +13,13 @@ import java.time.format.DateTimeFormatter
  */
 object SeedSql {
 
-    const val PATH = "src/main/resources/db/dev/V20261111_0527__dev_user1_simulation_report.sql"
+    /**
+     * 시드 파일 위치(simulation 모듈 기준)와 머리말. title은 첫 줄, story는 "이야기:" 줄, generator는 시각표 객체 이름
+     * (재생성 명령의 테스트 이름이 "{generator}GeneratorTest"다)
+     */
+    data class Header(val path: String, val title: String, val story: String, val generator: String)
 
-    fun render(game: SeedGame): String {
+    fun render(game: SeedGame, header: Header): String {
         val store = game.store
         val session = game.session
         val report = store.reports.single()
@@ -24,10 +28,10 @@ object SeedSql {
         val out = StringBuilder()
         fun line(text: String = "") = out.append(text).append('\n')
 
-        line("-- dev 회원 1번의 모의 입양 완료 세션(S15P31D106-254). local·dev에서만 적용된다")
-        line("-- 생성기가 만든 파일이다. 손으로 고치지 않는다: SEED_GEN=true ./gradlew :simulation:test --tests '*User1SeedGeneratorTest*' --rerun")
-        line("-- (생성기 User1Seed가 실제 서비스를 고정 시계로 7일 돌린 결과. 스탯·지출·리포트 값은 그 결과 그대로)")
-        line("-- 이야기: 개 말티즈 \"콩이\" 7일 완료. 3일차 바쁜 날(물 1번, 쿠션 물어뜯기 #5 만료), 5일차 산책 중 헥헥(#13), 6일차 병원(#8)")
+        line("-- ${header.title}. local·dev에서만 적용된다")
+        line("-- 생성기가 만든 파일이다. 손으로 고치지 않는다: SEED_GEN=true ./gradlew :simulation:test --tests '*${header.generator}GeneratorTest*' --rerun")
+        line("-- (생성기 ${header.generator}가 실제 서비스를 고정 시계로 7일 돌린 결과. 스탯·지출·리포트 값은 그 결과 그대로)")
+        line("-- 이야기: ${header.story}")
         line("-- 리포트 summary는 NULL로 둔다. 배포 뒤 요약 복구 스케줄러가 채운다(LLM 키가 없으면 규칙 문구)")
         line("-- 회원 1번이 USER가 아니거나(로컬 새 DB는 보호소 계정), 말티즈가 없거나 성격이 다르거나, 이미 넣었으면 건너뛴다")
         line("DO \$dev\$")
