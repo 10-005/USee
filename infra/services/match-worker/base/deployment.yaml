@@ -64,8 +64,8 @@ spec:
               value: "2"
           # HTTP가 없어 프로브를 두지 않는다. 프로세스가 죽으면 kubelet이 재시작한다
           resources:
-            requests: { cpu: 250m, memory: 1536Mi }
-            limits: { memory: 3Gi }   # 가안: 워커 실측 전. 실측 RSS를 받으면 조정
+            requests: { cpu: 250m, memory: 1280Mi }
+            limits: { memory: 2Gi }   # 실측(S15P31D106-396-F): 최대 1.04GB(cgroup memory.peak)
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -133,5 +133,5 @@ spec:
               value: "2"
           # HTTP가 없어 프로브를 두지 않는다. 프로세스가 죽으면 kubelet이 재시작한다
           resources:
-            requests: { cpu: 250m, memory: 1536Mi }
-            limits: { memory: 3Gi }   # 가안: 워커 실측 전. 실측 RSS를 받으면 조정
+            requests: { cpu: 250m, memory: 2304Mi }
+            limits: { memory: 3Gi }   # 실측(S15P31D106-396-F): 기동 직후 1.88GB, 최대 1.98GB(cgroup memory.peak)
