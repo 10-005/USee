@@ -2,6 +2,7 @@ package com.ssafy.animal.simulation.seed
 
 import com.ssafy.animal.simulation.adapter.out.summary.OpenAiReportSummaryGenerator
 import com.ssafy.animal.simulation.config.LlmConfig
+import com.ssafy.animal.simulation.config.SimulationConfig
 import com.ssafy.animal.simulation.domain.ActionCode
 import com.ssafy.animal.simulation.domain.CareReport
 import com.ssafy.animal.simulation.domain.ReportSummaryInput
@@ -92,7 +93,7 @@ object User1Seed {
     )
 
     /** LLM에 보낼 JSON(호출하지 않음) */
-    fun llmPayload(input: ReportSummaryInput, generator: OpenAiReportSummaryGenerator = OpenAiReportSummaryGenerator(LlmConfig(apiKey = "unused"), JsonMapper.builder().build())) =
+    fun llmPayload(input: ReportSummaryInput, generator: OpenAiReportSummaryGenerator = OpenAiReportSummaryGenerator(LlmConfig(apiKey = "unused"), JsonMapper.builder().build(), SimulationConfig.loadReportWiki())) =
         generator.payload(input)
 
     private fun SeedGame.act(action: String) {

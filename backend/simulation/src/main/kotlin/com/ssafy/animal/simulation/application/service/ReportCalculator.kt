@@ -60,7 +60,7 @@ class ReportCalculator(
         val scenarios = scenarioRepository.findByScenarioSeqs(occurrences.map { it.scenarioSeq })
         val events = occurrences.map {
             val scenario = checkNotNull(scenarios[it.scenarioSeq]) { "이벤트의 시나리오가 없습니다: scenarioSeq=${it.scenarioSeq}" }
-            CareEventRecord(scenario.title, scenario.resolveActionCode, it.status, it.occurredDttm, it.resolvedDttm)
+            CareEventRecord(it.scenarioSeq, scenario.title, scenario.resolveActionCode, it.status, it.occurredDttm, it.resolvedDttm)
         }
         val evaluatedAt = session.endedDttm ?: OffsetDateTime.now(clock)
         return CareAggregator.aggregate(

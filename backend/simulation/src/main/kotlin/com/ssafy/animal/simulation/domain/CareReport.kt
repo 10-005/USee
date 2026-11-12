@@ -27,6 +27,8 @@ enum class CareKey(val actionCodes: Set<ActionCode>) {
 
 /** 집계에 쓰는 돌발 이벤트 한 건(발생 + 시나리오) */
 data class CareEventRecord(
+    /** 위키 페이지 키(event:{scenarioSeq}, Q521) */
+    val scenarioSeq: Long,
     val title: String,
     val resolveActionCode: ActionCode,
     val status: OccurrenceStatus,
@@ -48,6 +50,7 @@ data class CareSource(
 
 /** 그날 발생한 돌발 이벤트. minutesToResolve는 해결했을 때만 */
 data class DayEvent(
+    val scenarioSeq: Long,
     val title: String,
     val resolveActionCode: ActionCode,
     val status: OccurrenceStatus,
@@ -132,6 +135,7 @@ object CareAggregator {
     )
 
     private fun CareEventRecord.toDayEvent() = DayEvent(
+        scenarioSeq = scenarioSeq,
         title = title,
         resolveActionCode = resolveActionCode,
         status = status,

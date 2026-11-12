@@ -58,7 +58,7 @@ data class SimulationReportResponse(
     @field:Schema(description = "산책 수. 고양이 세션은 항상 0", example = "0")
     val walkCount: Int,
     @field:Schema(
-        description = "요약 문구(일반 텍스트, 마크다운 없음). 문단은 빈 줄(\\n\\n)로 나뉘며 LLM 요약이면 세 문단, 규칙 문구면 한 문단이라 문단 수를 가정하지 않는다. " +
+        description = "요약 문구(일반 텍스트, 마크다운 없음). 문단은 빈 줄(\\n\\n)로 나뉘며 결과·잘한 점·아쉬운 점·실제 입양 조언 네 문단이 기본이지만(Q521) 빈 문단은 빠질 수 있어 문단 수를 가정하지 않는다. " +
             "종료 직후에는 null(비동기로 생성, 앱은 \"요약 준비 중\" 표시 후 다시 조회). 중간 리포트는 항상 null",
         nullable = true,
         example = "null",

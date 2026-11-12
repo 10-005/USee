@@ -184,15 +184,21 @@ data class SummaryEvidence(
         private fun keepLast(rest: List<String>, budget: String?): List<String> =
             if (budget == null) rest.take(LIMIT) else rest.take(LIMIT - 1) + budget
 
-        /** 미달 일수(0회 포함)가 많은 키부터, 같으면 CareKey 선언 순 */
-        private fun advice(input: ReportSummaryInput, care: CareReport): List<String> {
+        private fun advice(input: ReportSummaryInput, care: CareReport): List<String> =
+            adviceKeys(input, care).map { (key, times) -> "${KoreanLabels.josa(KoreanLabels.care(key), "은", "는")} 하루 ${times}회가 권장" }
+
+        /**
+         * 조언 근거의 돌봄 키와 권장 횟수. 미달 일수(0회 포함)가 많은 키부터, 같으면 CareKey 선언 순, 최대 ADVICE_LIMIT개.
+         * 위키 선택(ReportWikiSelector)과 규칙 문구의 조언 문단도 같은 순서를 쓴다(Q521)
+         */
+        fun adviceKeys(input: ReportSummaryInput, care: CareReport): List<Pair<CareKey, Int>> {
             val countDays = countDays(input, care)
             return care.guideline.filter { it.value > 0 }
                 .map { (key, times) -> Triple(key, times, countDays.count { it.counts.getValue(key) < times }) }
                 .filter { it.third > 0 }
                 .sortedWith(compareByDescending<Triple<CareKey, Int, Int>> { it.third }.thenBy { it.first.ordinal })
                 .take(ADVICE_LIMIT)
-                .map { (key, times) -> "${KoreanLabels.josa(KoreanLabels.care(key), "은", "는")} 하루 ${times}회가 권장" }
+                .map { it.first to it.second }
         }
 
         /** 횟수 판정 대상 일차. 포기·중단이면 마지막 평가 일차는 하루를 다 못 채웠을 수 있어 뺀다 */

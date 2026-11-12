@@ -1,5 +1,7 @@
 package com.ssafy.animal.simulation.domain
 
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -28,12 +30,28 @@ class ReportSummaryWriterTest {
     )
 
     @Test
-    fun `완료 세션은 완료·돌봄·초과 지출·최대 지출 분류·이벤트·컨디션을 차례로 말한다`() {
+    fun `완료 세션은 결과, 돌봄·이벤트, 지출·컨디션, 실제 입양 조언 네 문단으로 말한다`() {
         assertEquals(
-            "초코의 7일 돌봄을 끝까지 마쳤어요. 돌봄은 모두 41번 했어요. 산책은 6번 다녀왔어요. " +
-                "예상보다 32,000원을 더 썼어요. 병원 진료비에 가장 많이 썼어요(80,000원). " +
-                "돌발 상황 9건 중 6건을 해결했어요. 마지막까지 컨디션을 잘 지켰어요.",
+            "초코의 7일 돌봄을 끝까지 마쳤어요.\n\n" +
+                "돌봄은 모두 41번 했어요. 산책은 6번 다녀왔어요. 돌발 상황 9건 중 6건을 해결했어요.\n\n" +
+                "예상보다 32,000원을 더 썼어요. 병원 진료비에 가장 많이 썼어요(80,000원). 마지막까지 컨디션을 잘 지켰어요.\n\n" +
+                "실제 입양에서는 밥, 물, 배변 관리 같은 기본 돌봄을 매일 같은 시간에 챙기는 습관이 가장 중요해요.",
             ReportSummaryWriter.write(input()),
+        )
+    }
+
+    @Test
+    fun `일차별 집계가 있으면 조언 문단에 가장 많이 못 채운 돌봄의 권장 횟수를 쓴다`() {
+        val start = OffsetDateTime.of(2026, 11, 1, 9, 0, 0, 0, ZoneOffset.ofHours(9))
+        val full = (0L until 7L).flatMap { day ->
+            listOf(ActionCode.FEED, ActionCode.WATER, ActionCode.CLEAN_LITTER).flatMap { code -> List(3) { CareFixtures.log(code, start.plusDays(day).plusHours(1L + it)) } }
+        }
+        val text = ReportSummaryWriter.write(input().copy(care = CareFixtures.care(start, logs = full)))
+
+        // 놀이·간식과 산책이 7일 모두 미달이라 선언 순으로 놀이·간식
+        assertEquals(
+            "실제 입양에서는 기본 돌봄을 매일 같은 시간에 챙기는 습관이 가장 중요해요. 놀이·간식을 하루 2회 챙겨 보세요.",
+            text.split("\n\n").last(),
         )
     }
 
@@ -48,8 +66,8 @@ class ReportSummaryWriterTest {
         assertTrue("예상보다 140,000원 덜 썼어요." in text)
         assertTrue("밥그릇에 가장 많이 썼어요(10,000원)." in text)
         assertTrue("돌발 상황 2건을 해결하지 못했어요." in text)
-        // 낮은 순서로 두 개까지
-        assertTrue(text.endsWith("마지막에 건강·수분 수치가 낮았어요."))
+        // 낮은 순서로 두 개까지(지출·컨디션 문단 끝)
+        assertTrue(text.split("\n\n")[2].endsWith("마지막에 건강·수분 수치가 낮았어요."))
         listOf("죽", "사망", "숨").forEach { assertFalse(it in text, "금지 표현: $it") }
     }
 
@@ -62,7 +80,11 @@ class ReportSummaryWriterTest {
             ),
         )
 
-        assertEquals("1일째에 초코의 돌봄을 그만뒀어요. 돌봄 행동은 한 번도 하지 않았어요. 아무것도 사지 않아 지출이 없었어요.", text)
+        assertEquals(
+            "1일째에 초코의 돌봄을 그만뒀어요.\n\n돌봄 행동은 한 번도 하지 않았어요.\n\n아무것도 사지 않아 지출이 없었어요.\n\n" +
+                "실제 입양에서는 밥, 물, 배변 관리 같은 기본 돌봄을 매일 같은 시간에 챙기는 습관이 가장 중요해요.",
+            text,
+        )
     }
 
     @Test

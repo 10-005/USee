@@ -3,9 +3,11 @@ package com.ssafy.animal.simulation.config
 import com.ssafy.animal.simulation.adapter.out.summary.OpenAiReportSummaryGenerator
 import com.ssafy.animal.simulation.adapter.out.summary.RuleReportSummaryGenerator
 import com.ssafy.animal.simulation.application.port.out.ReportSummaryGenerator
+import com.ssafy.animal.simulation.domain.ReportWiki
 import com.ssafy.animal.simulation.domain.StatCalculator
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver
 import tools.jackson.databind.json.JsonMapper
 import java.time.Clock
 import java.time.Duration
@@ -19,11 +21,11 @@ class SimulationConfig {
     @Bean
     fun statCalculator(properties: SimulationProperties) = StatCalculator(properties.stats, properties.tick)
 
-    /** 요약 생성기는 하나만 띄운다: LLM 키가 있으면 OpenAI, 비어 있으면 규칙 문구(Q517) */
+    /** 요약 생성기는 하나만 띄운다: LLM 키가 있으면 OpenAI(+리포트 위키, Q521), 비어 있으면 규칙 문구(Q517) */
     @Bean
     fun reportSummaryGenerator(properties: SimulationProperties, jsonMapper: JsonMapper): ReportSummaryGenerator {
         val llm = properties.report.llm
-        return if (llm.apiKey.isBlank()) RuleReportSummaryGenerator() else OpenAiReportSummaryGenerator(llm, jsonMapper)
+        return if (llm.apiKey.isBlank()) RuleReportSummaryGenerator() else OpenAiReportSummaryGenerator(llm, jsonMapper, loadReportWiki())
     }
 
     /**
@@ -39,4 +41,15 @@ class SimulationConfig {
 
     @Bean
     fun clock(): Clock = Clock.tick(Clock.system(ZoneId.of("Asia/Seoul")), Duration.of(1, ChronoUnit.MICROS))
+
+    companion object {
+        const val REPORT_WIKI_LOCATION = "classpath*:report-wiki/*.md"
+
+        /** 리포트 위키 마크다운을 모두 읽는다. 형식이 틀리거나 파일이 없으면 기동에 실패한다(조용히 맥락 없이 돌지 않게) */
+        fun loadReportWiki(): ReportWiki {
+            val resources = PathMatchingResourcePatternResolver().getResources(REPORT_WIKI_LOCATION).sortedBy { it.filename }
+            check(resources.isNotEmpty()) { "리포트 위키 파일이 없습니다: $REPORT_WIKI_LOCATION" }
+            return ReportWiki.of(resources.map { it.getContentAsString(Charsets.UTF_8) })
+        }
+    }
 }
