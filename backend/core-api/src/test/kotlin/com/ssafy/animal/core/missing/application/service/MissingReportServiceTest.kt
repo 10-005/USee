@@ -1,6 +1,7 @@
 package com.ssafy.animal.core.missing.application.service
 
 import com.ssafy.animal.common.event.EventPublisher
+import com.ssafy.animal.common.event.MatchCandidate
 import com.ssafy.animal.common.event.MatchEventType
 import com.ssafy.animal.common.event.MatchRequested
 import com.ssafy.animal.common.event.TargetType
@@ -19,6 +20,7 @@ import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
 import com.ssafy.animal.core.image.application.port.`in`.IssueUploadUrlCommand
 import com.ssafy.animal.core.image.application.port.`in`.UploadUrl
 import com.ssafy.animal.core.image.domain.ImageErrorCode
+import com.ssafy.animal.core.match.application.port.`in`.MatchCandidateUseCase
 import com.ssafy.animal.core.missing.application.port.`in`.CreateMissingCommand
 import com.ssafy.animal.core.missing.application.port.`in`.MissingSearchFilter
 import com.ssafy.animal.core.missing.application.port.`in`.UpdateMissingCommand
@@ -134,7 +136,11 @@ class MissingReportServiceTest {
         override fun doRollback(status: DefaultTransactionStatus) = Unit
     }
 
-    private val service = MissingReportService(repository, catalogUseCase, geocodeUseCase, imageUseCase, eventPublisher, txManager)
+    private val candidates = listOf(MatchCandidate(TargetType.FOUND, 210), MatchCandidate(TargetType.SHELTER_ANIMAL, 35))
+    private val candidateCalls = mutableListOf<Pair<TargetType, Long>>()
+    private val matchCandidates = MatchCandidateUseCase { type, seq -> candidates.also { candidateCalls += type to seq } }
+
+    private val service = MissingReportService(repository, catalogUseCase, geocodeUseCase, imageUseCase, eventPublisher, matchCandidates, txManager)
 
     private val occurred = OffsetDateTime.parse("2026-10-28T18:00:00+09:00")
 
@@ -160,9 +166,11 @@ class MissingReportServiceTest {
         assertEquals(
             MatchRequested(
                 MatchEventType.MISSING_REPORT_REGISTERED, TargetType.MISSING, created.missingReportSeq.toLong(),
-                listOf("images/2026/11/1001.jpg", "images/2026/11/1002.jpg"), "DOG", occurred,
+                listOf("images/2026/11/1001.jpg", "images/2026/11/1002.jpg"), "DOG", occurred, candidates,
             ),
             events.single(),
+        )
+        assertEquals(listOf(TargetType.MISSING to created.missingReportSeq.toLong()), candidateCalls
         )
     }
 

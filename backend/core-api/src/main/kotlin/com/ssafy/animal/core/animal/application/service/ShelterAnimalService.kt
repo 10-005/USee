@@ -47,6 +47,7 @@ import com.ssafy.animal.core.animal.domain.ProtectionStatus
 import com.ssafy.animal.core.animal.domain.ShelterAnimal
 import com.ssafy.animal.core.catalog.application.port.`in`.CatalogUseCase
 import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
+import com.ssafy.animal.core.match.application.port.`in`.MatchCandidateUseCase
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
@@ -64,6 +65,7 @@ class ShelterAnimalService(
     private val catalogUseCase: CatalogUseCase,
     private val imageUseCase: ImageUseCase,
     private val eventPublisher: EventPublisher,
+    private val matchCandidates: MatchCandidateUseCase,
 ) : ShelterAnimalUseCase, AnimalAdoptionUseCase {
 
     // ===== 11.1 =====
@@ -440,7 +442,8 @@ class ShelterAnimalService(
 
     private fun publishMatch(type: MatchEventType, animalSeq: Int, imageSeqs: List<Long>, speciesCode: String) {
         eventPublisher.publish(
-            MatchRequested(type, TargetType.SHELTER_ANIMAL, animalSeq.toLong(), referenceReader.findImageKeys(imageSeqs), speciesCode, OffsetDateTime.now()),
+            MatchRequested(type, TargetType.SHELTER_ANIMAL, animalSeq.toLong(), referenceReader.findImageKeys(imageSeqs), speciesCode, OffsetDateTime.now(),
+                matchCandidates.findCandidates(TargetType.SHELTER_ANIMAL, animalSeq.toLong())),
         )
     }
 

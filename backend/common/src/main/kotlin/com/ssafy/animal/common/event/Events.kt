@@ -80,7 +80,11 @@ data class ChatMessageSent(
 /** 명세의 매칭 요청 이벤트 4종. 페이로드가 같아 한 클래스로 보내고 이 값으로 구분한다 */
 enum class MatchEventType { MISSING_REPORT_REGISTERED, FOUND_REPORT_REGISTERED, SHELTER_ANIMAL_REGISTERED, IMAGES_CHANGED }
 
-/** core-api → AI 워커(Q432). 워커는 DB를 보지 않고 이 페이로드와 S3 키만 쓴다. sourceType은 MISSING/FOUND/SHELTER_ANIMAL */
+/**
+ * core-api → AI 워커(Q432·Q523). 워커는 서비스 데이터를 읽지 않고 이 페이로드와 S3 키, 자기 스키마(ai)의 벡터만 쓴다.
+ * sourceType은 MISSING/FOUND/SHELTER_ANIMAL. candidates는 core-api가 추린 비교 상대(종·날짜·거리·작성자, Q523)이고
+ * 비어 있어도 보낸다(워커가 source 벡터를 저장해 두어야 나중에 다른 신고의 후보가 된다)
+ */
 data class MatchRequested(
     val eventType: MatchEventType,
     val sourceType: TargetType,
@@ -89,6 +93,13 @@ data class MatchRequested(
     /** DOG/CAT/ETC */
     val speciesCode: String,
     val occurredAt: OffsetDateTime,
+    val candidates: List<MatchCandidate> = emptyList(),
+)
+
+/** 매칭 후보. source가 MISSING이면 type은 FOUND/SHELTER_ANIMAL, 그 밖이면 MISSING */
+data class MatchCandidate(
+    val type: TargetType,
+    val seq: Long,
 )
 
 /** AI 워커 → core-api(Q432). core-api가 자격 재검사 후 최초 1회만 AI_MATCH 알림(17.8). targetType은 FOUND/SHELTER_ANIMAL */
