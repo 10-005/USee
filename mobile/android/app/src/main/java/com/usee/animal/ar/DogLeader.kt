@@ -224,6 +224,7 @@ class DogLeader(
     moving = false
     blocked = false
     userMoving = false
+    motionPaused = true
   }
 
   internal fun pausedFrame(): DogFrame {
@@ -245,6 +246,7 @@ class DogLeader(
   private var speed = 0f
   private var backing = false
   private var moving = false
+  private var motionPaused = false
   private var returning = false
   private var recalling = false
   private var leashLength = 0f
@@ -268,6 +270,7 @@ class DogLeader(
     // The renderer may run faster than the camera. Repeated samples are not a
     // tracking pause and must not erase acceleration or the walking animation.
     if (deltaSeconds == 0f && hasCamera) return frame(placed, speed)
+    motionPaused = false
     if (poopStage != null) {
       previousCameraX = cameraX
       previousCameraZ = cameraZ
@@ -276,7 +279,7 @@ class DogLeader(
       hasCamera = true
       userMoving = false
       blocked = false
-      return updatePoop(deltaSeconds.coerceIn(0f, 0.05f))
+      return updatePoop(deltaSeconds.coerceIn(0f, 0.25f))
     }
     val length = hypot(lookX, lookZ)
     if (length > 0.15f) {
@@ -288,7 +291,9 @@ class DogLeader(
 
     // Resume tracking without interpreting a pause or relocalization as walking.
     val continuous = hasCamera && deltaSeconds > 0f && deltaSeconds <= 0.25f
-    val dt = deltaSeconds.coerceIn(0f, 0.05f)
+    // Valid camera intervals must advance the whole elapsed time. Segment floor
+    // and wall checks still validate the full step at low frame rates.
+    val dt = deltaSeconds.coerceIn(0f, 0.25f)
     if (continuous) {
       val vx = (cameraX - previousCameraX) / deltaSeconds
       val vz = (cameraZ - previousCameraZ) / deltaSeconds
@@ -388,7 +393,16 @@ class DogLeader(
       placed = true
       return frame(true, 0f)
     }
-    if (!continuous) return frame(true, 0f)
+    if (!continuous) {
+      speed = 0f
+      moving = false
+      blocked = false
+      userMoving = false
+      motionPaused = true
+      stopReason = "프레임 지연"
+      animations.pause()
+      return frame(true, 0f)
+    }
 
     val unrestrictedReturn = recalling || returning
     stopReason = ""
@@ -509,6 +523,13 @@ class DogLeader(
     }
     if (!blocked) stopReason = ""
     if (actualSpeed == 0f) speed = 0f
+    if (blocked) {
+      // A rejected step must not rotate in place or keep its previous gait.
+      yaw = previousYaw
+      moving = false
+      animations.pause()
+      return frame(true, 0f)
+    }
     val turnRate = wrap(yaw - previousYaw) / dt
     moving = actualSpeed > 0.07f || abs(turnRate) > 0.4f && abs(turn) > 0.12f
     val forwardSpeed = actualSpeed * (ux * sin(yaw) + uz * cos(yaw))
@@ -630,6 +651,7 @@ class DogLeader(
     animations.current.clip, actualSpeed, animations.current.loop, animations.current.revision, moving, blocked, userMoving, recalling || returning, floorUncertain, stopReason, poopDeposited, spinElapsed != null,
     scriptedFacing = care?.let { it.seconds >= it.standSeconds } == true,
     animationPlaybackRate = animations.current.playbackRate,
+    motionPaused = motionPaused,
   )
 
   private fun wrap(angle: Float): Float {
@@ -672,4 +694,5 @@ data class DogFrame(
   val spinning: Boolean = false,
   val scriptedFacing: Boolean = false,
   val animationPlaybackRate: Float = 1f,
+  val motionPaused: Boolean = false,
 )

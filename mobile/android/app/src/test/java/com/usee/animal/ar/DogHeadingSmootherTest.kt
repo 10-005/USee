@@ -5,32 +5,58 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DogHeadingSmootherTest {
-  @Test fun feetKeepSteppingWhileVisualHeadingSettlesAfterNavigationStops() {
+  @Test fun stationaryVisualTurnsUseTurnClipsInsteadOfWalking() {
     val smoother = DogHeadingSmoother()
     var heading = smoother.update(0f, 0f)
     var stepped = false
     repeat(200) {
       val next = smoother.update(90f, 0.02f)
-      val pose = walkingTurnAnimation(DogAnimation(), heading, next, 0.02f)
+      val pose = renderTurn(DogAnimation(), heading, next)
       if (abs(next - heading) / 0.02f >= 5f) {
-        assertEquals("WalkLeft", pose.clip)
+        assertEquals("TurnLeft", pose.clip)
         assertTrue(pose.loop)
         stepped = true
       }
       heading = next
     }
     assertTrue(stepped)
-    assertEquals("Idle", walkingTurnAnimation(DogAnimation(), heading, heading, 0.02f).clip)
+    assertEquals("Idle", renderTurn(DogAnimation(), heading, heading).clip)
   }
 
-  @Test fun walkingTurnsRespectWraparoundAndPreserveCarePoses() {
-    assertEquals("WalkLeft", walkingTurnAnimation(DogAnimation("TurnLeft180"), 179f, -179f, 0.02f).clip)
-    assertEquals("WalkRight", walkingTurnAnimation(DogAnimation("TurnRight"), -179f, 179f, 0.02f).clip)
+  @Test fun visualTurnsRespectWraparoundAndPreserveCarePoses() {
+    assertEquals("TurnLeft", renderTurn(DogAnimation("TurnLeft180"), 179f, -179f).clip)
+    assertEquals("TurnRight", renderTurn(DogAnimation("TurnRight"), -179f, 179f).clip)
     for (clip in listOf("SitIdle", "SitEnd", "EatDrinkStart", "Drink", "Eat", "Walk")) {
       val pose = DogAnimation(clip)
-      assertEquals(pose, walkingTurnAnimation(pose, 0f, 2f, 0.02f))
+      assertEquals(pose, renderTurn(pose, 0f, 2f))
     }
   }
+
+  @Test fun walkingTurnRequiresMeasuredTranslationAndStopsImmediatelyWhenBlockedOrPaused() {
+    assertEquals("WalkLeft", renderTurn(DogAnimation(), 0f, 2f, speed = 0.5f).clip)
+    assertEquals("WalkRight", renderTurn(DogAnimation(), 0f, -2f, speed = 0.5f).clip)
+    assertEquals("TurnLeft", renderTurn(DogAnimation(), 0f, 2f, speed = 0.07f).clip)
+    for (clip in listOf("Idle", "Walk", "Trot", "TurnLeft")) {
+      assertEquals("Idle", renderTurn(DogAnimation(clip), 0f, 2f, speed = 0.5f, blocked = true).clip)
+      assertEquals("Idle", renderTurn(DogAnimation(clip), 0f, 2f, speed = 0.5f, paused = true).clip)
+    }
+  }
+
+  @Test fun pauseFreezesVisualHeadingAndDiscardsPendingRotationUntilFreshIntent() {
+    val smoother = DogHeadingSmoother()
+    smoother.update(0f, 0f)
+    var heading = 0f
+    repeat(20) { heading = smoother.update(90f, 0.02f) }
+    assertTrue(heading > 0f && heading < 90f)
+    repeat(30) { assertEquals(heading, smoother.update(90f, 0.02f, paused = true), 0f) }
+    repeat(8) { assertEquals(heading, smoother.update(90f, 0.02f), 0f) }
+    repeat(200) { smoother.update(90f, 0.02f) }
+    assertEquals(90f, smoother.update(90f, 0.02f), 0.1f)
+  }
+
+  private fun renderTurn(animation: DogAnimation, previous: Float, heading: Float,
+    speed: Float = 0f, blocked: Boolean = false, paused: Boolean = false) =
+    renderTurnAnimation(animation, previous, heading, 0.02f, speed, blocked, paused)
 
   @Test fun scriptedSpinBypassesDebounceAndSeedsTheNextWalkingHeading() {
     val smoother = DogHeadingSmoother()
