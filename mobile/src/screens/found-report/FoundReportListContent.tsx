@@ -576,7 +576,7 @@ export function FoundReportListContent({
             columnWrapperStyle={reports.length ? styles.columns : undefined}
             contentContainerStyle={[
               styles.list,
-              { paddingBottom: 104 + bottomInset, paddingTop: SEARCH_FILTERS_HEIGHT },
+              { paddingBottom: 112 + bottomInset, paddingTop: SEARCH_FILTERS_HEIGHT },
               !reports.length && styles.emptyList,
             ]}
             refreshing={refreshingTabs[activeTab]}

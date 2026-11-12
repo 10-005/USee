@@ -130,7 +130,7 @@ const navigationItems = [
   },
   {
     key: 'mypage',
-    label: '마이페이지',
+    label: '내 정보',
     icon: (selected: boolean) =>
       selected ? (
         <MyPageActiveIcon height={24} width={24} />
@@ -517,7 +517,7 @@ export function HomeScreen({ navigation, route }: Props) {
 
   const registrationMenu = registrationMenuOpen ? (
     <RegistrationMenu
-      bottom={insets.bottom + 84}
+      bottom={insets.bottom + 92}
       onClose={() => setRegistrationMenuOpen(false)}
       onSelectFound={() => {
         setRegistrationMenuOpen(false);
@@ -614,7 +614,7 @@ export function HomeScreen({ navigation, route }: Props) {
                 columnWrapperStyle={styles.column}
                 contentContainerStyle={[
                   styles.listContent,
-                  { paddingBottom: 104 + insets.bottom, paddingTop: SEARCH_FILTERS_HEIGHT },
+                  { paddingBottom: 112 + insets.bottom, paddingTop: SEARCH_FILTERS_HEIGHT },
                 ]}
                 refreshing={refreshingAnimals}
                 progressViewOffset={SEARCH_FILTERS_HEIGHT}
