@@ -450,7 +450,7 @@ export function FoundReportListContent({
         }
         style={({ pressed }) => [
           styles.card,
-          { height: cardWidth + 118, width: cardWidth },
+          { height: cardWidth + 97, width: cardWidth },
           pressed && styles.pressed,
         ]}
       >
@@ -510,9 +510,6 @@ export function FoundReportListContent({
           numberOfLines={1}
           style={styles.summary}
         >{`${item.age} | ${item.gender} | ${item.color} | ${item.weight}`}</Text>
-        <Text numberOfLines={1} style={styles.summary}>
-          {item.description}
-        </Text>
       </Pressable>
     );
   };
@@ -723,7 +720,7 @@ const styles = StyleSheet.create({
   filters: { gap: 6, paddingHorizontal: 20, paddingVertical: 14 },
   list: { paddingHorizontal: 20 },
   columns: { gap: 12 },
-  card: { marginBottom: 18 },
+  card: { marginBottom: 16 },
   cardImage: { borderRadius: radius.sm, width: '100%' },
   bookmarkButton: {
     alignItems: 'center',

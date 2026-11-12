@@ -422,7 +422,7 @@ export function HomeScreen({ navigation, route }: Props) {
         onPress={() => navigation.navigate('AdoptionDetail', { animalId: item.id })}
         style={({ pressed }) => [
           styles.card,
-          { height: cardWidth + 118, width: cardWidth },
+          { height: cardWidth + 97, width: cardWidth },
           pressed && styles.pressed,
         ]}
       >
@@ -483,9 +483,6 @@ export function HomeScreen({ navigation, route }: Props) {
         </View>
         <Text numberOfLines={1} style={styles.cardSummary}>
           {item.summary}
-        </Text>
-        <Text numberOfLines={1} style={styles.cardDescription}>
-          {item.description}
         </Text>
       </Pressable>
     );
@@ -828,7 +825,7 @@ const styles = StyleSheet.create({
   filterTextApplied: { color: colors.green400 },
   listContent: { flexGrow: 0, justifyContent: 'flex-start', paddingHorizontal: 20 },
   column: { gap: 12 },
-  card: { marginBottom: 18 },
+  card: { marginBottom: 16 },
   cardImage: { borderRadius: radius.sm },
   bookmarkButton: {
     alignItems: 'center',
@@ -864,7 +861,6 @@ const styles = StyleSheet.create({
   },
   cardMetaRow: { alignItems: 'center', flexDirection: 'row', gap: 4, width: '100%' },
   cardSummary: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
-  cardDescription: { ...typography.bodyRegular14, color: colors.gray500, marginTop: 3 },
   navigationWrap: { left: 25, position: 'absolute', right: 25, zIndex: 31 },
   pressed: { opacity: 0.75 },
 });
