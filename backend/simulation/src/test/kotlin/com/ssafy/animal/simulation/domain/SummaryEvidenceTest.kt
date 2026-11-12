@@ -41,7 +41,7 @@ class SummaryEvidenceTest {
         val care = CareFixtures.care(
             start, evaluatedDays = 3,
             logs = logs(full, listOf(3, 1, 2, 2, 1), listOf(2, 1, 2, 2, 1)),
-            events = listOf(CareEventRecord("물그릇을 엎었어요", ActionCode.WATER, OccurrenceStatus.RESOLVED, start.plusHours(2), start.plusHours(2).plusMinutes(40))),
+            events = listOf(CareEventRecord(1L, "물그릇을 엎었어요", ActionCode.WATER, OccurrenceStatus.RESOLVED, start.plusHours(2), start.plusHours(2).plusMinutes(40))),
         )
 
         assertEquals(
@@ -65,7 +65,7 @@ class SummaryEvidenceTest {
             logs = logs(full, listOf(3, 3, 1, 0, 1)) + log(ActionCode.FEED, start.plusDays(2).plusHours(1), low) + log(ActionCode.FEED, start.plusDays(2).plusHours(2)) +
                 log(ActionCode.FEED, start.plusDays(2).plusHours(3)) + List(3) { log(ActionCode.WATER, start.plusDays(2).plusHours(4)) } +
                 List(2) { log(ActionCode.PLAY, start.plusDays(2).plusHours(5)) } + log(ActionCode.WALK_START, start.plusDays(2).plusHours(6)),
-            events = listOf(CareEventRecord("쿠션을 물어뜯어요", ActionCode.PLAY, OccurrenceStatus.EXPIRED, start.plusDays(1).plusHours(4), null)),
+            events = listOf(CareEventRecord(5L, "쿠션을 물어뜯어요", ActionCode.PLAY, OccurrenceStatus.EXPIRED, start.plusDays(1).plusHours(4), null)),
         )
 
         val evidence = evidence(care, expectedCost = 50_000, spent = mapOf("FOOD" to 20_000, "EVENT" to 62_000))
@@ -90,7 +90,7 @@ class SummaryEvidenceTest {
         val care = CareFixtures.care(
             start, evaluatedDays = 2,
             logs = logs(listOf(3, 0, 2, 0, 1), listOf(3, 3, 2, 0, 0)),
-            events = listOf(CareEventRecord("쿠션을 물어뜯어요", ActionCode.PLAY, OccurrenceStatus.EXPIRED, start.plusDays(1).plusHours(2), null)),
+            events = listOf(CareEventRecord(5L, "쿠션을 물어뜯어요", ActionCode.PLAY, OccurrenceStatus.EXPIRED, start.plusDays(1).plusHours(2), null)),
         )
 
         val evidence = evidence(care)
@@ -167,7 +167,7 @@ class SummaryEvidenceTest {
 
     @Test
     fun `예산 안 지출 줄도 잘한 점 6개 상한에서 잘리지 않는다`() {
-        val events = (0..2).map { CareEventRecord("물그릇을 엎었어요", ActionCode.WATER, OccurrenceStatus.RESOLVED, start.plusDays(it.toLong()).plusHours(2), start.plusDays(it.toLong()).plusHours(2).plusMinutes(10)) }
+        val events = (0..2).map { CareEventRecord(1L, "물그릇을 엎었어요", ActionCode.WATER, OccurrenceStatus.RESOLVED, start.plusDays(it.toLong()).plusHours(2), start.plusDays(it.toLong()).plusHours(2).plusMinutes(10)) }
         val care = CareFixtures.care(start, evaluatedDays = 3, logs = logs(full, full, full), events = events) // 해결 3 + 매일 채움 5
 
         val good = evidence(care).good

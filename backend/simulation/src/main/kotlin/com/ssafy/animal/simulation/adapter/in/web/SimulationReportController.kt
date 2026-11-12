@@ -50,7 +50,7 @@ class SimulationReportController(
             "종료 푸시는 요약이 채워진 뒤 보내므로 푸시로 들어오면 완성된 리포트를 본다.\n" +
             "- `spentByCategory`는 물품 분류 14종 + 진료비 `EVENT` 15개 키, `dailySpent`는 `\"1\"`~`\"7\"` 일차 키를 모두 채운다(0 포함).\n" +
             "- `actionCount`는 돌봄·산책 행동 수, `eventCount`는 발생한 돌발 이벤트 수(해결 + 만료), `walkCount`는 고양이 세션이면 0.\n" +
-            "- `summary`는 일반 텍스트이고 문단은 빈 줄로 나뉜다(LLM 요약 세 문단 또는 규칙 문구 한 문단). 줄바꿈을 살려 그리고 문단 수를 가정하지 않는다.\n" +
+            "- `summary`는 일반 텍스트이고 문단은 빈 줄로 나뉜다(결과·잘한 점·아쉬운 점·실제 입양 조언 네 문단이 기본, 빈 문단은 빠질 수 있음, Q521). 줄바꿈을 살려 그리고 문단 수를 가정하지 않는다.\n" +
             "- `evaluatedDays`·`careGuideline`·`dailyCare`(Q517)는 저장하지 않고 조회할 때 행동 이력에서 계산한다. 표는 `careGuideline` 키를 행, " +
             "`\"1\"`~`\"7\"`을 열로 그리고 일차 > `evaluatedDays`면 빈칸, 횟수 ≥ 권장이면 충족, 0이면 없음, 그 사이는 부족. 고양이 세션은 `WALK` 키가 없다.",
     )
@@ -276,7 +276,8 @@ class SimulationReportController(
         const val SUMMARY_TEXT =
             "2일째에 초코의 돌봄을 그만뒀어요. 첫날 기구를 갖추고 밥을 세 번 챙겼어요.\\n\\n" +
                 "1일차에 밥 3번을 권장 횟수대로 줬고 사료를 미리 사 둬서 예산도 여유 있게 썼어요.\\n\\n" +
-                "2일차에는 물과 놀이가 권장보다 적었어요. 하루 물 3번, 놀이 2번을 목표로 해 보면 좋아요."
+                "2일차에는 물과 놀이가 권장보다 적었어요. 실제로는 물이 부족하면 금방 지치고 소변 건강에도 좋지 않아요.\\n\\n" +
+                "실제 입양에서는 물을 하루 종일 언제든 마실 수 있게 두는 게 기본이에요. 물을 하루 3회 챙겨 보세요."
         const val FINAL_SUCCESS =
             """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":""" +
                 """{"sessionSeq":3001,"status":"ABANDONED","isFinal":true,"animalName":"초코","breed":""" + SimulationDocExamples.BREED_JSON +

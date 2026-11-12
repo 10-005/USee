@@ -1,6 +1,7 @@
 package com.ssafy.animal.simulation.adapter.out.summary
 
 import com.ssafy.animal.simulation.config.LlmConfig
+import com.ssafy.animal.simulation.config.SimulationConfig
 import com.ssafy.animal.simulation.domain.ActionCode
 import com.ssafy.animal.simulation.domain.CareEventRecord
 import com.ssafy.animal.simulation.domain.CareFixtures
@@ -32,7 +33,7 @@ class OpenAiSummaryManualTest {
     fun `7일치 픽스처로 요약을 만들어 출력한다`() {
         val mapper = JsonMapper.builder().build()
         val config = LlmConfig(apiKey = System.getenv("OPENAI_API_KEY"), model = System.getenv("LLM_MODEL") ?: "gpt-4o-mini")
-        val generator = OpenAiReportSummaryGenerator(config, mapper)
+        val generator = OpenAiReportSummaryGenerator(config, mapper, SimulationConfig.loadReportWiki())
         val input = sevenDayInput()
 
         println("=== 입력 JSON ===")
@@ -64,9 +65,9 @@ class OpenAiSummaryManualTest {
             }
         }
         val events = listOf(
-            CareEventRecord("물그릇을 엎었어요", ActionCode.WATER, OccurrenceStatus.RESOLVED, start.plusHours(5), start.plusHours(5).plusMinutes(40)),
-            CareEventRecord("쿠션을 물어뜯어요", ActionCode.PLAY, OccurrenceStatus.EXPIRED, start.plusDays(2).plusHours(4), null),
-            CareEventRecord("축 처져 있어요", ActionCode.VET_VISIT, OccurrenceStatus.RESOLVED, start.plusDays(5).plusHours(3), start.plusDays(5).plusHours(4)),
+            CareEventRecord(1L, "물그릇을 엎었어요", ActionCode.WATER, OccurrenceStatus.RESOLVED, start.plusHours(5), start.plusHours(5).plusMinutes(40)),
+            CareEventRecord(5L, "쿠션을 물어뜯어요", ActionCode.PLAY, OccurrenceStatus.EXPIRED, start.plusDays(2).plusHours(4), null),
+            CareEventRecord(8L, "축 처져 있어요", ActionCode.VET_VISIT, OccurrenceStatus.RESOLVED, start.plusDays(5).plusHours(3), start.plusDays(5).plusHours(4)),
         )
         val spent = mapOf("FOOD_BOWL" to 10_000, "WATER_BOWL" to 9_000, "TOY" to 18_000, "LEASH" to 15_000, "FOOD" to 21_200, "SNACK" to 15_000, "EVENT" to 30_000)
         val dailySpent = mapOf("1" to 73_200, "2" to 0, "3" to 15_000, "4" to 0, "5" to 0, "6" to 30_000, "7" to 0)
