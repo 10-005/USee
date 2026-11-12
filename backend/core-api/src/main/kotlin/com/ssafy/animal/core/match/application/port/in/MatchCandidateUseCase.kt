@@ -12,8 +12,11 @@ fun interface MatchCandidateUseCase {
     fun findCandidates(sourceType: TargetType, sourceSeq: Long): List<MatchCandidate>
 }
 
-/** 워커가 없던 동안 사라진 요청을 되살리는 일괄 재발행(Q523). 발견·보호동물 먼저, 실종 나중 */
+/**
+ * 워커가 없던 동안 사라진 요청을 되살리는 일괄 재발행(Q523). 발견·보호동물 먼저, 실종 나중.
+ * 실행 이름당 한 번만(Q524): 비어 있거나 false면 실행 안 함, 그 밖의 값은 실행 이름
+ */
 fun interface MatchRepublishUseCase {
-    /** 보낸 MatchRequested 수 */
-    fun republishAll(): Int
+    /** 보낸 MatchRequested 수. 건너뛰면 0 */
+    fun republishOnce(runName: String): Int
 }
