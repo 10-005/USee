@@ -42,6 +42,17 @@ export function resolveNotificationDestination(
     return { name: 'FoundReportDetail', reportId: message.targetSeq };
   }
 
+  if (message.notificationType === 'AI_MATCH') {
+    switch (message.targetType) {
+      case 'MISSING':
+        return { name: 'LostReportDetail', reportId: message.targetSeq };
+      case 'FOUND':
+        return { name: 'FoundReportDetail', reportId: message.targetSeq };
+      default:
+        return null;
+    }
+  }
+
   if (commentTypes.has(message.notificationType)) {
     return {
       name: message.targetType === MISSING_TARGET_TYPE ? 'LostReportDetail' : 'FoundReportDetail',
