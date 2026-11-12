@@ -27,7 +27,7 @@ import PlusIcon from '../../assets/icons/common/plus.svg';
 import XCircleIcon from '../../assets/icons/common/x-circle.svg';
 import CameraIcon from '../../assets/icons/common/photo-camera.svg';
 import LibraryIcon from '../../assets/icons/common/photo-library.svg';
-import AiIcon from '../../assets/icons/navigation/ai-icon.svg';
+import { predictFoundBreed, type BreedPrediction } from '../../services/foundReports';
 import {
   KeyboardAwareInputProvider,
   KeyboardAwareTextInput,
@@ -174,7 +174,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [catalogSpecies, setCatalogSpecies] = useState<AnimalSpecies[]>([]);
   const [catalogBreeds, setCatalogBreeds] = useState<AnimalBreed[]>([]);
-  const [catalogCombinations, setCatalogCombinations] = useState<AnimalCombination[]>([]);
+  const [catalogCombinations, setCatalogCombinations] = useState<Pick<AnimalCombination, 'colorName' | 'combinationSeq'>[]>([]);
   const [speciesLoading, setSpeciesLoading] = useState(false);
   const [breedsLoading, setBreedsLoading] = useState(false);
   const [colorsLoading, setColorsLoading] = useState(false);
@@ -182,7 +182,46 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadedImageKeys, setUploadedImageKeys] = useState<Record<string, string>>({});
+  const [uploadedImageKeys, setUploadedImageKeys] = useState<Record<string, string>>(
+    isFoundReportFlow ? foundReportDraft.pendingImageKeys ?? {} : {},
+  );
+  const [analyzing, setAnalyzing] = useState(false);
+  const [prediction, setPrediction] = useState<BreedPrediction | null>(null);
+  const clearFoundClassification = useCallback(() => {
+    setPrediction(null);
+    setSpecies('');
+    setBreed('');
+    setColor('');
+    setSelectKey(null);
+  }, []);
+  const aiGuideColor = analyzing || prediction?.breedConfidence === 'HIGH'
+    ? '#17AA48'
+    : '#FAB45B';
+  const keys = photos.map(photo => uploadedImageKeys[photo.uri ?? '']);
+  const predictionKeys = isFoundReportFlow && keys.length && keys.every(Boolean)
+    ? JSON.stringify(keys) : '';
+  useEffect(() => {
+    setPrediction(null);
+    setAnalyzing(Boolean(predictionKeys));
+    if (!predictionKeys) return;
+    const controller = new AbortController();
+    predictFoundBreed(JSON.parse(predictionKeys), controller.signal)
+      .then(result => {
+        if (controller.signal.aborted) return;
+        if (!result.speciesCode) {
+          clearFoundClassification();
+          setPrediction(result);
+          return;
+        }
+        setSpecies(speciesLabel(result.speciesCode));
+        setBreed(result.breedName ?? '');
+        setColor('');
+        setPrediction(result);
+      })
+      .catch(() => undefined)
+      .finally(() => { if (!controller.signal.aborted) setAnalyzing(false); });
+    return () => controller.abort();
+  }, [predictionKeys, clearFoundClassification]);
   const [confirmedImageSeqs, setConfirmedImageSeqs] = useState<Record<string, number>>({});
   const existingImageSeqs = useMemo(
     () =>
@@ -254,6 +293,11 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   useEffect(() => {
     let active = true;
     setCatalogCombinations([]);
+    if (prediction?.breedName && prediction.breedName === breed) {
+      setCatalogCombinations(prediction.colors);
+      setColorsLoading(false);
+      return;
+    }
     setColorsLoading(Boolean(selectedBreedSeq));
     if (selectedBreedSeq) {
       getAnimalCombinations(selectedBreedSeq)
@@ -264,7 +308,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         .finally(() => { if (active) setColorsLoading(false); });
     }
     return () => { active = false; };
-  }, [selectedBreedSeq]);
+  }, [selectedBreedSeq, prediction, breed]);
 
   const retryCatalog = () => {
     setSpecies('');
@@ -390,11 +434,13 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
 
   const chooseFromLibrary = async () => {
     setPhotoMenuOpen(false);
+    const remaining = 3 - photos.length;
+    if (remaining <= 0 || isUploadingPhotos) return;
     try {
       const result = await launchImageLibrary({
         ...uploadPhotoPickerOptions,
         mediaType: 'photo',
-        selectionLimit: 3 - photos.length,
+        selectionLimit: remaining,
         includeExtra: true,
       });
       if (result.errorCode) {
@@ -405,6 +451,10 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
         return;
       }
       if (!result.didCancel) {
+        if ((result.assets?.length ?? 0) > remaining) {
+          Alert.alert('사진은 최대 3장까지 등록할 수 있어요', `이번에는 ${remaining}장까지 선택해 주세요.`);
+          return;
+        }
         await appendPhotos(result.assets);
       }
     } catch {
@@ -457,6 +507,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
 
   const selectOption = (value: string) => {
     if (selectKey === 'species' && species !== value) {
+      setPrediction(null);
       setSpecies(value as PetSpecies | ApiSpeciesLabel);
       setBreed('');
       setColor('');
@@ -464,6 +515,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       setCatalogCombinations([]);
       setCatalogError(null);
     } else if (selectKey === 'breed' && breed !== value) {
+      setPrediction(null);
       setBreed(value);
       setColor('');
       setCatalogCombinations([]);
@@ -547,17 +599,6 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
       }
       setIsSubmitting(true);
       try {
-        const nextConfirmed = { ...existingImageSeqs, ...confirmedImageSeqs };
-        for (const photo of photos) {
-          const uri = photo.uri!;
-          if (!nextConfirmed[uri]) {
-            const imageKey = uploadedImageKeys[uri];
-            if (!imageKey) {
-              throw new Error('사진 업로드 정보가 없어요. 사진을 다시 선택해 주세요.');
-            }
-            nextConfirmed[uri] = (await confirmImage(imageKey)).imageSeq;
-          }
-        }
         updateFoundReportDraft({
           age,
           breed,
@@ -566,7 +607,8 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
           description: description.trim(),
           gender: gender === '수컷' ? 'male' : gender === '암컷' ? 'female' : 'unknown',
           images: photos,
-          imageSeqs: photos.map(photo => nextConfirmed[photo.uri!]),
+          imageSeqs: photos.map(photo => existingImageSeqs[photo.uri!] ?? 0),
+          pendingImageKeys: uploadedImageKeys,
           microchipNumber: microchip === '완료' ? microchipNumber.trim() : '',
           microchipStatus: microchip === '완료' ? 'done' : 'not-done',
           neutered: neutered === '완료' ? 'done' : neutered === '미완료' ? 'not-done' : 'unknown',
@@ -657,18 +699,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
             ? '반려동물 수정하기'
             : '반려동물 등록하기'}
         </Text>
-        {isFoundReportFlow && photos.length > 0 ? (
-          <Pressable
-            accessibilityLabel="AI 작성 도우미"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={() => Alert.alert('AI 작성 도우미', '사진 분석 기능은 준비 중이에요.')}
-            style={({ pressed }) => [styles.aiAssistantButton, pressed && styles.pressed]}
-          >
-            <AiIcon height={14} width={12} />
-            <Text style={styles.aiAssistantText}>AI 작성 도우미</Text>
-          </Pressable>
-        ) : null}
+
       </View>
       {isReportFlow ? (
         <View style={styles.lostReportIndicator}>
@@ -700,7 +731,10 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
                   <Pressable
                     accessibilityLabel={`${index + 1}번째 사진 삭제`}
                     hitSlop={8}
-                    onPress={() => setPhotos(items => items.filter((_, i) => i !== index))}
+                    onPress={() => {
+                      if (isFoundReportFlow && photos.length === 1) clearFoundClassification();
+                      setPhotos(items => items.filter((_, i) => i !== index));
+                    }}
                     style={styles.deletePhoto}
                   >
                     <XCircleIcon height={18} width={18} />
@@ -710,6 +744,7 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
               {photos.length < 3 && (
                 <Pressable
                   accessibilityLabel="사진 추가"
+                  disabled={isUploadingPhotos}
                   onPress={() => setPhotoMenuOpen(open => !open)}
                   style={styles.addPhoto}
                 >
@@ -729,16 +764,35 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
                 </View>
               )}
             </View>
-            <Text style={styles.representativeGuide}>첫 번째 사진이 대표 사진으로 등록돼요.</Text>
-            <Text style={styles.photoGuide}>
-              최대 3장 · JPG/PNG · 장당 {MAX_IMAGE_SIZE_MB}MB 이하
-            </Text>
             {isUploadingPhotos ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator color={colors.green400} />
-                <Text style={styles.loadingText}>사진 업로드 중...</Text>
+              <View style={styles.uploadStatus} accessibilityLiveRegion="polite">
+                <ActivityIndicator color={colors.gray500} size="small" />
+                <Text style={styles.loadingText}>사진 업로드 중…</Text>
               </View>
-            ) : null}
+            ) : (
+              <>
+                <Text style={styles.representativeGuide}>첫 번째 사진이 대표 사진으로 등록돼요.</Text>
+                <Text style={styles.photoGuide}>
+                  최대 3장 · JPG/PNG · 장당 {MAX_IMAGE_SIZE_MB}MB 이하
+                </Text>
+              </>
+            )}
+            {isFoundReportFlow && (
+              <View style={styles.loadingRow} accessibilityLiveRegion="polite">
+                {analyzing ? (
+                  <ActivityIndicator color={aiGuideColor} />
+                ) : (
+                  <Image source={require('../../assets/icons/common/ai-icon.png')} resizeMode="contain" tintColor={aiGuideColor} style={styles.aiIcon} />
+                )}
+                <Text style={[styles.aiAssistantText, { color: aiGuideColor }]}>
+                  {analyzing ? '사진에서 종과 품종을 분석하고 있어요…'
+                    : prediction?.breedConfidence === 'LOW' ? `${prediction.breedName}인 것 같아요. 다르면 바꿔 주세요.`
+                    : prediction?.speciesCode ? 'AI가 추천한 동물 정보예요. 직접 바꿀 수 있어요.'
+                    : prediction ? '종을 찾지 못했어요. 직접 선택해 주세요.'
+                    : '사진을 올리면 AI가 종과 품종을 추천해요.'}
+                </Text>
+              </View>
+            )}
             {usesPetApi && catalogError ? (
               <View style={styles.catalogError}>
                 <Text style={styles.errorText}>{catalogError}</Text>
@@ -1043,9 +1097,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 16,
   },
+  aiIcon: { width: 12, height: 14 },
   aiAssistantText: {
     ...typography.bodyRegular14,
-    color: colors.green200,
+    fontFamily: 'Pretendard-SemiBold',
+    flexShrink: 1,
   },
   pressed: { opacity: 0.6 },
   headerTitle: { ...typography.titleSemiBold18, color: colors.black },
@@ -1093,16 +1149,18 @@ const styles = StyleSheet.create({
   photoMenuText: { ...typography.bodyRegular16, color: colors.gray800 },
   representativeGuide: {
     ...typography.captionSemiBold12,
-    color: colors.green400,
+    color: colors.gray400,
     marginTop: 10,
   },
   photoGuide: {
     ...typography.captionSemiBold12,
+    fontFamily: typography.captionRegular10.fontFamily,
     color: colors.gray400,
     marginBottom: 24,
     marginTop: 2,
   },
   loadingRow: { alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 18 },
+  uploadStatus: { alignItems: 'center', flexDirection: 'row', gap: 8, minHeight: 36, marginTop: 10, marginBottom: 24 },
   loadingText: { ...typography.bodyRegular14, color: colors.gray500 },
   catalogError: {
     alignItems: 'center',

@@ -14,6 +14,7 @@ export type FoundReportDraft = {
   gender: 'female' | 'male' | 'unknown' | null;
   images: Asset[];
   imageSeqs: number[];
+  pendingImageKeys?: Record<string, string>;
   latitude: number | null;
   location: string;
   longitude: number | null;
