@@ -84,7 +84,9 @@ internal class SegFormerFloorAnalyzer(context: Context) : AutoCloseable {
         val input = try { prepare(image, rotation) } finally { image.close() }
         val environment = OrtEnvironment.getEnvironment()
         OnnxTensor.createTensor(environment, FloatBuffer.wrap(input), longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())).use { tensor ->
+          val inferenceStartedAt = SystemClock.elapsedRealtimeNanos()
           session!!.run(mapOf("pixel_values" to tensor)).use { result ->
+            val inferenceNanos = SystemClock.elapsedRealtimeNanos() - inferenceStartedAt
             val output = result[0] as OnnxTensor
             val shape = output.info.shape
             require(shape.size == 4 && shape[0] == 1L && shape[1] == 150L) { "Unexpected SegFormer output" }
@@ -99,6 +101,7 @@ internal class SegFormerFloorAnalyzer(context: Context) : AutoCloseable {
             if (!closed && now - invalidatedAt > 0L) latest = SemanticFloorMask(
               maskWidth, maskHeight, pixels.walkable, inverse, focal[0], focal[1], center[0], center[1],
               width, height, rotation, now, pixels.labels, pixels.confident,
+              analysisNanos = elapsed, inferenceNanos = inferenceNanos,
             )
           }
         }

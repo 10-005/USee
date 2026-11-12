@@ -20,6 +20,8 @@ internal class SemanticFloorMask(
   val capturedAtNanos: Long,
   private val labels: IntArray? = null,
   private val confident: BooleanArray? = null,
+  val analysisNanos: Long? = null,
+  val inferenceNanos: Long? = null,
 ) {
   fun isFresh(now: Long) = now - capturedAtNanos in 0L..MAX_AGE_NANOS
 
