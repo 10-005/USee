@@ -196,18 +196,21 @@ class FoundReportService(
     private fun items(reports: List<FoundReport>): Map<FoundReport, FoundReportItem> {
         val classifications = catalogUseCase.findClassifications(reports.map { it.combinationSeq })
         val images = foundReportRepository.findImages(reports.map { it.foundReportSeq!! })
-        // ponytail: 대표 사진 URL을 항목마다 findSummary로 읽는다(페이지 크기만큼 PK 조회). 느려지면 image에 일괄 조회 포트를 요청
+        val firsts = reports.mapNotNull { images[it.foundReportSeq].orEmpty().firstOrNull()?.imageSeq }
+        val summaries = imageUseCase.findSummaries(firsts)
         return reports.associateWith { report ->
             val first = images[report.foundReportSeq].orEmpty().firstOrNull()
-            FoundReportItem(report, classifications[report.combinationSeq], first?.let { imageUseCase.findSummary(it.imageSeq)?.imageUrl })
+            FoundReportItem(report, classifications[report.combinationSeq], first?.let { summaries[it.imageSeq]?.imageUrl })
         }
     }
 
     private fun detail(report: FoundReport, viewer: AuthUser): FoundReportDetail {
         val seq = report.foundReportSeq!!
-        val images = foundReportRepository.findImages(listOf(seq))[seq].orEmpty()
-            .map { ImageRef(it.imageSeq, imageUseCase.findSummary(it.imageSeq)?.imageUrl, it.displayOrder.toInt()) }
+        val rows = foundReportRepository.findImages(listOf(seq))[seq].orEmpty()
         val reporter = foundReportRepository.findReporters(listOf(report.userSeq))[report.userSeq]
+        val profileSeq = reporter?.takeUnless { it.isDeleted }?.profileImageSeq
+        val summaries = imageUseCase.findSummaries(rows.map { it.imageSeq } + listOfNotNull(profileSeq))
+        val images = rows.map { ImageRef(it.imageSeq, summaries[it.imageSeq]?.imageUrl, it.displayOrder.toInt()) }
         val isAuthor = report.userSeq.toLong() == viewer.userSeq
         val isAssignedShelter = viewer.role == Role.SHELTER && report.shelterSeq.toLong() == viewer.shelterSeq
         return FoundReportDetail(
@@ -220,7 +223,7 @@ class FoundReportService(
                 userSeq = report.userSeq.toLong(),
                 displayName = if (reporter == null || reporter.isDeleted) WITHDRAWN_NAME else reporter.nickname,
                 role = Role.USER,
-                profileImage = reporter?.takeUnless { it.isDeleted }?.profileImageSeq?.let(imageUseCase::findSummary)?.ordered(),
+                profileImage = profileSeq?.let { summaries[it] }?.ordered(),
             ),
             shelterName = foundReportRepository.findShelterName(report.shelterSeq),
             // 비공개 연락처는 작성자·이 신고의 담당 보호소만(8.2)

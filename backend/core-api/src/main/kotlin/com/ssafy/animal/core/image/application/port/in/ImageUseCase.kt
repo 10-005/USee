@@ -18,6 +18,10 @@ interface ImageUseCase {
     /** 응답용 {imageSeq, imageUrl}. 행이 없으면 null */
     fun findSummary(imageSeq: Long): ImageSummary?
 
+    /** 응답용 요약을 한 번에(목록·상세 N+1 방지, S15P31D106-423). 없는 번호는 Map에서 빠진다 */
+    fun findSummaries(imageSeqs: Collection<Long>): Map<Long, ImageSummary> =
+        imageSeqs.toSet().mapNotNull(::findSummary).associateBy { it.imageSeq } // 기본은 단건 반복(테스트 가짜용). ImageService는 IN 한 번
+
     /**
      * 연결을 해제한 쪽이 반영(flush)한 뒤 호출한다. 남은 참조가 없을 때만 행을 지우고(Q383),
      * 커밋되면 S3 객체를 best-effort 삭제(Q427)

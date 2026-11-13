@@ -27,9 +27,7 @@ class ApplicantSimulationReportService(
             ?.takeIf { it.shelterSeq.toLong() == shelter.shelterSeq && it.isVisibleToShelter }
             ?: throw BusinessException(AdoptionErrorCode.ADOPTION_APPLICATION_NOT_FOUND)
         val rows = reportReader.findEndedReports(application.userSeq)
-        // 품종 대표 이미지는 시드라 몇 장 안 된다. 같은 이미지는 한 번만 찾는다
-        val imageUrls = rows.mapNotNull { it.representativeImageSeq }.distinct()
-            .associateWith { imageUseCase.findSummary(it)?.imageUrl }
+        val imageUrls = imageUseCase.findSummaries(rows.mapNotNull { it.representativeImageSeq }).mapValues { it.value.imageUrl }
         return rows.map {
             ApplicantSimulationReport(
                 sessionSeq = it.sessionSeq,

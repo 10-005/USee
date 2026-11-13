@@ -61,7 +61,7 @@ class CatalogServiceTest {
 
     @Test
     fun `5_2 품종 대표 이미지는 이미지 URL로, 없으면 null`() {
-        given(imageUseCase.findSummary(7)).willReturn(ImageSummary(7, "https://cdn/images/seed/breeds/000072.jpg"))
+        given(imageUseCase.findSummaries(listOf(7L))).willReturn(mapOf(7L to ImageSummary(7, "https://cdn/images/seed/breeds/000072.jpg")))
 
         val result = catalog.findBreeds(1)
 

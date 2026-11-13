@@ -45,6 +45,7 @@ class RescueService(
         val rows = rescues.associateWith { r -> r.foundReportSeq?.let(fromReports::get) ?: fromAnimals[r.rescueSeq] }
         val classifications = catalogUseCase.findClassifications(rows.values.mapNotNull { it?.combinationSeq })
         val counts = rescueRepository.countByStatus(shelter, filter)
+        val images = imageUseCase.findSummaries(rows.values.mapNotNull { it?.imageSeq })
         return RescuePage(
             statusCounts = RescueStatus.entries.associateWith { counts[it] ?: 0L },
             page = page.map { r ->
@@ -52,7 +53,7 @@ class RescueService(
                     r,
                     rows[r]?.let { row ->
                         val c = classifications[row.combinationSeq]
-                        RescueAnimal(c?.speciesName, c?.breedName, row.age, row.gender, row.isNeutered, c?.colorName, row.weight, imageUrl(row))
+                        RescueAnimal(c?.speciesName, c?.breedName, row.age, row.gender, row.isNeutered, c?.colorName, row.weight, row.imageSeq?.let { images[it] }?.imageUrl)
                     },
                 )
             },
