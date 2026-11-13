@@ -141,16 +141,20 @@ class CommentService(
     private fun details(type: CommentType, comments: List<Comment>): List<CommentDetail> {
         if (comments.isEmpty()) return emptyList()
         val replyCounts = commentRepository.countReplies(type, comments.filter { it.isRoot }.map { it.commentSeq!! })
-        val authors = commentRepository.findAuthors(comments.map { it.userSeq }.distinct())
-            .mapValues { (seq, row) ->
-                val role = Role.valueOf(row.role)
-                when {
-                    row.deleted -> CommentAuthor(seq.toLong(), WITHDRAWN_NAME, role, null)
-                    role == Role.SHELTER -> CommentAuthor(seq.toLong(), row.shelterName, role, row.shelterImageSeq?.let(imageUseCase::findSummary)?.ordered())
-                    else -> CommentAuthor(seq.toLong(), row.nickname, role, row.profileImageSeq?.let(imageUseCase::findSummary)?.ordered())
-                }
+        val authorRows = commentRepository.findAuthors(comments.map { it.userSeq }.distinct())
+        // 작성자 프로필·보호소 사진·댓글 첨부를 한 번에 읽는다(S15P31D106-423)
+        val images = imageUseCase.findSummaries(
+            authorRows.values.mapNotNull { it.shelterImageSeq } + authorRows.values.mapNotNull { it.profileImageSeq } +
+                comments.filterNot { it.isDeleted }.mapNotNull { it.imageSeq },
+        )
+        val authors = authorRows.mapValues { (seq, row) ->
+            val role = Role.valueOf(row.role)
+            when {
+                row.deleted -> CommentAuthor(seq.toLong(), WITHDRAWN_NAME, role, null)
+                role == Role.SHELTER -> CommentAuthor(seq.toLong(), row.shelterName, role, row.shelterImageSeq?.let { images[it] }?.ordered())
+                else -> CommentAuthor(seq.toLong(), row.nickname, role, row.profileImageSeq?.let { images[it] }?.ordered())
             }
-        // ponytail: 댓글 이미지는 건마다 findSummary 1회(PK 조회). 댓글이 많아져 느려지면 ImageUseCase에 일괄 조회 추가
+        }
         return comments.map { c ->
             CommentDetail(
                 commentType = type,
@@ -160,7 +164,7 @@ class CommentService(
                 targetSeq = c.postSeq.toLong(),
                 author = authors[c.userSeq] ?: CommentAuthor(c.userSeq.toLong(), WITHDRAWN_NAME, Role.USER, null),
                 body = c.body.takeUnless { c.isDeleted },
-                image = c.imageSeq?.takeUnless { c.isDeleted }?.let(imageUseCase::findSummary)?.ordered(),
+                image = c.imageSeq?.takeUnless { c.isDeleted }?.let { images[it] }?.ordered(),
                 isDeleted = c.isDeleted,
                 replyCount = replyCounts[c.commentSeq] ?: 0,
                 regDttm = c.regDttm,

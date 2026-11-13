@@ -34,8 +34,9 @@ class PetService(
         val page = petRepository.findPage(Math.toIntExact(userSeq), pageable)
         val classifications = catalogUseCase.findClassifications(page.content.map { it.combinationSeq })
         val representatives = petRepository.findRepresentativeImageSeqs(page.content.map { it.petSeq!! })
+        val images = imageUseCase.findSummaries(representatives.values)
         return page.map { pet ->
-            val imageUrl = representatives[pet.petSeq]?.let(imageUseCase::findSummary)?.imageUrl
+            val imageUrl = representatives[pet.petSeq]?.let { images[it] }?.imageUrl
             PetSummary(pet, classifications[pet.combinationSeq], imageUrl)
         }
     }
@@ -100,9 +101,9 @@ class PetService(
             ?: throw BusinessException(PetErrorCode.USER_PET_NOT_FOUND)
 
     private fun detail(pet: Pet): PetDetail {
-        val images = petRepository.findImageSeqs(pet.petSeq!!).mapIndexed { index, imageSeq ->
-            PetImageRef(imageSeq, imageUseCase.findSummary(imageSeq)?.imageUrl, index + 1)
-        }
+        val imageSeqs = petRepository.findImageSeqs(pet.petSeq!!)
+        val summaries = imageUseCase.findSummaries(imageSeqs)
+        val images = imageSeqs.mapIndexed { index, imageSeq -> PetImageRef(imageSeq, summaries[imageSeq]?.imageUrl, index + 1) }
         return PetDetail(pet, catalogUseCase.findClassifications(listOf(pet.combinationSeq))[pet.combinationSeq], images)
     }
 

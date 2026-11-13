@@ -81,6 +81,12 @@ class ImageService(
 
     override fun findSummary(imageSeq: Long) = imageRepository.findById(imageSeq)?.toSummary()
 
+    override fun findSummaries(imageSeqs: Collection<Long>): Map<Long, ImageSummary> {
+        val seqs = imageSeqs.toSet()
+        if (seqs.isEmpty()) return emptyMap()
+        return imageRepository.findAllById(seqs).associate { it.imageSeq!! to it.toSummary() }
+    }
+
     private fun Image.toSummary() = ImageSummary(imageSeq!!, imageStorage.publicUrl(imageKey))
 
     @Transactional

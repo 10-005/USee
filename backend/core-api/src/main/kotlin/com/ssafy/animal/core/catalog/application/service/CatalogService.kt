@@ -43,15 +43,18 @@ class CatalogService(
 
     override fun findSpecies() = catalogRepository.findAllSpecies().map { SpeciesView(it.speciesSeq, it.speciesCode, it.speciesName) }
 
-    // ponytail: 대표 이미지가 있는 품종마다 이미지 1건 조회. 시드 이미지가 늘어 느려지면 일괄 조회 포트를 추가
-    override fun findBreeds(speciesSeq: Int) = catalogRepository.findBreeds(speciesSeq).map {
-        BreedView(
-            breedSeq = it.breedSeq,
-            speciesSeq = it.speciesSeq,
-            breedName = it.breedName,
-            personality = it.personality,
-            representativeImageUrl = it.representativeImageSeq?.let(imageUseCase::findSummary)?.imageUrl,
-        )
+    override fun findBreeds(speciesSeq: Int): List<BreedView> {
+        val breeds = catalogRepository.findBreeds(speciesSeq)
+        val images = imageUseCase.findSummaries(breeds.mapNotNull { it.representativeImageSeq })
+        return breeds.map {
+            BreedView(
+                breedSeq = it.breedSeq,
+                speciesSeq = it.speciesSeq,
+                breedName = it.breedName,
+                personality = it.personality,
+                representativeImageUrl = it.representativeImageSeq?.let { seq -> images[seq] }?.imageUrl,
+            )
+        }
     }
 
     override fun findColors() = catalogRepository.findAllColors().map { ColorView(it.colorSeq, it.colorName) }

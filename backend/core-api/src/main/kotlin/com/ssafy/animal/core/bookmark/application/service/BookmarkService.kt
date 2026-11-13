@@ -30,7 +30,7 @@ class BookmarkService(
     override fun list(userSeq: Long, targetType: TargetType?, pageable: Pageable): PageResponse<BookmarkItem> {
         val page = bookmarkRepository.findVisible(Math.toIntExact(userSeq), targetType?.let(::bookmarkType), pageable)
         val classifications = catalogUseCase.findClassifications(page.content.map { it.combinationSeq }.toSet())
-        // ponytail: 대표 사진은 건마다 findSummary 1회(최대 size건). 느려지면 ImageUseCase에 일괄 조회 추가
+        val images = imageUseCase.findSummaries(page.content.mapNotNull { it.representativeImageSeq })
         return PageResponse.of(
             page.map {
                 BookmarkItem(
@@ -42,7 +42,7 @@ class BookmarkService(
                         status = it.status,
                         address = it.address,
                         occurredDttm = it.occurredDttm,
-                        representativeImageUrl = it.representativeImageSeq?.let(imageUseCase::findSummary)?.imageUrl,
+                        representativeImageUrl = it.representativeImageSeq?.let { seq -> images[seq] }?.imageUrl,
                     ),
                 )
             },
