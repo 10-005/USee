@@ -54,7 +54,10 @@
 
 목적지는 `resolveNotificationDestination`이 정한다.
 `MISSING` 댓글은 실종 상세, 그 외 댓글과 `SHELTER`는 발견 상세, 입양 상태는 신청 이력이다.
-`CHAT`은 알림 목록에 넣지 않고 채팅 탭으로 보낸다. `AI_MATCH`와 `SYSTEM`은 목적지를 정하지 않는다.
+`AI_MATCH`는 `targetType`이 `FOUND`이면 발견 제보 상세, `MISSING`이면 실종 제보 상세로 보내며
+`targetSeq`를 제보 번호로 사용한다. 알림 목록과 푸시 클릭에 같은 규칙을 적용한다.
+앱 밖에서 푸시를 클릭하면 스택을 `Home → 대상 화면`으로 구성하므로 상세에서 뒤로 가면 홈이 열린다.
+`CHAT`은 알림 목록에 넣지 않고 해당 채팅방으로 보낸다. `SYSTEM`은 목적지를 정하지 않는다.
 
 해석된 메시지는 `usee_push` 채널에 높은 중요도로 배너를 띄운다. 앱이 켜져 있을 때와
 data만 있는 백그라운드 메시지는 이 배너로 표시한다. `notification`이 있는 백그라운드

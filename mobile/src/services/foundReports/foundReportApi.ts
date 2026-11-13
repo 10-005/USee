@@ -4,6 +4,20 @@ import type { PetClassification, PetGender } from '../pets';
 
 export type FoundReportStatus = 'ACTIVE' | 'CLOSED';
 
+export type BreedPrediction = {
+  speciesCode: 'DOG' | 'CAT' | null;
+  breedName: string | null;
+  breedConfidence: 'HIGH' | 'LOW' | null;
+  colors: { colorName: string; combinationSeq: number }[];
+};
+
+export async function predictFoundBreed(imageKeys: string[], signal: AbortSignal) {
+  const response = await apiClient.post<ApiResponse<BreedPrediction>>(
+    '/found-reports/breed-prediction', { imageKeys }, { signal, timeout: 10000 },
+  );
+  return response.data.data;
+}
+
 export type FoundReportSummary = {
   age: string | null;
   address: string;
