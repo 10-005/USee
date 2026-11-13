@@ -66,6 +66,15 @@ resource "aws_s3_bucket_policy" "media" {
         Action    = "s3:GetObject"
         Resource  = "${local.media_arn}/images/*"
       },
+      {
+        # CDN(OAC)이 원본을 읽는다(S15P31D106-298). 이 배포에서 온 요청만 허용
+        Sid       = "AllowCloudFrontReadImages"
+        Effect    = "Allow"
+        Principal = { Service = "cloudfront.amazonaws.com" }
+        Action    = "s3:GetObject"
+        Resource  = "${local.media_arn}/images/*"
+        Condition = { StringEquals = { "AWS:SourceArn" = aws_cloudfront_distribution.media.arn } }
+      },
     ]
   })
 
@@ -142,4 +151,57 @@ resource "aws_iam_user_policy" "core_api_media" {
       },
     ]
   })
+}
+
+# ---------- 이미지 CDN (S15P31D106-298) ----------
+# imageUrl = {STORAGE_PUBLIC_BASE_URL}/{image_key}라 환경 변수만 이 주소로 바꾸면 응답이 CDN 주소가 된다(DB에는 키만 저장).
+# 같은 값을 쓰는 곳: core-api·chat·simulation의 STORAGE_PUBLIC_BASE_URL, breed-server·match-worker의 IMAGE_URL_PREFIX(+ "/")
+# 업로드(presigned PUT)는 계속 S3로 직접 간다. CDN은 읽기만 맡는다.
+# 1단계: CDN 추가(버킷 익명 GET 유지). 2단계: 전환 확인 후 AllowPublicReadImages를 지우고 block_public_policy를 다시 켠다.
+
+resource "aws_cloudfront_origin_access_control" "media" {
+  name                              = "s15p31d106-media"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+# 키가 업로드마다 새로 만들어지는 불변 객체라 오래 캐시해도 된다(기본 1일, 최대 1년).
+# 지운 이미지도 캐시가 만료될 때까지는 CDN에서 보일 수 있다(고아 객체 허용과 같은 수준, Q427)
+locals {
+  # AWS 관리형 Managed-CachingOptimized. 모든 계정에서 같은 고정 ID라 조회(cloudfront:ListCachePolicies)하지 않는다
+  cache_policy_caching_optimized = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+}
+
+resource "aws_cloudfront_distribution" "media" {
+  enabled         = true
+  comment         = "s15p31d106 media images"
+  is_ipv6_enabled = true
+  price_class     = "PriceClass_200" # 한국 포함, 남미·오세아니아 제외
+
+  origin {
+    origin_id                = "media"
+    domain_name              = aws_s3_bucket.media.bucket_regional_domain_name
+    origin_access_control_id = aws_cloudfront_origin_access_control.media.id
+  }
+
+  default_cache_behavior {
+    target_origin_id       = "media"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    cache_policy_id        = local.cache_policy_caching_optimized
+    compress               = true
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  # p.ssafy.io DNS는 우리가 관리하지 않아 기본 *.cloudfront.net 도메인을 쓴다
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
 }

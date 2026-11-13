@@ -45,7 +45,7 @@ spec:
             - name: CORS_ALLOWED_ORIGINS
               value: http://localhost:5173,http://127.0.0.1:5173,https://s15p31d106-develop-web.vercel.app
             - name: STORAGE_PUBLIC_BASE_URL
-              value: https://s15p31d106-media-887324111755.s3.ap-northeast-2.amazonaws.com
+              value: https://d2cxge8l3dd66.cloudfront.net
             # 지금은 발행하는 이벤트가 없지만 리포트 완료 알림(Q487)을 붙일 때를 위해 core-api·chat·notification과 같게 둔다
             - name: EVENTS_TRANSPORT
               value: rabbit

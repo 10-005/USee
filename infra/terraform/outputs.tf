@@ -23,6 +23,6 @@ output "media_bucket" {
 }
 
 output "media_public_base_url" {
-  description = "이미지 공개 주소 (core-api의 STORAGE_PUBLIC_BASE_URL 값)"
-  value       = "https://${aws_s3_bucket.media.bucket_regional_domain_name}"
+  description = "이미지 공개 주소, CloudFront (core-api의 STORAGE_PUBLIC_BASE_URL 값)"
+  value       = "https://${aws_cloudfront_distribution.media.domain_name}"
 }

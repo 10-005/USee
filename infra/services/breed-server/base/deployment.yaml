@@ -33,7 +33,7 @@ spec:
           env:
             # 이 접두어로 시작하는 URL만 내려받는다. core-api의 STORAGE_PUBLIC_BASE_URL + "/"
             - name: IMAGE_URL_PREFIX
-              value: https://s15p31d106-media-887324111755.s3.ap-northeast-2.amazonaws.com/
+              value: https://d2cxge8l3dd66.cloudfront.net/
             - name: CPU_THREADS
               value: "2"
             - name: BREED_HIGH_SCORE

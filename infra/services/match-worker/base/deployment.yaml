@@ -54,7 +54,7 @@ spec:
                 secretKeyRef: { name: match-worker-secrets, key: DB_PASSWORD }
             # 사진 공개 주소 접두어. breed-server와 같은 값(core-api의 STORAGE_PUBLIC_BASE_URL + "/")
             - name: IMAGE_URL_PREFIX
-              value: https://s15p31d106-media-887324111755.s3.ap-northeast-2.amazonaws.com/
+              value: https://d2cxge8l3dd66.cloudfront.net/
             # 가안(S15P31D106-396): 사진 3쌍 실측 기준. AI 팀 검증 수치를 받으면 조정
             - name: MATCH_MIN_SCORE
               value: "0.6"
@@ -123,7 +123,7 @@ spec:
                 secretKeyRef: { name: match-worker-secrets, key: DB_PASSWORD }
             # 사진 공개 주소 접두어. breed-server와 같은 값(core-api의 STORAGE_PUBLIC_BASE_URL + "/")
             - name: IMAGE_URL_PREFIX
-              value: https://s15p31d106-media-887324111755.s3.ap-northeast-2.amazonaws.com/
+              value: https://d2cxge8l3dd66.cloudfront.net/
             # 가안(S15P31D106-396): 사진 3쌍 실측 기준. AI 팀 검증 수치를 받으면 조정
             - name: MATCH_MIN_SCORE
               value: "0.6"
