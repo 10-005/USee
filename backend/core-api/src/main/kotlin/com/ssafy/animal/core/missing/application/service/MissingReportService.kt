@@ -189,19 +189,21 @@ class MissingReportService(
     private fun summaries(reports: List<MissingReport>): List<MissingSummary> {
         val classifications = catalogUseCase.findClassifications(reports.map { it.combinationSeq })
         val representatives = missingReportRepository.findRepresentativeImageSeqs(reports.map { it.missingReportSeq!! })
+        val images = imageUseCase.findSummaries(representatives.values)
         return reports.map { report ->
-            val imageUrl = representatives[report.missingReportSeq]?.let(imageUseCase::findSummary)?.imageUrl
+            val imageUrl = representatives[report.missingReportSeq]?.let { images[it] }?.imageUrl
             MissingSummary(report, classifications[report.combinationSeq], imageUrl)
         }
     }
 
     private fun detail(viewerUserSeq: Long, report: MissingReport): MissingDetail {
         val seq = report.missingReportSeq!!
-        val images = missingReportRepository.findImageSeqs(seq).mapIndexed { index, imageSeq ->
-            MissingImageRef(imageSeq, imageUseCase.findSummary(imageSeq)?.imageUrl, index + 1)
-        }
-        val author = missingReportRepository.findAuthor(report.userSeq)?.let {
-            MissingAuthor(it.userSeq.toLong(), it.nickname, Role.valueOf(it.role), it.profileImageSeq?.let(imageUseCase::findSummary)?.ordered())
+        val imageSeqs = missingReportRepository.findImageSeqs(seq)
+        val authorRow = missingReportRepository.findAuthor(report.userSeq)
+        val summaries = imageUseCase.findSummaries(imageSeqs + listOfNotNull(authorRow?.profileImageSeq))
+        val images = imageSeqs.mapIndexed { index, imageSeq -> MissingImageRef(imageSeq, summaries[imageSeq]?.imageUrl, index + 1) }
+        val author = authorRow?.let {
+            MissingAuthor(it.userSeq.toLong(), it.nickname, Role.valueOf(it.role), it.profileImageSeq?.let { p -> summaries[p] }?.ordered())
         }
         val isAuthor = report.userSeq.toLong() == viewerUserSeq
         return MissingDetail(

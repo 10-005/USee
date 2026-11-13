@@ -225,6 +225,21 @@ class ImageServiceTest {
         assertCode(ImageErrorCode.IMAGE_NOT_FOUND) { service.requireOwned(7, 999) }
     }
 
+    @Test
+    fun `요약 일괄 조회는 저장소를 한 번만 부르고, 중복은 합치고 없는 번호는 빠진다`() {
+        val a = repository.saveAndFlush(Image(key, "image/jpeg", null, mb, 7)).imageSeq!!
+        val b = repository.saveAndFlush(Image("images/2026/11/b.jpg", "image/jpeg", null, mb, 7)).imageSeq!!
+        calls.clear()
+
+        val result = service.findSummaries(listOf(a, b, a, 999))
+
+        assertEquals(mapOf(a to "https://cdn/$key", b to "https://cdn/images/2026/11/b.jpg"), result.mapValues { it.value.imageUrl })
+        assertEquals(listOf("findAllById[$a, $b, 999]"), calls)
+        calls.clear()
+        assertEquals(emptyMap(), service.findSummaries(emptyList()))
+        assertEquals(emptyList(), calls) // 빈 목록이면 쿼리하지 않는다
+    }
+
     private fun assertCode(code: ImageErrorCode, block: () -> Unit) =
         assertEquals(code, assertFailsWith<BusinessException> { block() }.errorCode)
 
@@ -270,6 +285,11 @@ class ImageServiceTest {
         }
 
         override fun findById(imageSeq: Long) = rows[imageSeq]
+
+        override fun findAllById(imageSeqs: Collection<Long>): List<Image> {
+            calls += "findAllById$imageSeqs"
+            return imageSeqs.mapNotNull(rows::get)
+        }
 
         override fun delete(image: Image) {
             rows.remove(image.imageSeq)

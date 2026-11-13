@@ -410,14 +410,17 @@ class ShelterAnimalService(
         return RescueInfo(rescue.rescuedDttm, rescue.rescueReasonCode, rescue.rescueAddress, rescue.rescueAddressDetail, rescue.rescueMemo)
     }
 
-    private fun images(animalSeq: Int) = animalRepository.findImages(animalSeq).map {
-        ImageRef(it.imageSeq, imageUseCase.findSummary(it.imageSeq)?.imageUrl, it.displayOrder.toInt())
+    private fun images(animalSeq: Int): List<ImageRef> {
+        val rows = animalRepository.findImages(animalSeq)
+        val summaries = imageUseCase.findSummaries(rows.map { it.imageSeq })
+        return rows.map { ImageRef(it.imageSeq, summaries[it.imageSeq]?.imageUrl, it.displayOrder.toInt()) }
     }
 
-    // ponytail: 대표 사진 URL을 동물마다 findSummary로 읽는다(페이지당 최대 100회). 느려지면 ImageUseCase에 일괄 조회를 요청
-    private fun representativeImageUrls(animals: List<ShelterAnimal>): Map<Int, String?> =
-        animalRepository.findRepresentativeImageSeqs(animals.map { it.animalSeq!! })
-            .mapValues { (_, imageSeq) -> imageUseCase.findSummary(imageSeq)?.imageUrl }
+    private fun representativeImageUrls(animals: List<ShelterAnimal>): Map<Int, String?> {
+        val representatives = animalRepository.findRepresentativeImageSeqs(animals.map { it.animalSeq!! })
+        val summaries = imageUseCase.findSummaries(representatives.values)
+        return representatives.mapValues { (_, imageSeq) -> summaries[imageSeq]?.imageUrl }
+    }
 
     private fun toCards(animals: List<ShelterAnimal>): Map<Int, AnimalCard> {
         if (animals.isEmpty()) return emptyMap()
