@@ -39,12 +39,16 @@ data:
     CREATE ROLE dev_readonly LOGIN PASSWORD '${DEV_READONLY_PASSWORD}' CONNECTION LIMIT 5;
     GRANT CONNECT ON DATABASE animal TO dev_readonly;
     GRANT pg_read_all_data TO dev_readonly;
+    -- 다른 계정의 쿼리 문구까지 pg_stat_statements로 볼 수 있게 한다(S15P31D106-423)
+    GRANT pg_read_all_stats TO dev_readonly;
     ALTER ROLE dev_readonly SET default_transaction_read_only = on;
     ALTER ROLE dev_readonly SET statement_timeout = '30s';
 
     -- AI 매칭 워커(match-worker) 전용. 벡터(pgvector)를 ai 스키마에만 저장한다. 이미 초기화된 DB에는 scripts/create-ai-schema.sh로 만든다
     -- 확장은 public에 두고 ai_app에만 public USAGE를 준다(vector 타입·<=> 연산자 사용)
     CREATE EXTENSION IF NOT EXISTS vector;
+    -- 슬로우 쿼리 분석(S15P31D106-423). statefulset의 shared_preload_libraries와 짝
+    CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
     CREATE ROLE ai_app LOGIN PASSWORD '${AI_APP_PASSWORD}';
     GRANT CONNECT ON DATABASE animal TO ai_app;
     GRANT USAGE ON SCHEMA public TO ai_app;

@@ -20,6 +20,16 @@ spec:
       containers:
         - name: postgres
           image: pgvector/pgvector:pg17
+          # 슬로우 쿼리 분석(S15P31D106-423): 쿼리별 누적 통계와 300ms 이상 쿼리 로그
+          args:
+            - -c
+            - shared_preload_libraries=pg_stat_statements
+            - -c
+            - pg_stat_statements.track=all
+            - -c
+            - log_min_duration_statement=300ms
+            - -c
+            - track_io_timing=on
           ports:
             - name: postgres
               containerPort: 5432
