@@ -10,6 +10,57 @@ jest.mock('@react-native-community/geolocation', () => ({
   setRNConfiguration: jest.fn(),
 }));
 
+test('map redraws are coalesced while every accepted AR movement counts immediately', async () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(1700000000000);
+  jest.mocked(Geolocation.watchPosition).mockClear();
+  jest
+    .spyOn(PermissionsAndroid, 'requestMultiple')
+    .mockImplementation(
+      async permissions =>
+        Object.fromEntries(permissions.map(permission => [permission, 'granted'])) as Awaited<
+          ReturnType<typeof PermissionsAndroid.requestMultiple>
+        >,
+    );
+  let route!: ReturnType<typeof useWalkRoute>;
+  function Harness() {
+    route = useWalkRoute(true);
+    return null;
+  }
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+  try {
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(<Harness />);
+    });
+    const receive = jest.mocked(Geolocation.watchPosition).mock.calls[0][0];
+    await ReactTestRenderer.act(() => {
+      receive({
+        timestamp: Date.now(),
+        coords: { latitude: 37, longitude: 127, accuracy: 10 },
+      } as GeolocationResponse);
+      route.onPose({ segment: 1, time: 1000, x: 0, z: 0, alignment: 0 });
+      route.onPose({ segment: 1, time: 1250, x: 0.5, z: 0, alignment: 0 });
+      route.onPose({ segment: 1, time: 1500, x: 1, z: 0, alignment: 0 });
+    });
+    expect(route.meters).toBeCloseTo(1);
+    expect(route.segments[0]).toHaveLength(1);
+    expect(route.mapPosition?.longitude).toBe(127);
+    await ReactTestRenderer.act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    expect(route.meters).toBeCloseTo(1);
+    expect(route.segments[0]).toHaveLength(2);
+    expect(route.mapPosition!.longitude).toBeGreaterThan(127);
+  } finally {
+    await ReactTestRenderer.act(() => renderer?.unmount());
+    expect(jest.getTimerCount()).toBe(0);
+    jest.mocked(Geolocation.watchPosition).mockClear();
+    jest.mocked(Geolocation.getCurrentPosition).mockClear();
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  }
+});
+
 test('continuous fixes preserve distance across a long stop and stop watching on exit', async () => {
   jest
     .spyOn(PermissionsAndroid, 'requestMultiple')
@@ -52,7 +103,9 @@ test('continuous fixes preserve distance across a long stop and stop watching on
     expect(route.segments).toHaveLength(0);
     expect(route.meters).toBe(0);
     await emit(0);
-    for (let seconds = 5; seconds <= 45; seconds += 5) await emit(seconds);
+    for (let seconds = 5; seconds <= 45; seconds += 5) {
+      await emit(seconds);
+    }
     await emit(50, 37.00003);
     expect(route.meters).toBeGreaterThan(3);
     expect(route.segments).toHaveLength(1);

@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+/* eslint-disable no-console -- Keep GPS source/filter diagnostics available during walk QA. */
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, PermissionsAndroid, Platform } from 'react-native';
 import Geolocation, { type GeolocationResponse } from '@react-native-community/geolocation';
 import type { WalkPose } from './components/ArFloorView';
+import { appendMapPoint, type RoutePoint } from './routeDisplay';
 
-type Point = { latitude: number; longitude: number; timestamp: number };
+type Point = RoutePoint;
 
 export function useWalkRoute(enabled: boolean) {
   const [segments, setSegments] = useState<Point[][]>([]);
@@ -18,8 +20,46 @@ export function useWalkRoute(enabled: boolean) {
   const foreground = useRef(false);
   const routeTip = useRef<Point | null>(null);
   const gpsWasFallback = useRef(false);
+  const displaySegments = useRef<Point[][]>([]);
+  const pendingDisplay = useRef<Point | null>(null);
+  const lastDisplayAt = useRef<number | null>(null);
+  const flushDisplay = useCallback((force = false) => {
+    if (!pendingDisplay.current) {
+      return;
+    }
+    if (!force && lastDisplayAt.current !== null && Date.now() - lastDisplayAt.current < 1000) {
+      return;
+    }
+    setSegments(displaySegments.current);
+    setMapPosition(pendingDisplay.current);
+    pendingDisplay.current = null;
+    lastDisplayAt.current = Date.now();
+  }, []);
+  const appendDisplay = useCallback(
+    (point: Point, newSegment = false) => {
+      displaySegments.current = appendMapPoint(displaySegments.current, point, newSegment);
+      pendingDisplay.current = point;
+      if (
+        newSegment ||
+        lastDisplayAt.current === null ||
+        Date.now() - lastDisplayAt.current >= 1000
+      ) {
+        flushDisplay(newSegment);
+      }
+    },
+    [flushDisplay],
+  );
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    const timer = setInterval(() => flushDisplay(), 1000);
+    return () => clearInterval(timer);
+  }, [enabled, flushDisplay]);
   const onPose = (pose: WalkPose) => {
-    if (!enabled || !foreground.current) return;
+    if (!enabled || !foreground.current) {
+      return;
+    }
     const old = motion.current;
     const last = lastPose.current;
     lastPose.current = pose;
@@ -36,20 +76,28 @@ export function useWalkRoute(enabled: boolean) {
     ) {
       motion.current = pose;
       alignment.current = pose.alignment;
-      if (last && last.segment !== pose.segment) previous.current = null;
+      if (last && last.segment !== pose.segment) {
+        previous.current = null;
+      }
       gpsWasFallback.current = false;
       return;
     }
-    if (pose.alignment !== undefined) alignment.current = pose.alignment;
+    if (pose.alignment !== undefined) {
+      alignment.current = pose.alignment;
+    }
     const dx = pose.x - old.x;
     const dz = pose.z - old.z;
     const distance = Math.hypot(dx, dz);
-    if (distance < 0.4) return;
+    if (distance < 0.4) {
+      return;
+    }
     motion.current = pose;
     setMeters(value => value + distance);
     const tip = routeTip.current;
     const angle = alignment.current;
-    if (!tip || angle === undefined) return;
+    if (!tip || angle === undefined) {
+      return;
+    }
     const east = dx * Math.cos(angle) - dz * Math.sin(angle);
     const north = -dx * Math.sin(angle) - dz * Math.cos(angle);
     const degreesPerMeter = 180 / (Math.PI * 6371000);
@@ -61,12 +109,13 @@ export function useWalkRoute(enabled: boolean) {
       timestamp: Date.now(),
     };
     routeTip.current = point;
-    setMapPosition(point);
-    setSegments(value => [...value.slice(0, -1), [...value[value.length - 1], point]]);
+    appendDisplay(point);
   };
   const [retry, setRetry] = useState(0);
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      return;
+    }
     let disposed = false;
     let watch: number | null = null;
     let generation = 0;
@@ -78,7 +127,9 @@ export function useWalkRoute(enabled: boolean) {
       routeTip.current = null;
       lastPoseAt.current = 0;
       generation++;
-      if (watch !== null) Geolocation.clearWatch(watch);
+      if (watch !== null) {
+        Geolocation.clearWatch(watch);
+      }
       watch = null;
       previous.current = null;
       lastFixAt = 0;
@@ -110,7 +161,9 @@ export function useWalkRoute(enabled: boolean) {
             ACCESS_COARSE_LOCATION,
             ACCESS_FINE_LOCATION,
           ]);
-          if (disposed || current !== generation) return;
+          if (disposed || current !== generation) {
+            return;
+          }
           precise = permissions[ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
           if (
             !precise &&
@@ -124,9 +177,13 @@ export function useWalkRoute(enabled: boolean) {
             skipPermissionRequests: false,
           });
         }
-        if (disposed || current !== generation) return;
+        if (disposed || current !== generation) {
+          return;
+        }
         const onPosition = (source: string, { coords, timestamp }: GeolocationResponse) => {
-          if (disposed || current !== generation) return;
+          if (disposed || current !== generation) {
+            return;
+          }
           received++;
           const age = Date.now() - timestamp;
           if (
@@ -169,15 +226,16 @@ export function useWalkRoute(enabled: boolean) {
           if (!last || disconnected || switchingToGps) {
             gpsWasFallback.current = !arActive;
             report(source, disconnected ? 'gap' : 'start', coords.accuracy, age);
-            setMapPosition(point);
             previous.current = point;
             routeTip.current = point;
             motion.current = lastPose.current;
-            setSegments(value => [...value, [point]]);
+            appendDisplay(point, true);
             return;
           }
           const seconds = (timestamp - last.timestamp) / 1000;
-          if (seconds <= 0) return;
+          if (seconds <= 0) {
+            return;
+          }
           const radians = Math.PI / 180;
           const a =
             Math.sin(((point.latitude - last.latitude) * radians) / 2) ** 2 +
@@ -197,8 +255,7 @@ export function useWalkRoute(enabled: boolean) {
             if (offset > Math.max(10, coords.accuracy * 2) && distance / seconds <= 8) {
               routeTip.current = point;
               motion.current = lastPose.current;
-              setMapPosition(point);
-              setSegments(value => [...value, [point]]);
+              appendDisplay(point, true);
             }
             previous.current = point;
             return;
@@ -219,22 +276,25 @@ export function useWalkRoute(enabled: boolean) {
           report(source, 'accepted', coords.accuracy, age, distance);
           previous.current = point;
           routeTip.current = point;
-          setMapPosition(point);
           if (!arActive) {
             gpsWasFallback.current = true;
             setMeters(value => value + distance);
           }
-          setSegments(value => [...value.slice(0, -1), [...value[value.length - 1], point]]);
+          appendDisplay(point);
         };
         const onError = () => {
-          if (disposed || current !== generation) return;
+          if (disposed || current !== generation) {
+            return;
+          }
           setMessage('위치 신호를 확인해 주세요. 신호가 돌아오면 기록을 이어갑니다.');
         };
         // Seed the map from a cached or low-power fix while the precise watch acquires GPS.
         Geolocation.getCurrentPosition(
           position => onPosition('initial', position),
           () => {
-            if (!lastFixAt) onError();
+            if (!lastFixAt) {
+              onError();
+            }
           },
           {
             enableHighAccuracy: false,
@@ -245,8 +305,9 @@ export function useWalkRoute(enabled: boolean) {
         watch = Geolocation.watchPosition(
           position => onPosition('watch', position),
           error => {
-            if (!disposed && current === generation)
+            if (!disposed && current === generation) {
               console.info(`[WalkRoute] watch-error=${error.code}`);
+            }
             onError();
           },
           {
@@ -258,20 +319,25 @@ export function useWalkRoute(enabled: boolean) {
           },
         );
       } catch {
-        if (!disposed) setMessage('위치 권한과 GPS 설정을 확인해 주세요.');
+        if (!disposed) {
+          setMessage('위치 권한과 GPS 설정을 확인해 주세요.');
+        }
       }
     };
-    void start();
+    start().catch(() => undefined);
     const subscription = AppState.addEventListener('change', state => {
-      if (state === 'active') void start();
-      else stop();
+      if (state === 'active') {
+        start().catch(() => undefined);
+      } else {
+        stop();
+      }
     });
     return () => {
       disposed = true;
       stop();
       subscription.remove();
     };
-  }, [enabled, retry]);
+  }, [enabled, retry, appendDisplay]);
   return {
     segments,
     meters,

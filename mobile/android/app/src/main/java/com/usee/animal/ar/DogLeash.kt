@@ -12,7 +12,7 @@ internal class DogLeash(private val view: ARSceneView) : AutoCloseable {
     colorOf(r = 0.025f, g = 0.18f, b = 0.65f, a = 1f),
     metallic = 0f, roughness = 0.7f, reflectance = 0.25f,
   )
-  private val segments = List(64) {
+  private val segments = List(32) {
     CylinderNode(view.engine, radius = 0.004f, height = 1f, sideCount = 8, materialInstance = material).apply {
       isVisible = false
       isShadowCaster = false
@@ -22,6 +22,7 @@ internal class DogLeash(private val view: ARSceneView) : AutoCloseable {
   }
   private var previousTime = 0L
   private var latestPoints: List<LeashPoint> = emptyList()
+  private val transforms = List(segments.size) { FloatArray(16) }
 
   fun hide() {
     segments.forEach { it.isVisible = false }
@@ -31,12 +32,14 @@ internal class DogLeash(private val view: ARSceneView) : AutoCloseable {
     collision.reset()
   }
 
-  fun update(collar: LeashPoint, hand: LeashPoint, time: Long, body: LeashBody?): Float {
+  fun update(collar: LeashPoint, hand: LeashPoint, time: Long, body: LeashBody?, reducedWorkload: Boolean = false): Float {
     val dt = if (previousTime == 0L) 0f else (time - previousTime) / 1_000_000_000f
     previousTime = time
     // Keep routing input small; reserve rendered segments for rounded detour bends.
-    val desired = curve.points(collar, hand, dt)
-    val routed = if (body != null) collision.route(desired,body,segments.size) else desired
+    val reduced = reducedWorkload || (hand - collar).length() > 2.5f
+    val budget = if (reduced) 16 else segments.size
+    val desired = curve.points(collar, hand, dt, if (reduced) 12 else 24)
+    val routed = if (body != null) collision.route(desired,body,budget) else desired
     val blend = 1f - kotlin.math.exp(-dt.coerceIn(0f, 0.1f) / 0.08f)
     val softened = if (latestPoints.size == routed.size && dt > 0f && dt < 0.25f)
       routed.mapIndexed { index, point ->
@@ -44,8 +47,8 @@ internal class DogLeash(private val view: ARSceneView) : AutoCloseable {
         else latestPoints[index] + (point - latestPoints[index]) * blend
       } else routed
     // Never smooth through the body: validate complete rendered segments.
-    val points = if (body == null || softened.zipWithNext().all { (a, b) ->
-      body.capsules.none { it.intersects(a, b) }
+    val points = if (body == null || (0 until softened.lastIndex).all { index ->
+      body.capsules.none { it.intersects(softened[index], softened[index + 1]) }
     }) softened else routed
     latestPoints = points
     segments.forEachIndexed { index, segment ->
@@ -53,11 +56,12 @@ internal class DogLeash(private val view: ARSceneView) : AutoCloseable {
         segment.isVisible = false
         return@forEachIndexed
       }
-      segment.transformManager.setTransform(segment.transformInstance, LeashCurve.segmentTransform(points[index], points[index + 1]))
+      segment.transformManager.setTransform(segment.transformInstance,
+        LeashCurve.segmentTransform(points[index], points[index + 1], transforms[index]))
       segment.isVisible = true
     }
     return if (points.isEmpty()) (hand-collar).length()
-      else points.zipWithNext().sumOf { (a, b) -> (b - a).length().toDouble() }.toFloat()
+      else (0 until points.lastIndex).sumOf { (points[it + 1] - points[it]).length().toDouble() }.toFloat()
   }
 
   fun hitTest(x: Float, y: Float, viewMatrix: FloatArray, projection: FloatArray, width: Int, height: Int, tolerance: Float): Boolean {

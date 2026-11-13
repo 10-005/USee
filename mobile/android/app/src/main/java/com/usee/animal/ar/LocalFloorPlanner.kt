@@ -36,7 +36,7 @@ internal object LocalFloorPlanner {
     }
     val origin = index(0, 0)
     seen[origin] = true; terrain[origin] = start
-    if (point(gx, gz) == null) return emptyList()
+    val targetKnown = point(gx, gz) != null
     val costs = FloatArray(WIDTH * WIDTH) { Float.POSITIVE_INFINITY }
     val parents = IntArray(WIDTH * WIDTH) { -1 }
     val closed = BooleanArray(WIDTH * WIDTH)
@@ -45,16 +45,23 @@ internal object LocalFloorPlanner {
     costs[origin] = 0f
     queue.add(QueueEntry(0, 0, hypot(gx.toFloat(), gz.toFloat())))
     var expanded = 0
+    var closest = origin
+    var closestDistance = hypot(gx.toFloat(), gz.toFloat())
+    fun pathTo(id: Int): List<FloorWaypoint> {
+      val result = mutableListOf<FloorWaypoint>()
+      var cursor = id
+      while (cursor != origin && cursor >= 0) { result += terrain[cursor]!!; cursor = parents[cursor] }
+      return result.asReversed()
+    }
     while (queue.isNotEmpty() && expanded++ < 500) {
       val current = queue.remove()
       val id = index(current.x, current.z)
       if (closed[id]) continue
       closed[id] = true
+      val remaining = hypot((gx - current.x).toFloat(), (gz - current.z).toFloat())
+      if (remaining < closestDistance) { closest = id; closestDistance = remaining }
       if (current.x == gx && current.z == gz) {
-        val result = mutableListOf<FloorWaypoint>()
-        var cursor = id
-        while (cursor != origin && cursor >= 0) { result += terrain[cursor]!!; cursor = parents[cursor] }
-        return result.asReversed()
+        return pathTo(id)
       }
       val from = terrain[id]!!
       for (sx in -1..1) for (sz in -1..1) {
@@ -75,6 +82,8 @@ internal object LocalFloorPlanner {
         queue.add(QueueEntry(nx, nz, cost + hypot((gx - nx).toFloat(), (gz - nz).toFloat())))
       }
     }
-    return emptyList()
+    // Advance only along verified edges toward an unseen target. A known but
+    // disconnected goal still means stop, rather than wandering along a barrier.
+    return if (!targetKnown && closest != origin) pathTo(closest) else emptyList()
   }
 }
