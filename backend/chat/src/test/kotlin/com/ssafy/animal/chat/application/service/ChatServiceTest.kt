@@ -8,6 +8,7 @@ import com.ssafy.animal.chat.application.port.`in`.RoomRef
 import com.ssafy.animal.chat.application.port.`in`.RoomUpdate
 import com.ssafy.animal.chat.application.port.`in`.RoomUpdateType
 import com.ssafy.animal.chat.application.port.`in`.SendMessageCommand
+import com.ssafy.animal.chat.application.port.`in`.SharedPostRef
 import com.ssafy.animal.chat.application.port.out.ApplicationRow
 import com.ssafy.animal.chat.application.port.out.ChatPushPort
 import com.ssafy.animal.chat.application.port.out.ChatRepository
@@ -17,6 +18,7 @@ import com.ssafy.animal.chat.application.port.out.ShelterRow
 import com.ssafy.animal.chat.application.port.out.UserRow
 import com.ssafy.animal.chat.domain.ChatErrorCode
 import com.ssafy.animal.chat.domain.ChatMessage
+import com.ssafy.animal.chat.domain.ChatMessageType
 import com.ssafy.animal.chat.domain.ChatParticipant
 import com.ssafy.animal.chat.domain.ChatRoom
 import com.ssafy.animal.chat.domain.ChatRoomType
@@ -287,6 +289,22 @@ class ChatServiceTest {
     }
 
     @Test
+    fun `14_3 lastSharedPost는 나가기 전 공유와 삭제된 원글도 최신 것으로 준다`() {
+        val roomSeq = userRoom()
+        assertNull(service.getRoom(alice, roomSeq).lastSharedPost)
+
+        repo.visiblePosts[SharedTargetType.MISSING] = mutableSetOf(5)
+        repo.visiblePosts[SharedTargetType.FOUND] = mutableSetOf(210)
+        service.sendMessage(alice, roomSeq, SendMessageCommand(null, "SHARED_POST", null, null, "MISSING", 5))
+        service.sendMessage(bob, roomSeq, SendMessageCommand(null, "SHARED_POST", "이 아이 맞나요", null, "FOUND", 210))
+        service.sendMessage(bob, roomSeq, text("뒤에 보낸 글"))
+        repo.visiblePosts.clear() // 원글 삭제
+        service.leave(alice, roomSeq) // 나가서 숨겨도
+
+        assertEquals(SharedPostRef(SharedTargetType.FOUND, 210), service.getRoom(alice, roomSeq).lastSharedPost)
+    }
+
+    @Test
     fun `14_4 역방향 커서, 다른 방 메시지 커서는 400, 삭제된 공유 게시물 표시`() {
         val roomSeq = userRoom()
         repo.visiblePosts[SharedTargetType.MISSING] = mutableSetOf(5)
@@ -522,6 +540,8 @@ class FakeChatRepository : ChatRepository {
     override fun findMessage(chatMessageSeq: Long) = messages.find { it.chatMessageSeq == chatMessageSeq }
     override fun findMessages(chatMessageSeqs: Collection<Long>) = messages.filter { it.chatMessageSeq in chatMessageSeqs }
     override fun findLatestMessageSeq(chatRoomSeq: Long) = messages.filter { it.chatRoomSeq == chatRoomSeq }.maxOfOrNull { it.chatMessageSeq!! }
+    override fun findLatestSharedMessage(chatRoomSeq: Long) = messages
+        .filter { it.chatRoomSeq == chatRoomSeq && it.messageType == ChatMessageType.SHARED_POST }.maxByOrNull { it.chatMessageSeq!! }
     override fun findMessagesBetween(chatRoomSeq: Long, afterSeq: Long, beforeSeq: Long, limit: Int) = messages
         .filter { it.chatRoomSeq == chatRoomSeq && it.chatMessageSeq!! > afterSeq && it.chatMessageSeq!! < beforeSeq }
         .sortedByDescending { it.chatMessageSeq }

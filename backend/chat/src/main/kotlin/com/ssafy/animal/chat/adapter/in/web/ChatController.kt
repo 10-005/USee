@@ -261,7 +261,7 @@ class ChatController(
                     examples = [
                         ExampleObject(
                             name = "대화방 상세",
-                            value = """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"chatRoomSeq":501,"roomType":"USER","counterpart":{"type":"USER","userSeq":18,"shelterSeq":null,"displayName":"(탈퇴한 사용자)","profileImage":null},"lastReadMessageSeq":4000,"lastHiddenMessageSeq":null,"unreadCount":2,"counterpartLastReadMessageSeq":4001},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}""",
+                            value = """{"status":200,"code":"SUCCESS","message":"요청이 성공했습니다.","data":{"chatRoomSeq":501,"roomType":"USER","counterpart":{"type":"USER","userSeq":18,"shelterSeq":null,"displayName":"(탈퇴한 사용자)","profileImage":null},"lastReadMessageSeq":4000,"lastHiddenMessageSeq":null,"unreadCount":2,"counterpartLastReadMessageSeq":4001,"lastSharedPost":{"sharedTargetType":"FOUND","sharedTargetSeq":210}},"errors":[],"traceId":"4f2c9e1a7b3d4c5e"}""",
                         ),
                     ],
                 ),

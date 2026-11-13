@@ -20,6 +20,7 @@ import com.ssafy.animal.chat.application.port.`in`.RoomRef
 import com.ssafy.animal.chat.application.port.`in`.RoomUpdate
 import com.ssafy.animal.chat.application.port.`in`.RoomUpdateType
 import com.ssafy.animal.chat.application.port.`in`.SendMessageCommand
+import com.ssafy.animal.chat.application.port.`in`.SharedPostRef
 import com.ssafy.animal.chat.application.port.`in`.UnreadCount
 import com.ssafy.animal.chat.application.port.out.ChatPushPort
 import com.ssafy.animal.chat.application.port.out.ChatRepository
@@ -117,6 +118,8 @@ class ChatService(
             lastHiddenMessageSeq = me.lastHiddenMessageSeq,
             unreadCount = chatRepository.countUnread(chatRoomSeq, me.readFloor, actor.userSeq),
             counterpartLastReadMessageSeq = chatRepository.findParticipant(chatRoomSeq, counterpartKey(actor, room))?.lastReadMessageSeq,
+            lastSharedPost = chatRepository.findLatestSharedMessage(chatRoomSeq)
+                ?.let { SharedPostRef(it.sharedTargetType!!, it.sharedTargetSeq!!) },
         )
     }
 

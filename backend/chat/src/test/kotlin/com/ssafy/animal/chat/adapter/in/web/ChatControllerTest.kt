@@ -13,10 +13,12 @@ import com.ssafy.animal.chat.application.port.`in`.ImageRef
 import com.ssafy.animal.chat.application.port.`in`.LastMessage
 import com.ssafy.animal.chat.application.port.`in`.LeaveResult
 import com.ssafy.animal.chat.application.port.`in`.ReadResult
+import com.ssafy.animal.chat.application.port.`in`.SharedPostRef
 import com.ssafy.animal.chat.application.port.`in`.UnreadCount
 import com.ssafy.animal.chat.domain.ChatErrorCode
 import com.ssafy.animal.chat.domain.ChatMessageType
 import com.ssafy.animal.chat.domain.ChatRoomType
+import com.ssafy.animal.chat.domain.SharedTargetType
 import com.ssafy.animal.chat.domain.ParticipantType
 import com.ssafy.animal.chat.domain.SharedErrorCode
 import com.ssafy.animal.common.auth.AuthUser
@@ -164,7 +166,7 @@ class ChatControllerTest {
 
     @Test
     fun `14_3 상세, 비참여자 404`() {
-        given(chatUseCase.getRoom(me, 501)).willReturn(ChatRoomDetail(501, ChatRoomType.SHELTER, counterpart, 4001, null, 1, null))
+        given(chatUseCase.getRoom(me, 501)).willReturn(ChatRoomDetail(501, ChatRoomType.SHELTER, counterpart, 4001, null, 1, null, SharedPostRef(SharedTargetType.FOUND, 210)))
         get("/rooms/501").andExpect {
             status { isOk() }
             jsonPath("$.data.lastReadMessageSeq") { value(4001) }
@@ -172,6 +174,8 @@ class ChatControllerTest {
             jsonPath("$.data.lastHiddenMessageSeq") { value(null) }
             jsonPath("$.data.counterpart.displayName") { value("행복동물보호센터") }
             jsonPath("$.data.unreadCount") { value(1) }
+            jsonPath("$.data.lastSharedPost.sharedTargetType") { value("FOUND") }
+            jsonPath("$.data.lastSharedPost.sharedTargetSeq") { value(210) }
         }
 
         given(chatUseCase.getRoom(me, 999)).willThrow(failWith(ChatErrorCode.CHAT_ROOM_NOT_FOUND))

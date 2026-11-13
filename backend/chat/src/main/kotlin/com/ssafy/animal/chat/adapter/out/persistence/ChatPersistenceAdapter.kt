@@ -7,6 +7,7 @@ import com.ssafy.animal.chat.application.port.out.RoomSummaryRow
 import com.ssafy.animal.chat.application.port.out.ShelterRow
 import com.ssafy.animal.chat.application.port.out.UserRow
 import com.ssafy.animal.chat.domain.ChatMessage
+import com.ssafy.animal.chat.domain.ChatMessageType
 import com.ssafy.animal.chat.domain.ChatParticipant
 import com.ssafy.animal.chat.domain.ChatRoom
 import com.ssafy.animal.chat.domain.ChatRoomType
@@ -180,6 +181,9 @@ interface ChatMessageJpaRepository : JpaRepository<ChatMessage, Long> {
     @Query("select max(m.chatMessageSeq) from ChatMessage m where m.chatRoomSeq = :roomSeq")
     fun findLatestSeq(@Param("roomSeq") roomSeq: Long): Long?
 
+    /** UNIQUE (chat_room_seq, chat_message_seq)를 역순으로 읽어 첫 SHARED_POST에서 멈춘다 */
+    fun findFirstByChatRoomSeqAndMessageTypeOrderByChatMessageSeqDesc(chatRoomSeq: Long, messageType: ChatMessageType): ChatMessage?
+
     @Query(
         """
         select m from ChatMessage m
@@ -239,6 +243,9 @@ class ChatPersistenceAdapter(
     override fun findMessages(chatMessageSeqs: Collection<Long>): List<ChatMessage> = messageJpaRepository.findAllById(chatMessageSeqs)
 
     override fun findLatestMessageSeq(chatRoomSeq: Long) = messageJpaRepository.findLatestSeq(chatRoomSeq)
+
+    override fun findLatestSharedMessage(chatRoomSeq: Long) =
+        messageJpaRepository.findFirstByChatRoomSeqAndMessageTypeOrderByChatMessageSeqDesc(chatRoomSeq, ChatMessageType.SHARED_POST)
 
     override fun findMessagesBetween(chatRoomSeq: Long, afterSeq: Long, beforeSeq: Long, limit: Int) =
         messageJpaRepository.findBetween(chatRoomSeq, afterSeq, beforeSeq, PageRequest.of(0, limit))
