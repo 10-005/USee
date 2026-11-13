@@ -1,6 +1,6 @@
 # ---------- 이미지 버킷 (S15P31D106-296) ----------
 # core-api가 presigned PUT으로 받는 사진을 둔다(API 명세 4장·Q443).
-# images/* 만 익명 GET을 허용하고, 업로드는 presigned PUT만 가능하다(익명 쓰기 없음).
+# 버킷은 비공개. 읽기는 CloudFront(OAC)로만 하고, 업로드는 presigned PUT만 가능하다(S15P31D106-298).
 
 # 정책에서 ARN을 이름으로 조립해 plan에서 정책 본문이 그대로 보이게 한다(local.media_arn은 apply 후에야 알려짐)
 locals {
@@ -34,14 +34,14 @@ resource "aws_s3_bucket_ownership_controls" "media" {
   }
 }
 
-# 버킷 정책으로만 공개한다. ACL 공개는 계속 막는다
+# 공개 접근은 모두 막는다. CloudFront 허용은 SourceArn 조건이 있어 공개 정책으로 보지 않는다
 resource "aws_s3_bucket_public_access_block" "media" {
   bucket = aws_s3_bucket.media.id
 
   block_public_acls       = true
   ignore_public_acls      = true
-  block_public_policy     = false
-  restrict_public_buckets = false
+  block_public_policy     = true
+  restrict_public_buckets = true
 }
 
 resource "aws_s3_bucket_policy" "media" {
@@ -59,15 +59,7 @@ resource "aws_s3_bucket_policy" "media" {
         Condition = { Bool = { "aws:SecureTransport" = "false" } }
       },
       {
-        # imageUrl = {public-base-url}/{image_key} 고정 URL(Q443). images/ 밖은 공개하지 않는다
-        Sid       = "AllowPublicReadImages"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "s3:GetObject"
-        Resource  = "${local.media_arn}/images/*"
-      },
-      {
-        # CDN(OAC)이 원본을 읽는다(S15P31D106-298). 이 배포에서 온 요청만 허용
+        # imageUrl = {CDN 주소}/{image_key} 고정 URL(Q443). CDN(OAC)이 이 배포에서 온 요청으로만 images/를 읽는다(S15P31D106-298)
         Sid       = "AllowCloudFrontReadImages"
         Effect    = "Allow"
         Principal = { Service = "cloudfront.amazonaws.com" }
@@ -78,7 +70,7 @@ resource "aws_s3_bucket_policy" "media" {
     ]
   })
 
-  # 퍼블릭 정책 허용(block_public_policy=false)이 먼저 적용돼야 공개 정책을 걸 수 있다
+  # 공개 접근 차단 설정을 먼저 적용한다(비공개 정책이라 block_public_policy=true여도 걸 수 있다)
   depends_on = [aws_s3_bucket_public_access_block.media]
 }
 
@@ -157,7 +149,7 @@ resource "aws_iam_user_policy" "core_api_media" {
 # imageUrl = {STORAGE_PUBLIC_BASE_URL}/{image_key}라 환경 변수만 이 주소로 바꾸면 응답이 CDN 주소가 된다(DB에는 키만 저장).
 # 같은 값을 쓰는 곳: core-api·chat·simulation의 STORAGE_PUBLIC_BASE_URL, breed-server·match-worker의 IMAGE_URL_PREFIX(+ "/")
 # 업로드(presigned PUT)는 계속 S3로 직접 간다. CDN은 읽기만 맡는다.
-# 1단계: CDN 추가(버킷 익명 GET 유지). 2단계: 전환 확인 후 AllowPublicReadImages를 지우고 block_public_policy를 다시 켠다.
+# 2단계로 전환했다: 1) CDN 추가·주소 변경 2) 버킷 익명 GET 삭제·공개 접근 차단(위 정책·차단 설정)
 
 resource "aws_cloudfront_origin_access_control" "media" {
   name                              = "s15p31d106-media"
