@@ -5,6 +5,24 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun slowValidCameraFramesAdvanceTheSameElapsedWalkWithoutHalfSpeed() {
+    fun walk(interval: Float): DogFrame {
+      val leader = DogLeader()
+      leader.update(0f, 0f, 0f, 0f, -1f, floor)
+      var dog = leader.update(interval, 0f, -0.5f * interval, 0f, -1f, floor)
+      for (i in 2..(10f / interval).toInt()) {
+        dog = leader.update(interval, 0f, -0.5f * i * interval, 0f, -1f, floor)
+      }
+      return dog
+    }
+    val regular = walk(0.02f)
+    for (interval in listOf(0.1f, 0.2f, 0.25f)) {
+      val slow = walk(interval)
+      assertFalse(slow.motionPaused)
+      assertEquals(regular.z, slow.z, 0.2f)
+      assertTrue(slow.speedMetersPerSecond > 0.3f)
+    }
+  }
   @Test fun corruptedTrustedFloorCannotPullTheDogUnderground() {
     val leader = DogLeader()
     val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
@@ -495,6 +513,59 @@ class DogLeaderTest {
     val after = leader.update(2f, 0f, 5f, 0f, 1f, floor)
     assertEquals(before.x, after.x, 0f)
     assertEquals(before.z, after.z, 0f)
+  }
+
+  @Test fun delayedFramesStopGaitAndMotionUntilContinuousTrackingResumes() {
+    val leader = DogLeader()
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var before = leader.update(0.02f, 0f, -0.02f, 0f, -1f, floor)
+    for (i in 2..30) before = leader.update(0.02f, 0f, -i * 0.02f, 0f, -1f, floor)
+    assertTrue(DogAnimationController.isLocomotion(before.clip))
+    assertTrue(before.moving)
+    repeat(3) {
+      val paused = leader.update(0.3f, 0f, -0.6f, 0f, -1f, floor)
+      assertEquals(before.x, paused.x, 0f)
+      assertEquals(before.z, paused.z, 0f)
+      assertEquals(before.yawDegrees, paused.yawDegrees, 0f)
+      assertEquals(0f, paused.speedMetersPerSecond, 0f)
+      assertEquals("Idle", paused.clip)
+      assertFalse(paused.moving)
+      assertFalse(paused.userMoving)
+      assertFalse(paused.blocked)
+      assertTrue(paused.motionPaused)
+      assertEquals("프레임 지연", paused.stopReason)
+      val duplicate = leader.update(0f, 0f, -0.6f, 0f, -1f, floor)
+      assertEquals(paused, duplicate)
+    }
+    var resumed = leader.update(0.02f, 0f, -0.62f, 0f, -1f, floor)
+    for (i in 32..60) resumed = leader.update(0.02f, 0f, -i * 0.02f, 0f, -1f, floor)
+    assertFalse(resumed.motionPaused)
+    assertTrue(resumed.moving)
+    assertTrue(resumed.z < before.z)
+    assertTrue(DogAnimationController.isLocomotion(resumed.clip))
+  }
+
+  @Test fun rejectedStepStopsPreviousGaitAndDoesNotRotateTowardAnUnreachableTarget() {
+    val leader = DogLeader()
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var before = leader.update(0.02f, 0f, -0.02f, 0f, -1f, floor)
+    for (i in 2..30) before = leader.update(0.02f, 0f, -i * 0.02f, 0f, -1f, floor)
+    assertTrue(before.moving)
+    repeat(200) {
+      val blocked = leader.update(0.02f, 0f, -0.6f, 0.5f, -0.8660254f) { _, _ -> null }
+      assertTrue(blocked.blocked)
+      assertFalse(blocked.motionPaused)
+      assertFalse(blocked.moving)
+      assertEquals("Idle", blocked.clip)
+      assertEquals(0f, blocked.speedMetersPerSecond, 0f)
+      assertEquals(before.x, blocked.x, 0f)
+      assertEquals(before.z, blocked.z, 0f)
+      assertEquals(before.yawDegrees, blocked.yawDegrees, 0f)
+    }
+    var recovered = leader.update(0.02f, 0f, -0.6f, 0.5f, -0.8660254f, floor)
+    repeat(100) { recovered = leader.update(0.02f, 0f, -0.6f, 0.5f, -0.8660254f, floor) }
+    assertFalse(recovered.blocked)
+    assertTrue(hypot(recovered.x - before.x, recovered.z - before.z) > 0.1f)
   }
 
   @Test fun steadyWalkingUsesBoundedFloorQueriesAndStableAnimation() {

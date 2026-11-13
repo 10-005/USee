@@ -23,7 +23,7 @@ internal class SessionScratch {
   val depth = DepthTerrain()
   val userGround = UserWalkRegion()
   val stops = WalkStopStats()
-  var lastStopReport = 0L
+  val diagnostics = WalkDiagnostics()
   val groundLevel = GroundLevelFilter()
 }
 
@@ -43,6 +43,8 @@ internal fun updateDog(
 ): ShownDog {
   val camera = frame.camera
   val diagnosticNow = SystemClock.elapsedRealtimeNanos()
+  val frameIntervalNanos = if (scratch.lastTimestamp > 0L && frame.timestamp > scratch.lastTimestamp)
+    frame.timestamp - scratch.lastTimestamp else null
   if (!modelReady) {
     leader.cancelPlacement()
     return ShownDog("searching", hiddenDog())
@@ -60,7 +62,8 @@ internal fun updateDog(
       scratch.userGround.clear()
       scratch.groundLevel.clear()
     }
-    if (leader.isPlaced) recordStop(scratch, "추적 끊김", diagnosticNow)
+    if (leader.isPlaced) recordStop(scratch, "추적 끊김", diagnosticNow, frameIntervalNanos,
+      floorMask, semanticFailed, camera.trackingFailureReason.name)
     val failed = camera.trackingFailureReason == TrackingFailureReason.CAMERA_UNAVAILABLE
     // Brief tracking noise freezes the model rather than flashing it on/off.
     if (!failed && now - scratch.lostSince < 200_000_000L) return scratch.lastShown
@@ -126,7 +129,7 @@ internal fun updateDog(
     dt > 0.25f -> "프레임 지연"
     dog.blocked -> dog.stopReason
     else -> ""
-  }, diagnosticNow)
+  }, SystemClock.elapsedRealtimeNanos(), frameIntervalNanos, floorMask, semanticFailed)
   val lookLength = hypot(scratch.lookWorld[0], scratch.lookWorld[2])
   var ready = false
   if (!leader.isPlaced && lookLength > 0.15f) {
@@ -147,13 +150,12 @@ internal fun updateDog(
 
 private val FOOTPRINT = arrayOf(0f to 0f, -0.12f to 0f, 0.12f to 0f, 0f to -0.12f, 0f to 0.12f)
 
-private fun recordStop(scratch: SessionScratch, reason: String, now: Long) {
+private fun recordStop(scratch: SessionScratch, reason: String, now: Long, frameIntervalNanos: Long?,
+  floorMask: SemanticFloorMask?, semanticFailed: Boolean, trackingFailure: String? = null) {
   scratch.stops.record(reason, now)
-  if (now - scratch.lastStopReport >= 5_000_000_000L) {
-    scratch.lastStopReport = now
-    val report = scratch.stops.report()
-    if (report.isNotEmpty()) android.util.Log.i("ArWalkStops", report)
-  }
+  val report = scratch.diagnostics.report(reason, now, frameIntervalNanos, floorMask, semanticFailed,
+    scratch.depth.latest, scratch.depth.supported, trackingFailure, scratch.stops)
+  if (report != null) android.util.Log.i("ArWalkStops", report)
 }
 
 /** Shared by motion and diagnostics so the overlay cannot invent a different floor policy. */

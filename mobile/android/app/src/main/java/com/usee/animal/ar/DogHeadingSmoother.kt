@@ -3,19 +3,27 @@ package com.usee.animal.ar
 import kotlin.math.abs
 import kotlin.math.sign
 
-/** Keep feet stepping for the rendered turn, including the smoother's settling tail. */
-internal fun walkingTurnAnimation(
+/** Match visual turns to translation; a stationary turn must never become a walking gait. */
+internal fun renderTurnAnimation(
   animation: DogAnimation,
   previousHeading: Float,
   heading: Float,
   dt: Float,
+  speedMetersPerSecond: Float,
+  blocked: Boolean,
+  motionPaused: Boolean,
 ): DogAnimation {
+  if (blocked || motionPaused) {
+    return if (DogAnimationController.isLocomotion(animation.clip)) DogAnimation() else animation
+  }
   if (dt <= 0f || dt > 0.25f ||
     (animation.clip != "Idle" && !animation.clip.startsWith("Turn"))) return animation
   val delta = ((heading - previousHeading + 180f) % 360f + 360f) % 360f - 180f
   if (abs(delta / dt) < 5f) return animation
-  // A stable revision keeps the stepping loop running across navigation clip changes.
-  return DogAnimation(if (delta > 0f) "WalkLeft" else "WalkRight", true, -2, 0.8f)
+  val side = if (delta > 0f) "Left" else "Right"
+  // A stable revision avoids restarting the loop while visual rotation settles.
+  return if (speedMetersPerSecond > 0.07f) DogAnimation("Walk$side", true, -2, 0.8f)
+    else DogAnimation("Turn$side", true, -2)
 }
 
 /** Remembers visual facing independently of navigation and collision decisions. Angles are degrees. */
@@ -42,7 +50,9 @@ internal class DogHeadingSmoother {
     return update(desired, 0f)
   }
 
-  fun update(desired: Float, deltaSeconds: Float): Float {
+  fun update(desired: Float, deltaSeconds: Float, paused: Boolean = false): Float {
+    // Drop the old turn target and momentum instead of finishing it during a stop.
+    if (paused) return snap(heading ?: desired)
     val current = heading ?: return wrap(desired).also {
       heading = it
       target = it

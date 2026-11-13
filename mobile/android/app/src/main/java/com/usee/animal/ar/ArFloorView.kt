@@ -47,6 +47,7 @@ class ArFloorView(
   private var dogNode: DogModelNode? = null
   private val dogHeading = DogHeadingSmoother()
   private val compass = WalkCompass(reactContext)
+  private val thermal = WalkThermalMonitor(reactContext)
   fun setCompassRegion(region: String?) {
     val parts = region?.split(',') ?: return
     val latitude = parts.firstOrNull()?.toFloatOrNull() ?: return
@@ -210,6 +211,7 @@ class ArFloorView(
     }
     val activity = reactContext.currentActivity as? ComponentActivity ?: return
     compass.start()
+    thermal.start()
     poseSegment++
     lastWalkPose = 0L
     // A newly created AR session has a new world coordinate system.
@@ -278,7 +280,8 @@ class ArFloorView(
           val collar = if (camera != null && right != null) posedDog.leashPositionFor(camera, right) else null
           val hand = leashHand
           if (active && sceneView === view && posedDog.isVisible && collar != null && hand != null) {
-            leader.updateLeashLength(dogLeash.update(LeashPoint(collar.x, collar.y, collar.z), hand, time, posedDog.leashBody()))
+            leader.updateLeashLength(dogLeash.update(LeashPoint(collar.x, collar.y, collar.z), hand, time,
+              posedDog.leashBody(), thermal.reducedWorkload))
           } else {
             dogLeash.hide()
           }
@@ -313,6 +316,7 @@ class ArFloorView(
 
   private fun releaseSceneResources(scene: ARSceneView) {
     compass.stop()
+    thermal.stop()
     careNodes.values.forEach { node ->
       scene.removeChildNode(node)
       node.destroy()
@@ -350,7 +354,10 @@ class ArFloorView(
     val relative = frame.camera.displayOrientedPose.inverse().compose(frame.camera.pose)
     val right = relative.rotateVector(floatArrayOf(1f, 0f, 0f))
     val rotation = ((kotlin.math.round(Math.toDegrees(kotlin.math.atan2(-right[1], right[0]).toDouble()) / 90.0).toInt() * 90) + 360) % 360
-    floorAnalyzer?.submit(frame, rotation)
+    val previousDog = scratch.lastShown.dog
+    floorAnalyzer?.submit(frame, rotation,
+      active = showTraversalDebug || !previousDog.visible || previousDog.userMoving || previousDog.blocked || previousDog.moving,
+      reducedWorkload = thermal.reducedWorkload)
     val shown = updateDog(
       session = session,
       frame = frame,
@@ -435,12 +442,14 @@ class ArFloorView(
         node.position = Position(shown.dog.x, shown.dog.y + pawLift(node), shown.dog.z)
         val previousHeading = node.rotation.y
         val heading = if (shown.dog.spinning || shown.dog.scriptedFacing) dogHeading.snap(shown.dog.yawDegrees)
-          else dogHeading.update(shown.dog.yawDegrees, rotationDt)
+          else dogHeading.update(shown.dog.yawDegrees, rotationDt,
+            paused = shown.dog.blocked || shown.dog.motionPaused)
         node.rotation = Rotation(y = heading)
         shadow?.position = Position(shown.dog.x, shown.dog.y + 0.006f, shown.dog.z)
-        node.play(walkingTurnAnimation(
+        node.play(renderTurnAnimation(
           DogAnimation(shown.dog.clip, shown.dog.clipLoop, shown.dog.animationRevision, shown.dog.animationPlaybackRate),
           previousHeading, heading, rotationDt,
+          shown.dog.speedMetersPerSecond, shown.dog.blocked, shown.dog.motionPaused,
         ))
       } else {
         dogHeading.pause()

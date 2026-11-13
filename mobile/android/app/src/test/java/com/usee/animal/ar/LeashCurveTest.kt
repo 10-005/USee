@@ -4,6 +4,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LeashCurveTest {
+  @Test fun transformStorageCanBeReusedAcrossSegments() {
+    val storage = FloatArray(16) { Float.NaN }
+    val start = LeashPoint(1f, 2f, 3f)
+    val end = LeashPoint(2f, 4f, 3f)
+    assertSame(storage, LeashCurve.segmentTransform(start, end, storage))
+    assertArrayEquals(LeashCurve.segmentTransform(start, end), storage, 0f)
+  }
   @Test fun handProjectsToBottomCenterForDifferentCameraFieldsOfView() {
     for (focal in listOf(1.3f, 1.8f, 2.4f)) {
       val inverseProjection = FloatArray(16)

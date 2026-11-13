@@ -4,6 +4,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LeashCollisionTest {
+  @Test fun reducedBudgetsPreserveEndpointsAndCollisionChecks() {
+    for (budget in listOf(16, 32)) {
+      val route = LeashCollision().route(LeashCurve().points(start, hand, 0f, 12), body, budget)
+      assertEquals(start, route.first())
+      assertEquals(hand, route.last())
+      assertTrue(route.size <= budget + 1)
+      assertClear(route, body.capsules)
+    }
+  }
   @Test fun shortCollarGuideDoesNotDoubleBackThroughNearbyCurveSamples() {
     val socket = LeashPoint(0f, 0.42f, 0f)
     val hand = LeashPoint(0f, 0.8f, -1.6f)
