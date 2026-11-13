@@ -216,6 +216,11 @@ class ChatServiceTest {
         repo.visiblePosts[SharedTargetType.FOUND] = mutableSetOf(210)
         val shared = service.sendMessage(alice, roomSeq, SendMessageCommand(null, "SHARED_POST", null, null, "FOUND", 210))
         assertFalse(shared.sharedPostUnavailable)
+        assertEquals("게시글을 공유했어요", assertIs<ChatMessageSent>(events.last()).preview)
+
+        // 게시글에서 채팅을 시작하면 앱이 첫 글을 SHARED_POST 본문으로 보낸다. 푸시는 채팅처럼 그 글을 보여 준다(Q526)
+        service.sendMessage(alice, roomSeq, SendMessageCommand(null, "SHARED_POST", "이 강아지 봤어요", null, "FOUND", 210))
+        assertEquals("이 강아지 봤어요", assertIs<ChatMessageSent>(events.last()).preview)
     }
 
     @Test

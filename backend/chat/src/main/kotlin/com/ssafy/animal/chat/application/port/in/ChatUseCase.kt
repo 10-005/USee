@@ -121,7 +121,7 @@ data class LastMessage(
     @field:Schema(description = "메시지 종류. TEXT=글, IMAGE=사진, SHARED_POST=게시글 공유", example = "TEXT")
     val messageType: ChatMessageType,
     @field:Schema(
-        description = "본문. IMAGE·SHARED_POST는 없으면 null. 미리보기는 앱이 IMAGE는 \"사진을 보냈어요\"(본문이 있으면 본문), SHARED_POST는 \"게시글을 공유했어요\"로 표시",
+        description = "본문. IMAGE·SHARED_POST는 없으면 null. 미리보기는 앱이 IMAGE는 \"사진을 보냈어요\"(본문이 있으면 본문), SHARED_POST는 \"게시글을 공유했어요\"(본문이 있으면 본문)로 표시",
         nullable = true,
         example = "확인했습니다.",
     )
