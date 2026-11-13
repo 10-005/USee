@@ -61,11 +61,11 @@ class ChatMessage(
     var sharedTargetSeq: Long? = sharedTargetSeq
         protected set
 
-    /** ChatMessageSent 푸시 미리보기. 앱 목록 미리보기(14.1)와 같은 규칙 */
+    /** ChatMessageSent 푸시 미리보기. 앱 목록 미리보기(14.1)와 같은 규칙. IMAGE·SHARED_POST는 본문이 있으면 본문(Q526) */
     fun preview(): String = when (messageType) {
         ChatMessageType.TEXT -> body.orEmpty()
         ChatMessageType.IMAGE -> body?.takeIf { it.isNotBlank() } ?: "사진을 보냈어요"
-        ChatMessageType.SHARED_POST -> "게시글을 공유했어요"
+        ChatMessageType.SHARED_POST -> body?.takeIf { it.isNotBlank() } ?: "게시글을 공유했어요"
     }.take(PREVIEW_LENGTH)
 
     companion object {
