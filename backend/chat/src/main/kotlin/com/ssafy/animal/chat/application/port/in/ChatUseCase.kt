@@ -121,7 +121,7 @@ data class LastMessage(
     @field:Schema(description = "메시지 종류. TEXT=글, IMAGE=사진, SHARED_POST=게시글 공유", example = "TEXT")
     val messageType: ChatMessageType,
     @field:Schema(
-        description = "본문. IMAGE·SHARED_POST는 없으면 null. 미리보기는 앱이 IMAGE는 \"사진을 보냈어요\"(본문이 있으면 본문), SHARED_POST는 \"게시글을 공유했어요\"로 표시",
+        description = "본문. IMAGE·SHARED_POST는 없으면 null. 미리보기는 앱이 IMAGE는 \"사진을 보냈어요\"(본문이 있으면 본문), SHARED_POST는 \"게시글을 공유했어요\"(본문이 있으면 본문)로 표시",
         nullable = true,
         example = "확인했습니다.",
     )
@@ -178,6 +178,18 @@ data class ChatRoomDetail(
     val unreadCount: Long,
     @field:Schema(description = "상대가 마지막으로 읽은 메시지 번호. 내 메시지 중 이 번호 이하는 상대가 읽은 것. 상대가 읽은 적 없으면 null", nullable = true, example = "4001")
     val counterpartLastReadMessageSeq: Long?,
+    @field:Schema(
+        description = "이 방에서 가장 최근 공유한 게시글. 내가 나가기 전 공유도 포함(숨김 포인터와 무관). 원글이 삭제·비노출이어도 그대로 준다. 공유한 적 없으면 null",
+        nullable = true,
+    )
+    val lastSharedPost: SharedPostRef?,
+)
+
+data class SharedPostRef(
+    @field:Schema(description = "공유 대상 종류. MISSING=실종 신고, FOUND=발견 신고, SHELTER_ANIMAL=보호동물", example = "FOUND")
+    val sharedTargetType: SharedTargetType,
+    @field:Schema(description = "공유 대상 번호", example = "210")
+    val sharedTargetSeq: Long,
 )
 
 /** 14.4 목록 항목이자 14.5 브로드캐스트 본문(clientMessageId는 브로드캐스트에서만) */

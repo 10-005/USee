@@ -29,6 +29,9 @@ interface ChatRepository {
     fun findMessages(chatMessageSeqs: Collection<Long>): List<ChatMessage>
     fun findLatestMessageSeq(chatRoomSeq: Long): Long?
 
+    /** 14.3 lastSharedPost: 숨김 포인터와 무관하게 방 전체에서 가장 최근 SHARED_POST(Q525) */
+    fun findLatestSharedMessage(chatRoomSeq: Long): ChatMessage?
+
     /** afterSeq < seq < beforeSeq, seq 내림차순 최대 limit개 */
     fun findMessagesBetween(chatRoomSeq: Long, afterSeq: Long, beforeSeq: Long, limit: Int): List<ChatMessage>
 
