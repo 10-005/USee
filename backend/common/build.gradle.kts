@@ -9,6 +9,8 @@ dependencies {
     api(libs.spring.boot.starter.security)
     api(libs.spring.boot.starter.validation)
     api(libs.spring.boot.starter.actuator)
+    // /actuator/prometheus 노출(S15P31D106-423)
+    runtimeOnly(libs.micrometer.registry.prometheus)
     // 서비스 간 이벤트(API 명세 21.6). events.transport=rabbit일 때만 실제로 연결한다
     api(libs.spring.boot.starter.amqp)
     api(libs.springdoc.openapi.webmvc.ui)
