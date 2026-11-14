@@ -196,6 +196,8 @@ class CommonWebAutoConfiguration {
         private val PUBLIC_PATHS = arrayOf(
             // 문서 경로: /api/{서비스}/v3/api-docs(swagger-config 포함), /swagger-ui(화면·정적 리소스)
             "/actuator/health/**", "/api/*/v3/api-docs/**", "/swagger-ui/**", "/error",
+            // 클러스터 안 Prometheus 수집용. Ingress가 /actuator를 넘기지 않아 외부에는 열리지 않는다(S15P31D106-423)
+            "/actuator/prometheus",
         )
     }
 }
