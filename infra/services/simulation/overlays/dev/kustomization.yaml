@@ -6,4 +6,4 @@ resources:
 # 첫 CI 배포 전에는 이미지가 없어 Pod가 ImagePullBackOff로 대기한다
 images:
   - name: k15d106.p.ssafy.io/animal/simulation
-    newTag: "8ad8a418"
+    newTag: "10e1011a"
