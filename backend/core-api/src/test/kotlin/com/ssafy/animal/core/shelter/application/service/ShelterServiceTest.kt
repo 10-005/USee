@@ -15,6 +15,7 @@ import org.mockito.BDDMockito.given
 import org.mockito.BDDMockito.then
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
 import org.springframework.test.util.ReflectionTestUtils
 import java.util.Optional
@@ -79,6 +80,23 @@ class ShelterServiceTest {
 
         assertFailsWith<BusinessException> { service.getPage(null, "99999", PageRequest.of(0, 20)) }
         then(repository).should(never()).findPage(null, "99999", PageRequest.of(0, 20))
+    }
+
+    @Test
+    fun `9_1 목록 이미지는 페이지 전체를 한 번에 조회한다(423 N+1)`() {
+        val noImage = Shelter("이미지 없는 보호소", "서울특별시", 37.5, 127.0, "02-000-0000", "11110")
+        val pageable = PageRequest.of(0, 20)
+        given(repository.findPage(null, null, pageable)).willReturn(PageImpl(listOf(shelter, noImage), pageable, 2))
+        given(images.findSummaries(listOf(1701L, 1702L)))
+            .willReturn(mapOf(1701L to ImageSummary(1701, "https://cdn/1701.jpg"), 1702L to ImageSummary(1702, "https://cdn/1702.jpg")))
+
+        val page = service.getPage(null, null, pageable)
+
+        assertEquals("https://cdn/1701.jpg", page.content[0].profileImage?.imageUrl)
+        assertEquals("https://cdn/1702.jpg", page.content[0].backgroundImage?.imageUrl)
+        assertNull(page.content[1].profileImage)
+        then(images).should().findSummaries(listOf(1701L, 1702L))
+        then(images).should(never()).findSummary(ArgumentMatchers.anyLong())
     }
 
     private companion object {
