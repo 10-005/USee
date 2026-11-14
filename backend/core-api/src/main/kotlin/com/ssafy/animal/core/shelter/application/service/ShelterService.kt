@@ -2,6 +2,7 @@ package com.ssafy.animal.core.shelter.application.service
 
 import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.core.catalog.application.port.`in`.CatalogUseCase
+import com.ssafy.animal.core.image.application.port.`in`.ImageSummary
 import com.ssafy.animal.core.image.application.port.`in`.ImageUseCase
 import com.ssafy.animal.core.shelter.application.port.`in`.ShelterUseCase
 import com.ssafy.animal.core.shelter.application.port.`in`.ShelterView
@@ -25,7 +26,10 @@ class ShelterService(
     @Transactional(readOnly = true)
     override fun getPage(keyword: String?, districtCode: String?, pageable: Pageable): Page<ShelterView> {
         districtCode?.let(catalogUseCase::requireDistrict)
-        return shelterRepository.findPage(keyword?.trim()?.ifEmpty { null }, districtCode, pageable).map(::view)
+        val page = shelterRepository.findPage(keyword?.trim()?.ifEmpty { null }, districtCode, pageable)
+        // 페이지 전체 프로필·배경 이미지를 한 번에(N+1 방지, S15P31D106-423)
+        val images = imageUseCase.findSummaries(page.content.flatMap(::imageSeqs))
+        return page.map { view(it, images) }
     }
 
     @Transactional(readOnly = true)
@@ -57,11 +61,10 @@ class ShelterService(
     private fun load(shelterSeq: Long?): Shelter =
         shelterSeq?.let { shelterRepository.findActive(Math.toIntExact(it)) } ?: throw BusinessException(ShelterErrorCode.SHELTER_NOT_FOUND)
 
-    private fun view(shelter: Shelter) = ShelterView(
-        shelter,
-        shelter.profileImageSeq?.let(imageUseCase::findSummary),
-        shelter.backgroundImageSeq?.let(imageUseCase::findSummary),
-    )
+    private fun imageSeqs(shelter: Shelter) = listOfNotNull(shelter.profileImageSeq, shelter.backgroundImageSeq)
+
+    private fun view(shelter: Shelter, images: Map<Long, ImageSummary> = imageUseCase.findSummaries(imageSeqs(shelter))) =
+        ShelterView(shelter, shelter.profileImageSeq?.let(images::get), shelter.backgroundImageSeq?.let(images::get))
 
     private fun <T : Any> Optional<T>?.orKeep(current: T?): T? = if (this == null) current else orElse(null)
 }
