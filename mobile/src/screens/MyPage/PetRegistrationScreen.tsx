@@ -335,12 +335,17 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
   );
 
   const requestBack = useCallback(() => {
+    Keyboard.dismiss();
+    if (selectKey) {
+      setSelectKey(null);
+      return;
+    }
     if (hasDraft) {
       setCancelModalOpen(true);
     } else {
       navigation.goBack();
     }
-  }, [hasDraft, navigation]);
+  }, [hasDraft, navigation, selectKey]);
 
   useFocusEffect(
     useCallback(() => {
@@ -500,9 +505,26 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
     }
   };
 
-  const options = petOptions(species in SPECIES_CODES ? (species as PetSpecies) : '', breed, color);
+  const options = useMemo(
+    () => petOptions(species in SPECIES_CODES ? (species as PetSpecies) : '', breed, color),
+    [species, breed, color],
+  );
   const apiSpeciesOptions = catalogSpecies.map(item => speciesLabel(item.speciesCode));
-  const apiBreedOptions = catalogBreeds.map(item => item.breedName);
+  const apiBreedOptions = useMemo(() => {
+    const collator = new Intl.Collator('ko');
+    return catalogBreeds.map(item => item.breedName).sort((a, b) => {
+      if (a === b) {
+        return 0;
+      }
+      if (a === '기타') {
+        return 1;
+      }
+      if (b === '기타') {
+        return -1;
+      }
+      return collator.compare(a, b);
+    });
+  }, [catalogBreeds]);
   const apiColorOptions = catalogCombinations.map(item => item.colorName);
 
   const selectOption = (value: string) => {
@@ -721,7 +743,6 @@ export function PetRegistrationScreen({ navigation, route }: Props) {
             decelerationRate="fast"
             keyboardDismissMode="on-drag"
             keyboardShouldPersistTaps="handled"
-            onTouchStart={Keyboard.dismiss}
           >
             <FieldLabel required>반려동물 사진</FieldLabel>
             <View style={styles.photoArea}>
@@ -1018,7 +1039,10 @@ function SelectField({
       <FieldLabel required={required}>{label}</FieldLabel>
       <Pressable
         disabled={disabled}
-        onPress={onPress}
+        onPress={() => {
+          Keyboard.dismiss();
+          onPress();
+        }}
         style={[styles.select, disabled && styles.disabled, isOpen && styles.selectOpen]}
       >
         <Text style={[styles.selectText, !value && styles.placeholder]}>{value || '선택'}</Text>
