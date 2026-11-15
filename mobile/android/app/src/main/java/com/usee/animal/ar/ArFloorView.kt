@@ -158,7 +158,7 @@ class ArFloorView(
         if (leader.requestAttention()) dogNode?.startAttention()
       } else {
         dogNode?.cancelAttention()
-        leader.requestAction(action)
+        leader.requestAction(action, visibleHeadingDegrees = dogNode?.rotation?.y)
       }
     }
   }
@@ -426,8 +426,7 @@ class ArFloorView(
         inverseProjection, 2f * careRequest.x - 1f, 1f - 2f * careRequest.y, 0.35f,
       )
       val origin = cameraPose.transformPoint(floatArrayOf(launch.x, launch.y, launch.z))
-      leader.giveCare(careRequest.action, LeashPoint(origin[0], origin[1], origin[2]),
-        cameraPose.tx(), cameraPose.tz())
+      leader.giveCare(careRequest.action, LeashPoint(origin[0], origin[1], origin[2]))
     }
     updateCareItem(cameraPose.tx(), cameraPose.tz())
     val node = dogNode

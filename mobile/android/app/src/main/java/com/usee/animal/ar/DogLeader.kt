@@ -24,11 +24,7 @@ class DogLeader(
     val origin: LeashPoint,
     val target: LeashPoint,
     val travelSeconds: Float,
-    val startYaw: Float,
-    val turnAngle: Float,
-    val turnClip: String,
     val standSeconds: Float,
-    val turnSeconds: Float,
     var consuming: Boolean = false,
     var seconds: Float = 0f,
   )
@@ -37,31 +33,18 @@ class DogLeader(
     get() = placed && care == null && spinElapsed == null && poopStage == null &&
       (animations.current.clip == "SitIdle" || animations.current.clip == "SitIdle2")
 
-  internal fun giveCare(action: String, origin: LeashPoint, cameraX: Float, cameraZ: Float): Boolean {
+  internal fun giveCare(action: String, origin: LeashPoint): Boolean {
     if (!canGiveCare || (action != "drink" && action != "eat")) return false
-    val cameraDx = cameraX - x
-    val cameraDz = cameraZ - z
-    val turnAngle = when {
-      action == "drink" -> PI.toFloat()
-      hypot(cameraDx, cameraDz) < 0.01f -> 0f
-      else -> wrap(atan2(cameraDx, cameraDz) - yaw)
-    }
-    val targetYaw = yaw + turnAngle
-    val frontX = x + sin(targetYaw) * 0.4f
-    val frontZ = z + cos(targetYaw) * 0.4f
+    val frontX = x + sin(yaw) * 0.4f
+    val frontZ = z + cos(yaw) * 0.4f
     val ground = trustedGround(frontX, frontZ)?.takeIf { abs(it - y) <= 0.08f } ?: y
     val target = LeashPoint(frontX, ground + if (action == "drink") 0.09f else 0.08f, frontZ)
-    val turnClip = DogAnimationController.turnClip(turnAngle, halfTurn = abs(turnAngle) > 1.8f)
     care = Care(
       action = action,
       origin = origin,
       target = target,
       travelSeconds = if (action == "drink") 0.55f else 0.65f,
-      startYaw = yaw,
-      turnAngle = turnAngle,
-      turnClip = turnClip,
       standSeconds = animations.clipSeconds("SitEnd") / CARE_STAND_RATE,
-      turnSeconds = if (abs(turnAngle) < 0.05f) 0f else animations.clipSeconds(turnClip),
     )
     commandedHold = "sit"
     attentionSeconds = 0f
@@ -156,7 +139,7 @@ class DogLeader(
   fun needsUnrestrictedReturn(cameraX: Float, cameraZ: Float): Boolean = placed && poopStage == null && commandedHold == null && attentionSeconds <= 0f &&
     (recalling || returning || leashLength >= 2.6f || hypot(cameraX - x, cameraZ - z) >= 2.6f)
 
-  fun requestAction(action: String) {
+  fun requestAction(action: String, visibleHeadingDegrees: Float? = null) {
     if (!placed || poopStage != null) return
     if (care != null) {
       if (action != "go" && action != "stop") return
@@ -187,9 +170,15 @@ class DogLeader(
       returning = false
       placementRequested = false
       speed = 0f
+      // Navigation yaw can lead the rendered heading while a walking turn is
+      // being smoothed. Sit in the direction actually visible at command time.
+      if (action == "sit" && visibleHeadingDegrees?.isFinite() == true) {
+        yaw = wrap(Math.toRadians(visibleHeadingDegrees.toDouble()).toFloat())
+      }
       moving = false
       floorPath.clear()
       return
+      if (action == "sit") animations.holdPosition(true, 0f)
     }
     if (commandedHold != null) return
     animations.request(action)
@@ -599,17 +588,9 @@ class DogLeader(
         animations.pause()
         animations.holdPosition(true, dt)
       }
-    } else if (current.seconds >= current.standSeconds) {
-      val turnProgress = if (current.turnSeconds == 0f) 1f
-        else ((current.seconds - current.standSeconds) / current.turnSeconds).coerceIn(0f, 1f)
-      val easedTurn = turnProgress * turnProgress * (3f - 2f * turnProgress)
-      yaw = wrap(current.startYaw + current.turnAngle * easedTurn)
-      if (turnProgress == 1f && current.seconds >= current.travelSeconds) {
-        current.consuming = true
-        animations.beginConsumption(current.action)
-      } else {
-        animations.carePose(current.turnClip)
-      }
+    } else if (current.seconds >= max(current.standSeconds, current.travelSeconds)) {
+      current.consuming = true
+      animations.beginConsumption(current.action)
     }
     return frame(true, speed)
   }
@@ -647,7 +628,6 @@ class DogLeader(
   private fun frame(visible: Boolean, actualSpeed: Float) = DogFrame(
     x, y, z, Math.toDegrees(yaw.toDouble()).toFloat(), visible && placed,
     animations.current.clip, actualSpeed, animations.current.loop, animations.current.revision, moving, blocked, userMoving, recalling || returning, floorUncertain, stopReason, poopDeposited, spinElapsed != null,
-    scriptedFacing = care?.let { it.seconds >= it.standSeconds } == true,
     animationPlaybackRate = animations.current.playbackRate,
     motionPaused = motionPaused,
   )
