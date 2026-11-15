@@ -97,6 +97,12 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
   const isEditing = Boolean(route.params?.reportId);
 
   useEffect(() => {
+    if (!isEditing && !draft.foundAt) {
+      updateDraft({ foundAt: new Date().toISOString() });
+    }
+  }, [draft.foundAt, isEditing, updateDraft]);
+
+  useEffect(() => {
     loadProfile().catch(() => undefined);
   }, [loadProfile]);
 
