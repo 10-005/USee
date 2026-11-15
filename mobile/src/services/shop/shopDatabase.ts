@@ -242,37 +242,49 @@ export function replaceSessionShopCatalog(
   }
   const db = getShopDatabase();
   transaction(db, () => {
-    const serverIds = db
-      .executeSync("SELECT id FROM products WHERE origin = 'server'")
-      .rows.map(row => String(row.id));
-    for (const id of serverIds) {
-      db.executeSync('DELETE FROM cart_items WHERE product_id = ?', [id]);
-      db.executeSync('DELETE FROM inventory_items WHERE product_id = ?', [id]);
-      db.executeSync('DELETE FROM owned_items WHERE product_id = ?', [id]);
+    // Refresh an active catalog in place so server edits retain cart and inventory references.
+    const refreshing = hasSessionShopCatalog(sessionKey);
+    if (!refreshing) {
+      const serverIds = db
+        .executeSync("SELECT id FROM products WHERE origin = 'server'")
+        .rows.map(row => String(row.id));
+      for (const id of serverIds) {
+        db.executeSync('DELETE FROM cart_items WHERE product_id = ?', [id]);
+        db.executeSync('DELETE FROM inventory_items WHERE product_id = ?', [id]);
+        db.executeSync('DELETE FROM owned_items WHERE product_id = ?', [id]);
+      }
+      db.executeSync("DELETE FROM products WHERE origin = 'server'");
+      db.executeSync('DELETE FROM simulation_shop_catalogs');
     }
-    db.executeSync("DELETE FROM products WHERE origin = 'server'");
-    db.executeSync('DELETE FROM simulation_shop_catalogs');
-    db.executeSync('INSERT INTO simulation_shop_catalogs VALUES (?, ?, ?)', [
-      sessionKey,
-      speciesType,
-      Date.now(),
-    ]);
+    db.executeSync(
+      `INSERT INTO simulation_shop_catalogs VALUES (?, ?, ?)
+      ON CONFLICT(session_key) DO UPDATE SET species_type=excluded.species_type,
+      fetched_at=excluded.fetched_at`,
+      [sessionKey, speciesType, Date.now()],
+    );
     for (const item of items) {
       const product = item.product;
-      db.executeSync('INSERT INTO products VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
-        product.id,
-        product.name,
-        product.species,
-        product.category,
-        product.price,
-        product.qty,
-        product.kind,
-        product.essential ? 1 : 0,
-        item.displayOrder,
-        JSON.stringify(product),
-        'server',
-        sessionKey,
-      ]);
+      db.executeSync(
+        `INSERT INTO products VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET name=excluded.name, species=excluded.species,
+        category=excluded.category, price=excluded.price, bundle_quantity=excluded.bundle_quantity,
+        kind=excluded.kind, essential=excluded.essential, display_order=excluded.display_order,
+        metadata=excluded.metadata, origin=excluded.origin, catalog_session=excluded.catalog_session`,
+        [
+          product.id,
+          product.name,
+          product.species,
+          product.category,
+          product.price,
+          product.qty,
+          product.kind,
+          product.essential ? 1 : 0,
+          item.displayOrder,
+          JSON.stringify(product),
+          'server',
+          sessionKey,
+        ],
+      );
     }
   });
 }
