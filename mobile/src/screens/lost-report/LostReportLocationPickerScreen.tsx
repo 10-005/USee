@@ -5,7 +5,7 @@ import {
 } from '@mj-studio/react-native-naver-map';
 import Geolocation from '@react-native-community/geolocation';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
   PermissionsAndroid,
@@ -45,6 +45,16 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
   const isAdoptionLocation = route.params?.target === 'adoption';
   const isFoundReportLocation = route.params?.target === 'found-report';
   const mapRef = useRef<NaverMapViewRef>(null);
+  const locationRequest = useRef(0);
+  const findingLocation = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      locationRequest.current += 1;
+    };
+  }, []);
   const details = useLostReportDraftStore(state => state.details);
   const updateDetails = useLostReportDraftStore(state => state.updateDetails);
   const selectAdoptionLocation = useAdoptionLocationStore(state => state.selectLocation);
@@ -120,6 +130,8 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
   };
 
   const chooseCandidate = (candidate: GeocodeCandidate) => {
+    locationRequest.current += 1;
+    setIsResolvingAddress(false);
     setSelectedCandidate(candidate);
     setQuery(getCandidateAddress(candidate));
     setCandidates(null);
@@ -133,25 +145,38 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
   };
 
   const chooseMapCoordinate = async (latitude: number, longitude: number) => {
+    const request = ++locationRequest.current;
     setCandidates(null);
     Keyboard.dismiss();
     setLocationError('');
     setIsResolvingAddress(true);
+    setSelectedCandidate({ jibunAddress: null, latitude, longitude, roadAddress: '' });
     try {
       const address = await reverseGeocode(latitude, longitude);
+      if (!mounted.current || request !== locationRequest.current) {
+        return;
+      }
       setSelectedCandidate({ jibunAddress: null, latitude, longitude, roadAddress: address });
     } catch {
+      if (!mounted.current || request !== locationRequest.current) {
+        return;
+      }
       setSelectedCandidate(null);
       setLocationError('선택한 위치의 주소를 확인하지 못했어요. 다시 눌러 주세요.');
     } finally {
-      setIsResolvingAddress(false);
+      if (mounted.current && request === locationRequest.current) {
+        setIsResolvingAddress(false);
+      }
     }
   };
 
   const selectCurrentLocation = async () => {
-    if (isFindingLocation) {
+    if (findingLocation.current) {
       return;
     }
+    findingLocation.current = true;
+    const request = ++locationRequest.current;
+    setIsFindingLocation(true);
     if (Platform.OS === 'android') {
       const permission = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
@@ -163,37 +188,60 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
         },
       );
       if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
+        findingLocation.current = false;
+        if (mounted.current) {
+          setIsFindingLocation(false);
+          setLocationError('위치 권한을 허용하거나 주소를 검색해 주세요.');
+        }
         return;
       }
     }
+    if (!mounted.current) {
+      return;
+    }
     setLocationError('');
-    setIsFindingLocation(true);
-    mapRef.current?.setLocationTrackingMode('Follow');
+    if (Platform.OS === 'android') {
+      Geolocation.setRNConfiguration({ locationProvider: 'playServices' });
+    }
     Geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        await chooseMapCoordinate(coords.latitude, coords.longitude);
+      ({ coords }) => {
+        findingLocation.current = false;
+        if (!mounted.current) {
+          return;
+        }
+        setIsFindingLocation(false);
+        if (request !== locationRequest.current) {
+          return;
+        }
         mapRef.current?.animateCameraTo({
           duration: 500,
           latitude: coords.latitude,
           longitude: coords.longitude,
           zoom: 16,
         });
-        setIsFindingLocation(false);
+        chooseMapCoordinate(coords.latitude, coords.longitude).catch(() => undefined);
       },
       error => {
+        findingLocation.current = false;
+        if (!mounted.current) {
+          return;
+        }
         setIsFindingLocation(false);
+        if (request !== locationRequest.current) {
+          return;
+        }
         setLocationError(
           error.code === 3
-            ? '현재 위치 확인이 지연되고 있어요. GPS를 켜고 다시 눌러 주세요.'
+            ? '현재 위치를 제시간에 확인하지 못했어요. 다시 시도하거나 주소를 검색해 주세요.'
             : '현재 위치를 확인하지 못했어요. 위치 권한과 GPS를 확인해 주세요.',
         );
       },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
+      { enableHighAccuracy: false, maximumAge: 10000, timeout: 15000 },
     );
   };
 
   const selectLocation = () => {
-    if (!selectedCandidate) {
+    if (!selectedCandidate || isResolvingAddress || isFindingLocation) {
       return;
     }
     const address = getCandidateAddress(selectedCandidate);
@@ -242,6 +290,8 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
           <TextInput
             maxLength={100}
             onChangeText={value => {
+              locationRequest.current += 1;
+              setIsResolvingAddress(false);
               setQuery(value);
               setSelectedCandidate(null);
               setCandidates(null);
@@ -270,13 +320,6 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
           isShowLocationButton
           isShowScaleBar={false}
           isShowZoomControls={false}
-          onCameraChanged={({ latitude, longitude, reason }) => {
-            if (reason !== 'Location') {
-              return;
-            }
-            chooseMapCoordinate(latitude, longitude).catch(() => undefined);
-            setIsFindingLocation(false);
-          }}
           onTapMap={({ latitude, longitude }) =>
             chooseMapCoordinate(latitude, longitude).catch(() => undefined)
           }
@@ -298,7 +341,15 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
           accessibilityLabel="현재 위치 선택"
           accessibilityRole="button"
           disabled={isFindingLocation}
-          onPress={selectCurrentLocation}
+          onPress={() =>
+            selectCurrentLocation().catch(() => {
+              findingLocation.current = false;
+              if (mounted.current) {
+                setIsFindingLocation(false);
+                setLocationError('현재 위치를 확인하지 못했어요. 주소를 검색해 주세요.');
+              }
+            })
+          }
           style={({ pressed }) => [
             styles.currentLocationButton,
             pressed && styles.currentLocationButtonPressed,
@@ -325,7 +376,9 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
                       </Text>
                       {candidate.placeName || candidate.jibunAddress ? (
                         <Text numberOfLines={1} style={styles.jibunAddress}>
-                          {candidate.placeName ? getCandidateAddress(candidate) : candidate.jibunAddress}
+                          {candidate.placeName
+                            ? getCandidateAddress(candidate)
+                            : candidate.jibunAddress}
                         </Text>
                       ) : null}
                     </View>
@@ -348,7 +401,7 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
               ? '현재 위치를 확인하고 있어요.'
               : isResolvingAddress
               ? '선택한 위치의 주소를 확인하고 있어요.'
-              : '주소를 검색하거나 지도를 눌러 실종 장소를 선택해 주세요.')}
+              : '지도를 눌러 원하는 위치에 핀을 찍어 주세요.')}
         </Text>
         <View style={[styles.selectedBox, !selectedCandidate && styles.selectedBoxEmpty]}>
           <LocationIcon height={20} width={20} />
@@ -356,15 +409,19 @@ export function LostReportLocationPickerScreen({ navigation, route }: Props) {
             numberOfLines={2}
             style={[styles.selectedText, !selectedCandidate && styles.placeholderText]}
           >
-            {selectedCandidate
+            {isResolvingAddress
+              ? '주소를 확인하고 있어요.'
+              : selectedCandidate
               ? getCandidateAddress(selectedCandidate)
               : '선택한 주소가 여기에 표시됩니다.'}
           </Text>
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ disabled: !selectedCandidate || isResolvingAddress }}
-          disabled={!selectedCandidate || isResolvingAddress}
+          accessibilityState={{
+            disabled: !selectedCandidate || isResolvingAddress || isFindingLocation,
+          }}
+          disabled={!selectedCandidate || isResolvingAddress || isFindingLocation}
           onPress={selectLocation}
           style={({ pressed }) => [
             styles.selectButton,
