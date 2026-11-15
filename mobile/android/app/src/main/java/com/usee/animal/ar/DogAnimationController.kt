@@ -89,22 +89,29 @@ class DogAnimationController(
     rightSpeed: Float,
     turnRate: Float,
     turnRemaining: Float,
+    headFirst: Boolean = false,
   ): DogAnimation {
     if (dt <= 0f) return current
-    val moving = dogSpeed > 0.07f
-    val turning = abs(turnRate) > 0.4f && abs(turnRemaining) > 0.12f
+    val moving = dogSpeed > if (headFirst) 0f else 0.07f
+    val turning = abs(turnRate) > 0.4f && abs(turnRemaining) > if (headFirst) 0.05f else 0.12f
     if (moving || turning || userSpeed > 0.16f) {
       stoppedSeconds = 0f
       shortIdlePlayed = false
       longIdlePlayed = false
       steps = emptyList()
       requested = null
+      // Match the walker's running gait once the dog is moving briskly too.
+      // Slow obstacle detours and stationary commands must not run in place.
+      val walkerRunning = userSpeed >= 2f ||
+        (current.clip == "Gallop" || current.clip == "RunFast") && userSpeed > 1.7f
+      val gaitSpeed = if (headFirst && dogSpeed > 1.2f && walkerRunning)
+        maxOf(dogSpeed, userSpeed, 2.31f) else dogSpeed
       val clip = when {
-        moving -> movementClip(dogSpeed, forwardSpeed, rightSpeed)
+        moving -> movementClip(gaitSpeed, forwardSpeed, rightSpeed)
         turning -> turnClip(turnRate, halfTurn = abs(turnRemaining) > 1.8f)
         else -> "Idle"
       }
-      settleMotion(clip, dt)
+      if (headFirst && moving) change(clip, true) else settleMotion(clip, dt)
       return current
     }
 
@@ -160,7 +167,7 @@ class DogAnimationController(
     if (magnitude > 157.5f) return "WalkBack"
     if (magnitude > 112.5f) return "WalkBack$side"
     val prefix = when {
-      speed > 3f -> "RunFast"
+      speed > 3f || (current.clip.startsWith("RunFast") && speed > 2.7f) -> "RunFast"
       speed > 2.3f || (current.clip.startsWith("Gallop") && speed > 1.7f) -> "Gallop"
       speed > 1.2f || (current.clip.startsWith("Trot") && speed > 0.95f) -> "Trot"
       else -> "Walk"
