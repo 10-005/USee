@@ -42,6 +42,18 @@ export const isFoodProduct = (product: Pick<Product, 'id' | 'serverCategory'>) =
   product.serverCategory === 'FOOD' || product.id === 'food';
 export const availableProducts = (species: Species) =>
   products.filter(p => p.species === 'all' || p.species === species);
+
+const demoProductOrder = [
+  '밥그릇',
+  '균형 잡힌 사료',
+  '위생 관리 키트',
+  '하네스와 리드줄',
+  '배변봉투',
+];
+const demoProductRank = new Map(demoProductOrder.map((name, index) => [name, index]));
+const defaultProductRank = (product: Product) =>
+  demoProductRank.get(product.name.trim()) ?? demoProductOrder.length;
+
 export function filterProducts(species: Species, category: string, query: string, sort: string) {
   const filtered = availableProducts(species).filter(
     p =>
@@ -49,6 +61,6 @@ export function filterProducts(species: Species, category: string, query: string
       `${p.name} ${p.description}`.includes(query.trim()),
   );
   return sort === '기본순'
-    ? filtered
+    ? filtered.sort((a, b) => defaultProductRank(a) - defaultProductRank(b))
     : filtered.sort((a, b) => (sort === '낮은 가격순' ? a.price - b.price : b.price - a.price));
 }

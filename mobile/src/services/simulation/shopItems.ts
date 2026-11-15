@@ -4,7 +4,7 @@ import { simulationClient } from '../api/client';
 import { ApiClientError } from '../api/errors';
 import { readApiData } from '../api/response';
 import type { Product } from '../shop/catalog';
-import { hasSessionShopCatalog, replaceSessionShopCatalog } from '../shop/shopDatabase';
+import { replaceSessionShopCatalog } from '../shop/shopDatabase';
 
 export type ShopSpeciesType = 'DOG' | 'CAT';
 
@@ -33,7 +33,7 @@ export type ShopItem = {
   description: string;
   imageUrl: string | null;
   speciesScope: 'ALL' | ShopSpeciesType;
-  effects: Partial<Record<string, number>> | null;
+  effects: Record<string, number> | null;
   usesPerPurchase: number;
 };
 
@@ -226,9 +226,6 @@ export async function ensureSessionShopCatalog(
   speciesType: ShopSpeciesType,
   client: SimulationClient = simulationClient,
 ): Promise<void> {
-  if (hasSessionShopCatalog(sessionKey)) {
-    return;
-  }
   const items = await listShopItems(speciesType, client);
   replaceSessionShopCatalog(
     sessionKey,

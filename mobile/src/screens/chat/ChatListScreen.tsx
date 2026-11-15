@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PullRefreshContainer from '../../components/common/PullRefreshContainer';
 import { ChatListItem } from '../../components/common';
 import { ChatActions } from './ChatActions';
+import { chatSocket } from '../../services/chat';
 import { useChatStore } from '../../stores/chatStore';
 import { colors, radius, typography } from '../../theme';
 
@@ -65,6 +66,26 @@ export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => voi
   const unreadRooms = rooms.filter(room => room.unreadCount > 0);
   const unreadTotal = unreadRooms.reduce((sum, room) => sum + room.unreadCount, 0);
   const [filter, setFilter] = useState<'전체' | '안 읽음'>('전체');
+  useEffect(() => {
+    let pending = false;
+    const refresh = () => {
+      const store = useChatStore.getState();
+      if (store.loading) {
+        pending = true;
+        return;
+      }
+      pending = false;
+      void store.load(true, filter === '안 읽음').catch(() => undefined);
+    };
+    const stopObserving = chatSocket.observeRoomList(refresh);
+    const unsubscribe = useChatStore.subscribe(state => {
+      if (pending && !state.loading) refresh();
+    });
+    return () => {
+      unsubscribe();
+      stopObserving();
+    };
+  }, [filter]);
   useEffect(() => {
     if (loaded) {
       useChatStore

@@ -4,6 +4,8 @@ import {
   readSessionShopCatalog,
   readShopProducts,
   replaceSessionShopCatalog,
+  readShopSnapshot,
+  writeShopSnapshot,
 } from '../shop/shopDatabase';
 import {
   ensureSessionShopCatalog,
@@ -108,14 +110,28 @@ test('rejects equipment that is marked consumable', async () => {
   await expect(listShopItems('DOG', { get })).rejects.toBeInstanceOf(ApiClientError);
 });
 
-test('saves the catalog once for an adoption and reuses it', async () => {
+test('refreshes server images without clearing the adoption cart or inventory', async () => {
   const get = jest.fn().mockResolvedValue(envelope([bowl, food]));
   const sessionKey = 'dog-1:shop-items';
 
   await ensureSessionShopCatalog(sessionKey, 'DOG', { get });
+  const snapshot = {
+    sessionKey,
+    budget: 50000,
+    expiresAt: Date.now() + 86400000,
+    spent: 8000,
+    cart: { '1': 2 },
+    inventory: { '11': 12 },
+    selectedIds: ['1'],
+    ownedItems: [{ id: 'owned-food', productId: '11', capacity: 12, remaining: 12 }],
+  };
+  writeShopSnapshot(snapshot);
+  const updatedFood = { ...food, imageUrl: 'https://example.com/new-food.png' };
+  get.mockResolvedValue(envelope([bowl, updatedFood]));
   await ensureSessionShopCatalog(sessionKey, 'DOG', { get });
 
-  expect(get).toHaveBeenCalledTimes(1);
+  expect(get).toHaveBeenCalledTimes(2);
+  expect(readShopSnapshot(sessionKey)).toMatchObject(snapshot);
   expect(readSessionShopCatalog(sessionKey)?.map(item => item.itemSeq)).toEqual([1, 11]);
   expect(readSessionShopCatalog(sessionKey)?.[1]).toMatchObject({
     id: '11',
@@ -124,7 +140,7 @@ test('saves the catalog once for an adoption and reuses it', async () => {
     serverCategory: 'FOOD',
     species: 'dog',
     kind: 'consumable',
-    imageUrl: null,
+    imageUrl: updatedFood.imageUrl,
     qty: 12,
     unit: '끼',
   });

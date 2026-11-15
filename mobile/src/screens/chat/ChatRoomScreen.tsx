@@ -386,6 +386,12 @@ export function ChatRoomScreen({ route, navigation }: Props) {
           </Pressable>
         }
       />
+      {room?.previousPost && (
+        <View style={s.previousPost}>
+          <Text>마지막으로 공유한 게시글</Text>
+          <PostCard reference={newestFirst.find(message => message.post && !message.pending)?.post ?? room.previousPost} navigation={navigation} />
+        </View>
+      )}
       {room || preview ? (
         <KeyboardAvoidingView
           style={s.screen}
@@ -570,6 +576,7 @@ export function ChatRoomScreen({ route, navigation }: Props) {
   );
 }
 const s = StyleSheet.create({
+  previousPost: { paddingHorizontal: 16, paddingVertical: 8, gap: 4 },
   screen: { flex: 1, backgroundColor: 'white' },
   loading: { alignItems: 'center', flex: 1, justifyContent: 'center' },
   history: { flexGrow: 1, justifyContent: 'flex-end' },

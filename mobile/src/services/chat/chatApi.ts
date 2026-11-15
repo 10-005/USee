@@ -43,6 +43,7 @@ export type ChatRoomPage = {
   hasNext: boolean;
 };
 export type ChatRoomDetail = {
+  lastSharedPost?: { sharedTargetType: SharedTargetType; sharedTargetSeq: number } | null;
   chatRoomSeq: number;
   roomType: ChatTargetType;
   counterpart: ChatCounterpart;
