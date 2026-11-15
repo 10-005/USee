@@ -51,6 +51,11 @@ spec:
                 action: keep
               - source_labels: [__meta_kubernetes_pod_label_app]
                 target_label: app
+              # Grafana Spring Boot·JVM 대시보드(19004·4701)가 application·namespace 라벨로 서비스를 고른다
+              - source_labels: [__meta_kubernetes_pod_label_app]
+                target_label: application
+              - source_labels: [__meta_kubernetes_namespace]
+                target_label: namespace
               - source_labels: [__meta_kubernetes_pod_name]
                 target_label: pod
   destination:

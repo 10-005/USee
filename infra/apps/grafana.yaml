@@ -30,7 +30,8 @@ spec:
             apiVersion: 1
             datasources:
               - name: Prometheus
-                uid: prometheus
+                # 19004는 ${DS_PROMETHEUS}를 uid로, 4701은 이름으로 찾으므로 이름과 uid를 같게 둔다
+                uid: Prometheus
                 type: prometheus
                 url: http://prometheus-server.monitoring.svc
                 access: proxy
