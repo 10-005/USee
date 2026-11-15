@@ -20,7 +20,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   const { pet, status, retry } = useShopSession(petId);
   const p = findProduct(productId);
   const shop = useShopStore();
-  const [quantity, setQuantity] = useState(0);
+  const [quantity, setQuantity] = useState(1);
   const [toast, setToast] = useState(false);
   const [basisExpanded, setBasisExpanded] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -187,6 +187,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
                   setToast(true);
                   clearTimeout(toastTimer.current);
                   toastTimer.current = setTimeout(() => setToast(false), 1500);
+                  navigation.navigate('PetShop', { petId });
                 } else {
                   adding.current = false;
                 }
