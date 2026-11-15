@@ -22,6 +22,14 @@ spec:
     spec:
       imagePullSecrets:
         - name: registry-pull
+      # DB·Redis가 있는 노드 1에 우선 배치(S15P31D106-423). 노드 2면 DB 왕복(1.6ms)이 요청마다 쌓인다. 노드 1이 모자라면 노드 2로
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - { key: role, operator: In, values: [primary] }
       containers:
         - name: chat
           image: k15d106.p.ssafy.io/animal/chat   # 태그는 overlay(kustomization images)에서 지정

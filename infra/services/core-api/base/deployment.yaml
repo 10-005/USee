@@ -21,17 +21,16 @@ spec:
     spec:
       imagePullSecrets:
         - name: registry-pull
-      # 두 노드에 한 개씩 강제 배치. 같은 ReplicaSet(pod-template-hash) Pod끼리만 세어 롤링 업데이트 중 옛 Pod는 제외
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
-          nodeTaintsPolicy: Honor
-          matchLabelKeys:
-            - pod-template-hash
-          labelSelector:
-            matchLabels:
-              app: core-api
+      # DB·Redis가 있는 노드 1에 우선 배치(S15P31D106-423). 노드 2에 두면 DB 왕복(1.6ms)이 요청당 8~9번 쌓여 서버 시간이 3.5배
+      # DB가 노드 1에만 있어 두 노드 분산의 장애 대비 효과가 없으므로 강제 분산(topologySpreadConstraints)은 뺐다
+      # preferred라 노드 1 자원이 모자랄 때만 노드 2로 간다
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - { key: role, operator: In, values: [primary] }
       containers:
         - name: core-api
           image: k15d106.p.ssafy.io/animal/core-api   # 태그는 overlay(kustomization images)에서 지정
