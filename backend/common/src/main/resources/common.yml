@@ -57,6 +57,16 @@ spring:
   config:
     activate:
       on-profile: dev
+# 로그를 JSON 한 줄씩(logstash 형식: @timestamp, level, thread_name, logger_name, message, traceId 등 MDC, key-value)
+# Loki에서 `| json`으로 필드를 거른다. 모든 줄에 서비스명·Pod명을 붙인다(S15P31D106-423). 로컬은 텍스트 그대로
+logging:
+  structured:
+    format:
+      console: logstash
+    json:
+      add:
+        service: ${spring.application.name}
+        pod: ${HOSTNAME:unknown}
 springdoc:
   swagger-ui:
     enabled: ${api.docs-hub:false}

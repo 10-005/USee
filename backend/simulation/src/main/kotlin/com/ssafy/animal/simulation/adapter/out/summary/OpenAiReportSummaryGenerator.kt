@@ -1,5 +1,6 @@
 package com.ssafy.animal.simulation.adapter.out.summary
 
+import com.ssafy.animal.common.web.OutboundLogInterceptor
 import com.ssafy.animal.simulation.application.port.out.ReportSummaryGenerator
 import com.ssafy.animal.simulation.config.LlmConfig
 import com.ssafy.animal.simulation.domain.KoreanLabels
@@ -30,6 +31,7 @@ class OpenAiReportSummaryGenerator(
 
     private val restClient = restClientBuilder
         .baseUrl(config.baseUrl)
+        .requestInterceptor(OutboundLogInterceptor())
         .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer ${config.apiKey}")
         .build()
 
