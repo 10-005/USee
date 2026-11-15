@@ -8,6 +8,7 @@ import com.ssafy.animal.common.auth.SecurityErrorResponder
 import com.ssafy.animal.common.auth.StompAuthChannelInterceptor
 import com.ssafy.animal.common.exception.GlobalExceptionHandler
 import com.ssafy.animal.common.response.ApiResponseBodyAdvice
+import com.ssafy.animal.common.web.RequestLogFilter
 import com.ssafy.animal.common.web.TraceIdFilter
 import io.swagger.v3.oas.models.Components
 import io.swagger.v3.oas.models.OpenAPI
@@ -56,6 +57,9 @@ class CommonWebAutoConfiguration {
 
     @Bean
     fun traceIdFilter() = TraceIdFilter()
+
+    @Bean
+    fun requestLogFilter() = RequestLogFilter()
 
     @Bean
     fun commonJsonMapperCustomizer() = JsonMapperBuilderCustomizer { builder ->
