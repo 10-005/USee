@@ -62,6 +62,7 @@ import {
   type MockAdoptionSession,
 } from '../../services/storage/mockAdoptionStorage';
 import { useProfileStore } from '../../stores/profileStore';
+import { useFoundReportDraftStore } from '../../stores/foundReportDraftStore';
 import { useLostReportDraftStore } from '../../stores/lostReportDraftStore';
 import { MockAdoptionShortcut } from '../MockAdoption/MockAdoptionShortcut';
 import { colors, radius, typography } from '../../theme';
@@ -176,6 +177,7 @@ export function HomeScreen({ navigation, route }: Props) {
   const loadSpecies = useCatalogStore(state => state.loadSpecies);
   const loadBreeds = useCatalogStore(state => state.loadBreeds);
   const loadProfile = useProfileStore(state => state.loadProfile);
+  const resetFoundReportDraft = useFoundReportDraftStore(state => state.resetDraft);
   const resetLostReportDraft = useLostReportDraftStore(state => state.resetDraft);
   const [selectedTab, setSelectedTab] = useState<(typeof navigationItems)[number]['key']>(
     route.params?.initialTab ?? 'adoption',
@@ -521,6 +523,7 @@ export function HomeScreen({ navigation, route }: Props) {
       onClose={() => setRegistrationMenuOpen(false)}
       onSelectFound={() => {
         setRegistrationMenuOpen(false);
+        resetFoundReportDraft();
         navigation.navigate('PetRegistration', { flow: 'found-report' });
       }}
       onSelectLost={() => {

@@ -20,7 +20,6 @@ import BadgeIcon from '../../assets/icons/common/badge.svg';
 import { AppHeader, Button, DetailScreenSkeleton } from '../../components/common';
 import { getMyAdoptionApplications, getShelter } from '../../services/adoption';
 import { bookmarkKey } from '../../services/bookmarks';
-import { useChatStore } from '../../stores/chatStore';
 import { useAdoptionBookmarkStore } from '../../stores/adoptionBookmarkStore';
 import { useAdoptionAnimalStore } from '../../stores/adoptionAnimalStore';
 import { colors, radius, typography } from '../../theme';
@@ -98,23 +97,7 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
     ['나이 / 체중', `${detail?.age ?? '모름'} / ${detail?.weight ?? '모름'}`],
     ['색상', detail?.classification?.colorName ?? '모름'],
   ];
-  const openChat = async () => {
-    try {
-      const params = await useChatStore
-        .getState()
-        .openPostRoom(
-          'adoption',
-          route.params.animalId,
-          shelterName,
-          detail?.shelter?.shelterSeq ?? 0,
-        );
-      if (navigation.isFocused()) {
-        navigation.navigate('ChatRoom', params);
-      }
-    } catch {
-      Alert.alert('채팅', '채팅방을 열 수 없어요. 다시 시도해 주세요.');
-    }
-  };
+  const openMockAdoption = () => navigation.navigate('MockAdoptionOverview');
   const openApplication = async () => {
     try {
       const page = await getMyAdoptionApplications({
@@ -289,8 +272,8 @@ export function AdoptionDetailScreen({ navigation, route }: Props) {
       </ScrollView>
       {!isClosed ? (
         <View style={[styles.actions, { bottom: insets.bottom + 12 }]}>
-          <Button onPress={openChat} style={styles.action}>
-            채팅 보내기
+          <Button onPress={openMockAdoption} style={styles.action}>
+            모의입양
           </Button>
           {canApply ? (
             <Button onPress={openApplication} style={[styles.action, styles.applyButton]}>

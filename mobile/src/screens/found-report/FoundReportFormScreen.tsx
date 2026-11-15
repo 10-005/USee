@@ -53,6 +53,8 @@ import { colors, radius, typography } from '../../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'FoundReportForm'>;
 type Step = 2 | 3;
 const PHONE_PATTERN = /^01[016789]-\d{3,4}-\d{4}$/;
+const DEMO_FOUND_SITUATION =
+  '구미시청 인근 화단에서 혼자 웅크리고 있는 고양이를 발견했습니다. 사람을 경계했지만 다친 곳은 없어 보였고, 현재도 주변을 배회하고 있습니다.';
 
 const formatPhone = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -253,6 +255,7 @@ export function FoundReportFormScreen({ navigation, route }: Props) {
             {step === 2 ? (
               <FoundInformationStep
                 draft={draft}
+                isEditing={isEditing}
                 onOpenDateTime={openDateTime}
                 onOpenLocation={() =>
                   navigation.navigate('LostReportLocationPicker', { target: 'found-report' })
@@ -440,11 +443,13 @@ function _AnimalStep({
 
 function FoundInformationStep({
   draft,
+  isEditing,
   onOpenDateTime,
   onOpenLocation,
   onUpdate,
 }: {
   draft: FoundReportDraft;
+  isEditing: boolean;
   onOpenDateTime: () => void;
   onOpenLocation: () => void;
   onUpdate: (values: Partial<FoundReportDraft>) => void;
@@ -481,7 +486,13 @@ function FoundInformationStep({
       <FormInput
         multiline
         onChangeText={foundSituation => onUpdate({ foundSituation })}
+        onFocus={() => {
+          if (!isEditing && !draft.foundSituation.trim()) {
+            onUpdate({ foundSituation: DEMO_FOUND_SITUATION });
+          }
+        }}
         placeholder="발견 당시 상황을 입력해 주세요"
+        showSoftInputOnFocus={isEditing}
         value={draft.foundSituation}
       />
     </>
@@ -543,14 +554,18 @@ function FormInput({
   keyboardType,
   multiline = false,
   onChangeText,
+  onFocus,
   placeholder,
+  showSoftInputOnFocus,
   value,
 }: {
   editable?: boolean;
   keyboardType?: 'decimal-pad' | 'numeric' | 'phone-pad';
   multiline?: boolean;
   onChangeText: (value: string) => void;
+  onFocus?: () => void;
   placeholder: string;
+  showSoftInputOnFocus?: boolean;
   value: string;
 }) {
   return (
@@ -559,8 +574,10 @@ function FormInput({
       keyboardType={keyboardType}
       multiline={multiline}
       onChangeText={onChangeText}
+      onFocus={onFocus}
       placeholder={placeholder}
       placeholderTextColor={colors.gray500}
+      showSoftInputOnFocus={showSoftInputOnFocus}
       style={[styles.textInput, multiline && styles.multiline, !editable && styles.disabledInput]}
       value={value}
     />

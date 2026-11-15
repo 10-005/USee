@@ -25,6 +25,8 @@ it('개인 채널의 상대 읽음 이벤트만 전달하고 다시 연결되면
     const onConnect = jest.fn();
     const onMessage = jest.fn();
     chat.observeReadReceipts(onRead, onConnect);
+    const refreshList = jest.fn();
+    chat.observeRoomList(refreshList);
     chat.subscribe(501, onMessage);
     sockets[0].onmessage({ data: 'CONNECTED\n\n\0' });
     for (const type of ['READ', 'MESSAGE', 'COUNTERPART_READ']) {
@@ -35,6 +37,7 @@ it('개인 채널의 상대 읽음 이벤트만 전달하고 다시 연결되면
       sockets[0].onmessage({ data: 'MESSAGE\nsubscription:room-updates\n\n' + body + '\0' });
     }
     expect(onRead.mock.calls).toEqual([[501, 102]]);
+    expect(refreshList).toHaveBeenCalledTimes(2);
     expect(onMessage).not.toHaveBeenCalled();
     sockets[0].onclose();
     jest.advanceTimersByTime(1500);

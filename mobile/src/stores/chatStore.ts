@@ -40,6 +40,7 @@ type Message = {
   pending?: boolean;
 };
 export type ChatRoom = {
+  previousPost?: PostRef;
   counterpart: ChatCounterpart;
   id: string;
   name: string;
@@ -233,6 +234,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       const roomSeq = Number(id);
       await useProfileStore.getState().loadProfile();
       const [detail, page] = await Promise.all([getChatRoom(roomSeq), getChatMessages(roomSeq)]);
+      const post = detail.lastSharedPost;
       messageCursors.set(id, page.nextBeforeMessageSeq ?? undefined);
       const serverMessages = page.content.map(toMessage);
       set(state => {
@@ -258,6 +260,10 @@ export const useChatStore = create<ChatState>((set, get) => {
           (a, b) => a.sentAt - b.sentAt,
         );
         const room: ChatRoom = {
+          previousPost: post ? {
+            id: String(post.sharedTargetSeq),
+            type: post.sharedTargetType === 'MISSING' ? 'lost' : post.sharedTargetType === 'FOUND' ? 'found' : 'adoption',
+          } : undefined,
           counterpart: detail.counterpart,
           id,
           lastMessageDttm: messages.at(-1)?.sentAt ?? currentRoom?.lastMessageDttm ?? 0,
