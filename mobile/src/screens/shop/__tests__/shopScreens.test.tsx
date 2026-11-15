@@ -149,7 +149,7 @@ it('adds from detail, resets to zero, shows toast and updates the cart badge', (
     screen = renderer.create(
       wrap(
         <ProductDetailScreen
-          navigation={{ navigate: jest.fn() } as never}
+          navigation={{ navigate: jest.fn(), popTo: jest.fn() } as never}
           route={{
             key: 'detail',
             name: 'ShopProductDetail',
@@ -436,13 +436,13 @@ it('dismisses the keyboard on list drag or touch and keeps sorting in a bottom s
 });
 
 it('adds the chosen quantity from detail', () => {
-  const navigate = jest.fn();
+  const popTo = jest.fn();
   let screen!: renderer.ReactTestRenderer;
   act(() => {
     screen = renderer.create(
       wrap(
         <ProductDetailScreen
-          navigation={{ navigate } as never}
+          navigation={{ popTo } as never}
           route={{
             key: 'detail',
             name: 'ShopProductDetail',
@@ -470,7 +470,7 @@ it('adds the chosen quantity from detail', () => {
   )[0];
   act(() => addButton.props.onPress());
   expect(useShopStore.getState().cart.food).toBe(1);
-  expect(navigate).toHaveBeenCalledWith('PetShop', { petId: 'dog-1' });
+  expect(popTo).toHaveBeenCalledWith('PetShop', { petId: 'dog-1' });
   act(() => screen.unmount());
 });
 

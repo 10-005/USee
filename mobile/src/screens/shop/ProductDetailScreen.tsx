@@ -187,7 +187,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
                   setToast(true);
                   clearTimeout(toastTimer.current);
                   toastTimer.current = setTimeout(() => setToast(false), 1500);
-                  navigation.navigate('PetShop', { petId });
+                  navigation.popTo('PetShop', { petId });
                 } else {
                   adding.current = false;
                 }
