@@ -1,0 +1,91 @@
+# 메트릭 대시보드(S15P31D106-423 4단계). tailnet 전용 https://grafana.<tailnet>.ts.net
+# 데이터소스·대시보드는 values로 만들어 PVC 없이 둔다(Pod가 다시 떠도 같은 상태)
+# 관리자 계정은 SealedSecret grafana-admin(infra/scripts/gen-grafana-admin-secret.sh)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://grafana-community.github.io/helm-charts
+    chart: grafana
+    targetRevision: 14.4.1
+    helm:
+      valuesObject:
+        nodeSelector:
+          role: primary
+        resources:
+          requests: {cpu: 50m, memory: 128Mi}
+          limits: {memory: 384Mi}
+        persistence:
+          enabled: false
+        admin:
+          existingSecret: grafana-admin
+          userKey: admin-user
+          passwordKey: admin-password
+        datasources:
+          datasources.yaml:
+            apiVersion: 1
+            datasources:
+              - name: Prometheus
+                uid: prometheus
+                type: prometheus
+                url: http://prometheus-server.monitoring.svc
+                access: proxy
+                isDefault: true
+        dashboardProviders:
+          dashboardproviders.yaml:
+            apiVersion: 1
+            providers:
+              - name: default
+                orgId: 1
+                folder: ""
+                type: file
+                disableDeletion: true
+                editable: true
+                options:
+                  path: /var/lib/grafana/dashboards/default
+        # grafana.com 공개 대시보드를 기동 시 내려받는다
+        dashboards:
+          default:
+            spring-boot:
+              gnetId: 19004 # Spring Boot 3.x Statistics: HTTP 지연·오류, HikariCP, JVM
+              datasource: Prometheus
+            jvm-micrometer:
+              gnetId: 4701 # JVM (Micrometer)
+              datasource: Prometheus
+            node-exporter:
+              gnetId: 1860 # Node Exporter Full: 노드 CPU·메모리·디스크
+              datasource: Prometheus
+        extraObjects:
+          - apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: grafana-tailnet
+              namespace: monitoring
+              annotations:
+                # ArgoCD 화면과 같은 대상(팀원)이 보므로 같은 태그·ACL을 쓴다
+                tailscale.com/tags: "tag:svc-argocd"
+            spec:
+              ingressClassName: tailscale
+              defaultBackend:
+                service:
+                  name: grafana
+                  port:
+                    number: 80
+              tls:
+                - hosts:
+                    - grafana
+        testFramework:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

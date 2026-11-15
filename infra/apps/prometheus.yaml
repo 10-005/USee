@@ -1,0 +1,65 @@
+# 메트릭 수집(S15P31D106-423 4단계). 노드 1에만 두고 보관은 7일·4GB까지
+# Spring 서비스는 Pod 라벨로 찾아 /actuator/prometheus를 긁는다(Deployment 수정·재시작 불필요)
+# alertmanager·pushgateway는 쓰지 않는다. node-exporter는 노드 디스크(노드 2 DiskPressure 이력) 확인용으로 두 노드 모두
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: prometheus
+    targetRevision: 29.47.2
+    helm:
+      valuesObject:
+        server:
+          nodeSelector:
+            role: primary
+          retention: 7d
+          retentionSize: 4GB
+          persistentVolume:
+            size: 8Gi
+          resources:
+            requests: { cpu: 100m, memory: 384Mi }
+            limits: { memory: 1Gi }
+          global:
+            scrape_interval: 30s
+            evaluation_interval: 1m
+        alertmanager:
+          enabled: false
+        prometheus-pushgateway:
+          enabled: false
+        kube-state-metrics:
+          nodeSelector:
+            role: primary
+        scrapeConfigs:
+          spring-apps:
+            metrics_path: /actuator/prometheus
+            kubernetes_sd_configs:
+              - role: pod
+                namespaces:
+                  names: [app]
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_pod_label_app]
+                regex: core-api|chat|notification|simulation
+                action: keep
+              # 퇴거(Evicted)되고 남은 옛 Pod는 IP가 없으므로 Running만 수집
+              - source_labels: [__meta_kubernetes_pod_phase]
+                regex: Running
+                action: keep
+              - source_labels: [__meta_kubernetes_pod_label_app]
+                target_label: app
+              - source_labels: [__meta_kubernetes_pod_name]
+                target_label: pod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
