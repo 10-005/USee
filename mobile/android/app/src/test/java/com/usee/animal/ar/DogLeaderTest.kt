@@ -5,6 +5,150 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun joggingWalkerIsFollowedWithARunningAnimationAndStopsTogether() {
+    val leader = DogLeader()
+    var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    for (i in 1..300) {
+      dog = leader.update(0.02f, 0f, -i * 0.042f, 0f, -1f, floor)
+      if (i > 100) {
+        assertTrue(dog.clip == "Gallop" || dog.clip == "RunFast")
+        assertTrue(dog.speedMetersPerSecond > 1.7f)
+      }
+    }
+    repeat(250) { dog = leader.update(0.02f, 0f, -12.6f, 0f, -1f, floor) }
+    assertEquals(0f, dog.speedMetersPerSecond, 0f)
+    assertFalse(dog.clip == "Gallop" || dog.clip == "RunFast")
+  }
+  @Test fun everyNormalStepMovesHeadFirstIncludingRightLeftAndReverseCatchUp() {
+    for (direction in listOf(1f to 0f, -1f to 0f, 0f to 1f)) {
+      val leader = DogLeader()
+      var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+      var cameraX = 0f; var cameraZ = 0f
+      repeat(100) { cameraZ -= 0.02f; dog = leader.update(0.02f, cameraX, cameraZ, 0f, -1f, floor) }
+      var sawTurnBeforeMoving = false
+      var travelled = 0f
+      repeat(400) {
+        cameraX += direction.first * 0.02f
+        cameraZ += direction.second * 0.02f
+        val next = leader.update(0.02f, cameraX, cameraZ, 0f, -1f, floor)
+        val dx = next.x - dog.x; val dz = next.z - dog.z
+        val length = hypot(dx, dz)
+        if (next.turningToMove) {
+          sawTurnBeforeMoving = true
+          assertEquals(0f, length, 0f)
+          assertFalse(next.blocked)
+        }
+        if (length > 0.00001f) {
+          val yaw = Math.toRadians(next.yawDegrees.toDouble())
+          val headAlignment = (dx * sin(yaw) + dz * cos(yaw)) / length
+          assertTrue("Movement must follow the head, alignment=$headAlignment: $dog -> $next", headAlignment > 0.999)
+          assertFalse(next.clip.contains("Back"))
+          assertFalse(next.clip.endsWith("Left") || next.clip.endsWith("Right"))
+          travelled += length
+        }
+        dog = next
+      }
+      assertTrue(sawTurnBeforeMoving)
+      assertTrue(travelled > 5f)
+    }
+  }
+
+  @Test fun suddenWalkingTurnsCatchUpToTheNewFrontEvenWithoutTurningThePhone() {
+    for (newDirection in listOf(1f to 0f, -1f to 0f, 0f to 1f)) {
+      val leader = DogLeader()
+      leader.update(0f, 0f, 0f, 0f, -1f, floor)
+      var cameraX = 0f
+      var cameraZ = 0f
+      var dog = leader.update(0.02f, cameraX, cameraZ, 0f, -1f, floor)
+      repeat(150) { cameraZ -= 0.02f; dog = leader.update(0.02f, cameraX, cameraZ, 0f, -1f, floor) }
+      val before = dog
+      var maximumSpeed = 0f
+      repeat(400) {
+        cameraX += newDirection.first * 0.02f
+        cameraZ += newDirection.second * 0.02f
+        val next = leader.update(0.02f, cameraX, cameraZ, 0f, -1f, floor)
+        assertTrue("Must walk continuously instead of teleporting", hypot(next.x - dog.x, next.z - dog.z) <= 3.61f * 0.02f)
+        assertTrue("Must keep clear of the user", hypot(next.x - cameraX, next.z - cameraZ) >= 0.44f)
+        assertFalse("Catch-up must retain terrain validation", next.ignoresObstacles)
+        maximumSpeed = max(maximumSpeed, next.speedMetersPerSecond)
+        dog = next
+      }
+      val ahead = (dog.x - cameraX) * newDirection.first + (dog.z - cameraZ) * newDirection.second
+      val lateral = abs((dog.x - cameraX) * newDirection.second - (dog.z - cameraZ) * newDirection.first)
+      assertTrue("Must catch up ahead of the new movement: $dog", ahead > 1.2f)
+      assertTrue("Must settle onto the walking direction: $dog", lateral < 0.4f)
+      assertTrue("A sudden turn should trigger running catch-up, max=$maximumSpeed from $before", maximumSpeed > 2.3f)
+      repeat(200) { dog = leader.update(0.02f, cameraX, cameraZ, 0f, -1f, floor) }
+      val stoppedAhead = (dog.x - cameraX) * newDirection.first + (dog.z - cameraZ) * newDirection.second
+      assertEquals("Keep the new front after the user stops", DOG_LEAD_METERS, stoppedAhead, 0.2f)
+    }
+  }
+
+  @Test fun directionChangeCannotOverrideSitOrStopAndCannotCrossUnknownGround() {
+    for (hold in listOf("sit", "stop")) {
+      val leader = DogLeader()
+      val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+      leader.requestAction(hold)
+      repeat(200) { i ->
+        val held = leader.update(0.02f, i * 0.02f, 0f, 0f, -1f, floor)
+        assertEquals(initial.x, held.x, 0f)
+        assertEquals(initial.z, held.z, 0f)
+      }
+    }
+    val leader = DogLeader()
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var dog = leader.update(0.02f, 0f, -0.02f, 0f, -1f, floor)
+    repeat(50) { i -> dog = leader.update(0.02f, 0f, -(i + 1) * 0.02f, 0f, -1f, floor) }
+    val start = dog
+    repeat(200) { i ->
+      dog = leader.update(0.02f, i * 0.02f, -1f, 0f, -1f) { _, _ -> null }
+      assertFalse(dog.ignoresObstacles)
+      assertEquals(start.x, dog.x, 0f)
+      assertEquals(start.z, dog.z, 0f)
+    }
+    assertTrue(dog.blocked)
+  }
+  @Test fun sitImmediatelyStartsInTheVisibleHeadingAndKeepsItsPositionWhileTheCameraMoves() {
+    val leader = DogLeader()
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var before = leader.update(0.02f, 0f, -0.5f, 1f, 0f, floor)
+    repeat(10) { before = leader.update(0.02f, 0f, -0.5f, 1f, 0f, floor) }
+    val visibleHeading = (before.yawDegrees - 30f + 540f) % 360f - 180f
+    leader.requestAction("sit", visibleHeading)
+    val immediate = leader.update(0f, 0f, -0.5f, 1f, 0f, floor)
+    assertEquals("SitStart", immediate.clip)
+    assertEquals(visibleHeading, immediate.yawDegrees, 0.001f)
+    assertEquals(before.x, immediate.x, 0f)
+    assertEquals(before.z, immediate.z, 0f)
+    assertFalse(immediate.moving)
+    var seated = immediate
+    repeat(200) { i ->
+      seated = leader.update(0.02f, i * 0.01f, -i * 0.02f, -1f, 0f, floor)
+      assertEquals(visibleHeading, seated.yawDegrees, 0.001f)
+      assertEquals(before.x, seated.x, 0f)
+      assertEquals(before.z, seated.z, 0f)
+    }
+    assertEquals("SitIdle", seated.clip)
+  }
+
+  @Test fun sitInterruptsSpinAndDoesNotResumeTheOldTurnOrWalk() {
+    val leader = DogLeader()
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    leader.requestAction("spin")
+    repeat(30) { leader.update(0.02f, 0f, 0f, 0f, -1f, floor) }
+    leader.requestAction("sit", -45f)
+    val seated = leader.update(0.02f, 0f, -1f, 1f, 0f, floor)
+    assertEquals("SitStart", seated.clip)
+    assertFalse(seated.spinning)
+    repeat(200) {
+      val held = leader.update(0.02f, 0f, -1f, 1f, 0f, floor)
+      assertEquals(-45f, held.yawDegrees, 0.001f)
+      assertEquals(seated.x, held.x, 0f)
+      assertEquals(seated.z, held.z, 0f)
+      assertFalse(held.spinning)
+    }
+  }
+
   @Test fun slowValidCameraFramesAdvanceTheSameElapsedWalkWithoutHalfSpeed() {
     fun walk(interval: Float): DogFrame {
       val leader = DogLeader()
@@ -33,17 +177,17 @@ class DogLeaderTest {
     }
   }
 
-  @Test fun seatedDogStandsAndTurnsInPlaceBeforeDrinkingOrEating() {
+  @Test fun seatedDogReceivesWaterAndTreatInItsFacingDirection() {
     val leader = DogLeader()
     fun frame() = leader.update(0.05f, 0f, 0f, 0f, -1f, floor)
     val start = frame()
     val camera = LeashPoint(0f, 1f, 0f)
-    assertFalse(leader.giveCare("drink", camera, camera.x, camera.z))
-    leader.requestAction("sit")
+    assertFalse(leader.giveCare("drink", camera))
+    leader.requestAction("sit", 90f)
     repeat(25) { frame() }
     assertTrue(leader.canGiveCare)
-    assertTrue(leader.giveCare("drink", camera, camera.x, camera.z))
-    assertFalse(leader.giveCare("eat", camera, camera.x, camera.z))
+    assertTrue(leader.giveCare("drink", camera))
+    assertFalse(leader.giveCare("eat", camera))
     assertEquals(camera, leader.careItem!!.point)
     repeat(5) { frame() }
     val bowlInFlight = leader.careItem!!.point
@@ -51,20 +195,18 @@ class DogLeaderTest {
     val bowl = leader.careItem!!.point
     assertEquals(0.4f, hypot(bowl.x - start.x, bowl.z - start.z), 0.001f)
     assertTrue(bowlInFlight.z in bowl.z..camera.z)
-    assertEquals(start.z + 0.4f, bowl.z, 0.001f)
+    assertEquals(start.x + 0.4f, bowl.x, 0.001f)
+    assertEquals(start.z, bowl.z, 0.001f)
     val waterFrames = List(190) { frame() }
     assertTrue(waterFrames.all { it.x == start.x && it.z == start.z })
     assertEquals("SitEnd", waterFrames.first().clip)
     assertEquals(0.8f, waterFrames.first().animationPlaybackRate, 0.001f)
-    val turnIndex = waterFrames.indexOfFirst { it.clip == "TurnLeft180" }
-    val drinkIndex = waterFrames.indexOfFirst { it.clip == "EatDrinkStart" }
-    assertTrue(turnIndex > 0 && drinkIndex > turnIndex)
-    assertEquals(180f, abs(waterFrames[drinkIndex].yawDegrees - start.yawDegrees), 0.001f)
+    assertTrue(waterFrames.all { abs(it.yawDegrees - 90f) < 0.001f && !it.clip.startsWith("Turn") })
+    assertTrue(waterFrames.any { it.clip == "EatDrinkStart" })
     assertTrue(waterFrames.any { it.clip == "Drink" })
     assertTrue(leader.canGiveCare)
 
-    // The drag-release point is separate from the camera position.
-    assertTrue(leader.giveCare("eat", camera, start.x + 1f, start.z))
+    assertTrue(leader.giveCare("eat", camera))
     val launch = leader.careItem!!.point
     repeat(6) { frame() }
     val inFlight = leader.careItem!!.point
@@ -75,21 +217,21 @@ class DogLeaderTest {
     assertEquals(start.z, treat.z, 0.001f)
     val treatFrames = List(190) { frame() }
     assertTrue(treatFrames.all { it.x == start.x && it.z == start.z })
-    assertTrue(treatFrames.any { it.clip == "TurnLeft" })
+    assertTrue(treatFrames.all { abs(it.yawDegrees - 90f) < 0.001f && !it.clip.startsWith("Turn") })
     assertEquals(90f, treatFrames.first { it.clip == "EatDrinkStart" }.yawDegrees, 0.001f)
     assertTrue(treatFrames.any { it.clip == "Eat" || it.clip == "EatTear" })
     assertNull(leader.careItem)
     assertTrue(leader.canGiveCare)
   }
 
-  @Test fun spinMakesExactlyOneFullTurnWithoutTranslatingAndStaysStoppedAfterward() {
+  @Test fun spinMakesExactlyOneFullTurnWithoutTranslatingThenAutomaticallyResumesWalking() {
     val leader = DogLeader()
     val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
     leader.requestAction("spin")
     var previousYaw = initial.yawDegrees
     var turned = 0f
     var dog = initial
-    for (i in 1..152) {
+    for (i in 1..160) {
       dog = leader.update(0.02f, i * 0.01f, -i * 0.02f, 1f, 0f, floor)
       val delta = Math.toRadians((dog.yawDegrees - previousYaw).toDouble())
       turned += Math.toDegrees(atan2(sin(delta), cos(delta))).toFloat()
@@ -97,16 +239,50 @@ class DogLeaderTest {
       assertEquals(initial.x, dog.x, 0.0001f)
       assertEquals(initial.z, dog.z, 0.0001f)
       if (i == 75) assertEquals("TurnLeft", dog.clip)
+      if (!dog.spinning) break
     }
     assertEquals(360f, turned, 0.02f)
     assertFalse(dog.spinning)
-    for (i in 1..200) dog = leader.update(0.02f, 3f, -5f, 1f, 0f, floor)
-    assertEquals(initial.x, dog.x, 0.0001f)
-    assertEquals(initial.z, dog.z, 0.0001f)
-    assertEquals("Idle", dog.clip)
-    leader.requestAction("go")
-    for (i in 1..150) dog = leader.update(0.02f, 3f, -5f, 1f, 0f, floor)
+    assertTrue(dog.scriptedFacing)
+    val completed = dog
+    dog = leader.update(0.02f, 3f, -5f, 1f, 0f, floor)
+    assertTrue(dog.turningToMove || hypot(dog.x - completed.x, dog.z - completed.z) > 0f)
+    for (i in 1..100) dog = leader.update(0.02f, 3f, -5f, 1f, 0f, floor)
     assertTrue(hypot(dog.x - initial.x, dog.z - initial.z) > 0.1f)
+  }
+
+  @Test fun spinResumesAfterAnEarlierSitOrStopAndTrackingInterruption() {
+    for (hold in listOf("sit", "stop")) {
+      val leader = DogLeader()
+      val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+      leader.requestAction(hold)
+      leader.update(0.02f, 0f, 0f, 0f, -1f, floor)
+      leader.requestAction("spin")
+      repeat(160) { leader.update(0.02f, 0f, -0.5f, 0f, -1f, floor) }
+      val resumed = leader.update(0.02f, 0f, -0.5f, 0f, -1f, floor)
+      assertTrue(resumed.z < initial.z)
+      leader.requestAction("spin")
+      leader.update(0.02f, 0f, -1f, 0f, -1f, floor)
+      leader.pauseTracking()
+      leader.update(0f, 0f, -1f, 0f, -1f, floor)
+      val recovered = leader.update(0.02f, 0f, -1f, 0f, -1f, floor)
+      assertFalse(recovered.spinning)
+      assertTrue(recovered.speedMetersPerSecond > 0f)
+    }
+  }
+
+  @Test fun stationaryDogDoesNotPlayOrdinaryTurnClipsWhenTheCameraHeadingChanges() {
+    val leader = DogLeader()
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    // A small view change leaves the target inside the 18cm arrival radius.
+    for (i in 1..100) {
+      val dog = leader.update(0.02f, 0f, 0f, 0.1f, -0.995f, floor)
+      assertEquals(initial.x, dog.x, 0f)
+      assertEquals(initial.z, dog.z, 0f)
+      assertEquals(0f, dog.speedMetersPerSecond, 0f)
+      assertFalse(dog.moving)
+      assertFalse(dog.clip.startsWith("Turn"))
+    }
   }
 
   @Test fun repeatedSpinDoesNotRestartAndExplicitStopOrTrackingPauseCancelsIt() {
@@ -299,7 +475,7 @@ class DogLeaderTest {
     assertFalse(dog.poopDeposited)
   }
 
-  @Test fun userActuallyCrossingBlockedGroundReopensNormalWalk() {
+  @Test fun trustedUserGroundStillRespectsDetectedWalls() {
     val leader = DogLeader()
     val region = UserWalkRegion()
     region.update(0f, 0f, 0f)
@@ -312,8 +488,12 @@ class DogLeaderTest {
     for (i in 24 downTo 5) region.update(0f, -i * 0.1f, 0f)
     leader.setTrustedGround(region::heightAt)
     for (i in 1..200) dog = leader.update(0.02f, 0f, -0.5f, 0f, -1f) { _, _ -> null }
-    assertTrue("Must cross a false-positive wall inside the user region", dog.z < -1.3f)
+    assertTrue("Detected wall must block even inside the user region", dog.z > -1.8f)
     assertFalse(dog.ignoresObstacles)
+    assertTrue(dog.blocked)
+    leader.updateWalls(emptyList())
+    for (i in 1..200) dog = leader.update(0.02f, 0f, -0.5f, 0f, -1f) { _, _ -> null }
+    assertTrue("Unknown floor is traversable after the wall disappears", dog.z < -1.8f)
     assertFalse(dog.blocked)
   }
 
@@ -365,7 +545,8 @@ class DogLeaderTest {
     for (i in 1..400) dog = leader.update(0.02f, 0f, 0f, 1f, 0f, floor)
     assertEquals(1.6f, dog.x, 0.1f)
     assertEquals(0f, dog.z, 0.1f)
-    assertTrue("Called dog should face the user", sin(Math.toRadians(dog.yawDegrees.toDouble())) < -0.9)
+    val arrivedYaw = Math.toRadians(dog.yawDegrees.toDouble())
+    assertTrue("Called dog should arrive head-first along its diagonal path", (sin(arrivedYaw) + cos(arrivedYaw)) / sqrt(2.0) > 0.99)
     for (i in 1..200) dog = leader.update(0.02f, 0f, 0f, 0f, 1f, floor)
     assertEquals(0f, dog.x, 0.1f)
     assertEquals(1.6f, dog.z, 0.1f)
@@ -441,7 +622,7 @@ class DogLeaderTest {
     val leader = DogLeader()
     val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
     var dog = initial
-    for (i in 1..40) dog = leader.update(0.02f, 0f, 2f, 0f, -1f, floor)
+    for (i in 1..100) dog = leader.update(0.02f, 0f, 2f, 0f, -1f, floor)
     assertTrue(dog.z > initial.z + 0.2f)
   }
 
@@ -487,16 +668,36 @@ class DogLeaderTest {
     assertFalse(leader.update(0f, 0f, 0f, 0f, -1f, floor).visible)
   }
 
-  @Test fun turnAroundTravelsContinuouslyAndPassesWalker() {
+  @Test fun lookingAroundWhileStationaryDoesNotMoveOrTurnTheDog() {
     val leader = DogLeader()
-    var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    val initial = leader.update(0f, 0f, 0f, 0f, -1f, floor)
     for (i in 1..400) {
       val next = leader.update(0.02f, 0f, 0f, 0f, 1f, floor)
-      assertTrue(hypot(next.x - dog.x, next.z - dog.z) <= 3.6f * 0.02f + 0.001f)
-      assertTrue(hypot(next.x, next.z) >= 0.44f)
-      dog = next
+      assertEquals(initial.x, next.x, 0f)
+      assertEquals(initial.z, next.z, 0f)
+      assertEquals(initial.yawDegrees, next.yawDegrees, 0f)
+      assertEquals(0f, next.speedMetersPerSecond, 0f)
     }
-    assertTrue("Dog should reach the new forward side: $dog", dog.z > 0.7f)
+  }
+
+  @Test fun steadyWalkIgnoresPhoneDirectionAndSettlesWithoutRestartingFromSmallSway() {
+    val leader = DogLeader()
+    var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var stoppedFrames = 0
+    for (i in 1..400) {
+      dog = leader.update(0.02f, 0f, -i * 0.02f, sin(i * 0.03f), cos(i * 0.03f), floor)
+      if (i > 100 && dog.speedMetersPerSecond < 0.1f) stoppedFrames++
+      assertEquals(0f, dog.x, 0.01f)
+    }
+    assertEquals("Steady walking should not repeatedly stop", 0, stoppedFrames)
+    repeat(200) { dog = leader.update(0.02f, 0f, -8f, 1f, 0f, floor) }
+    val resting = dog
+    repeat(300) { i ->
+      dog = leader.update(0.02f, 0.015f * sin(i * 0.1f), -8f, 1f, 0f, floor)
+      assertEquals(resting.x, dog.x, 0f)
+      assertEquals(resting.z, dog.z, 0f)
+      assertEquals(0f, dog.speedMetersPerSecond, 0f)
+    }
   }
 
   @Test fun backingUpMakesDogFaceWalkerAndFollow() {
@@ -627,21 +828,25 @@ class DogLeaderTest {
     }
   }
 
-  @Test fun finiteWallIsBypassedWithSideStepsWithoutCrossing() {
+  @Test fun finiteWallIsBypassedHeadFirstWithoutSideStepsOrCrossing() {
     val leader = DogLeader()
     val wall = WallSegment(-0.5f, -2.4f, 0.5f, -2.4f)
     var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
     leader.updateWalls(listOf(wall))
-    var sawSideStep = false
     for (i in 1..500) {
       val cameraZ = -min(i * 0.01f, 1.5f)
       val next = leader.update(0.02f, 0f, cameraZ, 0f, -1f, floor)
       assertFalse("Crossed wall: $dog -> $next", wall.blocks(dog.x, dog.z, next.x, next.z, dog.y, DOG_BODY_RADIUS, DOG_MODEL_UNITS))
-      if (next.clip == "WalkLeft" || next.clip == "WalkRight") sawSideStep = true
+      val dx = next.x - dog.x; val dz = next.z - dog.z
+      val distance = hypot(dx, dz)
+      if (distance > 0.00001f) {
+        val yaw = Math.toRadians(next.yawDegrees.toDouble())
+        assertTrue((dx * sin(yaw) + dz * cos(yaw)) / distance > 0.999)
+        assertFalse(next.clip.contains("Back") || next.clip.endsWith("Left") || next.clip.endsWith("Right"))
+      }
       dog = next
     }
     assertTrue("Dog should get around wall: $dog", dog.z < -2.1f)
-    assertTrue("Wall bypass should use side-step animation", sawSideStep)
   }
 
   @Test fun placementCannotPutDogBehindRecognizedWall() {

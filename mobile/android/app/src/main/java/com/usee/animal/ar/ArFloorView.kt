@@ -158,7 +158,7 @@ class ArFloorView(
         if (leader.requestAttention()) dogNode?.startAttention()
       } else {
         dogNode?.cancelAttention()
-        leader.requestAction(action)
+        leader.requestAction(action, visibleHeadingDegrees = dogNode?.rotation?.y)
       }
     }
   }
@@ -426,8 +426,7 @@ class ArFloorView(
         inverseProjection, 2f * careRequest.x - 1f, 1f - 2f * careRequest.y, 0.35f,
       )
       val origin = cameraPose.transformPoint(floatArrayOf(launch.x, launch.y, launch.z))
-      leader.giveCare(careRequest.action, LeashPoint(origin[0], origin[1], origin[2]),
-        cameraPose.tx(), cameraPose.tz())
+      leader.giveCare(careRequest.action, LeashPoint(origin[0], origin[1], origin[2]))
     }
     updateCareItem(cameraPose.tx(), cameraPose.tz())
     val node = dogNode
@@ -441,15 +440,14 @@ class ArFloorView(
       if (shown.dog.visible) {
         node.position = Position(shown.dog.x, shown.dog.y + pawLift(node), shown.dog.z)
         val previousHeading = node.rotation.y
-        val heading = if (shown.dog.spinning || shown.dog.scriptedFacing) dogHeading.snap(shown.dog.yawDegrees)
-          else dogHeading.update(shown.dog.yawDegrees, rotationDt,
-            paused = shown.dog.blocked || shown.dog.motionPaused)
+        val heading = dogHeading.update(shown.dog, rotationDt)
         node.rotation = Rotation(y = heading)
         shadow?.position = Position(shown.dog.x, shown.dog.y + 0.006f, shown.dog.z)
         node.play(renderTurnAnimation(
           DogAnimation(shown.dog.clip, shown.dog.clipLoop, shown.dog.animationRevision, shown.dog.animationPlaybackRate),
           previousHeading, heading, rotationDt,
           shown.dog.speedMetersPerSecond, shown.dog.blocked, shown.dog.motionPaused,
+          scriptedTurn = shown.dog.spinning || shown.dog.scriptedFacing || shown.dog.turningToMove,
         ))
       } else {
         dogHeading.pause()

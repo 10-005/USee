@@ -36,8 +36,10 @@ internal class UserWalkRegion {
     val cellX = floor(x / 0.2f).toInt()
     val cellZ = floor(z / 0.2f).toInt()
     var nearest: Ground? = null
-    var nearestDistance = 0.35f
-    for (dx in -2..2) for (dz in -2..2) {
+    // Trust half a meter around the user's current position and recorded path.
+    // A 0.5 m radius can span three 0.2 m cells across a cell boundary.
+    var nearestDistance = 0.5f
+    for (dx in -3..3) for (dz in -3..3) {
       val point = trail[Cell(cellX + dx, cellZ + dz)] ?: continue
       val distance = hypot(point.x - x, point.z - z)
       if (distance <= nearestDistance) { nearest = point; nearestDistance = distance }
