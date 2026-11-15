@@ -4,6 +4,18 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DogAnimationControllerTest {
+  @Test fun runningWalkerSelectsRunningGaitWithoutRunningDuringSlowDetoursOrStops() {
+    val controller = DogAnimationController()
+    fun move(user: Float, dog: Float) = controller.update(0.02f, user, dog, dog, 0f, 0f, 0f, headFirst = true)
+    assertEquals("Gallop", move(2.1f, 1.8f).clip)
+    assertEquals("Gallop", move(1.9f, 1.8f).clip)
+    assertEquals("RunFast", move(3.2f, 2.8f).clip)
+    assertEquals("RunFast", move(2.9f, 2.8f).clip)
+    assertEquals("Walk", move(3.2f, 0.8f).clip)
+    repeat(10) { move(3.2f, 0f) }
+    assertEquals("Idle", controller.current.clip)
+    assertEquals("Walk", move(1f, 1f).clip)
+  }
   private fun tick(controller: DogAnimationController, seconds: Float) {
     repeat((seconds / 0.02f).toInt()) {
       controller.update(0.02f, 0f, 0f, 0f, 0f, 0f, 0f)

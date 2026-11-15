@@ -3,7 +3,7 @@ package com.usee.animal.ar
 import kotlin.math.abs
 import kotlin.math.sign
 
-/** Match visual turns to translation; a stationary turn must never become a walking gait. */
+/** Ordinary turn clips require translation; explicit spin/care actions keep their own poses. */
 internal fun renderTurnAnimation(
   animation: DogAnimation,
   previousHeading: Float,
@@ -12,18 +12,18 @@ internal fun renderTurnAnimation(
   speedMetersPerSecond: Float,
   blocked: Boolean,
   motionPaused: Boolean,
+  scriptedTurn: Boolean = false,
 ): DogAnimation {
-  if (blocked || motionPaused) {
+  if (scriptedTurn) return animation
+  if (blocked || motionPaused || speedMetersPerSecond <= 0.07f) {
     return if (DogAnimationController.isLocomotion(animation.clip)) DogAnimation() else animation
   }
   if (dt <= 0f || dt > 0.25f ||
     (animation.clip != "Idle" && !animation.clip.startsWith("Turn"))) return animation
   val delta = ((heading - previousHeading + 180f) % 360f + 360f) % 360f - 180f
   if (abs(delta / dt) < 5f) return animation
-  val side = if (delta > 0f) "Left" else "Right"
   // A stable revision avoids restarting the loop while visual rotation settles.
-  return if (speedMetersPerSecond > 0.07f) DogAnimation("Walk$side", true, -2, 0.8f)
-    else DogAnimation("Turn$side", true, -2)
+  return DogAnimation("Walk", true, -2, 0.8f)
 }
 
 /** Remembers visual facing independently of navigation and collision decisions. Angles are degrees. */
@@ -49,6 +49,12 @@ internal class DogHeadingSmoother {
     reset()
     return update(desired, 0f)
   }
+
+  fun update(dog: DogFrame, deltaSeconds: Float): Float =
+    if (dog.spinning || dog.scriptedFacing || dog.turningToMove ||
+      !dog.blocked && !dog.motionPaused && dog.speedMetersPerSecond > 0f) snap(dog.yawDegrees)
+    else update(dog.yawDegrees, deltaSeconds,
+      paused = dog.blocked || dog.motionPaused || dog.speedMetersPerSecond <= 0.07f)
 
   fun update(desired: Float, deltaSeconds: Float, paused: Boolean = false): Float {
     // Drop the old turn target and momentum instead of finishing it during a stop.

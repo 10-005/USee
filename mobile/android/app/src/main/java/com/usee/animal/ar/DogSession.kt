@@ -94,9 +94,19 @@ internal fun updateDog(
   if (scratch.groundLevel.isEstimated && detectedGround != null) scratch.userGround.clear()
   val userGroundY = scratch.groundLevel.update(detectedGround, cameraY - 1.35f, scratch.planesTimestamp)
   scratch.userGround.update(pose.tx(), pose.tz(), userGroundY)
-  leader.setTrustedGround(scratch.userGround::heightAt)
+  fun obstacleAt(x: Float, ground: Float, z: Float): Boolean {
+    val geometry = scratch.depth.latest?.evidence(x, ground, z, semanticNow) ?: FloorEvidence.UNKNOWN
+    if (geometry == FloorEvidence.OBSTACLE) return true
+    return geometry == FloorEvidence.UNKNOWN && !semanticFailed &&
+      floorMask?.evidenceAt(x, ground, z, semanticNow) == FloorEvidence.OBSTACLE
+  }
+  fun trustedFloor(x: Float, z: Float): Float? = scratch.userGround.heightAt(x, z)
+    ?.takeUnless { obstacleAt(x, it, z) }
+  leader.setTrustedGround(::trustedFloor)
   leader.setRouteGround { x, z ->
-    scratch.userGround.heightAt(x, z) ?: floorYAt(scratch.planes, cameraY, x, z, userGroundY)?.takeIf { ground ->
+    val trusted = scratch.userGround.heightAt(x, z)
+    if (trusted != null) trustedFloor(x, z)
+    else floorYAt(scratch.planes, cameraY, x, z, userGroundY)?.takeIf { ground ->
       when (scratch.depth.latest?.evidence(x, ground, z, semanticNow) ?: FloorEvidence.UNKNOWN) {
         FloorEvidence.CLEAR -> true
         FloorEvidence.OBSTACLE -> false
@@ -107,7 +117,13 @@ internal fun updateDog(
   }
   leader.beginNavigationFrame()
   fun walkableFloor(x: Float, z: Float): Float? {
-    scratch.userGround.heightAt(x, z)?.let { return it }
+    scratch.userGround.heightAt(x, z)?.let {
+      if (obstacleAt(x, it, z)) {
+        leader.observeNavigation(false, "장애물")
+        return null
+      }
+      return it
+    }
     val ground = floorYAt(scratch.planes, cameraY, x, z, userGroundY)
     val geometry = ground?.let { scratch.depth.latest?.evidence(x, it, z, semanticNow) } ?: FloorEvidence.UNKNOWN
     val evidence = if (geometry != FloorEvidence.UNKNOWN) geometry
