@@ -19,6 +19,13 @@ const encodeFrame = (command: string, headers: Record<string, string>, body = ''
 export class ChatSocket {
   private socket?: WebSocket;
   private connected = false;
+  private roomListListeners = new Set<() => void>();
+
+  observeRoomList(listener: () => void) {
+    this.connect();
+    this.roomListListeners.add(listener);
+    return () => { this.roomListListeners.delete(listener); };
+  }
   private queue: string[] = [];
   private subscriptions = new Map<string, (message: ChatMessageView) => void>();
   private readListeners = new Set<{
@@ -72,8 +79,10 @@ export class ChatSocket {
     this.socket.onclose = () => {
       this.connected = false;
       this.socket = undefined;
-      if (this.subscriptions.size > 0) {
-        setTimeout(() => this.connect(), 1500);
+      if (this.subscriptions.size || this.roomListListeners.size) {
+        setTimeout(() => {
+          if (this.subscriptions.size || this.roomListListeners.size) this.connect();
+        }, 1500);
       }
     };
   }
@@ -154,6 +163,7 @@ export class ChatSocket {
           }),
         );
         this.readListeners.forEach(listener => listener.onConnect());
+        this.roomListListeners.forEach(listener => listener());
         this.subscriptions.forEach((_, destination) => this.sendSubscription(destination));
         this.queue.splice(0).forEach(item => this.socket?.send(item));
       } else if (command === 'MESSAGE' && divider >= 0) {
@@ -161,6 +171,9 @@ export class ChatSocket {
         if (headers.subscription === 'room-updates') {
           const update = JSON.parse(frame.slice(divider + 2));
           const room = update.room;
+          if (update.type === 'MESSAGE') {
+            this.roomListListeners.forEach(listener => listener());
+          }
           if (
             update.type === 'COUNTERPART_READ' &&
             Number.isSafeInteger(room?.chatRoomSeq) &&
