@@ -149,7 +149,7 @@ it('adds from detail, resets to zero, shows toast and updates the cart badge', (
     screen = renderer.create(
       wrap(
         <ProductDetailScreen
-          navigation={{ navigate: jest.fn() } as never}
+          navigation={{ navigate: jest.fn(), popTo: jest.fn() } as never}
           route={{
             key: 'detail',
             name: 'ShopProductDetail',
@@ -168,9 +168,9 @@ it('adds from detail, resets to zero, shows toast and updates the cart badge', (
         node.props.onPress &&
         node.findAllByProps({ children: '장바구니 담기' }).length > 0,
     )[0];
-  expect(minus().props.disabled).toBe(true);
-  expect(add().props.disabled).toBe(true);
-  for (let i = 0; i < 10; i += 1) {
+  expect(minus().props.disabled).toBe(false);
+  expect(add().props.disabled).toBe(false);
+  for (let i = 0; i < 9; i += 1) {
     act(() => plus().props.onPress());
   }
   expect(plus().props.disabled).toBe(true);
@@ -436,12 +436,13 @@ it('dismisses the keyboard on list drag or touch and keeps sorting in a bottom s
 });
 
 it('adds the chosen quantity from detail', () => {
+  const popTo = jest.fn();
   let screen!: renderer.ReactTestRenderer;
   act(() => {
     screen = renderer.create(
       wrap(
         <ProductDetailScreen
-          navigation={{ navigate: jest.fn() } as never}
+          navigation={{ popTo } as never}
           route={{
             key: 'detail',
             name: 'ShopProductDetail',
@@ -451,9 +452,6 @@ it('adds the chosen quantity from detail', () => {
       ),
     );
   });
-  act(() =>
-    screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 수량 늘리기' }).props.onPress(),
-  );
   expect(
     screen.root.findByProps({ accessibilityLabel: '균형 잡힌 사료 수량 늘리기' }).props
       .accessibilityState.disabled,
@@ -472,6 +470,7 @@ it('adds the chosen quantity from detail', () => {
   )[0];
   act(() => addButton.props.onPress());
   expect(useShopStore.getState().cart.food).toBe(1);
+  expect(popTo).toHaveBeenCalledWith('PetShop', { petId: 'dog-1' });
   act(() => screen.unmount());
 });
 

@@ -88,6 +88,12 @@ export function LostReportFormScreen({ navigation, route }: Props) {
   const [activeReportDialogVisible, setActiveReportDialogVisible] = useState(false);
 
   useEffect(() => {
+    if (!isEditing && !details.lostAt) {
+      updateDetails({ lostAt: new Date().toISOString() });
+    }
+  }, [details.lostAt, isEditing, updateDetails]);
+
+  useEffect(() => {
     loadProfile().catch(() => undefined);
   }, [loadProfile]);
 
