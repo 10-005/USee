@@ -36,6 +36,12 @@ spec:
 
               discovery.relabel "pods" {
                 targets = discovery.kubernetes.pods.targets
+                // 퇴거(Evicted)된 옛 Pod는 컨테이너가 없어 "unable to retrieve container logs" 줄만 쌓이므로 뺀다
+                rule {
+                  source_labels = ["__meta_kubernetes_pod_phase"]
+                  regex         = "Failed|Succeeded"
+                  action        = "drop"
+                }
                 rule {
                   source_labels = ["__meta_kubernetes_namespace"]
                   target_label  = "namespace"
