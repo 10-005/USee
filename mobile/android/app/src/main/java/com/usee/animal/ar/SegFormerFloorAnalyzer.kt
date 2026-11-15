@@ -4,7 +4,6 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
-import android.graphics.Bitmap
 import android.media.Image
 import android.os.SystemClock
 import android.util.Log
@@ -26,43 +25,70 @@ internal class SegFormerFloorAnalyzer(context: Context) : AutoCloseable {
   @Volatile private var session: OrtSession? = null
   @Volatile var latest: SemanticFloorMask? = null
     private set
-  @Volatile var failed = false
-    private set
+  private val retry = AnalysisRetryPolicy()
+  val failed get() = retry.failed
+  private val modelInput = YuvModelInput()
+  private var outputValues = FloatArray(0)
+  private val cameraRotation = FloatArray(4)
+  private val submittedRotation = FloatArray(4)
+  private var submittedX = 0f
+  private var submittedY = 0f
+  private var submittedZ = 0f
   private var lastSubmission = 0L
   private var lastFrameTimestamp = 0L
   private var lastDiagnostic = 0L
 
-  init {
+  init { initialize() }
+
+  private fun initialize() {
+    if (closed || !busy.compareAndSet(false, true)) return
     worker.execute {
       try {
+        session?.close()
+        session = null
         OrtSession.SessionOptions().use { options ->
           options.setIntraOpNumThreads(2)
           options.setInterOpNumThreads(1)
           session = OrtEnvironment.getEnvironment().createSession(
             assets.open("models/segformer/model.onnx").use { it.readBytes() }, options,
           )
-          Log.i(TAG, "SegFormer initialized")
         }
+        retry.initialized()
+        Log.i(TAG, "SegFormer initialized")
       } catch (error: Exception) {
-        failed = true
-        Log.e(TAG, "Cannot initialize SegFormer", error)
+        retry.fail(SystemClock.elapsedRealtimeNanos())
+        Log.e(TAG, "Cannot initialize SegFormer; retry scheduled", error)
+      } finally {
+        busy.set(false)
       }
     }
   }
 
-  fun submit(frame: Frame, rotation: Int) {
+  fun submit(frame: Frame, rotation: Int, active: Boolean = true, reducedWorkload: Boolean = false) {
     val diagnosticNow = SystemClock.elapsedRealtimeNanos()
     if (BuildConfig.DEBUG && diagnosticNow - lastDiagnostic > 3_000_000_000L) {
       lastDiagnostic = diagnosticNow
       Log.d(TAG, "ready=${session != null}, busy=${busy.get()}, tracking=${frame.camera.trackingState}, resultAgeMs=${latest?.let { (diagnosticNow - it.capturedAtNanos) / 1_000_000 }}, failed=$failed")
     }
-    if (closed || failed || session == null) return
+    if (closed) return
+    if (failed || session == null) {
+      if (retry.canAttempt(diagnosticNow)) initialize()
+      return
+    }
     if (frame.camera.trackingState != TrackingState.TRACKING) {
       invalidate()
       return
     }
     val now = SystemClock.elapsedRealtimeNanos()
-    if (frame.timestamp == lastFrameTimestamp || now - lastSubmission < 250_000_000L || !busy.compareAndSet(false, true)) return
+    val pose = frame.camera.pose
+    pose.getRotationQuaternion(cameraRotation, 0)
+    val moved = kotlin.math.abs(pose.tx() - submittedX) + kotlin.math.abs(pose.ty() - submittedY) +
+      kotlin.math.abs(pose.tz() - submittedZ) > 0.05f
+    var rotationDot = 0f
+    for (i in 0..3) rotationDot += cameraRotation[i] * submittedRotation[i]
+    val turned = kotlin.math.abs(rotationDot) < 0.9975f
+    val interval = analysisIntervalNanos(active || moved || turned, reducedWorkload)
+    if (frame.timestamp == lastFrameTimestamp || now - lastSubmission < interval || !busy.compareAndSet(false, true)) return
     val image = try { frame.acquireCameraImage() } catch (_: NotYetAvailableException) {
       busy.set(false)
       return
@@ -72,6 +98,8 @@ internal class SegFormerFloorAnalyzer(context: Context) : AutoCloseable {
     }
     lastSubmission = now
     lastFrameTimestamp = frame.timestamp
+    submittedX = pose.tx(); submittedY = pose.ty(); submittedZ = pose.tz()
+    cameraRotation.copyInto(submittedRotation)
     val intrinsics = frame.camera.imageIntrinsics
     val focal = intrinsics.focalLength
     val center = intrinsics.principalPoint
@@ -84,13 +112,18 @@ internal class SegFormerFloorAnalyzer(context: Context) : AutoCloseable {
         val input = try { prepare(image, rotation) } finally { image.close() }
         val environment = OrtEnvironment.getEnvironment()
         OnnxTensor.createTensor(environment, FloatBuffer.wrap(input), longArrayOf(1, 3, INPUT_SIZE.toLong(), INPUT_SIZE.toLong())).use { tensor ->
+          val inferenceStartedAt = SystemClock.elapsedRealtimeNanos()
           session!!.run(mapOf("pixel_values" to tensor)).use { result ->
+            val inferenceNanos = SystemClock.elapsedRealtimeNanos() - inferenceStartedAt
             val output = result[0] as OnnxTensor
             val shape = output.info.shape
             require(shape.size == 4 && shape[0] == 1L && shape[1] == 150L) { "Unexpected SegFormer output" }
             val maskWidth = shape[3].toInt()
             val maskHeight = shape[2].toInt()
-            val pixels = SemanticFloorMask.decodeDetails(output.floatBuffer, 150, maskWidth, maskHeight)
+            val outputSize = 150 * maskWidth * maskHeight
+            if (outputValues.size != outputSize) outputValues = FloatArray(outputSize)
+            val pixels = SemanticFloorMask.decodeDetails(output.floatBuffer, 150, maskWidth, maskHeight, outputValues)
+            retry.recover()
             val elapsed = SystemClock.elapsedRealtimeNanos() - now
             if (BuildConfig.DEBUG) Log.d(TAG, "analysisMs=${elapsed / 1_000_000}, accepted=${now > invalidatedAt}, rotation=$rotation")
             if (elapsed > SemanticFloorMask.MAX_AGE_NANOS) {
@@ -99,13 +132,14 @@ internal class SegFormerFloorAnalyzer(context: Context) : AutoCloseable {
             if (!closed && now - invalidatedAt > 0L) latest = SemanticFloorMask(
               maskWidth, maskHeight, pixels.walkable, inverse, focal[0], focal[1], center[0], center[1],
               width, height, rotation, now, pixels.labels, pixels.confident,
+              analysisNanos = elapsed, inferenceNanos = inferenceNanos,
             )
           }
         }
       } catch (error: Exception) {
-        failed = true
+        retry.fail(SystemClock.elapsedRealtimeNanos())
         latest = null
-        Log.e(TAG, "SegFormer inference failed", error)
+        Log.e(TAG, "SegFormer inference failed; retry scheduled", error)
       } finally {
         busy.set(false)
       }
@@ -129,43 +163,10 @@ internal class SegFormerFloorAnalyzer(context: Context) : AutoCloseable {
   }
 
   private fun prepare(image: Image, rotation: Int): FloatArray {
-    val w = image.width
-    val h = image.height
     val planes = image.planes
-    // Image.Plane.buffer crosses JNI on real camera images. Cache it once per plane,
-    // rather than making almost a million JNI calls for every 640x480 frame.
-    val buffers = planes.map { it.buffer.duplicate() }
-    val offsets = buffers.map { it.position() }
-    val rowStrides = planes.map { it.rowStride }
-    val pixelStrides = planes.map { it.pixelStride }
-    val pixels = IntArray(w * h)
-    fun sample(plane: Int, x: Int, y: Int): Int =
-      buffers[plane].get(offsets[plane] + y * rowStrides[plane] + x * pixelStrides[plane]).toInt() and 255
-    for (y in 0 until h) for (x in 0 until w) {
-      val luma = (sample(0, x, y) - 16).coerceAtLeast(0)
-      val u = sample(1, x / 2, y / 2) - 128
-      val v = sample(2, x / 2, y / 2) - 128
-      val r = ((298 * luma + 409 * v + 128) shr 8).coerceIn(0, 255)
-      val g = ((298 * luma - 100 * u - 208 * v + 128) shr 8).coerceIn(0, 255)
-      val b = ((298 * luma + 516 * u + 128) shr 8).coerceIn(0, 255)
-      pixels[y * w + x] = (255 shl 24) or (r shl 16) or (g shl 8) or b
-    }
-    val bitmap = Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888)
-    val matrix = android.graphics.Matrix().apply { postRotate(rotation.toFloat()) }
-    val upright = Bitmap.createBitmap(bitmap, 0, 0, w, h, matrix, true)
-    val scaled = Bitmap.createScaledBitmap(upright, INPUT_SIZE, INPUT_SIZE, true)
-    val rgb = IntArray(INPUT_SIZE * INPUT_SIZE)
-    scaled.getPixels(rgb, 0, INPUT_SIZE, 0, 0, INPUT_SIZE, INPUT_SIZE)
-    val tensor = FloatArray(rgb.size * 3)
-    for (i in rgb.indices) {
-      tensor[i] = (((rgb[i] shr 16) and 255) / 255f - 0.485f) / 0.229f
-      tensor[rgb.size + i] = (((rgb[i] shr 8) and 255) / 255f - 0.456f) / 0.224f
-      tensor[2 * rgb.size + i] = ((rgb[i] and 255) / 255f - 0.406f) / 0.225f
-    }
-    if (scaled !== upright && scaled !== bitmap) scaled.recycle()
-    if (upright !== bitmap) upright.recycle()
-    bitmap.recycle()
-    return tensor
+    return modelInput.prepare(image.width, image.height, rotation,
+      planes.map { it.buffer.duplicate() },
+      planes.map { it.rowStride }.toIntArray(), planes.map { it.pixelStride }.toIntArray())
   }
 
   companion object {

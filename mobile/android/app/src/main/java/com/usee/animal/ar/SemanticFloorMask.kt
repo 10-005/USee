@@ -20,6 +20,8 @@ internal class SemanticFloorMask(
   val capturedAtNanos: Long,
   private val labels: IntArray? = null,
   private val confident: BooleanArray? = null,
+  val analysisNanos: Long? = null,
+  val inferenceNanos: Long? = null,
 ) {
   fun isFresh(now: Long) = now - capturedAtNanos in 0L..MAX_AGE_NANOS
 
@@ -106,11 +108,13 @@ internal class SemanticFloorMask(
       return decodeDetails(logits, classes, width, height).walkable
     }
 
-    fun decodeDetails(logits: FloatBuffer, classes: Int, width: Int, height: Int): SemanticPixels {
+    fun decodeDetails(logits: FloatBuffer, classes: Int, width: Int, height: Int,
+      scratch: FloatArray? = null): SemanticPixels {
       require(classes == 150 && width > 0 && height > 0)
       val pixels = width * height
       require(logits.remaining() == classes * pixels)
-      val values = FloatArray(logits.remaining())
+      val values = scratch ?: FloatArray(logits.remaining())
+      require(values.size == logits.remaining())
       logits.get(values)
       val labels = IntArray(pixels) { -1 }
       val confident = BooleanArray(pixels)

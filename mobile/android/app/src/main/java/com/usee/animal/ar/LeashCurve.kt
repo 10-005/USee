@@ -58,7 +58,7 @@ internal class LeashCurve {
     }
 
     /** Column-major transform: unit-height cylinder's Y axis joins the two endpoints. */
-    fun segmentTransform(start: LeashPoint, end: LeashPoint): FloatArray {
+    fun segmentTransform(start: LeashPoint, end: LeashPoint, result: FloatArray = FloatArray(16)): FloatArray {
       val delta = end - start
       val length = delta.length().coerceAtLeast(0.00001f)
       val up = delta * (1f / length)
@@ -67,12 +67,11 @@ internal class LeashCurve {
         else LeashPoint(1f, 0f, 0f)
       val forward = LeashPoint(right.y * up.z - right.z * up.y, right.z * up.x - right.x * up.z, right.x * up.y - right.y * up.x)
       val center = (start + end) * 0.5f
-      return floatArrayOf(
-        right.x, right.y, right.z, 0f,
-        delta.x, delta.y, delta.z, 0f,
-        forward.x, forward.y, forward.z, 0f,
-        center.x, center.y, center.z, 1f,
-      )
+      result[0] = right.x; result[1] = right.y; result[2] = right.z; result[3] = 0f
+      result[4] = delta.x; result[5] = delta.y; result[6] = delta.z; result[7] = 0f
+      result[8] = forward.x; result[9] = forward.y; result[10] = forward.z; result[11] = 0f
+      result[12] = center.x; result[13] = center.y; result[14] = center.z; result[15] = 1f
+      return result
     }
   }
 }
