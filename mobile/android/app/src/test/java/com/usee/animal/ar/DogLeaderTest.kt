@@ -5,6 +5,20 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun joggingWalkerIsFollowedWithARunningAnimationAndStopsTogether() {
+    val leader = DogLeader()
+    var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    for (i in 1..300) {
+      dog = leader.update(0.02f, 0f, -i * 0.042f, 0f, -1f, floor)
+      if (i > 100) {
+        assertTrue(dog.clip == "Gallop" || dog.clip == "RunFast")
+        assertTrue(dog.speedMetersPerSecond > 1.7f)
+      }
+    }
+    repeat(250) { dog = leader.update(0.02f, 0f, -12.6f, 0f, -1f, floor) }
+    assertEquals(0f, dog.speedMetersPerSecond, 0f)
+    assertFalse(dog.clip == "Gallop" || dog.clip == "RunFast")
+  }
   @Test fun everyNormalStepMovesHeadFirstIncludingRightLeftAndReverseCatchUp() {
     for (direction in listOf(1f to 0f, -1f to 0f, 0f to 1f)) {
       val leader = DogLeader()

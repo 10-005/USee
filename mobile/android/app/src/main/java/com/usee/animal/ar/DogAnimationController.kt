@@ -100,8 +100,14 @@ class DogAnimationController(
       longIdlePlayed = false
       steps = emptyList()
       requested = null
+      // Match the walker's running gait once the dog is moving briskly too.
+      // Slow obstacle detours and stationary commands must not run in place.
+      val walkerRunning = userSpeed >= 2f ||
+        (current.clip == "Gallop" || current.clip == "RunFast") && userSpeed > 1.7f
+      val gaitSpeed = if (headFirst && dogSpeed > 1.2f && walkerRunning)
+        maxOf(dogSpeed, userSpeed, 2.31f) else dogSpeed
       val clip = when {
-        moving -> movementClip(dogSpeed, forwardSpeed, rightSpeed)
+        moving -> movementClip(gaitSpeed, forwardSpeed, rightSpeed)
         turning -> turnClip(turnRate, halfTurn = abs(turnRemaining) > 1.8f)
         else -> "Idle"
       }
@@ -161,7 +167,7 @@ class DogAnimationController(
     if (magnitude > 157.5f) return "WalkBack"
     if (magnitude > 112.5f) return "WalkBack$side"
     val prefix = when {
-      speed > 3f -> "RunFast"
+      speed > 3f || (current.clip.startsWith("RunFast") && speed > 2.7f) -> "RunFast"
       speed > 2.3f || (current.clip.startsWith("Gallop") && speed > 1.7f) -> "Gallop"
       speed > 1.2f || (current.clip.startsWith("Trot") && speed > 0.95f) -> "Trot"
       else -> "Walk"
