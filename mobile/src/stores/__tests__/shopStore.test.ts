@@ -93,6 +93,13 @@ it('contains all 32 products with valid prices and species filters', () => {
   expect(new Set(products.map(p => p.id)).size).toBe(32);
   expect(products.every(p => p.price > 0 && p.market.sources.length > 0)).toBe(true);
   expect(filterProducts('dog', '전체', '', '기본순').some(p => p.species === 'cat')).toBe(false);
+  expect(filterProducts('dog', '전체', '', '기본순').slice(0, 5).map(p => p.name)).toEqual([
+    '밥그릇',
+    '균형 잡힌 사료',
+    '위생 관리 키트',
+    '하네스와 리드줄',
+    '배변봉투',
+  ]);
   expect(filterProducts('cat', '위생', '', '낮은 가격순').every(p => p.category === '위생')).toBe(
     true,
   );
