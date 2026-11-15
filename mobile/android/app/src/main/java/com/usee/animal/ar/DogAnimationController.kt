@@ -89,10 +89,11 @@ class DogAnimationController(
     rightSpeed: Float,
     turnRate: Float,
     turnRemaining: Float,
+    headFirst: Boolean = false,
   ): DogAnimation {
     if (dt <= 0f) return current
-    val moving = dogSpeed > 0.07f
-    val turning = abs(turnRate) > 0.4f && abs(turnRemaining) > 0.12f
+    val moving = dogSpeed > if (headFirst) 0f else 0.07f
+    val turning = abs(turnRate) > 0.4f && abs(turnRemaining) > if (headFirst) 0.05f else 0.12f
     if (moving || turning || userSpeed > 0.16f) {
       stoppedSeconds = 0f
       shortIdlePlayed = false
@@ -104,7 +105,7 @@ class DogAnimationController(
         turning -> turnClip(turnRate, halfTurn = abs(turnRemaining) > 1.8f)
         else -> "Idle"
       }
-      settleMotion(clip, dt)
+      if (headFirst && moving) change(clip, true) else settleMotion(clip, dt)
       return current
     }
 
