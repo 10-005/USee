@@ -299,7 +299,7 @@ class DogLeaderTest {
     assertFalse(dog.poopDeposited)
   }
 
-  @Test fun userActuallyCrossingBlockedGroundReopensNormalWalk() {
+  @Test fun trustedUserGroundStillRespectsDetectedWalls() {
     val leader = DogLeader()
     val region = UserWalkRegion()
     region.update(0f, 0f, 0f)
@@ -312,7 +312,7 @@ class DogLeaderTest {
     for (i in 24 downTo 5) region.update(0f, -i * 0.1f, 0f)
     leader.setTrustedGround(region::heightAt)
     for (i in 1..200) dog = leader.update(0.02f, 0f, -0.5f, 0f, -1f) { _, _ -> null }
-    assertTrue("Must cross a false-positive wall inside the user region", dog.z < -1.3f)
+    assertTrue("Detected wall must block even inside the user region", dog.z > -1.8f)
     assertFalse(dog.ignoresObstacles)
     assertFalse(dog.blocked)
   }
@@ -490,6 +490,10 @@ class DogLeaderTest {
   @Test fun turnAroundTravelsContinuouslyAndPassesWalker() {
     val leader = DogLeader()
     var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    assertTrue(dog.blocked)
+    leader.updateWalls(emptyList())
+    for (i in 1..200) dog = leader.update(0.02f, 0f, -0.5f, 0f, -1f) { _, _ -> null }
+    assertTrue("Unknown floor is traversable after the wall disappears", dog.z < -1.8f)
     for (i in 1..400) {
       val next = leader.update(0.02f, 0f, 0f, 0f, 1f, floor)
       assertTrue(hypot(next.x - dog.x, next.z - dog.z) <= 3.6f * 0.02f + 0.001f)

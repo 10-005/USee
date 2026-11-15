@@ -132,7 +132,7 @@ class DogLeader(
   }
 
   fun canPlaceAt(cameraX: Float, cameraZ: Float, targetX: Float, targetZ: Float, floorY: Float) =
-    trustedSegment(cameraX, cameraZ, targetX, targetZ) || wallAvoidance.isClear(cameraX, cameraZ, targetX, targetZ, floorY)
+    wallAvoidance.isClear(cameraX, cameraZ, targetX, targetZ, floorY)
 
   fun requestPlacement() {
     if (poopStage != null || commandedHold != null || attentionSeconds > 0f) return
@@ -441,8 +441,7 @@ class DogLeader(
       }
     }
     val lookAhead = min(gap, max(0.35f, min(0.8f, speed * 0.4f)))
-    val trustedAhead = trustedSegment(x, z, x + sin(desiredYaw) * lookAhead, z + cos(desiredYaw) * lookAhead)
-    val wallRoute = if (!unrestrictedReturn && !trustedAhead && routeFound && gap > arrivalGap) wallAvoidance.steer(
+    val wallRoute = if (!unrestrictedReturn && routeFound && gap > arrivalGap) wallAvoidance.steer(
       x, z, y, desiredYaw, lookAhead,
       atan2(headingX, headingZ), dt,
     ) else WallRoute(desiredYaw)
@@ -470,7 +469,7 @@ class DogLeader(
     } else if (step > 0f && routeFound) {
       floorRetrySeconds = (floorRetrySeconds - dt).coerceAtLeast(0f)
       val directClear = !wallRoute.detouring && !wallRoute.blocked && avoidsWalker(ux, uz, step, cameraX, cameraZ) &&
-        (trustedSegment(x, z, x + ux * step, z + uz * step) || wallAvoidance.isClear(x, z, x + ux * step, z + uz * step, y))
+        wallAvoidance.isClear(x, z, x + ux * step, z + uz * step, y)
       var ground = if (directClear) stepFloor(ux, uz, step, floorAt) else null
       if (ground != null) floorDirectClearSeconds += dt else floorDirectClearSeconds = 0f
       if (floorDirectClearSeconds >= 0.3f) floorPath.clear()
@@ -484,7 +483,7 @@ class DogLeader(
             { from, to ->
               val trusted = trustedSegment(from.x, from.z, to.x, to.z)
               (trusted || abs(to.y - from.y) <= 0.08f && abs(to.y - y) <= 0.18f) &&
-                (trusted || wallAvoidance.isClear(from.x, from.z, to.x, to.z, from.y)) &&
+                wallAvoidance.isClear(from.x, from.z, to.x, to.z, from.y) &&
                 avoidsWalkerSegment(from.x, from.z, to.x, to.z, cameraX, cameraZ)
             }))
         }
@@ -494,8 +493,7 @@ class DogLeader(
           val sz = (waypoint.z - z) / distanceToWaypoint
           val nextStep = min(step, distanceToWaypoint)
           val nextFloor = if (avoidsWalker(sx, sz, nextStep, cameraX, cameraZ) &&
-            (trustedSegment(x, z, x + sx * nextStep, z + sz * nextStep) ||
-              wallAvoidance.isClear(x, z, x + sx * nextStep, z + sz * nextStep, y))) stepFloor(sx, sz, nextStep, floorAt) else null
+            wallAvoidance.isClear(x, z, x + sx * nextStep, z + sz * nextStep, y)) stepFloor(sx, sz, nextStep, floorAt) else null
           if (nextFloor != null) { ux = sx; uz = sz; ground = nextFloor; routeStep = nextStep }
           else { floorPath.clear(); ground = null }
         }
