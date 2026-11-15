@@ -2,6 +2,7 @@ package com.ssafy.animal.core.auth.adapter.out.kakao
 
 import com.ssafy.animal.common.exception.BusinessException
 import com.ssafy.animal.common.exception.CommonErrorCode
+import com.ssafy.animal.common.web.OutboundLogInterceptor
 import com.ssafy.animal.core.auth.application.port.out.KakaoClient
 import com.ssafy.animal.core.auth.domain.AuthErrorCode
 import org.slf4j.LoggerFactory
@@ -44,7 +45,7 @@ class KakaoApiAdapter(
     )
 
     private val log = LoggerFactory.getLogger(javaClass)
-    private val restClient = restClientBuilder.baseUrl(properties.apiBaseUrl).build()
+    private val restClient = restClientBuilder.baseUrl(properties.apiBaseUrl).requestInterceptor(OutboundLogInterceptor()).build()
 
     override fun fetchKakaoId(kakaoAccessToken: String): String {
         val info = try {

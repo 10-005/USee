@@ -22,7 +22,10 @@ class JwtAuthenticationFilter(
             ?.substring(BEARER_PREFIX.length)
         if (token != null) {
             try {
-                SecurityContextHolder.getContext().authentication = jwtVerifier.verify(token).toAuthentication()
+                val user = jwtVerifier.verify(token)
+                SecurityContextHolder.getContext().authentication = user.toAuthentication()
+                // 요청 로그(RequestLogFilter)가 보안 필터 밖에서 요청자를 기록할 수 있게 남긴다
+                request.setAttribute(AUTH_USER_ATTRIBUTE, user)
             } catch (e: BusinessException) {
                 request.setAttribute(AUTH_ERROR_ATTRIBUTE, e.errorCode)
             }
@@ -33,5 +36,6 @@ class JwtAuthenticationFilter(
     companion object {
         const val BEARER_PREFIX = "Bearer "
         const val AUTH_ERROR_ATTRIBUTE = "com.ssafy.animal.common.auth.AUTH_ERROR"
+        const val AUTH_USER_ATTRIBUTE = "com.ssafy.animal.common.auth.AUTH_USER"
     }
 }

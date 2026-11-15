@@ -1,6 +1,7 @@
 package com.ssafy.animal.core.catalog.adapter.out.naver
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.ssafy.animal.common.web.OutboundLogInterceptor
 import com.ssafy.animal.core.catalog.application.port.`in`.GeocodeCandidate
 import com.ssafy.animal.core.catalog.application.port.out.GeocodingClient
 import org.springframework.beans.factory.annotation.Autowired
@@ -41,6 +42,7 @@ class NaverGeocodingClient(
 
     private val restClient = restClientBuilder
         .baseUrl(properties.apiBaseUrl)
+        .requestInterceptor(OutboundLogInterceptor())
         .defaultHeader("x-ncp-apigw-api-key-id", properties.clientId)
         .defaultHeader("x-ncp-apigw-api-key", properties.clientSecret)
         .build()

@@ -1,6 +1,7 @@
 package com.ssafy.animal.core.found.adapter.out.ai
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.ssafy.animal.common.web.OutboundLogInterceptor
 import com.ssafy.animal.core.found.application.port.`in`.BreedConfidence
 import com.ssafy.animal.core.found.application.port.out.AiBreedCandidate
 import com.ssafy.animal.core.found.application.port.out.AiBreedPrediction
@@ -37,7 +38,7 @@ class HttpBreedPredictionClient(
         ),
     )
 
-    private val restClient = restClientBuilder.baseUrl(properties.baseUrl).build()
+    private val restClient = restClientBuilder.baseUrl(properties.baseUrl).requestInterceptor(OutboundLogInterceptor()).build()
 
     override fun predict(imageUrls: List<String>): AiBreedPrediction {
         check(properties.baseUrl.isNotBlank()) { "AI_BREED_SERVER_URL 미설정" }
