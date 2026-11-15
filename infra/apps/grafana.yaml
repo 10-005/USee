@@ -49,17 +49,23 @@ spec:
                 options:
                   path: /var/lib/grafana/dashboards/default
         # grafana.com 공개 대시보드를 기동 시 내려받는다
+        # revision을 안 적으면 1번(가장 옛 판)을 받는다. datasource를 문자열로 주면 한 줄짜리 "datasource": 만 바꿔서
+        # 여러 줄 객체({uid: ${DS_PROMETHEUS}})가 그대로 남으므로, 목록 형식으로 ${DS_PROMETHEUS} 자체를 치환한다
         dashboards:
           default:
             spring-boot:
               gnetId: 19004 # Spring Boot 3.x Statistics: HTTP 지연·오류, HikariCP, JVM
-              datasource: Prometheus
+              revision: 1
+              datasource:
+                - { name: DS_PROMETHEUS, value: Prometheus }
             jvm-micrometer:
               gnetId: 4701 # JVM (Micrometer)
-              datasource: Prometheus
+              revision: 10
+              datasource:
+                - { name: DS_PROMETHEUS, value: Prometheus }
             node-exporter:
-              gnetId: 1860 # Node Exporter Full: 노드 CPU·메모리·디스크
-              datasource: Prometheus
+              gnetId: 1860 # Node Exporter Full: 노드 CPU·메모리·디스크. 자체 데이터소스 변수(기본값)를 써서 치환 불필요
+              revision: 46
         extraObjects:
           - apiVersion: networking.k8s.io/v1
             kind: Ingress
