@@ -41,7 +41,7 @@ const speciesLabel = (speciesCode?: string): LostReport['species'] =>
 export const mapMissingSummary = (report: MissingReportSummary, isMine: boolean): LostReport => ({
   age: report.age ?? '모름',
   color: report.classification?.colorName ?? '',
-  date: report.occurredDttm.slice(0, 10),
+  date: (report.regDttm ?? report.occurredDttm).slice(0, 10),
   description: '',
   gender: genderLabel(report.gender),
   id: String(report.missingReportSeq),
@@ -58,7 +58,7 @@ export const mapMissingSummary = (report: MissingReportSummary, isMine: boolean)
 export const mapMissingDetail = (report: MissingReportDetail, isMine: boolean): LostReport => ({
   ...mapMissingSummary(report, isMine),
   contact: report.contactPhone ?? undefined,
-  date: formatReportDateTime(report.occurredDttm),
+  date: formatReportDateTime(report.regDttm ?? report.occurredDttm),
   description: report.description ?? '',
   images: imageSources(report.images.map(image => image.imageUrl)),
 });
