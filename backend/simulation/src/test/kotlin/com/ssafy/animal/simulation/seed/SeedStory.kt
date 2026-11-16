@@ -1,6 +1,7 @@
 package com.ssafy.animal.simulation.seed
 
 import com.ssafy.animal.simulation.adapter.out.summary.OpenAiReportSummaryGenerator
+import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.config.LlmConfig
 import com.ssafy.animal.simulation.config.SimulationConfig
 import com.ssafy.animal.simulation.domain.ActionCode
@@ -41,6 +42,12 @@ abstract class SeedStory {
     abstract val plan: Map<Int, String>
     abstract val purchases: Map<Int, List<Pair<Long, Int>>>
 
+    /** 품종. 기본은 말티즈 */
+    open val breed: BreedInfo get() = SeedGame.MALTESE
+
+    /** 같은 세션을 넣을 회원들. 기본은 userSeq 한 명 */
+    open val userSeqs: List<Long> get() = listOf(userSeq)
+
     /** SQL 머리말과 파일 위치 */
     abstract val sql: SeedSql.Header
 
@@ -53,7 +60,7 @@ abstract class SeedStory {
         return OffsetDateTime.of(date, time, start.offset)
     }
 
-    fun newGame() = SeedGame(SeedCatalog.properties, start, userSeq)
+    fun newGame() = SeedGame(SeedCatalog.properties, start, userSeq, breed)
 
     fun play(game: SeedGame = newGame()): SeedGame = game.apply {
         begin(animalName, expectedCost)
@@ -75,7 +82,7 @@ abstract class SeedStory {
     /** 요약 복구 스케줄러(ReportSummaryService)가 만들 입력과 같은 값 */
     fun summaryInput(game: SeedGame): ReportSummaryInput = ReportSummaryInput.of(
         game.session, game.store.reports.single(), game.properties.sessionDuration.toDays().toInt(),
-        breedName = SeedGame.MALTESE.breedName,
+        breedName = breed.breedName,
         referenceCost = game.properties.report.referenceCost[game.session.speciesType],
         care = care(game),
     )
