@@ -120,6 +120,9 @@ class DogLeader(
     }
   }
 
+  private fun clearSegment(ax: Float, az: Float, bx: Float, bz: Float, ground: Float): Boolean =
+    trustedSegment(ax, az, bx, bz) || wallAvoidance.isClear(ax, az, bx, bz, ground)
+
   fun beginNavigationFrame() { floorUncertain = false; floorFailureReason = "" }
   fun observeNavigation(cautious: Boolean, reason: String) {
     floorUncertain = floorUncertain || cautious
@@ -131,7 +134,7 @@ class DogLeader(
   }
 
   fun canPlaceAt(cameraX: Float, cameraZ: Float, targetX: Float, targetZ: Float, floorY: Float) =
-    wallAvoidance.isClear(cameraX, cameraZ, targetX, targetZ, floorY)
+    clearSegment(cameraX, cameraZ, targetX, targetZ, floorY)
 
   internal fun placeFromCenter(cameraX: Float, cameraZ: Float, target: FloorWaypoint): DogFrame? {
     if (requiresPlacement || shortRange || poopStage != null || commandedHold != null || attentionSeconds > 0f ||
@@ -567,7 +570,8 @@ class DogLeader(
       }
     }
     val lookAhead = min(gap, max(0.35f, min(0.8f, speed * 0.4f)))
-    val wallRoute = if (!unrestrictedReturn && routeFound && gap > arrivalGap) wallAvoidance.steer(
+    val wallRoute = if (!unrestrictedReturn && routeFound && gap > arrivalGap &&
+      !trustedSegment(x, z, x + sin(desiredYaw) * lookAhead, z + cos(desiredYaw) * lookAhead)) wallAvoidance.steer(
       x, z, y, desiredYaw, lookAhead,
       atan2(headingX, headingZ), dt,
     ) else WallRoute(desiredYaw)
@@ -609,7 +613,7 @@ class DogLeader(
     } else if (step > 0f && routeFound) {
       floorRetrySeconds = (floorRetrySeconds - dt).coerceAtLeast(0f)
       val directClear = !wallRoute.detouring && !wallRoute.blocked && avoidsWalker(ux, uz, step, cameraX, cameraZ) &&
-        wallAvoidance.isClear(x, z, x + ux * step, z + uz * step, y)
+        clearSegment(x, z, x + ux * step, z + uz * step, y)
       var ground = if (directClear) stepFloor(ux, uz, step, floorAt) else null
       if (ground != null) floorDirectClearSeconds += dt else floorDirectClearSeconds = 0f
       if (floorDirectClearSeconds >= 0.3f) floorPath.clear()
@@ -623,7 +627,7 @@ class DogLeader(
             { from, to ->
               val trusted = trustedSegment(from.x, from.z, to.x, to.z)
               (trusted || abs(to.y - from.y) <= 0.08f && abs(to.y - y) <= 0.18f) &&
-                wallAvoidance.isClear(from.x, from.z, to.x, to.z, from.y) &&
+                clearSegment(from.x, from.z, to.x, to.z, from.y) &&
                 avoidsWalkerSegment(from.x, from.z, to.x, to.z, cameraX, cameraZ, walkerClearance)
             }))
         }
@@ -633,7 +637,7 @@ class DogLeader(
           val sz = (waypoint.z - z) / distanceToWaypoint
           val nextStep = min(step, distanceToWaypoint)
           val nextFloor = if (avoidsWalker(sx, sz, nextStep, cameraX, cameraZ) &&
-            wallAvoidance.isClear(x, z, x + sx * nextStep, z + sz * nextStep, y)) stepFloor(sx, sz, nextStep, floorAt) else null
+            clearSegment(x, z, x + sx * nextStep, z + sz * nextStep, y)) stepFloor(sx, sz, nextStep, floorAt) else null
           if (nextFloor != null) { ux = sx; uz = sz; ground = nextFloor; routeStep = nextStep }
           else { floorPath.clear(); ground = null }
         }
@@ -658,7 +662,7 @@ class DogLeader(
     if (blocked && stopReason.isEmpty()) stopReason = when {
       !routeFound -> "벽·진로 없음"
       !avoidsWalker(ux, uz, step, cameraX, cameraZ) -> "사용자 거리"
-      !wallAvoidance.isClear(x, z, x + ux * step, z + uz * step, y) -> "벽"
+      !clearSegment(x, z, x + ux * step, z + uz * step, y) -> "벽"
       else -> floorFailureReason.ifEmpty { "바닥 미확인" }
     }
     if (!blocked) stopReason = ""

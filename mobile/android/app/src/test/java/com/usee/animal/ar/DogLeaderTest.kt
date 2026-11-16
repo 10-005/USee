@@ -5,6 +5,20 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun followsRecordedUserGroundDespiteConflictingWallAndFloorEvidence() {
+    val leader = DogLeader()
+    val trail = UserWalkRegion()
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    // The user has walked beyond the dog, proving this corridor traversable.
+    for (i in 0..12) trail.update(0f, -i * 0.25f, 0f)
+    leader.setTrustedGround(trail::heightAt)
+    leader.updateWalls(listOf(WallSegment(-1f, -1.85f, 1f, -1.85f)))
+    var dog = leader.update(0.3f, 0f, -3f, 0f, -1f) { _, _ -> null }
+    repeat(100) { dog = leader.update(0.02f, 0f, -3f, 0f, -1f) { _, _ -> null } }
+    assertTrue("Dog must follow the user's recorded corridor: $dog", dog.z < -2f)
+    assertTrue("Unknown ground beyond the trail must still stop the dog", dog.z >= -3.5f)
+  }
+
   @Test fun joggingWalkerIsFollowedWithARunningAnimationAndStopsTogether() {
     val leader = DogLeader()
     var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
@@ -475,7 +489,7 @@ class DogLeaderTest {
     assertFalse(dog.poopDeposited)
   }
 
-  @Test fun trustedUserGroundStillRespectsDetectedWalls() {
+  @Test fun traversingTheBlockedRouteMakesItWalkableWithoutWaitingForWallRemoval() {
     val leader = DogLeader()
     val region = UserWalkRegion()
     region.update(0f, 0f, 0f)
@@ -488,9 +502,9 @@ class DogLeaderTest {
     for (i in 24 downTo 5) region.update(0f, -i * 0.1f, 0f)
     leader.setTrustedGround(region::heightAt)
     for (i in 1..200) dog = leader.update(0.02f, 0f, -0.5f, 0f, -1f) { _, _ -> null }
-    assertTrue("Detected wall must block even inside the user region", dog.z > -1.8f)
+    assertTrue("The recorded user route overrides a conflicting detected wall", dog.z < -1.8f)
     assertFalse(dog.ignoresObstacles)
-    assertTrue(dog.blocked)
+    assertFalse(dog.blocked)
     leader.updateWalls(emptyList())
     for (i in 1..200) dog = leader.update(0.02f, 0f, -0.5f, 0f, -1f) { _, _ -> null }
     assertTrue("Unknown floor is traversable after the wall disappears", dog.z < -1.8f)

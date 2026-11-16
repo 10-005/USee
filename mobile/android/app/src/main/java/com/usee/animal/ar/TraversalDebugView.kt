@@ -79,19 +79,24 @@ internal class TraversalDebugView(context: Context) : View(context) {
           val x = origin[0] + dx * t
           val z = origin[2] + dz * t
           if (userGround.groundY == y && lowLight.nearbyFloor(x, z, origin[0], origin[2], y) != null) {
-            val wall = walls.any { it.blocks(origin[0], origin[2], x, z, y, DOG_BODY_RADIUS, DOG_MODEL_UNITS) }
-            colors[i] = if (wall) RED else GREEN
+            colors[i] = if (hypot(x - origin[0], z - origin[2]) >= LOW_LIGHT_LEAD_METERS - 0.0001f) GREEN else YELLOW
             break
           }
           val trusted = userGround.heightAt(x, z)
-          if (trusted != null && abs(trusted - y) <= 0.18f) { colors[i] = GREEN; break }
+          val clearance = if (lowLight.shortRange) LOW_LIGHT_LEAD_METERS else 0.45f
+          if (trusted != null && abs(trusted - y) <= 0.18f) {
+            val allowed = (!dog.visible || abs(trusted - dog.y) <= 0.18f) &&
+              hypot(x - origin[0], z - origin[2]) >= clearance - 0.0001f
+            colors[i] = if (allowed) GREEN else YELLOW
+            break
+          }
           val ground = floorYAt(planes, origin[1], x, z, userGround.groundY) ?: continue
           if (abs(ground - y) > 0.01f) continue
           val geometry = depth.latest?.evidence(x, ground, z, now) ?: FloorEvidence.UNKNOWN
           if (geometry == FloorEvidence.OBSTACLE) { colors[i] = RED; break }
           if (geometry == FloorEvidence.CLEAR) {
             val allowed = (!dog.visible || abs(ground - dog.y) <= 0.18f) &&
-              hypot(x - origin[0], z - origin[2]) >= 0.45f &&
+              hypot(x - origin[0], z - origin[2]) >= clearance &&
               walls.none { it.blocks(x, z, x, z, ground, DOG_BODY_RADIUS, DOG_MODEL_UNITS) }
             colors[i] = if (allowed) GREEN else YELLOW
             break
@@ -102,7 +107,7 @@ internal class TraversalDebugView(context: Context) : View(context) {
           if (groundClass < 0) { colors[i] = YELLOW; break }
           val floor = walkableFloorAt(planes, origin[1], mask, x, z, now, userGround.groundY)
           val heightAllowed = !dog.visible || abs(ground - dog.y) <= 0.18f
-          val walkerAllowed = hypot(x - origin[0], z - origin[2]) >= 0.45f
+          val walkerAllowed = hypot(x - origin[0], z - origin[2]) >= clearance
           val wallAllowed = walls.none { it.blocks(x, z, x, z, ground, DOG_BODY_RADIUS, DOG_MODEL_UNITS) }
           if (floor != null && heightAllowed && walkerAllowed && wallAllowed) colors[i] = GREEN
           break

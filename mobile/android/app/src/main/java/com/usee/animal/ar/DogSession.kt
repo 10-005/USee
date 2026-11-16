@@ -146,7 +146,6 @@ internal fun updateDog(
   fun nearbyFloor(x: Float, z: Float): Float? =
     scratch.lowLight.nearbyFloor(x, z, pose.tx(), pose.tz(), userGroundY)
   fun trustedFloor(x: Float, z: Float): Float? = nearbyFloor(x, z) ?: scratch.userGround.heightAt(x, z)
-    ?.takeUnless { obstacleObservation(x, it, z) != null }
   leader.setTrustedGround(::trustedFloor)
   leader.setRouteGround { x, z ->
     nearbyFloor(x, z)?.let { return@setRouteGround it }
@@ -163,14 +162,7 @@ internal fun updateDog(
   }
   leader.beginNavigationFrame()
   fun walkableFloor(x: Float, z: Float): Float? {
-    nearbyFloor(x, z)?.let { return it }
-    scratch.userGround.heightAt(x, z)?.let {
-      if (obstacleObservation(x, it, z) != null) {
-        leader.observeNavigation(false, "장애물")
-        return null
-      }
-      return it
-    }
+    trustedFloor(x, z)?.let { return it }
     val ground = floorYAt(scratch.planes, cameraY, x, z, userGroundY)
     val geometry = ground?.let { scratch.depth.latest?.evidence(x, it, z, semanticNow) } ?: FloorEvidence.UNKNOWN
     val evidence = if (geometry != FloorEvidence.UNKNOWN) geometry
