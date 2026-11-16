@@ -25,6 +25,8 @@ internal class SessionScratch {
   val stops = WalkStopStats()
   val diagnostics = WalkDiagnostics()
   val groundLevel = GroundLevelFilter()
+  val lowLight = WalkLowLight()
+  var lastLowLightProbe = -1L
 }
 
 internal data class ShownDog(
@@ -94,16 +96,39 @@ internal fun updateDog(
   if (scratch.groundLevel.isEstimated && detectedGround != null) scratch.userGround.clear()
   val userGroundY = scratch.groundLevel.update(detectedGround, cameraY - 1.35f, scratch.planesTimestamp)
   scratch.userGround.update(pose.tx(), pose.tz(), userGroundY)
-  fun obstacleAt(x: Float, ground: Float, z: Float): Boolean {
-    val geometry = scratch.depth.latest?.evidence(x, ground, z, semanticNow) ?: FloorEvidence.UNKNOWN
-    if (geometry == FloorEvidence.OBSTACLE) return true
-    return geometry == FloorEvidence.UNKNOWN && !semanticFailed &&
-      floorMask?.evidenceAt(x, ground, z, semanticNow) == FloorEvidence.OBSTACLE
+  val lookLength = hypot(scratch.lookWorld[0], scratch.lookWorld[2])
+  val depth = scratch.depth.latest
+  fun obstacleObservation(x: Float, ground: Float, z: Float): Long? {
+    return when (depth?.evidence(x, ground, z, semanticNow) ?: FloorEvidence.UNKNOWN) {
+      FloorEvidence.OBSTACLE -> depth?.observationId
+      FloorEvidence.CLEAR -> null
+      FloorEvidence.UNKNOWN -> floorMask?.takeIf {
+        !semanticFailed && it.evidenceAt(x, ground, z, semanticNow) == FloorEvidence.OBSTACLE
+      }?.capturedAtNanos
+    }
   }
-  fun trustedFloor(x: Float, z: Float): Float? = scratch.userGround.heightAt(x, z)
-    ?.takeUnless { obstacleAt(x, it, z) }
+  if (scratch.lowLight.detected && !scratch.lowLight.shortRange && lookLength > 0.15f) {
+    val observation = maxOf(depth?.observationId ?: -1L, floorMask?.capturedAtNanos ?: -1L)
+    if (observation > scratch.lastLowLightProbe) {
+      scratch.lastLowLightProbe = observation
+      var newestObstacle = -1L
+      for (i in 1..8) {
+        val distance = DOG_LEAD_METERS * i / 8
+        val x = pose.tx() + scratch.lookWorld[0] / lookLength * distance
+        val z = pose.tz() + scratch.lookWorld[2] / lookLength * distance
+        newestObstacle = maxOf(newestObstacle, obstacleObservation(x, userGroundY, z) ?: -1L)
+      }
+      if (newestObstacle >= 0L) scratch.lowLight.observeObstacle(newestObstacle)
+    }
+  }
+  leader.setShortRange(scratch.lowLight.shortRange)
+  fun nearbyFloor(x: Float, z: Float): Float? =
+    scratch.lowLight.nearbyFloor(x, z, pose.tx(), pose.tz(), userGroundY)
+  fun trustedFloor(x: Float, z: Float): Float? = nearbyFloor(x, z) ?: scratch.userGround.heightAt(x, z)
+    ?.takeUnless { obstacleObservation(x, it, z) != null }
   leader.setTrustedGround(::trustedFloor)
   leader.setRouteGround { x, z ->
+    nearbyFloor(x, z)?.let { return@setRouteGround it }
     val trusted = scratch.userGround.heightAt(x, z)
     if (trusted != null) trustedFloor(x, z)
     else floorYAt(scratch.planes, cameraY, x, z, userGroundY)?.takeIf { ground ->
@@ -117,8 +142,9 @@ internal fun updateDog(
   }
   leader.beginNavigationFrame()
   fun walkableFloor(x: Float, z: Float): Float? {
+    nearbyFloor(x, z)?.let { return it }
     scratch.userGround.heightAt(x, z)?.let {
-      if (obstacleAt(x, it, z)) {
+      if (obstacleObservation(x, it, z) != null) {
         leader.observeNavigation(false, "장애물")
         return null
       }
@@ -146,11 +172,10 @@ internal fun updateDog(
     dog.blocked -> dog.stopReason
     else -> ""
   }, SystemClock.elapsedRealtimeNanos(), frameIntervalNanos, floorMask, semanticFailed)
-  val lookLength = hypot(scratch.lookWorld[0], scratch.lookWorld[2])
   var ready = false
   if (!leader.isPlaced && lookLength > 0.15f) {
-    val targetX = pose.tx() + scratch.lookWorld[0] / lookLength * DOG_LEAD_METERS
-    val targetZ = pose.tz() + scratch.lookWorld[2] / lookLength * DOG_LEAD_METERS
+    val targetX = pose.tx() + scratch.lookWorld[0] / lookLength * leader.leadMeters
+    val targetZ = pose.tz() + scratch.lookWorld[2] / lookLength * leader.leadMeters
     val ground = walkableFloor(targetX, targetZ)
     ready = ground != null && leader.canPlaceAt(pose.tx(), pose.tz(), targetX, targetZ, ground)
   }

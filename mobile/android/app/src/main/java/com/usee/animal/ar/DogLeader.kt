@@ -92,6 +92,22 @@ class DogLeader(
   private val wallAvoidance = WallAvoidance(bodyRadius = DOG_BODY_RADIUS, bodyHeight = DOG_MODEL_UNITS)
   private var trustedGround: (Float, Float) -> Float? = { _, _ -> null }
   private var routeGround: ((Float, Float) -> Float?)? = null
+  private var shortRange = false
+  internal val leadMeters get() = if (shortRange) LOW_LIGHT_LEAD_METERS else DOG_LEAD_METERS
+  private val walkerClearance get() = if (shortRange) LOW_LIGHT_LEAD_METERS else 0.45f
+
+  internal fun setShortRange(enabled: Boolean) {
+    if (shortRange == enabled) return
+    shortRange = enabled
+    floorPath.clear()
+    floorRetrySeconds = 0f
+    floorDirectClearSeconds = 0f
+    if (enabled) {
+      returning = false
+      // Re-place through the normal placement checks if the former lead is on blocked ground.
+      if (placed && !recalling && care == null && spinElapsed == null) requestPlacement()
+    }
+  }
 
   internal fun setTrustedGround(provider: (Float, Float) -> Float?) { trustedGround = provider }
   internal fun setRouteGround(provider: (Float, Float) -> Float?) { routeGround = provider }
@@ -141,7 +157,7 @@ class DogLeader(
   }
 
   fun needsUnrestrictedReturn(cameraX: Float, cameraZ: Float): Boolean = placed && poopStage == null && commandedHold == null && attentionSeconds <= 0f &&
-    (recalling || !followingMovement && (returning || leashLength >= 2.6f || hypot(cameraX - x, cameraZ - z) >= 2.6f))
+    (recalling || !shortRange && !followingMovement && (returning || leashLength >= 2.6f || hypot(cameraX - x, cameraZ - z) >= 2.6f))
 
   fun requestAction(action: String, visibleHeadingDegrees: Float? = null) {
     if (!placed || poopStage != null) return
@@ -383,7 +399,7 @@ class DogLeader(
         returning = false
         val ahead = (x - cameraX) * headingX + (z - cameraZ) * headingZ
         val lateral = abs((x - cameraX) * headingZ - (z - cameraZ) * headingX)
-        if (ahead >= DOG_LEAD_METERS - 0.35f && lateral <= 0.4f) catchingUp = false
+        if (ahead >= leadMeters - 0.35f && lateral <= 0.4f) catchingUp = false
         else if (ahead < 0.5f || lateral > 0.8f) catchingUp = true
       }
     }
@@ -395,20 +411,20 @@ class DogLeader(
     }
 
     // Use the confirmed walking direction; looking around must not drag the dog.
-    val lead = if (placed && backing) 1.3f else DOG_LEAD_METERS
-    val prediction = if (placed) 0.25f else 0f
+    val lead = if (placed && backing && !shortRange) 1.3f else leadMeters
+    val prediction = if (placed && !shortRange) 0.25f else 0f
     userMoving = hypot(velocityX, velocityZ) > 0.15f
     val userDistance = hypot(cameraX - x, cameraZ - z)
     // Rendered rope length includes its vertical span and slack. Horizontal distance
     // remains a fallback until a rope sample is available.
-    if (placed && !followingMovement && (leashLength >= 2.6f || userDistance >= 2.6f)) returning = true
+    if (placed && !shortRange && !followingMovement && (leashLength >= 2.6f || userDistance >= 2.6f)) returning = true
     if (returning && userDistance <= DOG_LEAD_METERS + 0.1f && leashLength < 2.6f) returning = false
     val distance = userDistance.coerceAtLeast(0.001f)
     // Leash recall uses the same forward position as initial placement.
-    val targetX = if (recalling) cameraX + headingX * DOG_LEAD_METERS
+    val targetX = if (recalling) cameraX + headingX * leadMeters
       else if (returning) cameraX + (x - cameraX) / distance * 1.5f
       else cameraX + headingX * lead + velocityX * prediction
-    val targetZ = if (recalling) cameraZ + headingZ * DOG_LEAD_METERS
+    val targetZ = if (recalling) cameraZ + headingZ * leadMeters
       else if (returning) cameraZ + (z - cameraZ) / distance * 1.5f
       else cameraZ + headingZ * lead + velocityZ * prediction
     if (placed && placementRequested) {
@@ -458,7 +474,7 @@ class DogLeader(
 
     var navigationTargetX = targetX
     var navigationTargetZ = targetZ
-    if (followingMovement && catchingUp && !recalling) {
+    if (followingMovement && catchingUp && !recalling && !shortRange) {
       val ahead = (x - cameraX) * headingX + (z - cameraZ) * headingZ
       val lateral = (x - cameraX) * headingZ - (z - cameraZ) * headingX
       val finalGap = hypot(targetX - x, targetZ - z).coerceAtLeast(0.0001f)
@@ -492,7 +508,12 @@ class DogLeader(
     val dz = navigationTargetZ - z
     val gap = hypot(dx, dz)
     // A resting dog tolerates small tracking sway; an approaching dog settles closer.
-    val arrivalGap = if (recalling) 0.08f else if (moving) 0.12f else 0.22f
+    val arrivalGap = when {
+      shortRange -> 0.02f
+      recalling -> 0.08f
+      moving -> 0.12f
+      else -> 0.22f
+    }
     var desiredYaw = when {
       gap > arrivalGap -> atan2(dx, dz)
       recalling -> atan2(cameraX - x, cameraZ - z)
@@ -549,7 +570,7 @@ class DogLeader(
     val wantedSpeed = if (routeFound && gap > arrivalGap) min(maxSpeed, catchUpSpeed) else 0f
     val acceleration = if (wantedSpeed > speed) 2.8f else 5f
     speed += (wantedSpeed - speed).coerceIn(-acceleration * dt, acceleration * dt)
-    val step = min(speed * dt, max(0f, gap - if (recalling) 0f else 0.12f))
+    val step = min(speed * dt, max(0f, gap - if (recalling || shortRange) 0f else 0.12f))
     var ux = sin(wallRoute.yaw)
     var uz = cos(wallRoute.yaw)
     var actualSpeed = 0f
@@ -580,7 +601,7 @@ class DogLeader(
               val trusted = trustedSegment(from.x, from.z, to.x, to.z)
               (trusted || abs(to.y - from.y) <= 0.08f && abs(to.y - y) <= 0.18f) &&
                 wallAvoidance.isClear(from.x, from.z, to.x, to.z, from.y) &&
-                avoidsWalkerSegment(from.x, from.z, to.x, to.z, cameraX, cameraZ)
+                avoidsWalkerSegment(from.x, from.z, to.x, to.z, cameraX, cameraZ, walkerClearance)
             }))
         }
         floorPath.firstOrNull()?.let { waypoint ->
@@ -714,7 +735,7 @@ class DogLeader(
     val closest = (-(dx * ux + dz * uz)).coerceIn(0f, distance)
     val currentDistance = hypot(dx, dz)
     val nearestDistance = hypot(dx + ux * closest, dz + uz * closest)
-    return nearestDistance >= min(0.45f, currentDistance) - 0.0001f
+    return nearestDistance >= min(walkerClearance, currentDistance) - 0.0001f
   }
 
   private fun stepFloor(
@@ -753,12 +774,12 @@ class DogLeader(
 
   private companion object {
     const val CARE_STAND_RATE = 0.8f
-    private fun avoidsWalkerSegment(ax: Float, az: Float, bx: Float, bz: Float, cameraX: Float, cameraZ: Float): Boolean {
+    private fun avoidsWalkerSegment(ax: Float, az: Float, bx: Float, bz: Float, cameraX: Float, cameraZ: Float, clearance: Float): Boolean {
       val dx = bx - ax
       val dz = bz - az
       val lengthSquared = dx * dx + dz * dz
       val t = if (lengthSquared < 0.000001f) 0f else (((cameraX - ax) * dx + (cameraZ - az) * dz) / lengthSquared).coerceIn(0f, 1f)
-      return hypot(ax + t * dx - cameraX, az + t * dz - cameraZ) >= min(0.45f, hypot(ax - cameraX, az - cameraZ)) - 0.0001f
+      return hypot(ax + t * dx - cameraX, az + t * dz - cameraZ) >= min(clearance, hypot(ax - cameraX, az - cameraZ)) - 0.0001f
     }
     val ROUTE_OFFSETS = floatArrayOf(0f, -0.9f, 0.9f, -1.7f, 1.7f)
   }

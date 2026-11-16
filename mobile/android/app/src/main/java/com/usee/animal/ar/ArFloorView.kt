@@ -219,6 +219,7 @@ class ArFloorView(
     dogHeading.reset()
     lastDogRotationNanos = 0L
     scratch = SessionScratch()
+    val torch = WalkTorch(scratch.lowLight)
     floorAnalyzer = SegFormerFloorAnalyzer(context)
     wasBlocked = false
     lastEventKey = ""
@@ -234,8 +235,16 @@ class ArFloorView(
       },
     ).apply {
       layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-      onSessionUpdated = { session, frame -> handleFrame(session, frame) }
-      beforeDestroy = { modelLoad.cancel(); releaseSceneResources(this) }
+      onSessionUpdated = { session, frame ->
+        torch.update(session, frame, SystemClock.elapsedRealtimeNanos())
+        handleFrame(session, frame)
+      }
+      onSessionPaused = torch::turnOff
+      beforeDestroy = {
+        session?.let(torch::turnOff)
+        modelLoad.cancel()
+        releaseSceneResources(this)
+      }
       onFrameFailure = {
         post {
           if (sceneView === this) {
@@ -455,7 +464,8 @@ class ArFloorView(
     }
     sceneView?.planeRenderer?.isVisible = false
     if (showTraversalDebug) {
-      traversalDebug?.update(frame, floorAnalyzer?.latest, scratch.planes, scratch.walls, shown.dog, scratch.userGround, scratch.depth)
+      traversalDebug?.update(frame, floorAnalyzer?.latest, scratch.planes, scratch.walls, shown.dog,
+        scratch.userGround, scratch.depth, scratch.lowLight)
     }
     if (camera.trackingState == com.google.ar.core.TrackingState.TRACKING && shown.dog.visible) {
       val dog = shown.dog
@@ -612,6 +622,7 @@ class ArFloorView(
     override fun destroy() {
       if (isDestroyed) return
       onSessionUpdated = null
+      onSessionPaused = null
       beforeDestroy?.invoke()
       beforeDestroy = null
       removeChildNode(fillLight)

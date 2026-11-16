@@ -31,7 +31,7 @@ internal class TraversalDebugView(context: Context) : View(context) {
 
   init { isClickable = false; importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
 
-  fun update(frame: Frame, mask: SemanticFloorMask?, planes: Collection<Plane>, walls: List<WallSegment>, dog: DogFrame, userGround: UserWalkRegion, depth: DepthTerrain) {
+  fun update(frame: Frame, mask: SemanticFloorMask?, planes: Collection<Plane>, walls: List<WallSegment>, dog: DogFrame, userGround: UserWalkRegion, depth: DepthTerrain, lowLight: WalkLowLight) {
     val now = SystemClock.elapsedRealtimeNanos()
     if (width <= 0 || height <= 0 || now < nextUpdate) return
     nextUpdate = now + 250_000_000L
@@ -78,6 +78,11 @@ internal class TraversalDebugView(context: Context) : View(context) {
           if (t <= 0f) continue
           val x = origin[0] + dx * t
           val z = origin[2] + dz * t
+          if (userGround.groundY == y && lowLight.nearbyFloor(x, z, origin[0], origin[2], y) != null) {
+            val wall = walls.any { it.blocks(origin[0], origin[2], x, z, y, DOG_BODY_RADIUS, DOG_MODEL_UNITS) }
+            colors[i] = if (wall) RED else GREEN
+            break
+          }
           val trusted = userGround.heightAt(x, z)
           if (trusted != null && abs(trusted - y) <= 0.18f) { colors[i] = GREEN; break }
           val ground = floorYAt(planes, origin[1], x, z, userGround.groundY) ?: continue
