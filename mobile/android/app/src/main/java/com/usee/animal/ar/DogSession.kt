@@ -26,6 +26,8 @@ internal class SessionScratch {
   val diagnostics = WalkDiagnostics()
   val groundLevel = GroundLevelFilter()
   val lowLight = WalkLowLight()
+  val centerAim = StableFloorAim()
+  var hasSeenDog = false
   var lastLowLightProbe = -1L
 }
 
@@ -42,18 +44,16 @@ internal fun updateDog(
   modelReady: Boolean,
   floorMask: SemanticFloorMask?,
   semanticFailed: Boolean,
+  centerRay: FloatArray?,
 ): ShownDog {
   val camera = frame.camera
   val diagnosticNow = SystemClock.elapsedRealtimeNanos()
   val frameIntervalNanos = if (scratch.lastTimestamp > 0L && frame.timestamp > scratch.lastTimestamp)
     frame.timestamp - scratch.lastTimestamp else null
-  if (!modelReady) {
-    leader.cancelPlacement()
-    return ShownDog("searching", hiddenDog())
-  }
   if (camera.trackingState != TrackingState.TRACKING) {
     leader.cancelPlacement()
     leader.pauseTracking()
+    scratch.centerAim.clear()
     scratch.lastTimestamp = 0L
     scratch.planesTimestamp = 0L
     val now = System.nanoTime()
@@ -66,6 +66,7 @@ internal fun updateDog(
     }
     if (leader.isPlaced) recordStop(scratch, "추적 끊김", diagnosticNow, frameIntervalNanos,
       floorMask, semanticFailed, camera.trackingFailureReason.name)
+    if (!modelReady) return ShownDog("searching", hiddenDog())
     val failed = camera.trackingFailureReason == TrackingFailureReason.CAMERA_UNAVAILABLE
     // Brief tracking noise freezes the model rather than flashing it on/off.
     if (!failed && now - scratch.lostSince < 200_000_000L) return scratch.lastShown
@@ -122,6 +123,20 @@ internal fun updateDog(
     }
   }
   leader.setShortRange(scratch.lowLight.shortRange)
+  val centerTarget = if (centerRay != null && !scratch.lowLight.shortRange) {
+    centerFloorTarget(pose.tx(), cameraY, pose.tz(), centerRay, userGroundY)?.let { estimate ->
+      val measuredY = floorYAt(scratch.planes, cameraY, estimate.x, estimate.z, userGroundY)
+      if (measuredY == null) estimate else centerFloorTarget(pose.tx(), cameraY, pose.tz(), centerRay, measuredY)
+    }?.takeIf { target ->
+      leader.canPlaceAt(pose.tx(), pose.tz(), target.x, target.z, target.y) &&
+        FOOTPRINT.none { (dx, dz) -> obstacleObservation(target.x + dx, target.y, target.z + dz) != null }
+    }
+  } else null
+  val fallbackTarget = scratch.centerAim.update(now, centerTarget)
+  if (!modelReady) {
+    leader.cancelPlacement()
+    return ShownDog("searching", hiddenDog())
+  }
   fun nearbyFloor(x: Float, z: Float): Float? =
     scratch.lowLight.nearbyFloor(x, z, pose.tx(), pose.tz(), userGroundY)
   fun trustedFloor(x: Float, z: Float): Float? = nearbyFloor(x, z) ?: scratch.userGround.heightAt(x, z)
@@ -164,9 +179,15 @@ internal fun updateDog(
     leader.observeNavigation(decision.cautious, if (semanticFailed && decision.height == null) "분석 실패" else decision.reason)
     return decision.height
   }
-  val dog = leader.update(dt, pose.tx(), pose.tz(), scratch.lookWorld[0], scratch.lookWorld[2]) { x, z ->
+  val wasPlaced = leader.isPlaced
+  val normalDog = leader.update(dt, pose.tx(), pose.tz(), scratch.lookWorld[0], scratch.lookWorld[2]) { x, z ->
     walkableFloor(x, z)
   }
+  // Prefer normal placement if it has just succeeded. A dog that was placed
+  // off-screen can still use the center target until the user first sees it.
+  val dog = if (fallbackTarget != null && (wasPlaced || !normalDog.visible)) {
+    leader.placeFromCenter(pose.tx(), pose.tz(), fallbackTarget)?.also { scratch.centerAim.clear() } ?: normalDog
+  } else normalDog
   if (leader.isPlaced) recordStop(scratch, when {
     dt > 0.25f -> "프레임 지연"
     dog.blocked -> dog.stopReason

@@ -239,7 +239,10 @@ class ArFloorView(
         torch.update(session, frame, SystemClock.elapsedRealtimeNanos())
         handleFrame(session, frame)
       }
-      onSessionPaused = torch::turnOff
+      onSessionPaused = { session ->
+        scratch.centerAim.clear()
+        torch.turnOff(session)
+      }
       beforeDestroy = {
         session?.let(torch::turnOff)
         modelLoad.cancel()
@@ -367,6 +370,15 @@ class ArFloorView(
     floorAnalyzer?.submit(frame, rotation,
       active = showTraversalDebug || !previousDog.visible || previousDog.userMoving || previousDog.blocked || previousDog.moving,
       reducedWorkload = thermal.reducedWorkload)
+    val camera = frame.camera
+    val cameraPose = camera.displayOrientedPose
+    camera.getProjectionMatrix(projectionMatrix, 0, 0.1f, 100f)
+    val hasInverseProjection = camera.trackingState == TrackingState.TRACKING &&
+      android.opengl.Matrix.invertM(inverseProjection, 0, projectionMatrix, 0)
+    val centerRay = if (hasInverseProjection && !scratch.hasSeenDog) {
+      val center = LeashCurve.screenPointInCamera(inverseProjection, 0f, 0f, 1f)
+      cameraPose.rotateVector(floatArrayOf(center.x, center.y, center.z))
+    } else null
     val shown = updateDog(
       session = session,
       frame = frame,
@@ -375,6 +387,7 @@ class ArFloorView(
       modelReady = modelReady,
       floorMask = floorAnalyzer?.latest,
       semanticFailed = floorAnalyzer?.failed == true,
+      centerRay = centerRay,
     )
     val blocked = shown.dog.visible && shown.dog.blocked && frame.camera.trackingState == com.google.ar.core.TrackingState.TRACKING
     if (blocked && !wasBlocked) {
@@ -387,10 +400,7 @@ class ArFloorView(
       }
     }
     wasBlocked = blocked
-    val camera = frame.camera
     camera.getViewMatrix(viewMatrix, 0)
-    camera.getProjectionMatrix(projectionMatrix, 0, 0.1f, 100f)
-    val cameraPose = camera.displayOrientedPose
     if (camera.trackingState != TrackingState.TRACKING) {
       if (lastWalkPose != 0L) poseSegment++
       lastWalkPose = 0L
@@ -412,8 +422,7 @@ class ArFloorView(
     leashCamera = LeashPoint(cameraPose.tx(), cameraPose.ty(), cameraPose.tz())
     val screenRight = cameraPose.rotateVector(floatArrayOf(1f, 0f, 0f))
     leashCameraRight = LeashPoint(screenRight[0], screenRight[1], screenRight[2])
-    leashHand = if (camera.trackingState == com.google.ar.core.TrackingState.TRACKING &&
-      android.opengl.Matrix.invertM(inverseProjection, 0, projectionMatrix, 0)) {
+    leashHand = if (hasInverseProjection) {
       // NDC (0,-1) is exactly the native AR viewport's bottom center. Keep the hand
       // 35cm in front of the camera, so it stays fixed when the phone turns or moves.
       val hand = LeashCurve.handInCamera(inverseProjection)
@@ -427,6 +436,7 @@ class ArFloorView(
     android.opengl.Matrix.multiplyMV(clipPoint, 0, projectionMatrix, 0, cameraPoint, 0)
     val onScreen = shown.dog.visible && clipPoint[3] > 0f &&
       kotlin.math.abs(clipPoint[0]) <= clipPoint[3] && kotlin.math.abs(clipPoint[1]) <= clipPoint[3]
+    if (onScreen && camera.trackingState == TrackingState.TRACKING) scratch.hasSeenDog = true
     val careAvailable = camera.trackingState == TrackingState.TRACKING && onScreen && leader.canGiveCare
     val careRequest = pendingCare
     pendingCare = null

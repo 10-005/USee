@@ -133,6 +133,42 @@ class DogLeader(
   fun canPlaceAt(cameraX: Float, cameraZ: Float, targetX: Float, targetZ: Float, floorY: Float) =
     wallAvoidance.isClear(cameraX, cameraZ, targetX, targetZ, floorY)
 
+  internal fun placeFromCenter(cameraX: Float, cameraZ: Float, target: FloorWaypoint): DogFrame? {
+    if (requiresPlacement || shortRange || poopStage != null || commandedHold != null || attentionSeconds > 0f ||
+      !canPlaceAt(cameraX, cameraZ, target.x, target.z, target.y)) return null
+    val dx = target.x - cameraX
+    val dz = target.z - cameraZ
+    val length = hypot(dx, dz)
+    if (length <= 0f) return null
+    headingX = dx / length
+    headingZ = dz / length
+    hasHeading = true
+    yaw = atan2(headingX, headingZ)
+    resetMovementFollowing()
+    floorPath.clear()
+    floorRetrySeconds = 0f
+    floorDirectClearSeconds = 0f
+    stopReason = ""
+    turningToMove = false
+    animations.pause()
+    return placeAt(target.x, target.z, target.y)
+  }
+
+  private fun placeAt(targetX: Float, targetZ: Float, ground: Float): DogFrame {
+    x = targetX
+    z = targetZ
+    y = ground
+    placed = true
+    placementRequested = false
+    speed = 0f
+    moving = false
+    blocked = false
+    returning = false
+    recalling = false
+    leashLength = 0f
+    return frame(true, 0f)
+  }
+
   fun requestPlacement() {
     if (poopStage != null || commandedHold != null || attentionSeconds > 0f) return
     placementRequested = true
@@ -433,16 +469,7 @@ class DogLeader(
       val pz = cameraZ + headingZ * lead
       val ground = floorAt(px, pz)
       if (ground != null && canPlaceAt(cameraX, cameraZ, px, pz, ground)) {
-        x = px
-        z = pz
-        y = ground
-        speed = 0f
-        moving = false
-        blocked = false
-        returning = false
-        recalling = false
-        leashLength = 0f
-        return frame(true, 0f)
+        return placeAt(px, pz, ground)
       }
     }
     if (!placed) {
@@ -451,12 +478,8 @@ class DogLeader(
       placementRequested = false
       val ground = floorAt(targetX, targetZ) ?: return frame(false, 0f)
       if (!canPlaceAt(cameraX, cameraZ, targetX, targetZ, ground)) return frame(false, 0f)
-      x = targetX
-      y = ground
-      z = targetZ
       yaw = atan2(headingX, headingZ)
-      placed = true
-      return frame(true, 0f)
+      return placeAt(targetX, targetZ, ground)
     }
     if (!continuous) {
       speed = 0f
