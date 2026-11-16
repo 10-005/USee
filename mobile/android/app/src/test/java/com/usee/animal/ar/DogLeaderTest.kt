@@ -5,6 +5,29 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun overtakingABlockedDogMakesItRunBackToTheForwardLead() {
+    val leader = DogLeader()
+    val trail = UserWalkRegion()
+    leader.setTrustedGround(trail::heightAt)
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var dog = leader.update(0.02f, 0f, 0f, 0f, -1f) { _, _ -> null }
+    var cameraZ = 0f
+    var fastest = 0f
+    for (i in 1..200) {
+      cameraZ -= 0.01f
+      trail.update(0f, cameraZ, 0f)
+      dog = leader.update(0.02f, 0f, cameraZ, 1f, 0f) { _, _ -> null }
+      fastest = max(fastest, dog.speedMetersPerSecond)
+    }
+    repeat(400) {
+      dog = leader.update(0.02f, 0f, cameraZ, 1f, 0f) { _, _ -> null }
+      fastest = max(fastest, dog.speedMetersPerSecond)
+    }
+    assertTrue("Must run to catch up: $fastest", fastest > 1.1f)
+    assertEquals(DOG_LEAD_METERS, cameraZ - dog.z, 0.25f)
+    assertEquals(0f, dog.x, 0.25f)
+  }
+
   @Test fun followsRecordedUserGroundDespiteConflictingWallAndFloorEvidence() {
     val leader = DogLeader()
     val trail = UserWalkRegion()

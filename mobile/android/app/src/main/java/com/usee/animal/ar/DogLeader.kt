@@ -305,10 +305,12 @@ class DogLeader(
   private val movementHeading = WalkMovementHeading()
   private var followingMovement = false
   private var catchingUp = false
+  private var recoveringFront = false
   private var passingSide = 0f
   private var passedUserSide = false
   private var passedUserFront = false
   private fun resetMovementFollowing() {
+    recoveringFront = false
     movementHeading.clear()
     followingMovement = false
     catchingUp = false
@@ -438,6 +440,13 @@ class DogLeader(
         returning = false
         val ahead = (x - cameraX) * headingX + (z - cameraZ) * headingZ
         val lateral = abs((x - cameraX) * headingZ - (z - cameraZ) * headingX)
+        if (blocked && ahead < 0.5f && lateral < 0.5f && hypot(measuredX, measuredZ) >= 0.3f &&
+          trustedGround(x, z) != null && trustedGround(cameraX, cameraZ) != null) {
+          recoveringFront = true
+          floorPath.clear()
+          floorRetrySeconds = 0f
+        }
+        if (ahead >= leadMeters - 0.15f && lateral <= 0.2f && hypot(velocityX, velocityZ) < 0.15f) recoveringFront = false
         if (ahead >= leadMeters - 0.35f && lateral <= 0.4f) catchingUp = false
         else if (ahead < 0.5f || lateral > 0.8f) catchingUp = true
       }
@@ -451,7 +460,7 @@ class DogLeader(
 
     // Use the confirmed walking direction; looking around must not drag the dog.
     val lead = if (placed && backing && !shortRange) 1.3f else leadMeters
-    val prediction = if (placed && !shortRange) 0.25f else 0f
+    val prediction = if (placed && !shortRange && !recoveringFront) 0.25f else 0f
     userMoving = hypot(velocityX, velocityZ) > 0.15f
     val userDistance = hypot(cameraX - x, cameraZ - z)
     // Rendered rope length includes its vertical span and slack. Horizontal distance
@@ -495,7 +504,7 @@ class DogLeader(
       return frame(true, 0f)
     }
 
-    val unrestrictedReturn = recalling || returning
+    val unrestrictedReturn = recalling || returning || recoveringFront
     stopReason = ""
 
     var navigationTargetX = targetX
@@ -589,7 +598,8 @@ class DogLeader(
       turningToMove = true
       return false
     }
-    val maxSpeed = if (wallRoute.detouring || floorPath.isNotEmpty() || unrestrictedReturn) 1.1f else 3.6f
+    val maxSpeed = if (recoveringFront) 3.6f
+      else if (wallRoute.detouring || floorPath.isNotEmpty() || unrestrictedReturn) 1.1f else 3.6f
     val walkingSpeed = max(0f, velocityX * sin(desiredYaw) + velocityZ * cos(desiredYaw))
     val catchUpSpeed = if (catchingUp) max(gap * 1.8f, hypot(velocityX, velocityZ) + 1.5f)
       else if (unrestrictedReturn) gap * 1.8f
@@ -605,7 +615,7 @@ class DogLeader(
       floorPath.clear()
       // Explicit return ignores walls, semantic floor and ledges. Preserve the last
       // known ground height instead of snapping to furniture or an unknown floor.
-      if (faceStep(ux, uz)) {
+      if ((!recoveringFront || avoidsWalker(ux, uz, step, cameraX, cameraZ)) && faceStep(ux, uz)) {
         x += ux * step
         z += uz * step
         actualSpeed = step / dt

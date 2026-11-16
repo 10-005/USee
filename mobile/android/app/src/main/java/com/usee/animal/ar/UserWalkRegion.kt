@@ -29,7 +29,6 @@ internal class UserWalkRegion {
       ) else Ground(x, z, y)
       trail[Cell(floor(point.x / 0.2f).toInt(), floor(point.z / 0.2f).toInt())] = point
     }
-    while (trail.size > 4096) trail.remove(trail.keys.first())
     user = Ground(x, z, y)
   }
 
