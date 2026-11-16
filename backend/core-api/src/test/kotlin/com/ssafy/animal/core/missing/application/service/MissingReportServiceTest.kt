@@ -298,6 +298,10 @@ class MissingReportServiceTest {
 
         assertTrue(reports[seq.toInt()]!!.isDeleted)
         assertEquals(listOf(1001L, 1002L), released)
+        // 사진 없는 IMAGES_CHANGED로 AI 워커의 벡터 삭제를 요청한다
+        val event = events.last() as MatchRequested
+        assertEquals(MatchEventType.IMAGES_CHANGED to emptyList<String>(), event.eventType to event.imageKeys)
+        assertEquals(seq, event.sourceSeq)
         assertFails(MissingErrorCode.MISSING_REPORT_NOT_FOUND) { service.get(1, seq) }
         assertFails(MissingErrorCode.MISSING_REPORT_NOT_FOUND) { service.delete(1, seq) }
         assertFalse(service.getMine(1).any { it.report.missingReportSeq == seq.toInt() })
