@@ -55,11 +55,11 @@ spec:
             # 사진 공개 주소 접두어. breed-server와 같은 값(core-api의 STORAGE_PUBLIC_BASE_URL + "/")
             - name: IMAGE_URL_PREFIX
               value: https://d2cxge8l3dd66.cloudfront.net/
-            # 가안(S15P31D106-396): 사진 3쌍 실측 기준. AI 팀 검증 수치를 받으면 조정
+            # 기준 점수 없이(코사인 최솟값 -1) 점수 높은 순 5개를 보낸다(S15P31D106-396)
             - name: MATCH_MIN_SCORE
-              value: "0.6"
+              value: "-1"
             - name: MATCH_MAX_RESULTS
-              value: "3"
+              value: "5"
             - name: CPU_THREADS
               value: "2"
           # HTTP가 없어 프로브를 두지 않는다. 프로세스가 죽으면 kubelet이 재시작한다
@@ -124,11 +124,11 @@ spec:
             # 사진 공개 주소 접두어. breed-server와 같은 값(core-api의 STORAGE_PUBLIC_BASE_URL + "/")
             - name: IMAGE_URL_PREFIX
               value: https://d2cxge8l3dd66.cloudfront.net/
-            # 가안(S15P31D106-396): 사진 3쌍 실측 기준. AI 팀 검증 수치를 받으면 조정
+            # 기준 점수 없이(코사인 최솟값 -1) 점수 높은 순 5개를 보낸다(S15P31D106-396)
             - name: MATCH_MIN_SCORE
-              value: "0.6"
+              value: "-1"
             - name: MATCH_MAX_RESULTS
-              value: "3"
+              value: "5"
             - name: CPU_THREADS
               value: "2"
           # HTTP가 없어 프로브를 두지 않는다. 프로세스가 죽으면 kubelet이 재시작한다
