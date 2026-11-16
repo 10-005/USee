@@ -54,6 +54,7 @@ import { useInitialCommentScroll } from './useInitialCommentScroll';
 import { getFoundReport } from './data';
 import { splitReportDescription } from './reportDescription';
 import { getLostReport } from '../lost-report/data';
+import { formatReportDateTime } from '../../utils/dateTime';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FoundReportDetail' | 'LostReportDetail'>;
 
@@ -428,7 +429,11 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             <Text style={[styles.reporterName, report.isMine && styles.myReporterName]}>
               {reporterName}
             </Text>
-            <Text style={styles.reportMeta}>1시간 전</Text>
+            <Text style={styles.reportMeta}>
+              {(isLostReport ? apiLostDetail?.regDttm : apiFoundDetail?.regDttm)
+                ? formatReportDateTime((isLostReport ? apiLostDetail?.regDttm : apiFoundDetail?.regDttm)!)
+                : '등록 시간 정보 없음'}
+            </Text>
           </View>
           <View>
             <FlatList
@@ -507,7 +512,12 @@ export function FoundReportDetailScreen({ navigation, route }: Props) {
             <InfoRow label="특징" value={(foundFields?.description ?? report.description).trim() || '-'} />
           </View>
           <View style={styles.section}>
-            <InfoRow label={isLostReport ? '실종일' : '발견일'} value={report.date} />
+            <InfoRow
+              label={isLostReport ? '실종일' : '발견일'}
+              value={formatReportDateTime(
+                (isLostReport ? apiLostDetail?.occurredDttm : apiFoundDetail?.occurredDttm) ?? '',
+              ) || '-'}
+            />
             <InfoRow label={isLostReport ? '실종장소' : '발견장소'} value={report.location} />
             {foundFields && (
               <InfoRow label="발견 상황" value={foundFields.foundSituation.trim() || '-'} />

@@ -41,7 +41,7 @@ const speciesLabel = (speciesCode?: string): FoundReport['species'] =>
 export const mapFoundSummary = (report: FoundReportSummary, isMine: boolean): FoundReport => ({
   age: report.age ?? '모름',
   color: report.classification?.colorName ?? '',
-  date: report.occurredDttm.slice(0, 10),
+  date: (report.regDttm ?? report.occurredDttm).slice(0, 10),
   description: '',
   gender: genderLabel(report.gender),
   id: String(report.foundReportSeq),
@@ -60,7 +60,7 @@ export const mapFoundSummary = (report: FoundReportSummary, isMine: boolean): Fo
 export const mapFoundDetail = (report: FoundReportDetail, isMine: boolean): FoundReport => ({
   ...mapFoundSummary(report, isMine),
   contact: report.reporterPhone ?? undefined,
-  date: formatReportDateTime(report.occurredDttm),
+  date: formatReportDateTime(report.regDttm ?? report.occurredDttm),
   description: report.description ?? '',
   images: imageSources(report.images.map(image => image.imageUrl)),
   latitude: report.latitude,
