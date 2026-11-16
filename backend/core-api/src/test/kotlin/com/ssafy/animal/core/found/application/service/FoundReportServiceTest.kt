@@ -229,6 +229,11 @@ class FoundReportServiceTest {
         service.delete(42, 210)
 
         assert(target.isDeleted)
+        // 사진 없는 IMAGES_CHANGED로 AI 워커의 벡터 삭제를 요청한다
+        assertEquals(
+            listOf<Any>(MatchRequested(MatchEventType.IMAGES_CHANGED, TargetType.FOUND, 210, emptyList(), "DOG", target.occurredDttm)),
+            events,
+        )
     }
 
     @Test

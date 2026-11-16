@@ -339,6 +339,10 @@ class ShelterAnimalServiceTest {
         world.adoptionService.cancel(42, app)
         service.delete(shelter, seq)
         assertTrue(world.animals.getValue(seq).isDeleted)
+        // 사진 없는 IMAGES_CHANGED로 AI 워커의 벡터 삭제를 요청한다
+        val event = world.events.last() as MatchRequested
+        assertEquals(MatchEventType.IMAGES_CHANGED to emptyList<String>(), event.eventType to event.imageKeys)
+        assertEquals(seq.toLong(), event.sourceSeq)
         assertCode(AnimalErrorCode.ANIMAL_NOT_FOUND) { service.delete(shelter, seq) }
     }
 }

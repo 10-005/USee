@@ -164,6 +164,11 @@ class FoundReportService(
         val report = loadOwned(userSeq, Math.toIntExact(foundReportSeq))
         report.delete(Math.toIntExact(userSeq))
         foundReportRepository.saveAndFlush(report)
+        // 사진 없는 IMAGES_CHANGED를 보내 AI 워커가 이 신고의 벡터를 지우게 한다
+        val speciesCode = catalogUseCase.requireClassification(report.combinationSeq).speciesCode.name
+        eventPublisher.publish(
+            MatchRequested(MatchEventType.IMAGES_CHANGED, TargetType.FOUND, report.foundReportSeq!!.toLong(), emptyList(), speciesCode, report.occurredDttm),
+        )
     }
 
     @Transactional(readOnly = true)

@@ -167,6 +167,11 @@ class MissingReportService(
         val oldSeqs = missingReportRepository.findImageSeqs(report.missingReportSeq!!)
         missingReportRepository.replaceImages(report.missingReportSeq!!, emptyList())
         oldSeqs.forEach(imageUseCase::deleteIfUnreferenced)
+        // 사진 없는 IMAGES_CHANGED를 보내 AI 워커가 이 신고의 벡터를 지우게 한다
+        val speciesCode = catalogUseCase.requireClassification(report.combinationSeq).speciesCode.name
+        eventPublisher.publish(
+            MatchRequested(MatchEventType.IMAGES_CHANGED, TargetType.MISSING, report.missingReportSeq!!.toLong(), emptyList(), speciesCode, report.occurredDttm),
+        )
     }
 
     private fun requestMatch(type: MatchEventType, report: MissingReport, speciesCode: String, imageSeqs: List<Long>) {
