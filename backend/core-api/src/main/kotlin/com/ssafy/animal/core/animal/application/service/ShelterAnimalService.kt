@@ -310,6 +310,12 @@ class ShelterAnimalService(
         val animal = findOwned(shelter, animalSeq, lock = true)
         if (applications.hasActive(animalSeq)) throw BusinessException(AnimalErrorCode.ANIMAL_HAS_ACTIVE_APPLICATIONS)
         animal.delete(shelter.actor)
+        // 사진 없는 IMAGES_CHANGED를 보내 AI 워커가 이 동물의 벡터를 지우게 한다
+        classification(animal.combinationSeq)?.speciesCode?.name?.let {
+            eventPublisher.publish(
+                MatchRequested(MatchEventType.IMAGES_CHANGED, TargetType.SHELTER_ANIMAL, animalSeq.toLong(), emptyList(), it, OffsetDateTime.now()),
+            )
+        }
     }
 
     // ===== adoption 패키지용 =====
