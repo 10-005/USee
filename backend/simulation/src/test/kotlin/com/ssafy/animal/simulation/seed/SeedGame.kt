@@ -5,6 +5,7 @@ import com.ssafy.animal.simulation.application.port.`in`.CareActionCommand
 import com.ssafy.animal.simulation.application.port.`in`.PurchaseCommand
 import com.ssafy.animal.simulation.application.port.`in`.PurchaseLine
 import com.ssafy.animal.simulation.application.port.`in`.StartSimulationCommand
+import com.ssafy.animal.simulation.application.port.out.BreedInfo
 import com.ssafy.animal.simulation.application.service.CareActionService
 import com.ssafy.animal.simulation.application.service.FakeSimulationStore
 import com.ssafy.animal.simulation.application.service.PurchaseService
@@ -115,11 +116,12 @@ class SeedGame(
     val properties: SimulationProperties,
     val start: OffsetDateTime,
     private val userSeq: Long,
+    val breed: BreedInfo = MALTESE,
 ) {
     val store = FakeSimulationStore().apply {
         SeedCatalog.shopItems().forEach { shopItems[it.itemSeq] = it }
         SeedCatalog.scenarios().forEach { scenarios[it.scenarioSeq] = it }
-        breeds[MALTESE.breedSeq] = MALTESE
+        breeds[breed.breedSeq] = breed
     }
     private val inventory = SimulationInventory(store, properties)
     private val noPush = SimulationPushNotifier(object : EventPublisher { override fun publish(event: Any) = Unit })
@@ -139,7 +141,7 @@ class SeedGame(
     fun begin(animalName: String, expectedCost: Int) {
         moveTo(start)
         SimulationSessionService(store, store, store, store.assembler(), StatCalculator(properties.stats, properties.tick), properties, clock())
-            .start(userSeq, StartSimulationCommand(MALTESE.breedSeq, animalName, expectedCost))
+            .start(userSeq, StartSimulationCommand(breed.breedSeq, animalName, expectedCost))
     }
 
     /** t까지 시간을 보낸다. 그 사이 스케줄러 판정(10분마다)을 모두 돌린다 */

@@ -19,7 +19,11 @@ object SeedSql {
      */
     data class Header(val path: String, val title: String, val story: String, val generator: String)
 
-    fun render(game: SeedGame, header: Header): String {
+    /** users가 여러 명이면 같은 세션을 회원마다 넣는 반복문으로 만든다(건너뛰는 조건은 회원별로 본다) */
+    fun render(game: SeedGame, header: Header, users: List<Long> = listOf(game.session.userSeq.toLong())): String {
+        val multi = users.size > 1
+        val skip = if (multi) "CONTINUE" else "RETURN"
+        val breedName = game.breed.breedName
         val store = game.store
         val session = game.session
         val report = store.reports.single()
@@ -33,10 +37,10 @@ object SeedSql {
         line("-- (생성기 ${header.generator}가 실제 서비스를 고정 시계로 7일 돌린 결과. 스탯·지출·리포트 값은 그 결과 그대로)")
         line("-- 이야기: ${header.story}")
         line("-- 리포트 summary는 NULL로 둔다. 배포 뒤 요약 복구 스케줄러가 채운다(LLM 키가 없으면 규칙 문구)")
-        line("-- 회원 1번이 USER가 아니거나(로컬 새 DB는 보호소 계정), 말티즈가 없거나 성격이 다르거나, 이미 넣었으면 건너뛴다")
+        line("-- ${if (multi) "대상 회원(${users.joinToString(", ")}번)마다, 회원이 USER가 아니거나(로컬 새 DB는 보호소 계정), $breedName 품종이" else "회원 1번이 USER가 아니거나(로컬 새 DB는 보호소 계정), ${breedName}가"} 없거나 성격이 다르거나, 이미 넣었으면 건너뛴다")
         line("DO \$dev\$")
         line("DECLARE")
-        line("    me            CONSTANT INTEGER := ${session.userSeq};")
+        line(if (multi) "    me            INTEGER;" else "    me            CONSTANT INTEGER := ${session.userSeq};")
         line("    v_breed       INTEGER;")
         line("    v_personality VARCHAR;")
         line("    v_session     BIGINT;")
@@ -48,27 +52,31 @@ object SeedSql {
         line("        RAISE NOTICE 'core 테이블이 없어 모의 입양 시드를 건너뜀';")
         line("        RETURN;")
         line("    END IF;")
+        if (multi) {
+            line("    FOREACH me IN ARRAY ARRAY[${users.joinToString(", ")}] LOOP")
+            line("    w := '{}'; o := '{}';")
+        }
         line("    PERFORM 1 FROM core.users WHERE user_seq = me AND role = 'USER' AND is_deleted = FALSE;")
         line("    IF NOT FOUND THEN")
-        line("        RAISE NOTICE '회원 1번이 USER가 아니어서 모의 입양 시드를 건너뜀';")
-        line("        RETURN;")
+        line(if (multi) "        RAISE NOTICE '회원 %번이 USER가 아니어서 모의 입양 시드를 건너뜀', me;" else "        RAISE NOTICE '회원 1번이 USER가 아니어서 모의 입양 시드를 건너뜀';")
+        line("        $skip;")
         line("    END IF;")
         line("    SELECT b.breed_seq, b.personality INTO v_breed, v_personality")
         line("    FROM core.animal_breeds b JOIN core.animal_species s ON s.species_seq = b.species_seq")
-        line("    WHERE b.breed_name = ${q(SeedGame.MALTESE.breedName)} AND s.species_code = ${q(session.speciesType.name)}")
+        line("    WHERE b.breed_name = ${q(breedName)} AND s.species_code = ${q(session.speciesType.name)}")
         line("    ORDER BY b.breed_seq LIMIT 1;")
         line("    IF NOT FOUND THEN")
-        line("        RAISE NOTICE '말티즈 품종이 없어 모의 입양 시드를 건너뜀';")
-        line("        RETURN;")
+        line("        RAISE NOTICE '$breedName 품종이 없어 모의 입양 시드를 건너뜀';")
+        line("        $skip;")
         line("    END IF;")
         line("    -- 스탯은 이 성격의 감소 배율로 계산했다")
         line("    IF v_personality <> ${q(session.personality.name)} THEN")
-        line("        RAISE NOTICE '말티즈 성격이 %(기대 ${session.personality.name})라 모의 입양 시드를 건너뜀', v_personality;")
-        line("        RETURN;")
+        line("        RAISE NOTICE '$breedName 성격이 %(기대 ${session.personality.name})라 모의 입양 시드를 건너뜀', v_personality;")
+        line("        $skip;")
         line("    END IF;")
         line("    IF EXISTS (SELECT 1 FROM simulation_sessions WHERE user_seq = me AND started_dttm = ${ts(session.startedDttm)}) THEN")
         line("        RAISE NOTICE '모의 입양 시드가 이미 있어 건너뜀';")
-        line("        RETURN;")
+        line("        $skip;")
         line("    END IF;")
         line()
         val s = session.stats()
@@ -174,6 +182,7 @@ object SeedSql {
             "    VALUES (v_session, ${report.expectedCost}, ${report.totalSpent}, ${json(report.spentByCategoryJsonb)}, ${json(report.dailySpentJsonb)}, " +
                 "${json(report.finalStatsJsonb)}, ${report.actionCount}, ${report.eventCount}, ${report.eventResolvedCount}, ${report.walkCount}, NULL, ${ts(report.regDttm)});",
         )
+        if (multi) line("    END LOOP;")
         line("END")
         line("\$dev\$;")
         return out.toString()

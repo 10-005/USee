@@ -100,7 +100,7 @@ object SeedGenerator {
 
     fun generate(story: SeedStory): String {
         val game = story.play()
-        File(story.sql.path).writeText(SeedSql.render(game, story.sql))
+        File(story.sql.path).writeText(SeedSql.render(game, story.sql, story.userSeqs))
         return preview(story, game)
     }
 
