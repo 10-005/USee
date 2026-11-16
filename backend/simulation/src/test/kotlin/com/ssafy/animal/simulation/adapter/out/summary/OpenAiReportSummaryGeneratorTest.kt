@@ -39,7 +39,7 @@ class OpenAiReportSummaryGeneratorTest {
     private val builder = RestClient.builder()
     private val server = MockRestServiceServer.bindTo(builder).build()
     private val generator = OpenAiReportSummaryGenerator(
-        LlmConfig(apiKey = "test-key", model = "gpt-4o-mini"), JsonMapper.builder().build(), SimulationConfig.loadReportWiki(), builder,
+        LlmConfig(apiKey = "test-key", model = "gpt-6-luna"), JsonMapper.builder().build(), SimulationConfig.loadReportWiki(), builder,
     )
 
     private fun respond(content: String) {
@@ -62,7 +62,7 @@ class OpenAiReportSummaryGeneratorTest {
         server.expect(requestTo("https://api.openai.com/v1/chat/completions"))
             .andExpect(method(HttpMethod.POST))
             .andExpect(header("Authorization", "Bearer test-key"))
-            .andExpect(jsonPath("$.model").value("gpt-4o-mini"))
+            .andExpect(jsonPath("$.model").value("gpt-6-luna"))
             .andExpect(jsonPath("$.temperature").value(0.3))
             .andExpect(jsonPath("$.response_format.type").value("json_object"))
             .andExpect(jsonPath("$.messages[0].role").value("system"))

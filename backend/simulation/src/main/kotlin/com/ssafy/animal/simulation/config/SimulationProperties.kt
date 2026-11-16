@@ -43,7 +43,7 @@ data class ReportConfig(
 /** LLM 요약(Q517). apiKey가 비어 있으면 규칙 문구 생성기를 쓴다 */
 data class LlmConfig(
     val apiKey: String = "",
-    val model: String = "gpt-4o-mini",
+    val model: String = "gpt-6-luna",
     val timeout: Duration = Duration.ofSeconds(20),
     val baseUrl: String = "https://api.openai.com",
 ) {

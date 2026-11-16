@@ -32,7 +32,7 @@ class OpenAiSummaryManualTest {
     @Test
     fun `7일치 픽스처로 요약을 만들어 출력한다`() {
         val mapper = JsonMapper.builder().build()
-        val config = LlmConfig(apiKey = System.getenv("OPENAI_API_KEY"), model = System.getenv("LLM_MODEL") ?: "gpt-4o-mini")
+        val config = LlmConfig(apiKey = System.getenv("OPENAI_API_KEY"), model = System.getenv("LLM_MODEL") ?: "gpt-6-luna")
         val generator = OpenAiReportSummaryGenerator(config, mapper, SimulationConfig.loadReportWiki())
         val input = sevenDayInput()
 

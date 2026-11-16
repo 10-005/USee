@@ -119,7 +119,7 @@ simulation:
     # LLM 요약(Q517). 키가 비어 있으면 규칙 문구만 쓴다. 키는 환경 변수로만(SealedSecret)
     llm:
       api-key: ${OPENAI_API_KEY:}
-      model: gpt-4o-mini
+      model: gpt-6-luna
       timeout: 20s
       base-url: https://api.openai.com
   # 돌발 이벤트(S15P31D106-255, 가안). RANDOM은 스케줄러 판정마다 이 확률로 발생(10분 주기면 하루 평균 약 1.5회)
