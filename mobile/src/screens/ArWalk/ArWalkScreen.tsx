@@ -414,8 +414,9 @@ export function ArWalkScreen({
     }
   }, [canRequestPermission, hasPermission, requestPermission]);
 
-  const startupError = STARTUP_ERRORS[status];
-  const isRecognizing = hasPermission && isFocused && !hasSeenDog && !startupError;
+  const showStartupStatus = hasPermission && !hasSeenDog && !ending;
+  const startupError = showStartupStatus ? STARTUP_ERRORS[status] : undefined;
+  const isRecognizing = showStartupStatus && isFocused && !startupError;
 
   useEffect(() => {
     if (!isRecognizing) {
@@ -560,7 +561,7 @@ export function ArWalkScreen({
           </Text>
         </View>
       )}
-      {hasPermission && !hasSeenDog && startupError && (
+      {startupError && (
         <View pointerEvents="none" style={styles.loadingOverlay}>
           <Text style={styles.messageText}>{startupError}</Text>
         </View>

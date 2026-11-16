@@ -629,7 +629,7 @@ test('ends the server walk before leaving the walk screen', async () => {
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
-test('covers the walk until the end request returns and ignores another leave', async () => {
+test('shows only the ending overlay when leaving during terrain recognition', async () => {
   let finish: () => void = () => undefined;
   jest.mocked(endActiveSimulationWalk).mockImplementation(
     () =>
@@ -641,6 +641,8 @@ test('covers the walk until the end request returns and ignores another leave', 
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<ArWalkScreen />);
   });
+  const recognition = () => renderer.root.findAllByProps({ accessibilityLabel: '지형 인식 중' });
+  expect(recognition().length).toBeGreaterThan(0);
   const action = { type: 'GO_BACK' };
   const leave = (preventDefault = jest.fn()) => {
     mockWalkNavigation.listeners.get('beforeRemove')?.({
@@ -657,6 +659,7 @@ test('covers the walk until the end request returns and ignores another leave', 
   expect(
     renderer.root.findAllByProps({ accessibilityLabel: '산책 종료 중' }).length,
   ).toBeGreaterThan(0);
+  expect(recognition()).toHaveLength(0);
   expect(mockWalkNavigation.dispatch).not.toHaveBeenCalled();
   const secondPrevent = jest.fn();
   await ReactTestRenderer.act(() => {
@@ -689,6 +692,9 @@ test('stays on the walk screen when the walk cannot be ended', async () => {
   expect(alert).toHaveBeenCalledWith('산책', '산책을 종료하지 못했어요. 다시 시도해주세요.');
   expect(mockWalkNavigation.dispatch).not.toHaveBeenCalled();
   expect(renderer.root.findAllByProps({ accessibilityLabel: '산책 종료 중' })).toHaveLength(0);
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: '지형 인식 중' }).length,
+  ).toBeGreaterThan(0);
   alert.mockRestore();
   await ReactTestRenderer.act(() => renderer.unmount());
 });
