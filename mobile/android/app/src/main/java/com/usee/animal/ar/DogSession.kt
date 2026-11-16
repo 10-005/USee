@@ -10,6 +10,8 @@ import android.os.SystemClock
 import kotlin.math.abs
 import kotlin.math.hypot
 
+internal const val CENTER_PLACEMENT_READY = "centerReady"
+
 internal class SessionScratch {
   val lookLocal = floatArrayOf(0f, 0f, -1f)
   val lookWorld = FloatArray(3)
@@ -28,6 +30,7 @@ internal class SessionScratch {
   val lowLight = WalkLowLight()
   val centerAim = StableFloorAim()
   var hasSeenDog = false
+  var placementRequested = false
   var lastLowLightProbe = -1L
 }
 
@@ -54,6 +57,7 @@ internal fun updateDog(
     leader.cancelPlacement()
     leader.pauseTracking()
     scratch.centerAim.clear()
+    scratch.placementRequested = false
     scratch.lastTimestamp = 0L
     scratch.planesTimestamp = 0L
     val now = System.nanoTime()
@@ -133,6 +137,8 @@ internal fun updateDog(
     }
   } else null
   val fallbackTarget = scratch.centerAim.update(now, centerTarget)
+  val placementRequested = scratch.placementRequested
+  scratch.placementRequested = false
   if (!modelReady) {
     leader.cancelPlacement()
     return ShownDog("searching", hiddenDog())
@@ -180,14 +186,14 @@ internal fun updateDog(
     return decision.height
   }
   val wasPlaced = leader.isPlaced
+  if (placementRequested && fallbackTarget == null) leader.requestPlacement()
   val normalDog = leader.update(dt, pose.tx(), pose.tz(), scratch.lookWorld[0], scratch.lookWorld[2]) { x, z ->
     walkableFloor(x, z)
   }
-  // Prefer normal placement if it has just succeeded. A dog that was placed
-  // off-screen can still use the center target until the user first sees it.
-  val dog = if (fallbackTarget != null && (wasPlaced || !normalDog.visible)) {
-    leader.placeFromCenter(pose.tx(), pose.tz(), fallbackTarget)?.also { scratch.centerAim.clear() } ?: normalDog
-  } else normalDog
+  val placedAtCenter = if (placementRequested && fallbackTarget != null) {
+    leader.placeFromCenter(pose.tx(), pose.tz(), fallbackTarget)?.also { scratch.centerAim.clear() }
+  } else null
+  val dog = placedAtCenter ?: normalDog
   if (leader.isPlaced) recordStop(scratch, when {
     dt > 0.25f -> "프레임 지연"
     dog.blocked -> dog.stopReason
@@ -201,6 +207,7 @@ internal fun updateDog(
     ready = ground != null && leader.canPlaceAt(pose.tx(), pose.tz(), targetX, targetZ, ground)
   }
   val status = when {
+    fallbackTarget != null && placedAtCenter == null && (wasPlaced || !dog.visible) -> CENTER_PLACEMENT_READY
     dog.visible -> "anchored"
     ready -> "ready"
     else -> "searching"

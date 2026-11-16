@@ -1,7 +1,7 @@
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -209,6 +209,14 @@ export function ArWalkScreen({
   const [status, setStatus] = useState<FloorTrackingStatus>('searching');
   const [placementRequest, setPlacementRequest] = useState(0);
   const [canReposition, setCanReposition] = useState(true);
+  const requestPlacement = useCallback(() => setPlacementRequest(value => value + 1), []);
+  const placementDisabled =
+    !isFocused || ending || status === 'searching' || status === 'analyzing';
+  const autoPlacementReady =
+    hasPermission && canReposition && !placementDisabled && status === 'centerReady';
+  useEffect(() => {
+    if (autoPlacementReady) requestPlacement();
+  }, [autoPlacementReady, requestPlacement]);
   const [canGiveCare, setCanGiveCare] = useState(false);
   const [careRequest, setCareRequest] = useState('');
   const careRequestId = useRef(0);
@@ -469,9 +477,10 @@ export function ArWalkScreen({
       setWalkStartedAt(current => current ?? Date.now());
     }
     setCanReposition(
-      ['analyzing', 'searching', 'ready', 'anchored'].includes(next.status) &&
-        !next.onScreen &&
-        !next.userMoving,
+      !next.onScreen &&
+        (next.status === 'centerReady' ||
+          (!next.userMoving &&
+            ['analyzing', 'searching', 'ready', 'anchored'].includes(next.status))),
     );
     setStatus(current => (current === next.status ? current : next.status));
   };
@@ -611,15 +620,13 @@ export function ArWalkScreen({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="강아지 배치하기"
-          accessibilityState={{
-            disabled: !isFocused || status === 'searching' || status === 'analyzing',
-          }}
-          disabled={!isFocused || status === 'searching' || status === 'analyzing'}
-          onPress={() => setPlacementRequest(value => value + 1)}
+          accessibilityState={{ disabled: placementDisabled }}
+          disabled={placementDisabled}
+          onPress={requestPlacement}
           style={[
             styles.placeButton,
             { bottom: insets.bottom + 24 },
-            (status === 'searching' || status === 'analyzing') && styles.placeButtonDisabled,
+            placementDisabled && styles.placeButtonDisabled,
           ]}
         >
           <Text style={styles.placeButtonText}>강아지 배치하기</Text>

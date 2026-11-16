@@ -107,7 +107,7 @@ class ArFloorView(
   private val inverseProjection = FloatArray(16)
 
   fun requestPlacement(request: Int) {
-    if (request > lastPlacementRequest) leader.requestPlacement()
+    if (request > lastPlacementRequest) scratch.placementRequested = true
     lastPlacementRequest = request
   }
 
@@ -241,6 +241,7 @@ class ArFloorView(
       }
       onSessionPaused = { session ->
         scratch.centerAim.clear()
+        scratch.placementRequested = false
         torch.turnOff(session)
       }
       beforeDestroy = {
@@ -501,7 +502,8 @@ class ArFloorView(
       dogNode?.cancelAttention()
       cleanup?.pause()
     }
-    emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen,
+    val status = if (onScreen && shown.status == CENTER_PLACEMENT_READY) "anchored" else shown.status
+    emit(status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen,
       shown.dog.userMoving, careAvailable && leader.canGiveCare)
   }
 
@@ -553,7 +555,8 @@ class ArFloorView(
       return
     }
     // React only needs a settled caption, not every transient tracking/clip change.
-    if (lastEventKey.isNotEmpty() && lastCanGiveCare == canGiveCare && now - pendingEventSince < 300L) return
+    if (status != CENTER_PLACEMENT_READY && lastEventKey.isNotEmpty() &&
+      lastCanGiveCare == canGiveCare && now - pendingEventSince < 300L) return
     lastEventKey = key
     lastCanGiveCare = canGiveCare
     val viewId = id

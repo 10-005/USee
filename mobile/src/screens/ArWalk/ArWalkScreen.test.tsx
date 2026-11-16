@@ -722,6 +722,34 @@ test('placement remains visible during analysis and hides only for visible dogs 
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
+test('the five-second center target enables placement and requests it once', async () => {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<ArWalkScreen />);
+  });
+  const native = () => renderer.root.findByType(ArFloorView).props;
+  const buttons = () => renderer.root.findAllByProps({ accessibilityLabel: '강아지 배치하기' });
+  const tracking = (state: Partial<FloorTracking>) =>
+    ReactTestRenderer.act(() => native().onTracking({ nativeEvent: state }));
+  try {
+    expect(buttons()[0].props.disabled).toBe(true);
+    expect(native().placementRequest).toBe(0);
+
+    await tracking({ status: 'centerReady', onScreen: false });
+    expect(buttons()[0].props.disabled).toBe(false);
+    expect(native().placementRequest).toBe(1);
+
+    await tracking({ status: 'centerReady', onScreen: false, userMoving: true });
+    expect(native().placementRequest).toBe(1);
+
+    await tracking({ status: 'anchored', visible: true, onScreen: true });
+    expect(buttons()).toHaveLength(0);
+    expect(native().placementRequest).toBe(1);
+  } finally {
+    await ReactTestRenderer.act(() => renderer.unmount());
+  }
+});
+
 test('area toggle remains available without a notices toggle', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
