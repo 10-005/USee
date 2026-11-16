@@ -79,11 +79,11 @@ internal class TraversalDebugView(context: Context) : View(context) {
           val x = origin[0] + dx * t
           val z = origin[2] + dz * t
           if (userGround.groundY == y && lowLight.nearbyFloor(x, z, origin[0], origin[2], y) != null) {
-            colors[i] = if (hypot(x - origin[0], z - origin[2]) >= LOW_LIGHT_LEAD_METERS - 0.0001f) GREEN else YELLOW
+            colors[i] = if (hypot(x - origin[0], z - origin[2]) >= USER_CLEARANCE_METERS - 0.0001f) GREEN else YELLOW
             break
           }
           val trusted = userGround.heightAt(x, z)
-          val clearance = if (lowLight.shortRange) LOW_LIGHT_LEAD_METERS else 0.45f
+          val clearance = USER_CLEARANCE_METERS
           if (trusted != null && abs(trusted - y) <= 0.18f) {
             val allowed = (!dog.visible || abs(trusted - dog.y) <= 0.18f) &&
               hypot(x - origin[0], z - origin[2]) >= clearance - 0.0001f

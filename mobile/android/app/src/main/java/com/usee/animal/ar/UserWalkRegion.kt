@@ -4,6 +4,8 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.hypot
 
+internal const val USER_CLEARANCE_METERS = 0.35f
+
 /** User motion is stronger evidence than image classification. Session-local world coordinates. */
 internal class UserWalkRegion {
   private data class Cell(val x: Int, val z: Int)
@@ -32,7 +34,8 @@ internal class UserWalkRegion {
   }
 
   fun heightAt(x: Float, z: Float): Float? {
-    if (user == null) return null
+    val current = user ?: return null
+    if (hypot(x - current.x, z - current.z) <= USER_CLEARANCE_METERS + 0.0001f) return current.y
     val cellX = floor(x / 0.2f).toInt()
     val cellZ = floor(z / 0.2f).toInt()
     var nearest: Ground? = null

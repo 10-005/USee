@@ -430,7 +430,7 @@ class DogLeaderTest {
     for (i in 1..100) dog = leader.update(0.02f, 0f, -2f, 0f, -1f, floor)
     assertEquals(initial.z, dog.z, 0.0001f)
     leader.requestAction("go")
-    for (i in 1..150) dog = leader.update(0.02f, 0f, -2f, 0f, -1f, floor)
+    for (i in 1..300) dog = leader.update(0.02f, 0f, -2f, 0f, -1f, floor)
     assertTrue(dog.z < initial.z - 0.1f)
   }
 

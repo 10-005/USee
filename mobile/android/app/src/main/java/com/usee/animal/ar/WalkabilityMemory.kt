@@ -11,7 +11,8 @@ internal data class FloorDecision(val height: Float?, val cautious: Boolean, val
 internal class WalkabilityMemory {
   private data class Cell(val x: Int, val z: Int)
   private data class Entry(var y: Float? = null, var clearAt: Long = -1L,
-    var blockedSince: Long = -1L, var lastBlockedSample: Long = -1L, var confirmed: Boolean = false)
+    var blockedSince: Long = -1L, var lastBlockedSample: Long = -1L, var confirmed: Boolean = false,
+    var recoverySince: Long = -1L, var lastRecoverySample: Long = -1L)
   private val cells = LinkedHashMap<Cell, Entry>()
   private var lastClearX = 0f
   private var lastClearZ = 0f
@@ -28,16 +29,27 @@ internal class WalkabilityMemory {
     val entry = cells.getOrPut(key) { Entry() }
     if (cells.size > 2048) cells.remove(cells.keys.first())
     if (evidence == FloorEvidence.CLEAR && ground != null) {
+      if (entry.confirmed) {
+        if (entry.lastRecoverySample < 0L || sampleAt - entry.lastRecoverySample > 600_000_000L) {
+          entry.recoverySince = sampleAt
+        }
+        entry.lastRecoverySample = sampleAt
+        if (sampleAt - entry.recoverySince < 300_000_000L) return FloorDecision(null, true, "통행 재확인")
+      }
       entry.y = ground
       entry.clearAt = sampleAt
       entry.blockedSince = -1L
       entry.lastBlockedSample = -1L
       entry.confirmed = false
+      entry.recoverySince = -1L
+      entry.lastRecoverySample = -1L
       lastClearX = x; lastClearZ = z; lastClearY = ground; lastClearAt = sampleAt
       uncertainSince = -1L
       return FloorDecision(ground, false)
     }
     if (evidence == FloorEvidence.OBSTACLE && sampleAt != entry.lastBlockedSample) {
+      entry.recoverySince = -1L
+      entry.lastRecoverySample = -1L
       if (entry.lastBlockedSample < 0L || sampleAt - entry.lastBlockedSample > 600_000_000L) entry.blockedSince = sampleAt
       entry.lastBlockedSample = sampleAt
       entry.confirmed = sampleAt - entry.blockedSince >= 300_000_000L

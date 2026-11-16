@@ -94,7 +94,7 @@ class DogLeader(
   private var routeGround: ((Float, Float) -> Float?)? = null
   private var shortRange = false
   internal val leadMeters get() = if (shortRange) LOW_LIGHT_LEAD_METERS else DOG_LEAD_METERS
-  private val walkerClearance get() = if (shortRange) LOW_LIGHT_LEAD_METERS else 0.45f
+  private val walkerClearance get() = USER_CLEARANCE_METERS
 
   internal fun setShortRange(enabled: Boolean) {
     if (shortRange == enabled) return
@@ -808,7 +808,7 @@ class DogLeader(
       val t = if (lengthSquared < 0.000001f) 0f else (((cameraX - ax) * dx + (cameraZ - az) * dz) / lengthSquared).coerceIn(0f, 1f)
       return hypot(ax + t * dx - cameraX, az + t * dz - cameraZ) >= min(clearance, hypot(ax - cameraX, az - cameraZ)) - 0.0001f
     }
-    val ROUTE_OFFSETS = floatArrayOf(0f, -0.9f, 0.9f, -1.7f, 1.7f)
+    val ROUTE_OFFSETS = floatArrayOf(0f, -0.9f, 0.9f, -1.57f, 1.57f, -1.7f, 1.7f)
   }
 }
 
