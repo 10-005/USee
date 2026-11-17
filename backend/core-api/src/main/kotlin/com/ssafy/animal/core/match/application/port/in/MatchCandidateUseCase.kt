@@ -11,8 +11,11 @@ fun interface MatchCandidateUseCase {
      */
     fun findCandidates(sourceType: TargetType, sourceSeq: Long): List<MatchCandidate>
 
-    /** 시연용: 이 회원이 올린 실종신고는 매칭을 요청하지 않는다(match.excluded-missing-user-seqs) */
-    fun isMissingMatchExcluded(userSeq: Long): Boolean = false
+    /**
+     * 시연용(match.skip-registration-match-user-seqs): 이 회원이 실종신고를 처음 등록할 때는 후보 없이 보내
+     * 워커가 벡터만 저장하고 top5 알림은 만들지 않게 한다. 이후 발견·보호동물 매칭의 후보에는 그대로 들어간다
+     */
+    fun skipsRegistrationMatch(userSeq: Long): Boolean = false
 }
 
 /**

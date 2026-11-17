@@ -30,7 +30,7 @@ class MatchCandidateServiceTest {
         }
 
         override fun findEligibleSources(type: TargetType) = when (type) {
-            TargetType.MISSING -> listOf(MatchSource(101, "DOG", at, listOf("m.jpg"), userSeq = 147))
+            TargetType.MISSING -> listOf(MatchSource(101, "DOG", at, listOf("m.jpg")))
             TargetType.FOUND -> listOf(MatchSource(210, "DOG", at, listOf("f1.jpg", "f2.jpg")), MatchSource(211, "ETC", at, emptyList()))
             TargetType.SHELTER_ANIMAL -> listOf(MatchSource(35, "CAT", at, listOf("s.jpg")))
             else -> emptyList()
@@ -78,25 +78,6 @@ class MatchCandidateServiceTest {
         assertEquals(4, events.size)
         assertEquals(4, service.republishOnce("run-2"))
         assertEquals(setOf("run-1", "run-2"), marks)
-    }
-
-    @Test
-    fun `시연용 제외 회원의 실종신고는 일괄 재발행에서 빠진다`() {
-        val excluding = MatchCandidateService(
-            repository,
-            object : EventPublisher {
-                override fun publish(event: Any) {
-                    events += event
-                }
-            },
-            { marker.tryMark(it) },
-            MatchCandidateProperties(),
-            MatchExclusionProperties(excludedMissingUserSeqs = setOf(147)),
-        )
-
-        assertTrue(excluding.isMissingMatchExcluded(147))
-        assertEquals(3, excluding.republishOnce("run-1"))
-        assertTrue(events.none { it is MatchRequested && it.sourceType == TargetType.MISSING })
     }
 
     @Test
