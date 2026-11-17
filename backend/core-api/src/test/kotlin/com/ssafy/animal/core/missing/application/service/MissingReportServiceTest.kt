@@ -138,7 +138,11 @@ class MissingReportServiceTest {
 
     private val candidates = listOf(MatchCandidate(TargetType.FOUND, 210), MatchCandidate(TargetType.SHELTER_ANIMAL, 35))
     private val candidateCalls = mutableListOf<Pair<TargetType, Long>>()
-    private val matchCandidates = MatchCandidateUseCase { type, seq -> candidates.also { candidateCalls += type to seq } }
+    private val excludedUsers = mutableSetOf<Long>()
+    private val matchCandidates = object : MatchCandidateUseCase {
+        override fun findCandidates(sourceType: TargetType, sourceSeq: Long) = candidates.also { candidateCalls += sourceType to sourceSeq }
+        override fun isMissingMatchExcluded(userSeq: Long) = userSeq in excludedUsers
+    }
 
     private val service = MissingReportService(repository, catalogUseCase, geocodeUseCase, imageUseCase, eventPublisher, matchCandidates, txManager)
 
@@ -288,6 +292,22 @@ class MissingReportServiceTest {
         service.changeStatus(1, first, MissingStatus.ACTIVE)
         assertEquals(MatchEventType.MISSING_REPORT_REGISTERED, (events.single() as MatchRequested).eventType)
         assertEquals(setOf(MissingStatus.ACTIVE), service.getMine(1).map { it.report.status }.toSet())
+    }
+
+    @Test
+    fun `시연용 제외 회원의 실종신고는 등록·사진 변경·재개 때 매칭을 보내지 않는다`() {
+        excludedUsers += 1L
+
+        val created = service.create(1, command())
+        assertFalse(created.aiMatchingRequested)
+        val seq = created.missingReportSeq.toLong()
+        service.update(1, seq, UpdateMissingCommand(imageSeqs = listOf(1003)))
+        service.changeStatus(1, seq, MissingStatus.CLOSED)
+        service.changeStatus(1, seq, MissingStatus.ACTIVE)
+
+        assertTrue(events.none { it is MatchRequested })
+        assertTrue(candidateCalls.isEmpty())
+        assertEquals(listOf(1003L), links[created.missingReportSeq])
     }
 
     @Test

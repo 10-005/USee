@@ -69,6 +69,8 @@ match:
     max-distance-km: 30
     date-grace: P1D   # 발견·구조 시각이 실종 시각보다 이만큼 넘게 앞서면 제외
     limit: 500
+  # 시연용: 이 회원들이 올린 실종신고는 AI 이미지 매칭(MatchRequested)을 보내지 않는다. 시연이 끝나면 비운다
+  excluded-missing-user-seqs: [147]
   # 실행 이름(예: 2026-11-12-first). 기동할 때 유효한 실종·발견·보호동물 전체를 MatchRequested로 다시 보낸다(발견·보호동물 먼저).
   # Redis 표식(match:republish:{이름}, 90일)으로 이름당 한 번만(Q524). 비어 있거나 false면 안 함. 다시 하려면 이름을 바꾼다.
   # 실제 AI_MATCH 알림이 갈 수 있다

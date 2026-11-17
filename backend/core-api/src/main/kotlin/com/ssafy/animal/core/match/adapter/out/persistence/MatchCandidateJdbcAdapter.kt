@@ -41,7 +41,10 @@ class MatchCandidateJdbcAdapter(
             .groupBy({ it.first }, { it.second })
         return jdbcTemplate.query(SELECT_ELIGIBLE, params) { rs, _ ->
             val seq = rs.getLong("seq")
-            MatchSource(seq, rs.getString("species_code"), rs.getObject("at", OffsetDateTime::class.java), keys[seq].orEmpty())
+            MatchSource(
+                seq, rs.getString("species_code"), rs.getObject("at", OffsetDateTime::class.java), keys[seq].orEmpty(),
+                rs.getObject("user_seq", Number::class.java)?.toLong(),
+            )
         }
     }
 
@@ -106,7 +109,7 @@ class MatchCandidateJdbcAdapter(
 
         private val SELECT_ELIGIBLE = """
             WITH $TARGETS
-            SELECT seq, species_code, at FROM targets WHERE type = :type AND eligible ORDER BY seq
+            SELECT seq, species_code, at, user_seq FROM targets WHERE type = :type AND eligible ORDER BY seq
         """.trimIndent()
 
         private val SELECT_IMAGE_KEYS = """
