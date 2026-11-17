@@ -1,0 +1,4 @@
+# 모델 가중치는 git에 넣지 않는다(README 참고)
+models/
+.venv/
+__pycache__/
