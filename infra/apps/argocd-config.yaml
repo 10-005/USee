@@ -1,0 +1,22 @@
+# ArgoCD 자체 설정 중 팀원 접근에 필요한 부분만 관리 (본체는 저장소 밖 install.yaml v3.5.6)
+# ServerSideApply라 여기 적은 키만 소유하고, install.yaml이 넣은 기본 키는 건드리지 않는다
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-config
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://lab.ssafy.com/s15-final/S15P31D106.git
+    targetRevision: infra
+    path: infra/platform/argocd-config
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

@@ -1,0 +1,7 @@
+.gradle/
+.kotlin/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# 로컬 JWT 테스트 키
+.keys/

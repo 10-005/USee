@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+# CI(develop-ai의 ai/.gitlab-ci.yml)가 이미지를 올린 뒤 newTag를 커밋 SHA로 바꾼다 (ArgoCD가 감지해 배포)
+# 첫 CI 배포 전에는 이미지가 없어 Pod가 ImagePullBackOff로 대기한다
+images:
+  - name: k15d106.p.ssafy.io/animal/match-worker
+    newTag: "3ee5fa11"
