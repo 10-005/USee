@@ -1,0 +1,79 @@
+#!/bin/bash
+# 노드 2 최초 부팅 스크립트 (cloud-init user_data, root로 한 번 실행)
+# 실행 기록: /var/log/cloud-init-output.log
+# 주의: set -x 금지 (토큰이 로그에 남음)
+# 주의: Terraform 템플릿이라 bash 변수는 $VAR 로 쓰고, 중괄호가 필요하면 $${VAR} 로 이스케이프
+set -euo pipefail
+
+echo "[1/8] 호스트 이름·시간대"
+hostnamectl set-hostname ${hostname}
+echo "127.0.1.1 ${hostname}" >> /etc/hosts
+# 재부팅 때 cloud-init이 호스트 이름을 EC2 기본값으로 되돌리지 않게 함
+echo "preserve_hostname: true" > /etc/cloud/cloud.cfg.d/99-preserve-hostname.cfg
+timedatectl set-timezone Asia/Seoul
+
+echo "[2/8] swap 4GB"
+if [ ! -f /swapfile ]; then
+  fallocate -l 4G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo "/swapfile none swap sw 0 0" >> /etc/fstab
+fi
+echo "vm.swappiness=10" > /etc/sysctl.d/99-swappiness.conf
+sysctl --system > /dev/null
+
+echo "[3/8] ufw (노드 1과 같은 규칙 + Tailscale 직접 연결)"
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 22/tcp
+ufw allow 41641/udp
+ufw allow in on tailscale0
+ufw allow from 10.42.0.0/16
+ufw allow from 10.43.0.0/16
+ufw --force enable
+
+echo "[4/8] 추가 SSH 공개 키 (윈도우 PC용, 원본 keys/k15-node2-win.pub)"
+# 맥 키(keys/k15-node2.pub)는 EC2 키 페어로 cloud-init이 먼저 넣어 줌
+WIN_KEY='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIwqYf5eaF3GtFImBPt5dpnc3Hj5T7nAJf7BOOfvNKGX k15-node2-windows'
+AUTH_KEYS=/home/ubuntu/.ssh/authorized_keys
+grep -qxF "$WIN_KEY" "$AUTH_KEYS" 2>/dev/null || echo "$WIN_KEY" >> "$AUTH_KEYS"
+
+echo "[5/8] Docker 정리 cron (매일 04:00 KST, 72시간 지난 빌드 캐시·이미지)"
+# Docker·gitlab-runner는 부팅 후 수동 설치. 설치 전에는 cron이 실패만 하고 영향 없음
+# Runner 캐시 볼륨(Gradle 의존성)은 정리하지 않음
+cat > /etc/cron.d/docker-prune << 'CRON'
+0 4 * * * root /usr/bin/docker builder prune -af --filter until=72h > /var/log/docker-prune.log 2>&1; /usr/bin/docker image prune -af --filter until=72h >> /var/log/docker-prune.log 2>&1
+CRON
+chmod 644 /etc/cron.d/docker-prune
+
+echo "[6/8] Tailscale 설치·접속"
+curl -fsSL https://tailscale.com/install.sh | sh
+tailscale up --auth-key="${tailscale_auth_key}" --hostname="${hostname}"
+
+TS_IP=""
+for i in $(seq 1 30); do
+  TS_IP=$(tailscale ip -4 2>/dev/null || true)
+  [ -n "$TS_IP" ] && break
+  sleep 2
+done
+[ -n "$TS_IP" ] || { echo "Tailscale IP를 받지 못함"; exit 1; }
+echo "Tailscale IP: $TS_IP"
+
+echo "[7/8] k3s agent 설정"
+mkdir -p /etc/rancher/k3s
+cat > /etc/rancher/k3s/config.yaml << CFG
+server: "${k3s_url}"
+token: "${k3s_token}"
+node-name: "${hostname}"
+node-ip: "$TS_IP"
+flannel-iface: "tailscale0"
+node-label:
+  - "role=worker"
+CFG
+chmod 600 /etc/rancher/k3s/config.yaml
+
+echo "[8/8] k3s agent 설치 (${k3s_version})"
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="${k3s_version}" INSTALL_K3S_EXEC="agent" sh -
+
+echo "완료"

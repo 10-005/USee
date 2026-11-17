@@ -1,0 +1,8 @@
+Third-party notices
+The included vendor/meowid source subset is copied verbatim from the original MeowID release;
+see vendor/meowid/LICENSE (GNU GPL v2) and vendor_manifest.json for exact file hashes.
+DINOv3 foundation-model notice is preserved in licenses/DINOv3-model-card.md.
+The project BowwowID weights are the existing trained body-only release, not a newly trained model.
+Ultralytics YOLO11m-seg model and runtime: https://github.com/ultralytics/ultralytics
+Ultralytics license information: https://www.ultralytics.com/license
+The upstream model/source terms continue to apply; this package does not grant new rights.

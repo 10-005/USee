@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: chat
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://lab.ssafy.com/s15-final/S15P31D106.git
+    targetRevision: infra
+    path: infra/services/chat/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
