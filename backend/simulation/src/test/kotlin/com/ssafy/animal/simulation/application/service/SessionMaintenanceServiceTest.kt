@@ -1,0 +1,315 @@
+package com.ssafy.animal.simulation.application.service
+
+import com.ssafy.animal.common.event.EventPublisher
+import com.ssafy.animal.common.event.SimulationPushRequested
+import com.ssafy.animal.common.event.SimulationPushType
+import com.ssafy.animal.simulation.config.SimulationProperties
+import com.ssafy.animal.simulation.domain.ActionCode
+import com.ssafy.animal.simulation.domain.EventOccurrence
+import com.ssafy.animal.simulation.domain.SimulationWalk
+import com.ssafy.animal.simulation.domain.WalkStatus
+import com.ssafy.animal.simulation.domain.Personality
+import com.ssafy.animal.simulation.domain.SessionStatus
+import com.ssafy.animal.simulation.domain.SimulationSession
+import com.ssafy.animal.simulation.domain.SpeciesType
+import com.ssafy.animal.simulation.domain.StatCalculator
+import com.ssafy.animal.simulation.domain.StatCalculatorTest
+import com.ssafy.animal.simulation.domain.Stats
+import com.ssafy.animal.simulation.domain.TriggerType
+import java.time.Duration
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.util.random.RandomGenerator
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+class SessionMaintenanceServiceTest {
+
+    private val store = FakeSimulationStore().apply { stockShop() }
+    private val properties = SimulationProperties(Duration.ofHours(1), Duration.ofDays(7), StatCalculatorTest.RULES)
+    private val start = OffsetDateTime.of(2026, 11, 1, 14, 0, 0, 0, ZoneOffset.ofHours(9))
+    private var random: RandomGenerator = ScriptedRandom()
+
+    private val pushes = mutableListOf<Any>()
+
+    private fun serviceAt(now: OffsetDateTime) = SessionMaintenanceService(
+        store, store.progress(properties, now), store.events(properties, random), store.refresher(properties, now),
+        SimulationPushNotifier(object : EventPublisher { override fun publish(event: Any) { pushes += event } }),
+        store, WalkLifecycle(store, store, store.events(properties, random), store.terminator(properties), properties),
+    )
+
+    private fun session(userSeq: Int, endsAt: OffsetDateTime = start.plusDays(7)) = store.save(
+        SimulationSession.start(
+            userSeq = userSeq, breedSeq = 21, animalName = "초코", speciesType = SpeciesType.DOG, personality = Personality.FRIENDLY,
+            expectedCost = 150_000, startedAt = start, endsAt = endsAt,
+            initialStats = StatCalculator(properties.stats, properties.tick).initialStats(),
+        ),
+    )
+
+    @Test
+    fun `스케줄러 진행에서 예정 종료가 지난 세션은 COMPLETED, 아직인 세션은 스탯만 계산`() {
+        val due = session(17, endsAt = start.plusHours(2))
+        val running = session(18)
+        val service = serviceAt(start.plusHours(3))
+
+        assertEquals(listOf(due.sessionSeq, running.sessionSeq), service.inProgressSessionSeqs())
+        service.inProgressSessionSeqs().forEach(service::advance)
+
+        assertEquals(SessionStatus.COMPLETED, due.status)
+        assertEquals(SessionStatus.IN_PROGRESS, running.status)
+        assertEquals(start.plusHours(3), running.statsCalculatedDttm)
+        assertEquals(listOf(running.sessionSeq), service.inProgressSessionSeqs())
+    }
+
+    @Test
+    fun `이미 끝난 세션이나 없는 세션을 advance해도 아무것도 하지 않는다`() {
+        val session = session(17)
+        serviceAt(start.plusHours(1)).abandonForWithdrawal(17)
+
+        serviceAt(start.plusDays(9)).advance(session.sessionSeq!!)
+        serviceAt(start.plusDays(9)).advance(9999L)
+
+        assertEquals(SessionStatus.ABANDONED, session.status)
+        assertEquals(1, store.reports.size)
+    }
+
+    @Test
+    fun `회원 탈퇴면 진행 중 세션을 ABANDONED로 끝내고, 다시 와도 아무것도 하지 않는다`() {
+        val session = session(17)
+
+        serviceAt(start.plusHours(1)).abandonForWithdrawal(17)
+        serviceAt(start.plusHours(2)).abandonForWithdrawal(17)
+
+        assertEquals(SessionStatus.ABANDONED, session.status)
+        assertEquals(start.plusHours(1), session.endedDttm)
+        assertEquals(1, store.reports.size)
+    }
+
+    @Test
+    fun `회원 탈퇴 시점에 이미 건강 0이었으면 FAILED로 끝낸다`() {
+        val session = session(17)
+
+        serviceAt(start.plusDays(3)).abandonForWithdrawal(17)
+
+        assertEquals(SessionStatus.FAILED, session.status)
+        assertEquals(1, store.reports.size)
+    }
+
+    @Test
+    fun `진행 중 세션이 없는 회원의 탈퇴는 무시한다`() {
+        serviceAt(start).abandonForWithdrawal(99)
+
+        assertTrue(store.reports.isEmpty())
+    }
+
+    // ===== RANDOM 돌발 이벤트(256) =====
+
+    private fun catSession() = store.save(
+        SimulationSession.start(
+            userSeq = 30, breedSeq = 31, animalName = "나비", speciesType = SpeciesType.CAT, personality = Personality.TIMID,
+            expectedCost = 150_000, startedAt = start, endsAt = start.plusDays(7),
+            initialStats = StatCalculator(properties.stats, properties.tick).initialStats(),
+        ),
+    )
+
+    @Test
+    fun `판정 확률에 걸리면 종에 맞는 HOME RANDOM 시나리오를 가중치로 골라 6시간 시한으로 만든다`() {
+        store.stockScenarios()
+        val dog = session(17)
+        // 개: 1번(가중치 2) + 5번(가중치 1). 추첨값 2 → 5번
+        random = ScriptedRandom(doubles = listOf(0.0), ints = listOf(2))
+
+        serviceAt(start.plusHours(1)).advance(dog.sessionSeq!!)
+
+        val occurrence = store.occurrences.single()
+        assertEquals(5L, occurrence.scenarioSeq)
+        assertTrue(occurrence.isPending)
+        assertEquals(start.plusHours(1), occurrence.occurredDttm)
+        assertEquals(start.plusHours(7), occurrence.expiresDttm)
+        // 새 집 이벤트는 EVENT 푸시(이름 + 시나리오 제목)
+        assertEquals(
+            listOf<Any>(SimulationPushRequested(17, SimulationPushType.EVENT, "초코에게 무슨 일이 생겼어요", "쿠션을 물어뜯어요. 들어와서 살펴봐 주세요.")),
+            pushes,
+        )
+    }
+
+    @Test
+    fun `고양이 세션은 고양이·공통 시나리오만 고른다`() {
+        store.stockScenarios()
+        val cat = catSession()
+        // 고양이: 1번(가중치 2) + 7번(가중치 1). 추첨값 2 → 7번
+        random = ScriptedRandom(doubles = listOf(0.0), ints = listOf(2))
+
+        serviceAt(start.plusHours(1)).advance(cat.sessionSeq!!)
+
+        assertEquals(7L, store.occurrences.single().scenarioSeq)
+    }
+
+    @Test
+    fun `확률에 걸리지 않거나 대기 이벤트가 있으면 만들지 않는다`() {
+        store.stockScenarios()
+        val dog = session(17)
+
+        random = ScriptedRandom(doubles = listOf(0.5))
+        serviceAt(start.plusHours(1)).advance(dog.sessionSeq!!)
+        assertTrue(store.occurrences.isEmpty())
+        assertTrue(pushes.isEmpty())
+
+        random = ScriptedRandom(doubles = listOf(0.0, 0.0))
+        serviceAt(start.plusHours(1)).advance(dog.sessionSeq!!)
+        serviceAt(start.plusHours(2)).advance(dog.sessionSeq!!)
+        assertEquals(1, store.occurrences.size)
+    }
+
+    @Test
+    fun `22시부터 8시 전까지는 만들지 않는다`() {
+        store.stockScenarios()
+        val dog = session(17)
+        random = ScriptedRandom(doubles = listOf(0.0, 0.0, 0.0))
+
+        // 시작 14시 → 22시·다음 날 7시 59분은 조용한 시간, 8시는 아님
+        serviceAt(start.plusHours(8)).advance(dog.sessionSeq!!)
+        serviceAt(start.plusHours(17).plusMinutes(59)).advance(dog.sessionSeq!!)
+        assertTrue(store.occurrences.isEmpty())
+
+        serviceAt(start.plusHours(18)).advance(dog.sessionSeq!!)
+        assertEquals(1, store.occurrences.size)
+    }
+
+    @Test
+    fun `세션 일차당 2회를 넘기지 않고 다음 일차에는 다시 만든다`() {
+        store.stockScenarios()
+        val dog = session(17)
+        val scenario = store.scenarios.getValue(1)
+        // 1일차(시작~24시간)에 이미 2회 발생·해결
+        repeat(2) { i ->
+            store.save(EventOccurrence.occur(dog, scenario, start.plusHours(1L + i), start.plusHours(7L + i))).resolve(start.plusHours(2L + i), 50_000L + i)
+        }
+        random = ScriptedRandom(doubles = listOf(0.0, 0.0))
+
+        serviceAt(start.plusHours(5)).advance(dog.sessionSeq!!)
+        assertEquals(2, store.occurrences.size)
+
+        // 2일차 첫 판정(시작 + 24시간 = 다음 날 14시)
+        serviceAt(start.plusHours(24)).advance(dog.sessionSeq!!)
+        assertEquals(3, store.occurrences.size)
+    }
+
+    // ===== CONDITION 돌발 이벤트(259) =====
+
+    private fun sessionWith(stats: Stats, userSeq: Int = 40) = store.save(
+        SimulationSession.start(
+            userSeq = userSeq, breedSeq = 21, animalName = "보리", speciesType = SpeciesType.DOG, personality = Personality.FRIENDLY,
+            expectedCost = 150_000, startedAt = start, endsAt = start.plusDays(7), initialStats = stats,
+        ),
+    )
+
+    private val healthy = Stats(satiety = 90, hydration = 90, cleanliness = 90, bond = 50, calmness = 90, health = 90, energy = 90)
+
+    @Test
+    fun `조건이 맞고 확률에 걸리면 CONDITION 이벤트를 만든다`() {
+        store.stockScenarios()
+        // 8번: 건강 < 40, 확률 0.5
+        val sick = sessionWith(healthy.copy(health = 35))
+        random = ScriptedRandom(doubles = listOf(0.4))
+
+        serviceAt(start.plusHours(1)).advance(sick.sessionSeq!!)
+
+        val occurrence = store.occurrences.single()
+        assertEquals(8L, occurrence.scenarioSeq)
+        assertEquals(start.plusHours(7), occurrence.expiresDttm)
+    }
+
+    @Test
+    fun `조건이 맞아도 확률에 안 걸리면 만들지 않고, 조건이 안 맞으면 확률을 굴리지 않는다`() {
+        store.stockScenarios()
+        val sick = sessionWith(healthy.copy(health = 35))
+        // CONDITION 0.6(실패) → RANDOM 0.999(실패)
+        random = ScriptedRandom(doubles = listOf(0.6))
+        serviceAt(start.plusHours(1)).advance(sick.sessionSeq!!)
+        assertTrue(store.occurrences.isEmpty())
+
+        // 건강한 세션: CONDITION 후보가 없어 첫 난수는 RANDOM 판정에 쓰인다(0.0 → RANDOM 발생)
+        val fine = sessionWith(healthy, userSeq = 41)
+        random = ScriptedRandom(doubles = listOf(0.0))
+        serviceAt(start.plusHours(1)).advance(fine.sessionSeq!!)
+        assertEquals(TriggerType.RANDOM, store.scenarios.getValue(store.occurrences.single().scenarioSeq).triggerType)
+    }
+
+    @Test
+    fun `조건 둘이 맞으면 가중치로 하나를 고른다`() {
+        store.stockScenarios()
+        // 8번(건강<40)·12번(안정감<30) 모두 맞음, 가중치 1:1. 추첨값 1 → 12번
+        val both = sessionWith(healthy.copy(health = 35, calmness = 20))
+        random = ScriptedRandom(doubles = listOf(0.1), ints = listOf(1))
+
+        serviceAt(start.plusHours(1)).advance(both.sessionSeq!!)
+
+        assertEquals(12L, store.occurrences.single().scenarioSeq)
+    }
+
+    @Test
+    fun `같은 시나리오는 쿨다운 동안 다시 만들지 않는다`() {
+        store.stockScenarios()
+        // 건강 조건(8번)이 같이 맞지 않도록 빼고 12번(안정감 < 30, 쿨다운 12시간)만 본다
+        store.scenarios.remove(8L)
+        val anxious = sessionWith(healthy.copy(calmness = 20))
+        // 시작(14시) + 7시간 = 21시에 발생해 해결된 상태 → 쿨다운은 다음 날 9시(시작 + 19시간)까지
+        store.save(EventOccurrence.occur(anxious, store.scenarios.getValue(12), start.plusHours(7), start.plusHours(13)))
+            .resolve(start.plusHours(8), 50_000L)
+        random = ScriptedRandom(doubles = listOf(0.1, 0.999, 0.999, 0.1))
+
+        // 다음 날 8시: 쿨다운 안 → CONDITION 후보 없음, RANDOM은 0.1로 안 걸림(0.1 ≥ 0.0104)
+        serviceAt(start.plusHours(18)).advance(anxious.sessionSeq!!)
+        assertEquals(1, store.occurrences.size)
+
+        // 9시: 쿨다운 끝 → CONDITION 0.999(실패)·RANDOM 0.999(실패), 9시 10분 판정에서 CONDITION 0.1(성공)
+        serviceAt(start.plusHours(19)).advance(anxious.sessionSeq!!)
+        assertEquals(1, store.occurrences.size)
+        serviceAt(start.plusHours(19).plusMinutes(10)).advance(anxious.sessionSeq!!)
+        assertEquals(2, store.occurrences.size)
+        assertEquals(12L, store.occurrences.last().scenarioSeq)
+    }
+
+    @Test
+    fun `밤 시간에는 CONDITION도 만들지 않는다`() {
+        store.stockScenarios()
+        val sick = sessionWith(healthy.copy(health = 35))
+        random = ScriptedRandom(doubles = listOf(0.0, 0.0))
+
+        // 시작 14시 + 9시간 = 23시
+        serviceAt(start.plusHours(9)).advance(sick.sessionSeq!!)
+
+        assertTrue(store.occurrences.isEmpty())
+    }
+
+    // ===== 산책(252) =====
+
+    @Test
+    fun `하트비트가 10분 넘게 끊긴 산책은 스케줄러가 마지막 하트비트 시각으로 끝낸다`() {
+        val dog = session(17)
+        val walk = store.save(SimulationWalk.start(dog, start.plusHours(1))).apply { heartbeat(start.plusHours(1).plusMinutes(30)) }
+
+        serviceAt(start.plusHours(1).plusMinutes(35)).advance(dog.sessionSeq!!)
+        assertTrue(walk.isInProgress)
+
+        serviceAt(start.plusHours(1).plusMinutes(41)).advance(dog.sessionSeq!!)
+        assertEquals(WalkStatus.ENDED, walk.status)
+        assertEquals(start.plusHours(1).plusMinutes(30), walk.endedDttm)
+        assertEquals(ActionCode.WALK_END, store.logs.last().actionCode)
+    }
+
+    @Test
+    fun `산책 중에는 집 이벤트를 만들지 않는다`() {
+        store.stockScenarios()
+        val dog = sessionWith(healthy.copy(health = 35))
+        store.save(SimulationWalk.start(dog, start.plusHours(1))).heartbeat(start.plusHours(1))
+        random = ScriptedRandom(doubles = listOf(0.0, 0.0))
+
+        serviceAt(start.plusHours(1).plusMinutes(5)).advance(dog.sessionSeq!!)
+
+        assertTrue(store.occurrences.isEmpty())
+        assertTrue(pushes.isEmpty())
+    }
+}
