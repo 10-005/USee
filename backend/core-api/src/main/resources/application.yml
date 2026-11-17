@@ -1,0 +1,129 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: core-api
+  profiles:
+    default: local
+  config:
+    # backend/.env (bootRun은 모듈 폴더, IDE는 backend 폴더에서 실행될 수 있어 둘 다 시도)
+    import: optional:file:.env[.properties],optional:file:../.env[.properties],classpath:common.yml
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: core
+        jdbc:
+          time_zone: Asia/Seoul
+  # core 스키마 DDL·시드(db/migration). ddl-auto=update로 먼저 생긴 테이블(sample 등)이 있어도 V1부터 적용되도록 0으로 baseline
+  flyway:
+    schemas: core
+    create-schemas: false
+    baseline-on-migrate: true
+    baseline-version: 0
+    # 병렬 브랜치는 시드·수정 파일을 V{yyyyMMdd_HHmm}__설명.sql로 추가한다. 병합 순서가 버전 순서와 달라도 적용
+    out-of-order: true
+
+security:
+  # 2.1 kakao/verify·2.5 kakao/register·2.2 local/login·2.3 refresh는 토큰 없이 호출. logout은 로그인 필요
+  # 닉네임 중복 확인은 가입 단계(access 토큰 없음)에서도 쓰므로 토큰 없이 허용(있으면 본인 제외 판정)
+  permit-paths: /api/core/v1/auth/kakao/**,/api/core/v1/auth/local/login,/api/core/v1/auth/refresh,/api/core/v1/users/nickname-availability
+
+auth:
+  # 2.2 LOCAL 로그인 실패 제한(Q445 가안). 연속 실패 max-failures회면 lock-duration 동안 429
+  local-login:
+    max-failures: 5
+    lock-duration: PT15M
+
+api:
+  prefix: /api/core
+  docs-hub: true   # dev에서 4개 서비스 문서를 묶은 /swagger-ui를 띄운다
+
+jwt:
+  public-key: ${JWT_PUBLIC_KEY}
+  # 발급용 개인 키(core-api만). 서버는 SealedSecret으로 주입
+  private-key: ${JWT_PRIVATE_KEY}
+  # 명세 기본값. 환경 변수 JWT_ACCESS_TOKEN_TTL·JWT_REFRESH_TOKEN_TTL로 덮어쓴다(dev는 access P14D)
+  access-token-ttl: PT1H
+  refresh-token-ttl: P14D
+
+kakao:
+  # Kakao Developers 앱 ID(비밀값 아님). 다른 앱에서 발급된 카카오 토큰을 거른다
+  app-id: ${KAKAO_APP_ID:1639429}
+
+# 이미지 저장소(S3). 비어 있어도 앱은 뜨고 이미지 API만 실패한다. 자격 증명은 AWS_ACCESS_KEY_ID·AWS_SECRET_ACCESS_KEY 환경 변수
+storage:
+  bucket: ${STORAGE_BUCKET:}
+  region: ${STORAGE_REGION:ap-northeast-2}
+  public-base-url: ${STORAGE_PUBLIC_BASE_URL:}
+
+# AI 품종 추천 서버(ai/breed-server, 클러스터 내부 주소). 비어 있으면 8.9는 503
+ai:
+  breed-server:
+    base-url: ${AI_BREED_SERVER_URL:}
+
+# AI 매칭 후보 조건(Q523 [가안]). MatchRequested.candidates에 가까운 순 limit개까지 싣는다
+match:
+  candidate:
+    max-distance-km: 30
+    date-grace: P1D   # 발견·구조 시각이 실종 시각보다 이만큼 넘게 앞서면 제외
+    limit: 500
+  # 시연용: 이 회원들이 실종신고를 처음 등록할 때는 후보 없이 보낸다. 워커는 벡터만 저장하고 top5 알림은 없다.
+  # 이후 발견·보호동물 매칭의 후보에는 그대로 들어간다. 시연이 끝나면 비운다
+  skip-registration-match-user-seqs: [146, 147]
+  # 실행 이름(예: 2026-11-12-first). 기동할 때 유효한 실종·발견·보호동물 전체를 MatchRequested로 다시 보낸다(발견·보호동물 먼저).
+  # Redis 표식(match:republish:{이름}, 90일)으로 이름당 한 번만(Q524). 비어 있거나 false면 안 함. 다시 하려면 이름을 바꾼다.
+  # 실제 AI_MATCH 알림이 갈 수 있다
+  republish-on-startup: ${MATCH_REPUBLISH_ON_STARTUP:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # prometheus: 클러스터 안 수집용(S15P31D106-423). Ingress는 /api/** 만 넘기므로 외부에서는 닿지 않는다
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    distribution:
+      # HTTP 지연 p95/p99를 Prometheus에서 계산하도록 히스토그램 버킷 노출. 범위를 좁혀 버킷 수를 줄인다
+      percentiles-histogram:
+        http.server.requests: true
+      minimum-expected-value:
+        http.server.requests: 5ms
+      maximum-expected-value:
+        http.server.requests: 5s
+
+logging:
+  pattern:
+    correlation: "[%X{traceId:-}] "
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:animal}?currentSchema=core
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+---
+# 개발·시연용 더미 데이터(db/dev)는 local·dev에서만 적용한다. prod는 마스터 시드(db/migration)만
+spring:
+  config:
+    activate:
+      on-profile: local | dev
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev

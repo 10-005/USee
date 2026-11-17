@@ -1,0 +1,113 @@
+# 자체 컨테이너 레지스트리 (Docker Distribution v3)
+# 주소: https://k15d106.p.ssafy.io/v2/  (하위 도메인 대신 같은 도메인의 /v2 경로)
+# 인증: htpasswd (Secret platform/registry-htpasswd, 계정 ci·puller)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-data
+  namespace: platform
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: platform
+spec:
+  replicas: 1
+  # PVC(RWO)를 쓰므로 새 Pod가 뜨기 전에 기존 Pod를 먼저 내린다
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: registry
+  template:
+    metadata:
+      labels:
+        app: registry
+    spec:
+      # 데이터가 노드 1 디스크(local-path)에 있으므로 노드 1에 고정
+      nodeSelector:
+        role: primary
+      containers:
+        - name: registry
+          image: registry:3
+          ports:
+            - containerPort: 5000
+          env:
+            - name: REGISTRY_AUTH
+              value: htpasswd
+            - name: REGISTRY_AUTH_HTPASSWD_REALM
+              value: k15d106 registry
+            - name: REGISTRY_AUTH_HTPASSWD_PATH
+              value: /auth/htpasswd
+            # 이미지 삭제 API 허용 (오래된 이미지 정리용)
+            - name: REGISTRY_STORAGE_DELETE_ENABLED
+              value: "true"
+            # 업로드 Location 헤더를 상대 경로로 (TLS 앞단 뒤에서 http/https 혼동 방지)
+            - name: REGISTRY_HTTP_RELATIVEURLS
+              value: "true"
+            # v3는 OpenTelemetry 추적을 기본으로 보내려 해서 로그에 연결 오류가 쌓임. 끈다
+            - name: OTEL_TRACES_EXPORTER
+              value: none
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/registry
+            - name: auth
+              mountPath: /auth
+              readOnly: true
+          # /v2/ 는 인증 없이 401을 돌려주므로 HTTP 검사 대신 포트 검사
+          readinessProbe:
+            tcpSocket:
+              port: 5000
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: registry-data
+        - name: auth
+          secret:
+            secretName: registry-htpasswd
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry
+  namespace: platform
+spec:
+  selector:
+    app: registry
+  ports:
+    - port: 5000
+      targetPort: 5000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: registry
+  namespace: platform
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: k15d106.p.ssafy.io
+      http:
+        paths:
+          - path: /v2
+            pathType: Prefix
+            backend:
+              service:
+                name: registry
+                port:
+                  number: 5000

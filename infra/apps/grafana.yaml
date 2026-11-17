@@ -1,0 +1,153 @@
+# 메트릭 대시보드(S15P31D106-423 4단계). tailnet 전용 https://grafana.<tailnet>.ts.net
+# 데이터소스·대시보드는 values로 만들어 PVC 없이 둔다(Pod가 다시 떠도 같은 상태)
+# 관리자 계정은 SealedSecret grafana-admin(infra/scripts/gen-grafana-admin-secret.sh)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://grafana-community.github.io/helm-charts
+    chart: grafana
+    targetRevision: 14.4.1
+    helm:
+      valuesObject:
+        nodeSelector:
+          role: primary
+        resources:
+          requests: {cpu: 50m, memory: 128Mi}
+          limits: {memory: 384Mi}
+        persistence:
+          enabled: false
+        admin:
+          existingSecret: grafana-admin
+          userKey: admin-user
+          passwordKey: admin-password
+        datasources:
+          datasources.yaml:
+            apiVersion: 1
+            datasources:
+              - name: Prometheus
+                # 19004는 ${DS_PROMETHEUS}를 uid로, 4701은 이름으로 찾으므로 이름과 uid를 같게 둔다
+                uid: Prometheus
+                type: prometheus
+                url: http://prometheus-server.monitoring.svc
+                access: proxy
+                isDefault: true
+              # 서비스 로그(loki.yaml, alloy.yaml). Explore에서 {namespace="app", app="core-api"}
+              - name: Loki
+                uid: Loki
+                type: loki
+                url: http://loki.monitoring.svc:3100
+                access: proxy
+        dashboardProviders:
+          dashboardproviders.yaml:
+            apiVersion: 1
+            providers:
+              - name: default
+                orgId: 1
+                folder: ""
+                type: file
+                disableDeletion: true
+                editable: true
+                options:
+                  path: /var/lib/grafana/dashboards/default
+        # grafana.com 공개 대시보드를 기동 시 내려받는다
+        # revision을 안 적으면 1번(가장 옛 판)을 받는다. datasource를 문자열로 주면 한 줄짜리 "datasource": 만 바꿔서
+        # 여러 줄 객체({uid: ${DS_PROMETHEUS}})가 그대로 남으므로, 목록 형식으로 ${DS_PROMETHEUS} 자체를 치환한다
+        dashboards:
+          default:
+            spring-boot:
+              gnetId: 19004 # Spring Boot 3.x Statistics: HTTP 지연·오류, HikariCP, JVM
+              revision: 1
+              datasource:
+                - { name: DS_PROMETHEUS, value: Prometheus }
+            jvm-micrometer:
+              gnetId: 4701 # JVM (Micrometer)
+              revision: 10
+              datasource:
+                - { name: DS_PROMETHEUS, value: Prometheus }
+            node-exporter:
+              gnetId: 1860 # Node Exporter Full: 노드 CPU·메모리·디스크. 자체 데이터소스 변수(기본값)를 써서 치환 불필요
+              revision: 46
+            # 서비스 로그(Loki). 네임스페이스·서비스를 고르고 검색어로 거른다. 라벨은 alloy.yaml의 relabel과 맞춘다
+            service-logs:
+              json: |
+                {
+                  "title": "서비스 로그",
+                  "uid": "service-logs",
+                  "schemaVersion": 39,
+                  "time": { "from": "now-1h", "to": "now" },
+                  "refresh": "30s",
+                  "templating": { "list": [
+                    { "name": "namespace", "label": "네임스페이스", "type": "query",
+                      "datasource": { "type": "loki", "uid": "Loki" },
+                      "query": "label_values(namespace)", "refresh": 2,
+                      "current": { "text": "app", "value": "app" } },
+                    { "name": "app", "label": "서비스", "type": "query",
+                      "datasource": { "type": "loki", "uid": "Loki" },
+                      "query": "label_values({namespace=~\"$namespace\"}, app)", "refresh": 2,
+                      "multi": true, "includeAll": true, "allValue": ".+",
+                      "current": { "text": "All", "value": "$__all" } },
+                    { "name": "search", "label": "검색어(traceId 등)", "type": "textbox", "query": "",
+                      "current": { "text": "", "value": "" } }
+                  ] },
+                  "panels": [
+                    { "type": "timeseries", "title": "서비스별 로그 양",
+                      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 7 },
+                      "datasource": { "type": "loki", "uid": "Loki" },
+                      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 60, "stacking": { "mode": "normal" } } }, "overrides": [] },
+                      "targets": [ { "refId": "A", "legendFormat": "{{app}}",
+                        "expr": "sum by (app) (count_over_time({namespace=~\"$namespace\", app=~\"$app\"} |= \"$search\" [$__interval]))" } ] },
+                    { "type": "timeseries", "title": "서비스별 ERROR·WARN 수",
+                      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 7 },
+                      "datasource": { "type": "loki", "uid": "Loki" },
+                      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 60, "stacking": { "mode": "normal" } } }, "overrides": [] },
+                      "targets": [ { "refId": "A", "legendFormat": "{{app}} {{level}}",
+                        "expr": "sum by (app, level) (count_over_time({namespace=~\"$namespace\", app=~\"$app\"} |= \"$search\" |~ `(?:^|\\s|\"level\":\")(ERROR|WARN|WARNING)(?:\"|:?\\s)` | regexp `(?:^|\\s|\"level\":\")(?P<level>ERROR|WARN|WARNING)(?:\"|:?\\s)` [$__interval]))" } ] },
+                    { "type": "logs", "title": "오류 로그(ERROR: Spring 텍스트·JSON, Python ERROR:·CRITICAL:)",
+                      "gridPos": { "x": 0, "y": 7, "w": 24, "h": 9 },
+                      "datasource": { "type": "loki", "uid": "Loki" },
+                      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "enableLogDetails": true },
+                      "targets": [ { "refId": "A",
+                        "expr": "{namespace=~\"$namespace\", app=~\"$app\"} |= \"$search\" |~ `(?:^|\\s|\"level\":\")(ERROR|CRITICAL)(?:\"|:?\\s)`" } ] },
+                    { "type": "logs", "title": "전체 로그",
+                      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 16 },
+                      "datasource": { "type": "loki", "uid": "Loki" },
+                      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "enableLogDetails": true },
+                      "targets": [ { "refId": "A",
+                        "expr": "{namespace=~\"$namespace\", app=~\"$app\"} |= \"$search\"" } ] }
+                  ]
+                }
+        extraObjects:
+          - apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: grafana-tailnet
+              namespace: monitoring
+              annotations:
+                # ArgoCD 화면과 같은 대상(팀원)이 보므로 같은 태그·ACL을 쓴다
+                tailscale.com/tags: "tag:svc-argocd"
+            spec:
+              ingressClassName: tailscale
+              defaultBackend:
+                service:
+                  name: grafana
+                  port:
+                    number: 80
+              tls:
+                - hosts:
+                    - grafana
+        testFramework:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

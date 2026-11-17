@@ -1,0 +1,82 @@
+# 4개 서비스 공통 기본값. 서비스 application.yml의 spring.config.import로 불러온다. 서비스는 api.prefix(/api/core 등)만 정한다.
+# import한 파일이 서비스 yml보다 우선하므로, 서비스별로 달라야 하는 값은 api.* 프로퍼티로 받는다.
+springdoc:
+  api-docs:
+    enabled: false   # 기본 꺼짐(prod 등). local·dev에서만 켠다
+    path: ${api.prefix}/v3/api-docs
+  swagger-ui:
+    path: /swagger-ui
+  # Pageable·검색 조건 객체를 page·size·sort 같은 개별 쿼리 파라미터로 문서화(@ParameterObject 불필요)
+  default-flat-param-object: true
+
+spring:
+  data:
+    web:
+      pageable:
+        max-page-size: 100   # 명세 Q417. 100 초과 요청은 100으로 잘린다
+  # events.transport=rabbit일 때만 실제로 연결한다(첫 발행 시 접속)
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+events:
+  # 서비스 간 이벤트 전송(API 명세 21.6): log(기본, 로그만) | rabbit(RabbitMQ 교환기 animal.events)
+  # rabbit일 때 접속 정보는 위 spring.rabbitmq(RABBITMQ_HOST·PORT·USERNAME·PASSWORD)
+  transport: ${EVENTS_TRANSPORT:log}
+
+management:
+  health:
+    rabbit:
+      enabled: false   # log 모드에서도 연결을 시도해 /actuator/health가 DOWN이 되므로 끈다(k8s 프로브는 liveness·readiness만 봄)
+
+server:
+  # Traefik이 보내는 X-Forwarded-Proto(https)를 반영해 문서의 servers 주소를 https로 만든다
+  forward-headers-strategy: native
+
+cors:
+  # 브라우저 다른 출처 허용 목록(쉼표 구분, * 금지). 기본은 비어 있어 아무 출처도 허용하지 않는다
+  # 서버에서는 환경 변수 CORS_ALLOWED_ORIGINS로 덮어쓴다(아래 기본값을 통째로 대체)
+  allowed-origins:
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local | dev
+springdoc:
+  api-docs:
+    enabled: true
+cors:
+  allowed-origins: http://localhost:5173,http://127.0.0.1:5173   # 웹 Vite 개발 서버
+
+---
+# dev: 같은 도메인에서 /swagger-ui를 하나만 둘 수 있으므로 api.docs-hub=true인 서비스(core-api)만 통합 화면을 띄운다
+spring:
+  config:
+    activate:
+      on-profile: dev
+# 로그를 JSON 한 줄씩(logstash 형식: @timestamp, level, thread_name, logger_name, message, traceId 등 MDC, key-value)
+# Loki에서 `| json`으로 필드를 거른다. 모든 줄에 서비스명·Pod명을 붙인다(S15P31D106-423). 로컬은 텍스트 그대로
+logging:
+  structured:
+    format:
+      console: logstash
+    json:
+      add:
+        service: ${spring.application.name}
+        pod: ${HOSTNAME:unknown}
+springdoc:
+  swagger-ui:
+    enabled: ${api.docs-hub:false}
+    urls-primary-name: core-api   # 드롭다운이 이름순 정렬이라 지정하지 않으면 chat이 먼저 열린다
+    urls:
+      - name: core-api
+        url: /api/core/v3/api-docs
+      - name: chat
+        url: /api/chat/v3/api-docs
+      - name: notification
+        url: /api/notification/v3/api-docs
+      - name: simulation
+        url: /api/simulation/v3/api-docs

@@ -1,0 +1,6 @@
+# 모델 가중치는 git에 넣지 않는다(README 참고). vendor/.../cat_recognition/models/ 는 소스라서 넣는다
+/dog/models/
+/cat/models/
+.venv/
+__pycache__/
+.runtime/

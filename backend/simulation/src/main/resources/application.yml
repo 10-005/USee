@@ -1,0 +1,207 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: simulation
+  profiles:
+    default: local
+  config:
+    # backend/.env (bootRun은 모듈 폴더, IDE는 backend 폴더에서 실행될 수 있어 둘 다 시도)
+    import: optional:file:.env[.properties],optional:file:../.env[.properties],classpath:common.yml
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: simulation
+        jdbc:
+          time_zone: Asia/Seoul
+  # simulation 스키마 DDL·시드(db/migration, Q412). core 테이블(animal_breeds 등)은 읽기 전용 JOIN만
+  flyway:
+    schemas: simulation
+    create-schemas: false
+    baseline-on-migrate: true
+    baseline-version: 0
+    out-of-order: true   # 병렬 브랜치의 V{타임스탬프} 파일이 병합 순서와 달라도 적용
+
+api:
+  prefix: /api/simulation
+
+jwt:
+  public-key: ${JWT_PUBLIC_KEY}
+
+# 품종 대표 이미지 URL 변환용(core-api와 같은 값). imageUrl = {public-base-url}/{image_key}
+storage:
+  public-base-url: ${STORAGE_PUBLIC_BASE_URL:}
+
+# 모의 입양 코드 설정값(API 명세 18.0 [가안], Q429). DB에 두지 않으며 플레이 테스트 후 조정한다
+simulation:
+  tick: 1h
+  session-duration: 7d
+  # 진행 중 세션 스탯 계산·종료 판정 주기(S8, 가안 10분). 인스턴스 1개 전제
+  scheduler:
+    enabled: true
+    interval: PT10M
+    initial-delay: PT1M
+  stats:
+    initial:
+      satiety: 70
+      hydration: 70
+      cleanliness: 80
+      bond: 30
+      calmness: 50
+      health: 90
+      energy: 60
+    # tick당 감소량(양수). 건강은 기본 감소 없이 health-penalty로만 떨어진다
+    decrease-per-tick:
+      satiety: 4
+      hydration: 5
+      cleanliness: 2
+      bond: 1
+      calmness: 2
+      health: 0
+      energy: 3
+    # 성격별 감소 배율(M4). 회복 배율(친밀도·산책 회복)은 돌봄·산책 작업에서 추가한다
+    personality-decrease:
+      active:
+        energy: 1.3
+        satiety: 1.3
+      timid:
+        calmness: 1.5
+      aggressive:
+        bond: 1.3
+      friendly:
+        calmness: 1.3   # "방치 시 안정감 감소 1.3"
+    health-penalty:
+      basic-need-below: 20      # 포만감·수분·청결도 중 하나라도 20 미만이면
+      basic-need-amount: 3      # 건강 -3
+      calmness-at-or-below: 20  # 안정감 20 이하면
+      calmness-amount: 2        # 건강 추가 -2
+  care:
+    # 물 주기 효과(가안). 물은 무료라 물품 효과 대신 설정에 둔다. 수분은 시간당 5씩 줄어 한 번에 약 10시간분
+    water-effects:
+      hydration: 50
+    # 캣닢 남용(가안): 직전 캣닢 뒤 6시간 안에 또 주면 캣닢 효과 대신 안정감만 크게 떨어진다(과흥분)
+    catnip-overuse-window: 6h
+    catnip-overuse-effects:
+      calmness: -20
+  shop:
+    # 묶음 물품: item_seq → 1개 구매 시 인벤토리 증가량(없으면 1). 번호는 시드(V20261109_1110)와 짝을 맞춘다
+    uses-per-purchase:
+      "[22]": 12  # 균형 잡힌 사료
+      "[23]": 5   # 바삭한 미니 비스킷
+      "[24]": 6   # 동결건조 닭고기
+      "[25]": 8   # 한입 훈련 간식
+      "[26]": 4   # 씹는 간식
+      "[27]": 6   # 동결건조 흰살생선
+      "[28]": 5   # 촉촉한 스틱 간식
+      "[29]": 10  # 배변 청소용품
+      "[30]": 10  # 배변패드
+      "[31]": 10  # 화장실 모래
+      "[32]": 10  # 배변봉투
+      "[33]": 4   # 향긋한 캣닢
+      "[34]": 10  # 순한 샴푸(판매 중단, V20261109_1316)
+      "[35]": 3   # 기본 상비약
+  report:
+    # 종료 처리 후 이 시간이 지나도 요약이 없으면 스케줄러가 다시 만든다(Q487 가안 10분)
+    summary-recovery-delay: 10m
+    # 하루 권장 횟수(Q517 가안). 18.18 dailyCare 이탈 판정·LLM 요약 기준. 고양이 세션은 walk를 쓰지 않는다
+    care-guideline:
+      feed: 3
+      water: 3
+      clean-litter: 2
+      play: 2
+      walk: 1
+    # 종별 최소 예산(원, Q517 가안): 필수 기구 + 7일치 소모품 최소 구성. LLM 요약 입력용
+    reference-cost:
+      dog: 93300
+      cat: 88800
+    # LLM 요약(Q517). 키가 비어 있으면 규칙 문구만 쓴다. 키는 환경 변수로만(SealedSecret)
+    llm:
+      api-key: ${OPENAI_API_KEY:}
+      model: gpt-6-luna
+      timeout: 20s
+      base-url: https://api.openai.com
+  # 돌발 이벤트(S15P31D106-255, 가안). RANDOM은 스케줄러 판정마다 이 확률로 발생(10분 주기면 하루 평균 약 1.5회)
+  event:
+    home-expiry: 6h
+    random-chance-per-check: 0.0104
+    random-max-per-day: 2      # 세션 일차(시작 기준 24시간)당
+    quiet-start: "22:00"       # 22시~8시에는 RANDOM·CONDITION 이벤트를 만들지 않는다
+    quiet-end: "08:00"
+    condition-default-cooldown: 24h   # CONDITION 시나리오 cooldown_hours가 비어 있을 때
+  # 산책(S15P31D106-252, 가안). 효과는 10분 단위로 60분까지만, 10분 미만은 효과 없음
+  walk:
+    heartbeat-interval: 60s
+    auto-end-after: 10m        # 하트비트가 이만큼 끊기면 마지막 하트비트 시각으로 자동 종료
+    effect-unit: 10m
+    effect-max-duration: 60m
+    effects-per-unit:
+      energy: 7
+      calmness: 4
+      bond: 1
+      satiety: -2
+      hydration: -3
+      cleanliness: -2
+    water-effects:             # 산책 중 물 주기(집 +50보다 적게)
+      hydration: 20
+    event-chance-per-heartbeat: 0.08
+    event-max-per-walk: 3
+    event-expiry: 5m
+  # 시연 회원(명세 밖). 집 돌발 이벤트 없음, 산책마다 시작 30초 뒤 첫 하트비트에서 배변 이벤트 1회, 하트비트 10초
+  demo:
+    user-seqs: [146, 147]
+    walk-poop-after: 30s
+    walk-poop-scenario-seq: 16
+    heartbeat-interval: 10s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # prometheus: 클러스터 안 수집용(S15P31D106-423). Ingress는 /api/** 만 넘기므로 외부에서는 닿지 않는다
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    distribution:
+      # HTTP 지연 p95/p99를 Prometheus에서 계산하도록 히스토그램 버킷 노출. 범위를 좁혀 버킷 수를 줄인다
+      percentiles-histogram:
+        http.server.requests: true
+      minimum-expected-value:
+        http.server.requests: 5ms
+      maximum-expected-value:
+        http.server.requests: 5s
+
+logging:
+  pattern:
+    correlation: "[%X{traceId:-}] "
+
+---
+# dev 시드(db/dev)는 local·dev에서만 함께 적용한다(core-api와 같은 방식). 회원 1번 모의 입양 완료 세션(S15P31D106-254)
+spring:
+  config:
+    activate:
+      on-profile: local | dev
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:animal}?currentSchema=simulation
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate

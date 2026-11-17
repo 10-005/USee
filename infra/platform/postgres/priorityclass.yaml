@@ -1,0 +1,7 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: data-critical
+value: 1000000
+globalDefault: false
+description: "DB 등 데이터 계층. 자원이 부족할 때 가장 나중에 밀려남"
