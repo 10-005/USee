@@ -10,6 +10,9 @@ fun interface MatchCandidateUseCase {
      * source가 ETC거나 없으면 빈 목록. 같은 트랜잭션에서 방금 바꾼 source도 반영한다
      */
     fun findCandidates(sourceType: TargetType, sourceSeq: Long): List<MatchCandidate>
+
+    /** 시연용: 이 회원이 올린 실종신고는 매칭을 요청하지 않는다(match.excluded-missing-user-seqs) */
+    fun isMissingMatchExcluded(userSeq: Long): Boolean = false
 }
 
 /**

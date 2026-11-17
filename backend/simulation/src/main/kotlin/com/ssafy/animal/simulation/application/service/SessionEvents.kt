@@ -128,7 +128,7 @@ class SessionEvents(
     }
 
     /**
-     * 시연 회원의 산책 이벤트: 확률·추첨 없이 시작 후 설정 시간(30초)이 지난 첫 하트비트에서 배변 시나리오를 산책당 한 번만 만든다.
+     * 시연 회원의 산책 이벤트: 확률·추첨 없이 시작 후 설정 시간(40초)이 지난 첫 하트비트에서 배변 시나리오를 산책당 한 번만 만든다.
      * 다른 산책 이벤트는 만들지 않는다.
      */
     private fun triggerDemoWalk(session: SimulationSession, walk: SimulationWalk, walkSeq: Long, at: OffsetDateTime): PendingEvent? {

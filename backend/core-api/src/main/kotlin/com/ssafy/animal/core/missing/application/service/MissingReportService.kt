@@ -86,8 +86,8 @@ class MissingReportService(
             validate(report)
             missingReportRepository.saveAndFlush(report)
             missingReportRepository.replaceImages(report.missingReportSeq!!, command.imageSeqs)
-            requestMatch(MatchEventType.MISSING_REPORT_REGISTERED, report, classification.speciesCode.name, command.imageSeqs)
-            CreatedMissing(report.missingReportSeq!!, report.status, report.districtCode, aiMatchingRequested = true)
+            val requested = requestMatch(MatchEventType.MISSING_REPORT_REGISTERED, report, classification.speciesCode.name, command.imageSeqs)
+            CreatedMissing(report.missingReportSeq!!, report.status, report.districtCode, aiMatchingRequested = requested)
         }
     }
 
@@ -174,7 +174,9 @@ class MissingReportService(
         )
     }
 
-    private fun requestMatch(type: MatchEventType, report: MissingReport, speciesCode: String, imageSeqs: List<Long>) {
+    /** 보냈으면 true. 시연용 제외 회원(match.excluded-missing-user-seqs)이면 보내지 않는다 */
+    private fun requestMatch(type: MatchEventType, report: MissingReport, speciesCode: String, imageSeqs: List<Long>): Boolean {
+        if (matchCandidates.isMissingMatchExcluded(report.userSeq.toLong())) return false
         eventPublisher.publish(
             MatchRequested(
                 eventType = type,
@@ -186,6 +188,7 @@ class MissingReportService(
                 candidates = matchCandidates.findCandidates(TargetType.MISSING, report.missingReportSeq!!.toLong()),
             ),
         )
+        return true
     }
 
     private fun loadOwned(userSeq: Long, missingReportSeq: Long): MissingReport =

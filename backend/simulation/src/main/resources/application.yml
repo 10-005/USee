@@ -148,10 +148,10 @@ simulation:
     event-chance-per-heartbeat: 0.08
     event-max-per-walk: 3
     event-expiry: 5m
-  # 시연 회원(명세 밖). 집 돌발 이벤트 없음, 산책마다 시작 30초 뒤 첫 하트비트에서 배변 이벤트 1회, 하트비트 10초
+  # 시연 회원(명세 밖). 집 돌발 이벤트 없음, 산책마다 시작 40초 뒤 첫 하트비트에서 배변 이벤트 1회, 하트비트 10초
   demo:
     user-seqs: [146, 147]
-    walk-poop-after: 30s
+    walk-poop-after: 40s
     walk-poop-scenario-seq: 16
     heartbeat-interval: 10s
 

@@ -23,19 +23,28 @@ data class MatchCandidateProperties(
     val limit: Int = 500,
 )
 
+/** 시연용 조정. 여기 있는 회원의 실종신고는 등록·사진 변경·재개·일괄 재발행 때 MatchRequested를 보내지 않는다 */
+@ConfigurationProperties("match")
+data class MatchExclusionProperties(
+    val excludedMissingUserSeqs: Set<Long> = emptySet(),
+)
+
 @Service
-@EnableConfigurationProperties(MatchCandidateProperties::class)
+@EnableConfigurationProperties(MatchCandidateProperties::class, MatchExclusionProperties::class)
 class MatchCandidateService(
     private val repository: MatchCandidateRepository,
     private val eventPublisher: EventPublisher,
     private val republishMarker: MatchRepublishMarker,
     properties: MatchCandidateProperties,
+    private val exclusion: MatchExclusionProperties = MatchExclusionProperties(),
 ) : MatchCandidateUseCase, MatchRepublishUseCase {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val criteria = MatchCriteria(properties.maxDistanceKm, properties.dateGrace, properties.limit)
 
     override fun findCandidates(sourceType: TargetType, sourceSeq: Long) = repository.findCandidates(sourceType, sourceSeq, criteria)
+
+    override fun isMissingMatchExcluded(userSeq: Long) = userSeq in exclusion.excludedMissingUserSeqs
 
     /**
      * 표식은 발행 전에 넣는다. 발행 도중 프로세스가 죽으면 그 이름은 끝난 것으로 남으므로, 다시 하려면 이름을 바꾼다.
@@ -61,6 +70,7 @@ class MatchCandidateService(
     // 트랜잭션 밖이라 한 건씩 바로 나간다. 실종 차례에는 앞서 보낸 발견·보호동물의 벡터가 워커에 이미 있다(큐는 순서대로 처리)
     private fun republishAll(): Int = REPUBLISH_ORDER.sumOf { (type, eventType) ->
         val sources = repository.findEligibleSources(type)
+            .filterNot { type == TargetType.MISSING && it.userSeq?.let(::isMissingMatchExcluded) == true }
         sources.forEach {
             eventPublisher.publish(
                 MatchRequested(eventType, type, it.seq, it.imageKeys, it.speciesCode, it.occurredAt, findCandidates(type, it.seq)),
