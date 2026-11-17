@@ -1,0 +1,10 @@
+# /etc/rancher/k3s/config.yaml (노드 1, k3s v1.36.5+k3s1)
+node-ip: 100.121.219.58
+advertise-address: 100.121.219.58
+flannel-iface: tailscale0
+tls-san:
+  - 100.121.219.58
+node-label:
+  - role=primary
+secrets-encryption: true
+write-kubeconfig-mode: "0600"

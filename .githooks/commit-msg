@@ -1,0 +1,6 @@
+#!/bin/sh
+sed -i.bak -E \
+  -e '/^Co-[Aa]uthored-[Bb]y: Claude/d' \
+  -e '/^Claude-Session:/d' \
+  -e '/Generated with \[?Claude Code/d' \
+  "$1" && rm -f "$1.bak"

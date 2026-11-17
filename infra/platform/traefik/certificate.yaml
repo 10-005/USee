@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: k15d106-default
+  namespace: kube-system
+spec:
+  secretName: k15d106-default-tls
+  dnsNames:
+    - k15d106.p.ssafy.io
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer

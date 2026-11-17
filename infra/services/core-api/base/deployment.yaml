@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-api
+  namespace: app
+  labels:
+    app: core-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: core-api
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0   # 새 Pod가 준비된 뒤에 옛 Pod를 내린다 (무중단)
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: core-api
+    spec:
+      imagePullSecrets:
+        - name: registry-pull
+      # DB·Redis가 있는 노드 1에 우선 배치(S15P31D106-423). 노드 2에 두면 DB 왕복(1.6ms)이 요청당 8~9번 쌓여 서버 시간이 3.5배
+      # DB가 노드 1에만 있어 두 노드 분산의 장애 대비 효과가 없으므로 강제 분산(topologySpreadConstraints)은 뺐다
+      # preferred라 노드 1 자원이 모자랄 때만 노드 2로 간다
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - { key: role, operator: In, values: [primary] }
+      containers:
+        - name: core-api
+          image: k15d106.p.ssafy.io/animal/core-api   # 태그는 overlay(kustomization images)에서 지정
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # application.yml의 local 프로필(DB·Redis 설정)을 쓰지 않고, 아래 환경 변수로 주입
+            - name: SPRING_PROFILES_ACTIVE
+              value: dev
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres.data.svc.cluster.local:5432/animal?currentSchema=core
+            - name: SPRING_DATASOURCE_USERNAME
+              value: core_app
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: core-api-secrets, key: DB_PASSWORD }
+            - name: SPRING_DATA_REDIS_HOST
+              value: redis.data.svc.cluster.local
+            - name: SPRING_DATA_REDIS_PORT
+              value: "6379"
+            - name: SPRING_DATA_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: core-api-secrets, key: REDIS_PASSWORD }
+            # Flyway(db/migration)가 먼저 적용되고, 아직 Flyway로 옮기지 않은 엔티티만 자동 갱신 (S15P31D106-63)
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              value: update
+            - name: JWT_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef: { name: core-api-secrets, key: JWT_PUBLIC_KEY }
+            # 토큰 발급용 개인 키(PKCS#8 Base64, scripts/gen-core-api-secrets.sh가 공개 키와 같은 쌍으로 생성)
+            - name: JWT_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef: { name: core-api-secrets, key: JWT_PRIVATE_KEY }
+            # NCP Maps 키(5.6 주소 검색·좌표→시군구, scripts/add-naver-map-keys.sh). 변수 이름은 naver.map.client-id의 Spring 완화 바인딩
+            - name: NAVER_MAP_CLIENTID
+              valueFrom:
+                secretKeyRef: { name: core-api-secrets, key: NAVER_MAP_CLIENT_ID }
+            - name: NAVER_MAP_CLIENTSECRET
+              valueFrom:
+                secretKeyRef: { name: core-api-secrets, key: NAVER_MAP_CLIENT_SECRET }
+            # dev는 Swagger 테스트 편의로 access 2주(운영은 기본값 PT1H). refresh는 기본값 P14D
+            - name: JWT_ACCESS_TOKEN_TTL
+              value: P14D
+            # yml 기본값을 통째로 대체하므로 로컬 출처도 함께 둔다 (공백·끝의 / 금지)
+            - name: CORS_ALLOWED_ORIGINS
+              value: http://localhost:5173,http://127.0.0.1:5173,https://s15p31d106-develop-web.vercel.app
+            # 이미지 버킷(S15P31D106-296, Terraform media.tf). 비어 있으면 이미지 API는 503
+            # STORAGE_PUBLIC_BASE_URL은 CloudFront 주소(S15P31D106-298, Terraform 출력 media_public_base_url). chat·simulation·breed-server·match-worker와 같은 값
+            - name: STORAGE_BUCKET
+              value: s15p31d106-media-887324111755
+            - name: STORAGE_REGION
+              value: ap-northeast-2
+            - name: STORAGE_PUBLIC_BASE_URL
+              value: https://d2cxge8l3dd66.cloudfront.net
+            # IAM 사용자 core-api-media 키(scripts/gen-core-api-s3-secrets.sh). SDK는 이 두 환경 변수로만 자격 증명을 읽는다
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef: { name: core-api-s3, key: AWS_ACCESS_KEY_ID }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: { name: core-api-s3, key: AWS_SECRET_ACCESS_KEY }
+            # 발견 신고 사진 종·품종 추천(8.9, S15P31D106-396). 클러스터 내부 AI 서버(infra/services/breed-server)
+            - name: AI_BREED_SERVER_URL
+              value: http://breed-server.app.svc.cluster.local:8000
+            # 서비스 간 이벤트를 RabbitMQ로 보낸다(기본 log는 로그만 남김). notification이 받아 알림 저장·푸시(S15P31D106-278)
+            - name: EVENTS_TRANSPORT
+              value: rabbit
+            - name: RABBITMQ_HOST
+              value: rabbitmq.data.svc.cluster.local
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-app, key: RABBITMQ_USERNAME }
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-app, key: RABBITMQ_PASSWORD }
+          # JVM 기동이 느리므로 startupProbe로 최대 150초까지 기다린 뒤 liveness/readiness 시작
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 250m, memory: 768Mi }
+            limits: { memory: 1Gi }   # Dockerfile의 MaxRAMPercentage=75 → 힙 약 768MB

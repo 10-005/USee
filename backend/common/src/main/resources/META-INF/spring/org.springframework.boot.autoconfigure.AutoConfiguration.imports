@@ -1,0 +1,3 @@
+com.ssafy.animal.common.config.CommonWebAutoConfiguration
+com.ssafy.animal.common.config.CommonJpaAutoConfiguration
+com.ssafy.animal.common.config.CommonEventAutoConfiguration
