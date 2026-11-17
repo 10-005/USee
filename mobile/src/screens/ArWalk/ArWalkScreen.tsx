@@ -284,7 +284,10 @@ export function ArWalkScreen({
         Alert.alert('산책', getSimulationWalkActionErrorMessage(error));
       });
   };
-  const [showTraversalDebug, setShowTraversalDebug] = useState(false);
+  // 영역 표시 토글이 숨겨져 있는 동안에는 끌 수 없으므로 기본으로 끈다.
+  const [showTraversalDebug /* , setShowTraversalDebug */] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const leaveAction = useRef<Parameters<typeof navigation.dispatch>[0] | null>(null);
   const [hasSeenDog, setHasSeenDog] = useState(false);
   const [loadingDots, setLoadingDots] = useState(2);
   const [walkStartedAt, setWalkStartedAt] = useState<number | null>(null);
@@ -395,7 +398,8 @@ export function ArWalkScreen({
       walkStart.current
         .then(() => endActiveSimulationWalk())
         .then(() => {
-          navigation.dispatch(event.data.action);
+          leaveAction.current = event.data.action;
+          setLeaving(true);
         })
         .catch(error => {
           endingWalk.current = false;
@@ -404,6 +408,15 @@ export function ArWalkScreen({
         });
     });
   }, [navigation]);
+
+  useEffect(() => {
+    // 같은 커밋에서 AR이 꺼지므로, 화면이 분리되기 전에 네이티브 AR 세션이 먼저 정리된다.
+    const action = leaveAction.current;
+    if (leaving && action) {
+      leaveAction.current = null;
+      navigation.dispatch(action);
+    }
+  }, [leaving, navigation]);
 
   useEffect(() => {
     if (walkStartedAt === null) {
@@ -498,7 +511,7 @@ export function ArWalkScreen({
     >
       {hasPermission ? (
         <ArFloorView
-          active={isFocused}
+          active={isFocused && !leaving}
           placementRequest={placementRequest}
           showTraversalDebug={showTraversalDebug}
           collapsable={false}
@@ -544,6 +557,7 @@ export function ArWalkScreen({
             ? `${Math.round(walkRoute.meters)} m`
             : `${(walkRoute.meters / 1000).toFixed(2)} km`}
         </Text>
+        {/* 영역 표시 토글 숨김
         {hasPermission && (
           <View pointerEvents="box-none" style={styles.displayControls}>
             <Pressable
@@ -561,6 +575,7 @@ export function ArWalkScreen({
             </Pressable>
           </View>
         )}
+        */}
       </View>
       {isRecognizing && (
         <View pointerEvents="none" style={styles.loadingOverlay}>

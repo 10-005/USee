@@ -1,8 +1,11 @@
 package com.usee.animal.ar
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewConfiguration
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.Lifecycle
@@ -34,6 +37,7 @@ class ArFloorView(
   private val reactContext: ReactContext,
 ) : SceneHostView(reactContext) {
   private var sceneView: FloorSceneView? = null
+  private val mainHandler = Handler(Looper.getMainLooper())
   private val modelLoad = SceneModelLoad()
   private var cleanup: WalkCleanupView? = null
   private val careNodes = mutableMapOf<String, OwnedImageNode>()
@@ -334,7 +338,7 @@ class ArFloorView(
     }
     careNodes.clear()
     pendingCare = null
-    cleanup?.let { it.release(); removeView(it) }
+    cleanup?.let { it.release(); removeChildLater(it) }
     cleanup = null
     dogNode?.onPoseUpdated = null
     leash?.close()
@@ -349,6 +353,12 @@ class ArFloorView(
     modelReady = false
     dogNode = null
     shadowNode = null
+  }
+
+  // The scene view destroys itself while this group is still dispatching detach to its
+  // children; removing a sibling at that moment crashes ViewGroup with a null child.
+  private fun removeChildLater(child: View) {
+    mainHandler.post { if (child.parent === this) removeView(child) }
   }
 
   private fun stop() {

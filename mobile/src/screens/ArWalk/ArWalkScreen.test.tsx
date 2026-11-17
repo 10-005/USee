@@ -616,6 +616,11 @@ test('ends the server walk before leaving the walk screen', async () => {
   });
   const action = { type: 'GO_BACK' };
   const preventDefault = jest.fn();
+  let arActiveWhenLeaving: boolean | undefined;
+  mockWalkNavigation.dispatch.mockImplementation(() => {
+    arActiveWhenLeaving = renderer.root.findByType(ArFloorView).props.active;
+  });
+  expect(renderer.root.findByType(ArFloorView).props.active).toBe(true);
   await ReactTestRenderer.act(async () => {
     mockWalkNavigation.listeners.get('beforeRemove')?.({
       preventDefault,
@@ -626,6 +631,7 @@ test('ends the server walk before leaving the walk screen', async () => {
   expect(preventDefault).toHaveBeenCalledTimes(1);
   expect(endActiveSimulationWalk).toHaveBeenCalledTimes(1);
   expect(mockWalkNavigation.dispatch).toHaveBeenCalledWith(action);
+  expect(arActiveWhenLeaving).toBe(false);
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
@@ -750,20 +756,14 @@ test('the five-second center target enables placement and requests it once', asy
   }
 });
 
-test('area toggle remains available without a notices toggle', async () => {
+test('area toggle is hidden and the traversal overlay stays off', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<ArWalkScreen />);
   });
-  const native = () => renderer.root.findByType(ArFloorView).props;
-  const toggle = () =>
-    renderer.root.findAllByProps({ accessibilityLabel: '이동 가능 영역 표시' })[0];
-  expect(native().showTraversalDebug).toBe(false);
+  expect(renderer!.root.findAllByProps({ accessibilityLabel: '이동 가능 영역 표시' })).toHaveLength(0);
   expect(renderer!.root.findAllByProps({ accessibilityLabel: '상단 안내 표시' })).toHaveLength(0);
-  await ReactTestRenderer.act(() => toggle().props.onPress());
-  expect(native().showTraversalDebug).toBe(true);
-  await ReactTestRenderer.act(() => toggle().props.onPress());
-  expect(native().showTraversalDebug).toBe(false);
+  expect(renderer!.root.findByType(ArFloorView).props.showTraversalDebug).toBe(false);
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
