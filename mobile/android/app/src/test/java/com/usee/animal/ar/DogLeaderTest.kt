@@ -5,6 +5,43 @@ import org.junit.Test
 import kotlin.math.*
 
 class DogLeaderTest {
+  @Test fun overtakingABlockedDogMakesItRunBackToTheForwardLead() {
+    val leader = DogLeader()
+    val trail = UserWalkRegion()
+    leader.setTrustedGround(trail::heightAt)
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var dog = leader.update(0.02f, 0f, 0f, 0f, -1f) { _, _ -> null }
+    var cameraZ = 0f
+    var fastest = 0f
+    for (i in 1..200) {
+      cameraZ -= 0.01f
+      trail.update(0f, cameraZ, 0f)
+      dog = leader.update(0.02f, 0f, cameraZ, 1f, 0f) { _, _ -> null }
+      fastest = max(fastest, dog.speedMetersPerSecond)
+    }
+    repeat(400) {
+      dog = leader.update(0.02f, 0f, cameraZ, 1f, 0f) { _, _ -> null }
+      fastest = max(fastest, dog.speedMetersPerSecond)
+    }
+    assertTrue("Must run to catch up: $fastest", fastest > 1.1f)
+    assertEquals(DOG_LEAD_METERS, cameraZ - dog.z, 0.25f)
+    assertEquals(0f, dog.x, 0.25f)
+  }
+
+  @Test fun followsRecordedUserGroundDespiteConflictingWallAndFloorEvidence() {
+    val leader = DogLeader()
+    val trail = UserWalkRegion()
+    leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    // The user has walked beyond the dog, proving this corridor traversable.
+    for (i in 0..12) trail.update(0f, -i * 0.25f, 0f)
+    leader.setTrustedGround(trail::heightAt)
+    leader.updateWalls(listOf(WallSegment(-1f, -1.85f, 1f, -1.85f)))
+    var dog = leader.update(0.3f, 0f, -3f, 0f, -1f) { _, _ -> null }
+    repeat(100) { dog = leader.update(0.02f, 0f, -3f, 0f, -1f) { _, _ -> null } }
+    assertTrue("Dog must follow the user's recorded corridor: $dog", dog.z < -2f)
+    assertTrue("Unknown ground beyond the trail must still stop the dog", dog.z >= -3.5f)
+  }
+
   @Test fun joggingWalkerIsFollowedWithARunningAnimationAndStopsTogether() {
     val leader = DogLeader()
     var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
@@ -416,7 +453,7 @@ class DogLeaderTest {
     for (i in 1..100) dog = leader.update(0.02f, 0f, -2f, 0f, -1f, floor)
     assertEquals(initial.z, dog.z, 0.0001f)
     leader.requestAction("go")
-    for (i in 1..150) dog = leader.update(0.02f, 0f, -2f, 0f, -1f, floor)
+    for (i in 1..300) dog = leader.update(0.02f, 0f, -2f, 0f, -1f, floor)
     assertTrue(dog.z < initial.z - 0.1f)
   }
 
@@ -475,7 +512,7 @@ class DogLeaderTest {
     assertFalse(dog.poopDeposited)
   }
 
-  @Test fun trustedUserGroundStillRespectsDetectedWalls() {
+  @Test fun traversingTheBlockedRouteMakesItWalkableWithoutWaitingForWallRemoval() {
     val leader = DogLeader()
     val region = UserWalkRegion()
     region.update(0f, 0f, 0f)
@@ -488,9 +525,9 @@ class DogLeaderTest {
     for (i in 24 downTo 5) region.update(0f, -i * 0.1f, 0f)
     leader.setTrustedGround(region::heightAt)
     for (i in 1..200) dog = leader.update(0.02f, 0f, -0.5f, 0f, -1f) { _, _ -> null }
-    assertTrue("Detected wall must block even inside the user region", dog.z > -1.8f)
+    assertTrue("The recorded user route overrides a conflicting detected wall", dog.z < -1.8f)
     assertFalse(dog.ignoresObstacles)
-    assertTrue(dog.blocked)
+    assertFalse(dog.blocked)
     leader.updateWalls(emptyList())
     for (i in 1..200) dog = leader.update(0.02f, 0f, -0.5f, 0f, -1f) { _, _ -> null }
     assertTrue("Unknown floor is traversable after the wall disappears", dog.z < -1.8f)
@@ -700,6 +737,58 @@ class DogLeaderTest {
     }
   }
 
+  @Test fun turningBackRunsPastTheWalkerEvenWhenTheGroundBehindIsNoLongerSeen() {
+    val leader = DogLeader()
+    val trail = UserWalkRegion()
+    leader.setTrustedGround(trail::heightAt)
+    var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var cameraZ = 0f
+    repeat(150) {
+      cameraZ -= 0.024f
+      trail.update(0f, cameraZ, 0f)
+      dog = leader.update(0.02f, 0f, cameraZ, 0f, -1f, floor)
+    }
+    assertTrue("Dog leads the forward walk: $dog", dog.z < cameraZ - 1.2f)
+    // After turning around only the ground in front of the phone (+Z side) is observed.
+    val seenAhead: (Float, Float) -> Float? = { _, z -> if (z > cameraZ - 0.3f) 0f else null }
+    var maxAhead = Float.NEGATIVE_INFINITY
+    repeat(250) {
+      cameraZ += 0.024f
+      trail.update(0f, cameraZ, 0f)
+      dog = leader.update(0.02f, 0f, cameraZ, 0f, 1f, seenAhead)
+      assertTrue("Must keep clear of the user: $dog", hypot(dog.x, dog.z - cameraZ) >= 0.3f)
+      maxAhead = max(maxAhead, dog.z - cameraZ)
+    }
+    assertTrue("Dog must run past the walker to the new front, ahead=$maxAhead", maxAhead > 1.2f)
+  }
+
+  @Test fun gaitSwayDoesNotSwingTheDogFromSideToSide() {
+    val leader = DogLeader()
+    var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var minX = Float.POSITIVE_INFINITY
+    var maxX = Float.NEGATIVE_INFINITY
+    for (i in 1..500) {
+      // 1.2 m/s forward with ±0.08 m lateral body sway at one cycle per second.
+      val cameraX = 0.08f * sin(i * 0.02f * 2f * PI.toFloat())
+      dog = leader.update(0.02f, cameraX, -i * 0.024f, 0f, -1f, floor)
+      if (i > 150) { minX = min(minX, dog.x); maxX = max(maxX, dog.x) }
+    }
+    assertTrue("Dog swung ${maxX - minX} m sideways", maxX - minX < 0.15f)
+  }
+
+  @Test fun walkerSlowingDownDoesNotMakeTheDogTurnBack() {
+    val leader = DogLeader()
+    var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var cameraZ = 0f
+    repeat(200) { cameraZ -= 0.03f; dog = leader.update(0.02f, 0f, cameraZ, 0f, -1f, floor) }
+    repeat(150) {
+      val previous = dog
+      dog = leader.update(0.02f, 0f, cameraZ, 0f, -1f, floor)
+      assertTrue("Dog walked back toward the stopped walker: $previous -> $dog", dog.z <= previous.z + 0.001f)
+      assertTrue("Dog must keep facing forward: $dog", cos(Math.toRadians(dog.yawDegrees.toDouble())) < -0.9)
+    }
+  }
+
   @Test fun backingUpMakesDogFaceWalkerAndFollow() {
     val leader = DogLeader()
     var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
@@ -752,8 +841,15 @@ class DogLeaderTest {
     var before = leader.update(0.02f, 0f, -0.02f, 0f, -1f, floor)
     for (i in 2..30) before = leader.update(0.02f, 0f, -i * 0.02f, 0f, -1f, floor)
     assertTrue(before.moving)
+    repeat(19) {
+      val brief = leader.update(0.02f, 0f, -1.0f, 0.5f, -0.8660254f) { _, _ -> null }
+      assertFalse("A brief rejection keeps the gait instead of stopping", brief.blocked)
+      assertEquals(before.clip, brief.clip)
+      assertEquals(before.x, brief.x, 0f)
+      assertEquals(before.z, brief.z, 0f)
+    }
     repeat(200) {
-      val blocked = leader.update(0.02f, 0f, -0.6f, 0.5f, -0.8660254f) { _, _ -> null }
+      val blocked = leader.update(0.02f, 0f, -1.0f, 0.5f, -0.8660254f) { _, _ -> null }
       assertTrue(blocked.blocked)
       assertFalse(blocked.motionPaused)
       assertFalse(blocked.moving)
@@ -763,8 +859,8 @@ class DogLeaderTest {
       assertEquals(before.z, blocked.z, 0f)
       assertEquals(before.yawDegrees, blocked.yawDegrees, 0f)
     }
-    var recovered = leader.update(0.02f, 0f, -0.6f, 0.5f, -0.8660254f, floor)
-    repeat(100) { recovered = leader.update(0.02f, 0f, -0.6f, 0.5f, -0.8660254f, floor) }
+    var recovered = leader.update(0.02f, 0f, -1.0f, 0.5f, -0.8660254f, floor)
+    repeat(100) { recovered = leader.update(0.02f, 0f, -1.0f, 0.5f, -0.8660254f, floor) }
     assertFalse(recovered.blocked)
     assertTrue(hypot(recovered.x - before.x, recovered.z - before.z) > 0.1f)
   }

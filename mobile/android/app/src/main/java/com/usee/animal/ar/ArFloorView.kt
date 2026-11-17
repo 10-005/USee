@@ -1,8 +1,11 @@
 package com.usee.animal.ar
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewConfiguration
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.Lifecycle
@@ -34,6 +37,7 @@ class ArFloorView(
   private val reactContext: ReactContext,
 ) : SceneHostView(reactContext) {
   private var sceneView: FloorSceneView? = null
+  private val mainHandler = Handler(Looper.getMainLooper())
   private val modelLoad = SceneModelLoad()
   private var cleanup: WalkCleanupView? = null
   private val careNodes = mutableMapOf<String, OwnedImageNode>()
@@ -99,7 +103,6 @@ class ArFloorView(
   private var lastActionRequest = ""
   private var scratch = SessionScratch()
   private var floorAnalyzer: SegFormerFloorAnalyzer? = null
-  private var wasBlocked = false
   private val viewMatrix = FloatArray(16)
   private val projectionMatrix = FloatArray(16)
   private val cameraPoint = FloatArray(4)
@@ -107,7 +110,7 @@ class ArFloorView(
   private val inverseProjection = FloatArray(16)
 
   fun requestPlacement(request: Int) {
-    if (request > lastPlacementRequest) leader.requestPlacement()
+    if (request > lastPlacementRequest) scratch.placementRequested = true
     lastPlacementRequest = request
   }
 
@@ -219,8 +222,8 @@ class ArFloorView(
     dogHeading.reset()
     lastDogRotationNanos = 0L
     scratch = SessionScratch()
+    val torch = WalkTorch(scratch.lowLight)
     floorAnalyzer = SegFormerFloorAnalyzer(context)
-    wasBlocked = false
     lastEventKey = ""
     pendingEventKey = ""
     val view = FloorSceneView(
@@ -234,8 +237,20 @@ class ArFloorView(
       },
     ).apply {
       layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-      onSessionUpdated = { session, frame -> handleFrame(session, frame) }
-      beforeDestroy = { modelLoad.cancel(); releaseSceneResources(this) }
+      onSessionUpdated = { session, frame ->
+        torch.update(session, frame, SystemClock.elapsedRealtimeNanos())
+        handleFrame(session, frame)
+      }
+      onSessionPaused = { session ->
+        scratch.centerAim.clear()
+        scratch.placementRequested = false
+        torch.turnOff(session)
+      }
+      beforeDestroy = {
+        session?.let(torch::turnOff)
+        modelLoad.cancel()
+        releaseSceneResources(this)
+      }
       onFrameFailure = {
         post {
           if (sceneView === this) {
@@ -323,7 +338,7 @@ class ArFloorView(
     }
     careNodes.clear()
     pendingCare = null
-    cleanup?.let { it.release(); removeView(it) }
+    cleanup?.let { it.release(); removeChildLater(it) }
     cleanup = null
     dogNode?.onPoseUpdated = null
     leash?.close()
@@ -338,6 +353,12 @@ class ArFloorView(
     modelReady = false
     dogNode = null
     shadowNode = null
+  }
+
+  // The scene view destroys itself while this group is still dispatching detach to its
+  // children; removing a sibling at that moment crashes ViewGroup with a null child.
+  private fun removeChildLater(child: View) {
+    mainHandler.post { if (child.parent === this) removeView(child) }
   }
 
   private fun stop() {
@@ -358,6 +379,15 @@ class ArFloorView(
     floorAnalyzer?.submit(frame, rotation,
       active = showTraversalDebug || !previousDog.visible || previousDog.userMoving || previousDog.blocked || previousDog.moving,
       reducedWorkload = thermal.reducedWorkload)
+    val camera = frame.camera
+    val cameraPose = camera.displayOrientedPose
+    camera.getProjectionMatrix(projectionMatrix, 0, 0.1f, 100f)
+    val hasInverseProjection = camera.trackingState == TrackingState.TRACKING &&
+      android.opengl.Matrix.invertM(inverseProjection, 0, projectionMatrix, 0)
+    val centerRay = if (hasInverseProjection && !scratch.hasSeenDog) {
+      val center = LeashCurve.screenPointInCamera(inverseProjection, 0f, 0f, 1f)
+      cameraPose.rotateVector(floatArrayOf(center.x, center.y, center.z))
+    } else null
     val shown = updateDog(
       session = session,
       frame = frame,
@@ -366,22 +396,9 @@ class ArFloorView(
       modelReady = modelReady,
       floorMask = floorAnalyzer?.latest,
       semanticFailed = floorAnalyzer?.failed == true,
+      centerRay = centerRay,
     )
-    val blocked = shown.dog.visible && shown.dog.blocked && frame.camera.trackingState == com.google.ar.core.TrackingState.TRACKING
-    if (blocked && !wasBlocked) {
-      val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
-      if (android.os.Build.VERSION.SDK_INT >= 26) {
-        vibrator?.vibrate(android.os.VibrationEffect.createOneShot(180L, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-      } else {
-        @Suppress("DEPRECATION")
-        vibrator?.vibrate(180L)
-      }
-    }
-    wasBlocked = blocked
-    val camera = frame.camera
     camera.getViewMatrix(viewMatrix, 0)
-    camera.getProjectionMatrix(projectionMatrix, 0, 0.1f, 100f)
-    val cameraPose = camera.displayOrientedPose
     if (camera.trackingState != TrackingState.TRACKING) {
       if (lastWalkPose != 0L) poseSegment++
       lastWalkPose = 0L
@@ -403,8 +420,7 @@ class ArFloorView(
     leashCamera = LeashPoint(cameraPose.tx(), cameraPose.ty(), cameraPose.tz())
     val screenRight = cameraPose.rotateVector(floatArrayOf(1f, 0f, 0f))
     leashCameraRight = LeashPoint(screenRight[0], screenRight[1], screenRight[2])
-    leashHand = if (camera.trackingState == com.google.ar.core.TrackingState.TRACKING &&
-      android.opengl.Matrix.invertM(inverseProjection, 0, projectionMatrix, 0)) {
+    leashHand = if (hasInverseProjection) {
       // NDC (0,-1) is exactly the native AR viewport's bottom center. Keep the hand
       // 35cm in front of the camera, so it stays fixed when the phone turns or moves.
       val hand = LeashCurve.handInCamera(inverseProjection)
@@ -418,6 +434,7 @@ class ArFloorView(
     android.opengl.Matrix.multiplyMV(clipPoint, 0, projectionMatrix, 0, cameraPoint, 0)
     val onScreen = shown.dog.visible && clipPoint[3] > 0f &&
       kotlin.math.abs(clipPoint[0]) <= clipPoint[3] && kotlin.math.abs(clipPoint[1]) <= clipPoint[3]
+    if (onScreen && camera.trackingState == TrackingState.TRACKING) scratch.hasSeenDog = true
     val careAvailable = camera.trackingState == TrackingState.TRACKING && onScreen && leader.canGiveCare
     val careRequest = pendingCare
     pendingCare = null
@@ -455,7 +472,8 @@ class ArFloorView(
     }
     sceneView?.planeRenderer?.isVisible = false
     if (showTraversalDebug) {
-      traversalDebug?.update(frame, floorAnalyzer?.latest, scratch.planes, scratch.walls, shown.dog, scratch.userGround, scratch.depth)
+      traversalDebug?.update(frame, floorAnalyzer?.latest, scratch.planes, scratch.walls, shown.dog,
+        scratch.userGround, scratch.depth, scratch.lowLight)
     }
     if (camera.trackingState == com.google.ar.core.TrackingState.TRACKING && shown.dog.visible) {
       val dog = shown.dog
@@ -481,7 +499,8 @@ class ArFloorView(
       dogNode?.cancelAttention()
       cleanup?.pause()
     }
-    emit(shown.status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen,
+    val status = if (onScreen && shown.status == CENTER_PLACEMENT_READY) "anchored" else shown.status
+    emit(status, shown.dog.visible, shown.dog.clip, shown.dog.moving, onScreen,
       shown.dog.userMoving, careAvailable && leader.canGiveCare)
   }
 
@@ -533,7 +552,8 @@ class ArFloorView(
       return
     }
     // React only needs a settled caption, not every transient tracking/clip change.
-    if (lastEventKey.isNotEmpty() && lastCanGiveCare == canGiveCare && now - pendingEventSince < 300L) return
+    if (status != CENTER_PLACEMENT_READY && lastEventKey.isNotEmpty() &&
+      lastCanGiveCare == canGiveCare && now - pendingEventSince < 300L) return
     lastEventKey = key
     lastCanGiveCare = canGiveCare
     val viewId = id
@@ -612,6 +632,7 @@ class ArFloorView(
     override fun destroy() {
       if (isDestroyed) return
       onSessionUpdated = null
+      onSessionPaused = null
       beforeDestroy?.invoke()
       beforeDestroy = null
       removeChildNode(fillLight)

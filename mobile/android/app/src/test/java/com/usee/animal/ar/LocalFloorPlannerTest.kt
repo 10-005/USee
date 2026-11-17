@@ -36,6 +36,14 @@ class LocalFloorPlannerTest {
     }
   }
 
+  @Test fun openGroundGivesStraightLegsInsteadOfGridZigzag() {
+    val direct = LocalFloorPlanner.plan(FloorWaypoint(0f, 0f, 0f), 0.6f, -1.08f, { _, _ -> 0f }) { _, _ -> true }
+    assertEquals(1, direct.size)
+    val detour = LocalFloorPlanner.plan(FloorWaypoint(0f, 0f, 0f), 0f, -0.84f,
+      { x, z -> if (abs(x) < 0.2f && z < -0.12f && z > -0.6f) null else 0f }) { _, _ -> true }
+    assertTrue("A detour needs only a few straight legs, got ${detour.size}", detour.size <= 3)
+  }
+
   @Test fun noCompleteRouteMeansStopInsteadOfWanderingAlongBarrier() {
     val route = LocalFloorPlanner.plan(FloorWaypoint(0f, 0f, 0f), 0f, -0.84f,
       { _, z -> if (z < -0.12f && z > -0.6f) null else 0f }) { _, _ -> true }

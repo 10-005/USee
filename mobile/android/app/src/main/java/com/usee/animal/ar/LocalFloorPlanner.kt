@@ -1,6 +1,7 @@
 package com.usee.animal.ar
 
 import java.util.PriorityQueue
+import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 
@@ -47,11 +48,48 @@ internal object LocalFloorPlanner {
     var expanded = 0
     var closest = origin
     var closestDistance = hypot(gx.toFloat(), gz.toFloat())
+    fun gridX(id: Int) = id % WIDTH - HALF
+    fun gridZ(id: Int) = id / WIDTH - HALF
+    fun step(fx: Int, fz: Int, tx: Int, tz: Int): Boolean {
+      val from = point(fx, fz) ?: return false
+      val to = point(tx, tz) ?: return false
+      if (!edgeAllowed(from, to)) return false
+      if (fx == tx || fz == tz) return true
+      val sideX = point(tx, fz) ?: return false
+      val sideZ = point(fx, tz) ?: return false
+      return edgeAllowed(from, sideX) && edgeAllowed(from, sideZ) && edgeAllowed(sideX, to) && edgeAllowed(sideZ, to)
+    }
+    // Every grid cell crossed by a straight shortcut must itself be verified ground.
+    fun visible(a: Int, b: Int): Boolean {
+      val ax = gridX(a); val az = gridZ(a); val bx = gridX(b); val bz = gridZ(b)
+      if (!edgeAllowed(terrain[a]!!, terrain[b]!!)) return false
+      val count = maxOf(abs(bx - ax), abs(bz - az)) * 2
+      var px = ax; var pz = az
+      for (i in 1..count) {
+        val cx = ax + ((bx - ax) * i.toFloat() / count).roundToInt()
+        val cz = az + ((bz - az) * i.toFloat() / count).roundToInt()
+        if (cx == px && cz == pz) continue
+        if (!step(px, pz, cx, cz)) return false
+        px = cx; pz = cz
+      }
+      return true
+    }
     fun pathTo(id: Int): List<FloorWaypoint> {
-      val result = mutableListOf<FloorWaypoint>()
+      val ids = mutableListOf<Int>()
       var cursor = id
-      while (cursor != origin && cursor >= 0) { result += terrain[cursor]!!; cursor = parents[cursor] }
-      return result.asReversed()
+      while (cursor != origin && cursor >= 0) { ids += cursor; cursor = parents[cursor] }
+      ids += origin
+      ids.reverse()
+      // Pull the 8-way grid path taut so the dog walks straight legs instead of zigzagging.
+      val result = mutableListOf<FloorWaypoint>()
+      var anchor = 0
+      while (anchor < ids.lastIndex) {
+        var next = ids.lastIndex
+        while (next > anchor + 1 && !visible(ids[anchor], ids[next])) next--
+        result += terrain[ids[next]]!!
+        anchor = next
+      }
+      return result
     }
     while (queue.isNotEmpty() && expanded++ < 500) {
       val current = queue.remove()
