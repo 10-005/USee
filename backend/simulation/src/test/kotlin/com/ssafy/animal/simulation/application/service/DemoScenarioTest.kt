@@ -20,7 +20,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** 시연 회원 시나리오(명세 밖): 집 돌발 이벤트 없음, 산책마다 시작 40초 뒤 배변 1회, 하트비트 10초 */
+/** 시연 회원 시나리오(명세 밖): 집 돌발 이벤트 없음, 산책마다 시작 30초 뒤 배변 1회, 하트비트 10초 */
 class DemoScenarioTest {
 
     private val store = FakeSimulationStore().apply {
@@ -91,31 +91,31 @@ class DemoScenarioTest {
     }
 
     @Test
-    fun `시연 회원 산책은 40초 전에는 이벤트가 없고, 40초가 지난 첫 하트비트에서 배변 이벤트가 생긴다`() {
+    fun `시연 회원 산책은 30초 전에는 이벤트가 없고, 30초가 지난 첫 하트비트에서 배변 이벤트가 생긴다`() {
         val demo = session(DEMO)
         val walkSeq = startWalk(demo).walk.walkSeq!!
 
-        listOf(10L, 20L, 30L).forEach { assertNull(walkService(start.plusSeconds(it)).heartbeat(DEMO.toLong(), demo.sessionSeq!!, walkSeq).newEvent) }
-        val created = assertNotNull(walkService(start.plusSeconds(40)).heartbeat(DEMO.toLong(), demo.sessionSeq!!, walkSeq).newEvent)
+        listOf(10L, 20L).forEach { assertNull(walkService(start.plusSeconds(it)).heartbeat(DEMO.toLong(), demo.sessionSeq!!, walkSeq).newEvent) }
+        val created = assertNotNull(walkService(start.plusSeconds(30)).heartbeat(DEMO.toLong(), demo.sessionSeq!!, walkSeq).newEvent)
 
         assertEquals(16L, created.scenario.scenarioSeq)
         assertEquals(walkSeq, created.occurrence.walkSeq)
-        assertEquals(start.plusSeconds(40).plusMinutes(5), created.occurrence.expiresDttm)
+        assertEquals(start.plusSeconds(30).plusMinutes(5), created.occurrence.expiresDttm)
     }
 
     @Test
     fun `시연 회원 산책의 배변 이벤트는 산책당 한 번이고, 다음 산책에서 다시 생긴다`() {
         val demo = session(DEMO)
         val first = startWalk(demo).walk.walkSeq!!
-        val created = assertNotNull(walkService(start.plusSeconds(40)).heartbeat(DEMO.toLong(), demo.sessionSeq!!, first).newEvent)
-        created.occurrence.resolve(start.plusSeconds(50), 90_000L)
+        val created = assertNotNull(walkService(start.plusSeconds(30)).heartbeat(DEMO.toLong(), demo.sessionSeq!!, first).newEvent)
+        created.occurrence.resolve(start.plusSeconds(40), 90_000L)
 
-        listOf(60L, 70L, 120L).forEach { assertNull(walkService(start.plusSeconds(it)).heartbeat(DEMO.toLong(), demo.sessionSeq!!, first).newEvent) }
+        listOf(50L, 60L, 120L).forEach { assertNull(walkService(start.plusSeconds(it)).heartbeat(DEMO.toLong(), demo.sessionSeq!!, first).newEvent) }
         assertEquals(1, store.occurrences.size)
 
         walkService(start.plusMinutes(3)).end(DEMO.toLong(), demo.sessionSeq!!, first)
         val second = startWalk(demo, start.plusMinutes(4)).walk.walkSeq!!
-        val again = assertNotNull(walkService(start.plusMinutes(4).plusSeconds(40)).heartbeat(DEMO.toLong(), demo.sessionSeq!!, second).newEvent)
+        val again = assertNotNull(walkService(start.plusMinutes(4).plusSeconds(30)).heartbeat(DEMO.toLong(), demo.sessionSeq!!, second).newEvent)
         assertEquals(16L, again.scenario.scenarioSeq)
         assertEquals(second, again.occurrence.walkSeq)
     }

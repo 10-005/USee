@@ -12,7 +12,7 @@ data class DemoConfig(
     /** 시연 회원 user_seq 목록 */
     val userSeqs: Set<Long> = emptySet(),
     /** 산책 시작 후 이 시간이 지나면 배변 이벤트를 만든다 */
-    val walkPoopAfter: Duration = Duration.ofSeconds(40),
+    val walkPoopAfter: Duration = Duration.ofSeconds(30),
     /** 산책 배변 시나리오(V20261109_2000의 16번) */
     val walkPoopScenarioSeq: Long = 16,
     /** 시연 회원에게 주는 하트비트 간격 */
