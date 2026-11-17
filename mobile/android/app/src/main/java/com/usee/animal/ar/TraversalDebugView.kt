@@ -28,6 +28,7 @@ internal class TraversalDebugView(context: Context) : View(context) {
   private var bitmap: Bitmap? = null
   private var nextUpdate = 0L
   private val destination = Rect()
+  private var dogPlaced = false
 
   init { isClickable = false; importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
 
@@ -39,6 +40,7 @@ internal class TraversalDebugView(context: Context) : View(context) {
     val rows = ceil(columns.toDouble() * height / width).toInt().coerceIn(24, 128)
     val colors = IntArray(columns * rows) { YELLOW }
     val tracking = frame.camera.trackingState == TrackingState.TRACKING
+    dogPlaced = dog.visible
     if (tracking) {
       val screen = FloatArray(colors.size * 2)
       for (i in colors.indices) {
@@ -123,15 +125,13 @@ internal class TraversalDebugView(context: Context) : View(context) {
 
   override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
-    if (!showAreas) return
-    if (showAreas) {
-      destination.set(0, 0, width, height)
-      paint.alpha = 77
-      val current = bitmap
-      if (current != null) canvas.drawBitmap(current, null, destination, paint)
-      else canvas.drawColor((YELLOW and 0x00ffffff) or (77 shl 24))
-      paint.alpha = 255
-    }
+    if (!showAreas || dogPlaced) return
+    destination.set(0, 0, width, height)
+    paint.alpha = 77
+    val current = bitmap
+    if (current != null) canvas.drawBitmap(current, null, destination, paint)
+    else canvas.drawColor((YELLOW and 0x00ffffff) or (77 shl 24))
+    paint.alpha = 255
   }
 
   // The Canvas display list may still hold the last bitmap during screen removal.

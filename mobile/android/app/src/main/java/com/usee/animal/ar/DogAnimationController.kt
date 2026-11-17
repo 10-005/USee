@@ -181,7 +181,8 @@ class DogAnimationController(
       candidateSeconds = 0f
     }
     candidateSeconds += dt
-    if (!isLocomotion(current.clip) && clip != "Idle" || candidateSeconds >= 0.1f) {
+    val settleSeconds = if (isLocomotion(current.clip) && clip == "Idle") 0.3f else 0.1f
+    if (!isLocomotion(current.clip) && clip != "Idle" || candidateSeconds >= settleSeconds) {
       change(clip, true)
     }
   }

@@ -295,6 +295,8 @@ class DogLeader(
   private var previousCameraX = 0f
   private var previousCameraZ = 0f
   private var hasCamera = false
+  private var smoothCameraX = 0f
+  private var smoothCameraZ = 0f
   private var velocityX = 0f
   private var velocityZ = 0f
   private var speed = 0f
@@ -322,6 +324,7 @@ class DogLeader(
   private var recalling = false
   private var leashLength = 0f
   private var blocked = false
+  private var blockedSeconds = 0f
   private var userMoving = false
   private var floorUncertain = false
   private var floorFailureReason = ""
@@ -377,14 +380,21 @@ class DogLeader(
         val blend = 1f - exp(-deltaSeconds / 0.3f)
         velocityX += (vx - velocityX) * blend
         velocityZ += (vz - velocityZ) * blend
+        val swayBlend = 1f - exp(-deltaSeconds / SWAY_SMOOTH_SECONDS)
+        smoothCameraX += (cameraX - smoothCameraX) * swayBlend
+        smoothCameraZ += (cameraZ - smoothCameraZ) * swayBlend
       } else {
         velocityX = 0f
         velocityZ = 0f
+        smoothCameraX = cameraX
+        smoothCameraZ = cameraZ
       }
     } else {
       velocityX = 0f
       velocityZ = 0f
       speed = 0f
+      smoothCameraX = cameraX
+      smoothCameraZ = cameraZ
     }
     previousCameraX = cameraX
     previousCameraZ = cameraZ
@@ -424,6 +434,8 @@ class DogLeader(
       val directionChanged = movementHeading.observe(measuredX, measuredZ, dt, headingX, headingZ)
       if (movementHeading.confirmed) followingMovement = true
       if (directionChanged) {
+        smoothCameraX = cameraX
+        smoothCameraZ = cameraZ
         followingMovement = true
         catchingUp = true
         passingSide = 0f
@@ -468,13 +480,19 @@ class DogLeader(
     if (placed && !shortRange && !followingMovement && (leashLength >= 2.6f || userDistance >= 2.6f)) returning = true
     if (returning && userDistance <= DOG_LEAD_METERS + 0.1f && leashLength < 2.6f) returning = false
     val distance = userDistance.coerceAtLeast(0.001f)
+    // Predict only along the walking direction; sideways phone sway must not swing the target.
+    // While following, anchor on the low-passed walker position; the forward lag of the
+    // filter is restored from the forward speed, so only sideways sway is removed.
+    val anchorX = if (followingMovement) smoothCameraX + headingX * along * SWAY_SMOOTH_SECONDS else cameraX
+    val anchorZ = if (followingMovement) smoothCameraZ + headingZ * along * SWAY_SMOOTH_SECONDS else cameraZ
+    val predictedLead = lead + along * prediction
     // Leash recall uses the same forward position as initial placement.
     val targetX = if (recalling) cameraX + headingX * leadMeters
       else if (returning) cameraX + (x - cameraX) / distance * 1.5f
-      else cameraX + headingX * lead + velocityX * prediction
+      else anchorX + headingX * predictedLead
     val targetZ = if (recalling) cameraZ + headingZ * leadMeters
       else if (returning) cameraZ + (z - cameraZ) / distance * 1.5f
-      else cameraZ + headingZ * lead + velocityZ * prediction
+      else anchorZ + headingZ * predictedLead
     if (placed && placementRequested) {
       placementRequested = false
       val px = cameraX + headingX * lead
@@ -539,6 +557,16 @@ class DogLeader(
         }
       }
     }
+    if (!unrestrictedReturn && !backing && !catchingUp && passingSide == 0f) {
+      val targetAhead = (navigationTargetX - x) * headingX + (navigationTargetZ - z) * headingZ
+      val targetSide = abs((navigationTargetX - x) * headingZ - (navigationTargetZ - z) * headingX)
+      // The prediction shrinks as the walker slows. Wait for a target slightly behind
+      // instead of turning around to walk back to it.
+      if (targetAhead < 0f && targetAhead > -HOLD_BEHIND_METERS && targetSide < 0.3f) {
+        navigationTargetX = x
+        navigationTargetZ = z
+      }
+    }
     val dx = navigationTargetX - x
     val dz = navigationTargetZ - z
     val gap = hypot(dx, dz)
@@ -569,7 +597,7 @@ class DogLeader(
         val distance = min(gap, 0.45f)
         if (!avoidsWalker(ux, uz, distance, cameraX, cameraZ)) continue
         val score = hypot(navigationTargetX - x - ux * distance, navigationTargetZ - z - uz * distance) +
-          abs(wrap(angle - yaw)) * 0.06f
+          abs(wrap(angle - yaw)) * 0.3f
         if (score < bestScore) {
           bestScore = score
           desiredYaw = angle
@@ -589,7 +617,8 @@ class DogLeader(
     fun faceStep(stepX: Float, stepZ: Float): Boolean {
       val travelYaw = atan2(stepX, stepZ)
       val turn = wrap(travelYaw - yaw)
-      yaw = wrap(yaw + turn.coerceIn(-4.5f * dt, 4.5f * dt))
+      val turnRate = if (moving) WALKING_TURN_RATE else 4.5f
+      yaw = wrap(yaw + turn.coerceIn(-turnRate * dt, turnRate * dt))
       turnRemaining = wrap(travelYaw - yaw)
       if (abs(turnRemaining) <= 0.07f) {
         yaw = travelYaw
@@ -615,10 +644,21 @@ class DogLeader(
       floorPath.clear()
       // Explicit return ignores walls, semantic floor and ledges. Preserve the last
       // known ground height instead of snapping to furniture or an unknown floor.
-      if ((!recoveringFront || avoidsWalker(ux, uz, step, cameraX, cameraZ)) && faceStep(ux, uz)) {
-        x += ux * step
-        z += uz * step
-        actualSpeed = step / dt
+      if (!recoveringFront || avoidsWalker(ux, uz, step, cameraX, cameraZ)) {
+        if (faceStep(ux, uz)) {
+          x += ux * step
+          z += uz * step
+          actualSpeed = step / dt
+        } else if (moving && gap > 0.5f && abs(turnRemaining) <= WALKING_TURN_RADIANS) {
+          val hx = sin(yaw)
+          val hz = cos(yaw)
+          if (!recoveringFront || avoidsWalker(hx, hz, step, cameraX, cameraZ)) {
+            turningToMove = false
+            x += hx * step
+            z += hz * step
+            actualSpeed = step / dt
+          }
+        }
       }
     } else if (step > 0f && routeFound) {
       floorRetrySeconds = (floorRetrySeconds - dt).coerceAtLeast(0f)
@@ -660,6 +700,19 @@ class DogLeader(
           z += uz * travel
           y += (ground - y) * min(1f, dt * 8f)
           actualSpeed = travel / dt
+        } else if (moving && gap > 0.5f && abs(turnRemaining) <= WALKING_TURN_RADIANS) {
+          // Already walking: curve along the turning head instead of stopping to pivot.
+          val hx = sin(yaw)
+          val hz = cos(yaw)
+          val curveGround = if (avoidsWalker(hx, hz, travel, cameraX, cameraZ) &&
+            clearSegment(x, z, x + hx * travel, z + hz * travel, y)) stepFloor(hx, hz, travel, floorAt) else null
+          if (curveGround != null) {
+            turningToMove = false
+            x += hx * travel
+            z += hz * travel
+            y += (curveGround - y) * min(1f, dt * 8f)
+            actualSpeed = travel / dt
+          }
         }
         if (floorUncertain) speed = min(speed, 0.35f)
       } else if (wallRoute.detouring) {
@@ -676,6 +729,14 @@ class DogLeader(
       else -> floorFailureReason.ifEmpty { "바닥 미확인" }
     }
     if (!blocked) stopReason = ""
+    blockedSeconds = if (blocked) blockedSeconds + dt else 0f
+    if (blocked && moving && blockedSeconds < STOP_GRACE_SECONDS) {
+      // A briefly rejected step keeps the gait and speed, so one noisy floor sample is not a visible stop.
+      yaw = previousYaw
+      blocked = false
+      stopReason = ""
+      return frame(true, 0f)
+    }
     if (actualSpeed == 0f) speed = 0f
     if (blocked) {
       // A rejected step must not rotate in place or keep its previous gait.
@@ -811,6 +872,11 @@ class DogLeader(
 
   private companion object {
     const val CARE_STAND_RATE = 0.8f
+    const val STOP_GRACE_SECONDS = 0.4f
+    const val WALKING_TURN_RADIANS = 1f
+    const val WALKING_TURN_RATE = 2f
+    const val HOLD_BEHIND_METERS = 0.45f
+    const val SWAY_SMOOTH_SECONDS = 0.6f
     private fun avoidsWalkerSegment(ax: Float, az: Float, bx: Float, bz: Float, cameraX: Float, cameraZ: Float, clearance: Float): Boolean {
       val dx = bx - ax
       val dz = bz - az

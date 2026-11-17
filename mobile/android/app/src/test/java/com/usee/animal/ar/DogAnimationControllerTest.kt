@@ -13,6 +13,8 @@ class DogAnimationControllerTest {
     assertEquals("RunFast", move(2.9f, 2.8f).clip)
     assertEquals("Walk", move(3.2f, 0.8f).clip)
     repeat(10) { move(3.2f, 0f) }
+    assertEquals("A short stop keeps the gait connected", "Walk", controller.current.clip)
+    repeat(10) { move(3.2f, 0f) }
     assertEquals("Idle", controller.current.clip)
     assertEquals("Walk", move(1f, 1f).clip)
   }

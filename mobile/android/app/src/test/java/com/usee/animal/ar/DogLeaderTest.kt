@@ -737,6 +737,33 @@ class DogLeaderTest {
     }
   }
 
+  @Test fun gaitSwayDoesNotSwingTheDogFromSideToSide() {
+    val leader = DogLeader()
+    var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var minX = Float.POSITIVE_INFINITY
+    var maxX = Float.NEGATIVE_INFINITY
+    for (i in 1..500) {
+      // 1.2 m/s forward with ±0.08 m lateral body sway at one cycle per second.
+      val cameraX = 0.08f * sin(i * 0.02f * 2f * PI.toFloat())
+      dog = leader.update(0.02f, cameraX, -i * 0.024f, 0f, -1f, floor)
+      if (i > 150) { minX = min(minX, dog.x); maxX = max(maxX, dog.x) }
+    }
+    assertTrue("Dog swung ${maxX - minX} m sideways", maxX - minX < 0.15f)
+  }
+
+  @Test fun walkerSlowingDownDoesNotMakeTheDogTurnBack() {
+    val leader = DogLeader()
+    var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var cameraZ = 0f
+    repeat(200) { cameraZ -= 0.03f; dog = leader.update(0.02f, 0f, cameraZ, 0f, -1f, floor) }
+    repeat(150) {
+      val previous = dog
+      dog = leader.update(0.02f, 0f, cameraZ, 0f, -1f, floor)
+      assertTrue("Dog walked back toward the stopped walker: $previous -> $dog", dog.z <= previous.z + 0.001f)
+      assertTrue("Dog must keep facing forward: $dog", cos(Math.toRadians(dog.yawDegrees.toDouble())) < -0.9)
+    }
+  }
+
   @Test fun backingUpMakesDogFaceWalkerAndFollow() {
     val leader = DogLeader()
     var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
@@ -789,8 +816,15 @@ class DogLeaderTest {
     var before = leader.update(0.02f, 0f, -0.02f, 0f, -1f, floor)
     for (i in 2..30) before = leader.update(0.02f, 0f, -i * 0.02f, 0f, -1f, floor)
     assertTrue(before.moving)
+    repeat(19) {
+      val brief = leader.update(0.02f, 0f, -1.0f, 0.5f, -0.8660254f) { _, _ -> null }
+      assertFalse("A brief rejection keeps the gait instead of stopping", brief.blocked)
+      assertEquals(before.clip, brief.clip)
+      assertEquals(before.x, brief.x, 0f)
+      assertEquals(before.z, brief.z, 0f)
+    }
     repeat(200) {
-      val blocked = leader.update(0.02f, 0f, -0.6f, 0.5f, -0.8660254f) { _, _ -> null }
+      val blocked = leader.update(0.02f, 0f, -1.0f, 0.5f, -0.8660254f) { _, _ -> null }
       assertTrue(blocked.blocked)
       assertFalse(blocked.motionPaused)
       assertFalse(blocked.moving)
@@ -800,8 +834,8 @@ class DogLeaderTest {
       assertEquals(before.z, blocked.z, 0f)
       assertEquals(before.yawDegrees, blocked.yawDegrees, 0f)
     }
-    var recovered = leader.update(0.02f, 0f, -0.6f, 0.5f, -0.8660254f, floor)
-    repeat(100) { recovered = leader.update(0.02f, 0f, -0.6f, 0.5f, -0.8660254f, floor) }
+    var recovered = leader.update(0.02f, 0f, -1.0f, 0.5f, -0.8660254f, floor)
+    repeat(100) { recovered = leader.update(0.02f, 0f, -1.0f, 0.5f, -0.8660254f, floor) }
     assertFalse(recovered.blocked)
     assertTrue(hypot(recovered.x - before.x, recovered.z - before.z) > 0.1f)
   }

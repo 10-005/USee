@@ -99,7 +99,6 @@ class ArFloorView(
   private var lastActionRequest = ""
   private var scratch = SessionScratch()
   private var floorAnalyzer: SegFormerFloorAnalyzer? = null
-  private var wasBlocked = false
   private val viewMatrix = FloatArray(16)
   private val projectionMatrix = FloatArray(16)
   private val cameraPoint = FloatArray(4)
@@ -221,7 +220,6 @@ class ArFloorView(
     scratch = SessionScratch()
     val torch = WalkTorch(scratch.lowLight)
     floorAnalyzer = SegFormerFloorAnalyzer(context)
-    wasBlocked = false
     lastEventKey = ""
     pendingEventKey = ""
     val view = FloorSceneView(
@@ -390,17 +388,6 @@ class ArFloorView(
       semanticFailed = floorAnalyzer?.failed == true,
       centerRay = centerRay,
     )
-    val blocked = shown.dog.visible && shown.dog.blocked && frame.camera.trackingState == com.google.ar.core.TrackingState.TRACKING
-    if (blocked && !wasBlocked) {
-      val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
-      if (android.os.Build.VERSION.SDK_INT >= 26) {
-        vibrator?.vibrate(android.os.VibrationEffect.createOneShot(180L, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-      } else {
-        @Suppress("DEPRECATION")
-        vibrator?.vibrate(180L)
-      }
-    }
-    wasBlocked = blocked
     camera.getViewMatrix(viewMatrix, 0)
     if (camera.trackingState != TrackingState.TRACKING) {
       if (lastWalkPose != 0L) poseSegment++
