@@ -28,10 +28,11 @@ internal class TraversalDebugView(context: Context) : View(context) {
   private var bitmap: Bitmap? = null
   private var nextUpdate = 0L
   private val destination = Rect()
+  private var dogPlaced = false
 
   init { isClickable = false; importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
 
-  fun update(frame: Frame, mask: SemanticFloorMask?, planes: Collection<Plane>, walls: List<WallSegment>, dog: DogFrame, userGround: UserWalkRegion, depth: DepthTerrain) {
+  fun update(frame: Frame, mask: SemanticFloorMask?, planes: Collection<Plane>, walls: List<WallSegment>, dog: DogFrame, userGround: UserWalkRegion, depth: DepthTerrain, lowLight: WalkLowLight) {
     val now = SystemClock.elapsedRealtimeNanos()
     if (width <= 0 || height <= 0 || now < nextUpdate) return
     nextUpdate = now + 250_000_000L
@@ -39,6 +40,7 @@ internal class TraversalDebugView(context: Context) : View(context) {
     val rows = ceil(columns.toDouble() * height / width).toInt().coerceIn(24, 128)
     val colors = IntArray(columns * rows) { YELLOW }
     val tracking = frame.camera.trackingState == TrackingState.TRACKING
+    dogPlaced = dog.visible
     if (tracking) {
       val screen = FloatArray(colors.size * 2)
       for (i in colors.indices) {
@@ -78,15 +80,25 @@ internal class TraversalDebugView(context: Context) : View(context) {
           if (t <= 0f) continue
           val x = origin[0] + dx * t
           val z = origin[2] + dz * t
+          if (userGround.groundY == y && lowLight.nearbyFloor(x, z, origin[0], origin[2], y) != null) {
+            colors[i] = if (hypot(x - origin[0], z - origin[2]) >= USER_CLEARANCE_METERS - 0.0001f) GREEN else YELLOW
+            break
+          }
           val trusted = userGround.heightAt(x, z)
-          if (trusted != null && abs(trusted - y) <= 0.18f) { colors[i] = GREEN; break }
+          val clearance = USER_CLEARANCE_METERS
+          if (trusted != null && abs(trusted - y) <= 0.18f) {
+            val allowed = (!dog.visible || abs(trusted - dog.y) <= 0.18f) &&
+              hypot(x - origin[0], z - origin[2]) >= clearance - 0.0001f
+            colors[i] = if (allowed) GREEN else YELLOW
+            break
+          }
           val ground = floorYAt(planes, origin[1], x, z, userGround.groundY) ?: continue
           if (abs(ground - y) > 0.01f) continue
           val geometry = depth.latest?.evidence(x, ground, z, now) ?: FloorEvidence.UNKNOWN
           if (geometry == FloorEvidence.OBSTACLE) { colors[i] = RED; break }
           if (geometry == FloorEvidence.CLEAR) {
             val allowed = (!dog.visible || abs(ground - dog.y) <= 0.18f) &&
-              hypot(x - origin[0], z - origin[2]) >= 0.45f &&
+              hypot(x - origin[0], z - origin[2]) >= clearance &&
               walls.none { it.blocks(x, z, x, z, ground, DOG_BODY_RADIUS, DOG_MODEL_UNITS) }
             colors[i] = if (allowed) GREEN else YELLOW
             break
@@ -97,7 +109,7 @@ internal class TraversalDebugView(context: Context) : View(context) {
           if (groundClass < 0) { colors[i] = YELLOW; break }
           val floor = walkableFloorAt(planes, origin[1], mask, x, z, now, userGround.groundY)
           val heightAllowed = !dog.visible || abs(ground - dog.y) <= 0.18f
-          val walkerAllowed = hypot(x - origin[0], z - origin[2]) >= 0.45f
+          val walkerAllowed = hypot(x - origin[0], z - origin[2]) >= clearance
           val wallAllowed = walls.none { it.blocks(x, z, x, z, ground, DOG_BODY_RADIUS, DOG_MODEL_UNITS) }
           if (floor != null && heightAllowed && walkerAllowed && wallAllowed) colors[i] = GREEN
           break
@@ -113,15 +125,13 @@ internal class TraversalDebugView(context: Context) : View(context) {
 
   override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
-    if (!showAreas) return
-    if (showAreas) {
-      destination.set(0, 0, width, height)
-      paint.alpha = 77
-      val current = bitmap
-      if (current != null) canvas.drawBitmap(current, null, destination, paint)
-      else canvas.drawColor((YELLOW and 0x00ffffff) or (77 shl 24))
-      paint.alpha = 255
-    }
+    if (!showAreas || dogPlaced) return
+    destination.set(0, 0, width, height)
+    paint.alpha = 77
+    val current = bitmap
+    if (current != null) canvas.drawBitmap(current, null, destination, paint)
+    else canvas.drawColor((YELLOW and 0x00ffffff) or (77 shl 24))
+    paint.alpha = 255
   }
 
   // The Canvas display list may still hold the last bitmap during screen removal.

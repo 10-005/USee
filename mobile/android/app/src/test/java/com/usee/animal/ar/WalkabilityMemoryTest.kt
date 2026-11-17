@@ -23,7 +23,19 @@ class WalkabilityMemoryTest {
       assertNotNull(memory.resolve(0f, 0f, 0f, FloorEvidence.OBSTACLE, sample, sample + it * 10_000_000L, true).height)
     }
     assertNull(memory.resolve(0f, 0f, 0f, FloorEvidence.OBSTACLE, sample + 350_000_000L, sample + 350_000_000L, true).height)
-    assertEquals(0f, memory.resolve(0f, 0f, 0f, FloorEvidence.CLEAR, sample + 500_000_000L, sample + 500_000_000L, true).height)
+    assertNull(memory.resolve(0f, 0f, 0f, FloorEvidence.CLEAR, sample + 500_000_000L, sample + 500_000_000L, true).height)
+    assertEquals(0f, memory.resolve(0f, 0f, 0f, FloorEvidence.CLEAR, sample + 800_000_000L, sample + 800_000_000L, true).height)
+  }
+
+  @Test fun alternatingClearAndBlockedFramesDoNotRestartMovement() {
+    val memory = WalkabilityMemory()
+    memory.resolve(0f, 0f, 0f, FloorEvidence.OBSTACLE, start, start, true)
+    memory.resolve(0f, 0f, 0f, FloorEvidence.OBSTACLE, start + 400_000_000L, start + 400_000_000L, true)
+    for (i in 1..10) {
+      val time = start + 400_000_000L + i * 200_000_000L
+      val evidence = if (i % 2 == 1) FloorEvidence.CLEAR else FloorEvidence.OBSTACLE
+      assertNull(memory.resolve(0f, 0f, 0f, evidence, time, time, true).height)
+    }
   }
 
   @Test fun unknownNewFloorHasBoundedTimeAndDistanceGraceAndCannotSpawnDog() {

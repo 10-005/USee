@@ -4,6 +4,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class UserWalkRegionTest {
+  @Test fun longWalkKeepsTheBeginningOfTheRecordedRoute() {
+    val region = UserWalkRegion()
+    for (i in 0..5000) region.update(i * 0.25f, 0f, 0f)
+    assertEquals(0f, region.heightAt(0f, 0f))
+    assertEquals(0f, region.heightAt(1250f, 0f))
+  }
+
   @Test fun repeatedUndergroundPlaneDoesNotReplaceTheWalkingFloor() {
     val filter = GroundLevelFilter()
     filter.update(0f, 0f, 0L)

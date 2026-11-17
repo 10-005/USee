@@ -1,7 +1,7 @@
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -209,6 +209,14 @@ export function ArWalkScreen({
   const [status, setStatus] = useState<FloorTrackingStatus>('searching');
   const [placementRequest, setPlacementRequest] = useState(0);
   const [canReposition, setCanReposition] = useState(true);
+  const requestPlacement = useCallback(() => setPlacementRequest(value => value + 1), []);
+  const placementDisabled =
+    !isFocused || ending || status === 'searching' || status === 'analyzing';
+  const autoPlacementReady =
+    hasPermission && canReposition && !placementDisabled && status === 'centerReady';
+  useEffect(() => {
+    if (autoPlacementReady) requestPlacement();
+  }, [autoPlacementReady, requestPlacement]);
   const [canGiveCare, setCanGiveCare] = useState(false);
   const [careRequest, setCareRequest] = useState('');
   const careRequestId = useRef(0);
@@ -276,7 +284,10 @@ export function ArWalkScreen({
         Alert.alert('산책', getSimulationWalkActionErrorMessage(error));
       });
   };
-  const [showTraversalDebug, setShowTraversalDebug] = useState(false);
+  // 영역 표시 토글이 숨겨져 있는 동안에는 끌 수 없으므로 기본으로 끈다.
+  const [showTraversalDebug /* , setShowTraversalDebug */] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const leaveAction = useRef<Parameters<typeof navigation.dispatch>[0] | null>(null);
   const [hasSeenDog, setHasSeenDog] = useState(false);
   const [loadingDots, setLoadingDots] = useState(2);
   const [walkStartedAt, setWalkStartedAt] = useState<number | null>(null);
@@ -387,7 +398,8 @@ export function ArWalkScreen({
       walkStart.current
         .then(() => endActiveSimulationWalk())
         .then(() => {
-          navigation.dispatch(event.data.action);
+          leaveAction.current = event.data.action;
+          setLeaving(true);
         })
         .catch(error => {
           endingWalk.current = false;
@@ -396,6 +408,15 @@ export function ArWalkScreen({
         });
     });
   }, [navigation]);
+
+  useEffect(() => {
+    // 같은 커밋에서 AR이 꺼지므로, 화면이 분리되기 전에 네이티브 AR 세션이 먼저 정리된다.
+    const action = leaveAction.current;
+    if (leaving && action) {
+      leaveAction.current = null;
+      navigation.dispatch(action);
+    }
+  }, [leaving, navigation]);
 
   useEffect(() => {
     if (walkStartedAt === null) {
@@ -414,8 +435,9 @@ export function ArWalkScreen({
     }
   }, [canRequestPermission, hasPermission, requestPermission]);
 
-  const startupError = STARTUP_ERRORS[status];
-  const isRecognizing = hasPermission && isFocused && !hasSeenDog && !startupError;
+  const showStartupStatus = hasPermission && !hasSeenDog && !ending;
+  const startupError = showStartupStatus ? STARTUP_ERRORS[status] : undefined;
+  const isRecognizing = showStartupStatus && isFocused && !startupError;
 
   useEffect(() => {
     if (!isRecognizing) {
@@ -468,9 +490,10 @@ export function ArWalkScreen({
       setWalkStartedAt(current => current ?? Date.now());
     }
     setCanReposition(
-      ['analyzing', 'searching', 'ready', 'anchored'].includes(next.status) &&
-        !next.onScreen &&
-        !next.userMoving,
+      !next.onScreen &&
+        (next.status === 'centerReady' ||
+          (!next.userMoving &&
+            ['analyzing', 'searching', 'ready', 'anchored'].includes(next.status))),
     );
     setStatus(current => (current === next.status ? current : next.status));
   };
@@ -488,7 +511,7 @@ export function ArWalkScreen({
     >
       {hasPermission ? (
         <ArFloorView
-          active={isFocused}
+          active={isFocused && !leaving}
           placementRequest={placementRequest}
           showTraversalDebug={showTraversalDebug}
           collapsable={false}
@@ -534,6 +557,7 @@ export function ArWalkScreen({
             ? `${Math.round(walkRoute.meters)} m`
             : `${(walkRoute.meters / 1000).toFixed(2)} km`}
         </Text>
+        {/* 영역 표시 토글 숨김
         {hasPermission && (
           <View pointerEvents="box-none" style={styles.displayControls}>
             <Pressable
@@ -551,6 +575,7 @@ export function ArWalkScreen({
             </Pressable>
           </View>
         )}
+        */}
       </View>
       {isRecognizing && (
         <View pointerEvents="none" style={styles.loadingOverlay}>
@@ -560,7 +585,7 @@ export function ArWalkScreen({
           </Text>
         </View>
       )}
-      {hasPermission && !hasSeenDog && startupError && (
+      {startupError && (
         <View pointerEvents="none" style={styles.loadingOverlay}>
           <Text style={styles.messageText}>{startupError}</Text>
         </View>
@@ -610,15 +635,13 @@ export function ArWalkScreen({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="강아지 배치하기"
-          accessibilityState={{
-            disabled: !isFocused || status === 'searching' || status === 'analyzing',
-          }}
-          disabled={!isFocused || status === 'searching' || status === 'analyzing'}
-          onPress={() => setPlacementRequest(value => value + 1)}
+          accessibilityState={{ disabled: placementDisabled }}
+          disabled={placementDisabled}
+          onPress={requestPlacement}
           style={[
             styles.placeButton,
             { bottom: insets.bottom + 24 },
-            (status === 'searching' || status === 'analyzing') && styles.placeButtonDisabled,
+            placementDisabled && styles.placeButtonDisabled,
           ]}
         >
           <Text style={styles.placeButtonText}>강아지 배치하기</Text>

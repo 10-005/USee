@@ -5,6 +5,7 @@ export type FloorTrackingStatus =
   | 'analyzing'
   | 'recognitionError'
   | 'ready'
+  | 'centerReady'
   | 'anchored'
   | 'lost'
   | 'unsupported'

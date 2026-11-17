@@ -616,6 +616,11 @@ test('ends the server walk before leaving the walk screen', async () => {
   });
   const action = { type: 'GO_BACK' };
   const preventDefault = jest.fn();
+  let arActiveWhenLeaving: boolean | undefined;
+  mockWalkNavigation.dispatch.mockImplementation(() => {
+    arActiveWhenLeaving = renderer.root.findByType(ArFloorView).props.active;
+  });
+  expect(renderer.root.findByType(ArFloorView).props.active).toBe(true);
   await ReactTestRenderer.act(async () => {
     mockWalkNavigation.listeners.get('beforeRemove')?.({
       preventDefault,
@@ -626,10 +631,11 @@ test('ends the server walk before leaving the walk screen', async () => {
   expect(preventDefault).toHaveBeenCalledTimes(1);
   expect(endActiveSimulationWalk).toHaveBeenCalledTimes(1);
   expect(mockWalkNavigation.dispatch).toHaveBeenCalledWith(action);
+  expect(arActiveWhenLeaving).toBe(false);
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
-test('covers the walk until the end request returns and ignores another leave', async () => {
+test('shows only the ending overlay when leaving during terrain recognition', async () => {
   let finish: () => void = () => undefined;
   jest.mocked(endActiveSimulationWalk).mockImplementation(
     () =>
@@ -641,6 +647,8 @@ test('covers the walk until the end request returns and ignores another leave', 
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<ArWalkScreen />);
   });
+  const recognition = () => renderer.root.findAllByProps({ accessibilityLabel: '지형 인식 중' });
+  expect(recognition().length).toBeGreaterThan(0);
   const action = { type: 'GO_BACK' };
   const leave = (preventDefault = jest.fn()) => {
     mockWalkNavigation.listeners.get('beforeRemove')?.({
@@ -657,6 +665,7 @@ test('covers the walk until the end request returns and ignores another leave', 
   expect(
     renderer.root.findAllByProps({ accessibilityLabel: '산책 종료 중' }).length,
   ).toBeGreaterThan(0);
+  expect(recognition()).toHaveLength(0);
   expect(mockWalkNavigation.dispatch).not.toHaveBeenCalled();
   const secondPrevent = jest.fn();
   await ReactTestRenderer.act(() => {
@@ -689,6 +698,9 @@ test('stays on the walk screen when the walk cannot be ended', async () => {
   expect(alert).toHaveBeenCalledWith('산책', '산책을 종료하지 못했어요. 다시 시도해주세요.');
   expect(mockWalkNavigation.dispatch).not.toHaveBeenCalled();
   expect(renderer.root.findAllByProps({ accessibilityLabel: '산책 종료 중' })).toHaveLength(0);
+  expect(
+    renderer.root.findAllByProps({ accessibilityLabel: '지형 인식 중' }).length,
+  ).toBeGreaterThan(0);
   alert.mockRestore();
   await ReactTestRenderer.act(() => renderer.unmount());
 });
@@ -716,20 +728,42 @@ test('placement remains visible during analysis and hides only for visible dogs 
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
-test('area toggle remains available without a notices toggle', async () => {
-  let renderer: ReactTestRenderer.ReactTestRenderer;
+test('the five-second center target enables placement and requests it once', async () => {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<ArWalkScreen />);
   });
   const native = () => renderer.root.findByType(ArFloorView).props;
-  const toggle = () =>
-    renderer.root.findAllByProps({ accessibilityLabel: '이동 가능 영역 표시' })[0];
-  expect(native().showTraversalDebug).toBe(false);
+  const buttons = () => renderer.root.findAllByProps({ accessibilityLabel: '강아지 배치하기' });
+  const tracking = (state: Partial<FloorTracking>) =>
+    ReactTestRenderer.act(() => native().onTracking({ nativeEvent: state }));
+  try {
+    expect(buttons()[0].props.disabled).toBe(true);
+    expect(native().placementRequest).toBe(0);
+
+    await tracking({ status: 'centerReady', onScreen: false });
+    expect(buttons()[0].props.disabled).toBe(false);
+    expect(native().placementRequest).toBe(1);
+
+    await tracking({ status: 'centerReady', onScreen: false, userMoving: true });
+    expect(native().placementRequest).toBe(1);
+
+    await tracking({ status: 'anchored', visible: true, onScreen: true });
+    expect(buttons()).toHaveLength(0);
+    expect(native().placementRequest).toBe(1);
+  } finally {
+    await ReactTestRenderer.act(() => renderer.unmount());
+  }
+});
+
+test('area toggle is hidden and the traversal overlay stays off', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<ArWalkScreen />);
+  });
+  expect(renderer!.root.findAllByProps({ accessibilityLabel: '이동 가능 영역 표시' })).toHaveLength(0);
   expect(renderer!.root.findAllByProps({ accessibilityLabel: '상단 안내 표시' })).toHaveLength(0);
-  await ReactTestRenderer.act(() => toggle().props.onPress());
-  expect(native().showTraversalDebug).toBe(true);
-  await ReactTestRenderer.act(() => toggle().props.onPress());
-  expect(native().showTraversalDebug).toBe(false);
+  expect(renderer!.root.findByType(ArFloorView).props.showTraversalDebug).toBe(false);
   await ReactTestRenderer.act(() => renderer.unmount());
 });
 
