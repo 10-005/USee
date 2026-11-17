@@ -431,7 +431,12 @@ class DogLeader(
       return frame(true, 0f)
     }
     if (!recalling && !placementRequested && continuous) {
-      val directionChanged = movementHeading.observe(measuredX, measuredZ, dt, headingX, headingZ)
+      val previousHeadingX = headingX
+      val previousHeadingZ = headingZ
+      val lookLength = hypot(lookX, lookZ)
+      val directionChanged = if (lookLength > 0.15f) {
+        movementHeading.observe(measuredX, measuredZ, dt, headingX, headingZ, lookX / lookLength, lookZ / lookLength)
+      } else movementHeading.observe(measuredX, measuredZ, dt, headingX, headingZ)
       if (movementHeading.confirmed) followingMovement = true
       if (directionChanged) {
         smoothCameraX = cameraX
@@ -454,6 +459,14 @@ class DogLeader(
         val lateral = abs((x - cameraX) * headingZ - (z - cameraZ) * headingX)
         if (blocked && ahead < 0.5f && lateral < 0.5f && hypot(measuredX, measuredZ) >= 0.3f &&
           trustedGround(x, z) != null && trustedGround(cameraX, cameraZ) != null) {
+          recoveringFront = true
+          floorPath.clear()
+          floorRetrySeconds = 0f
+        }
+        // The walker turned back: the dog is now behind them, on ground the camera no longer
+        // sees. Run back past the walker to the new front instead of waiting for floor evidence.
+        val reversed = previousHeadingX * headingX + previousHeadingZ * headingZ < -0.5f
+        if (directionChanged && reversed && ahead < 0f && !shortRange) {
           recoveringFront = true
           floorPath.clear()
           floorRetrySeconds = 0f
@@ -631,7 +644,7 @@ class DogLeader(
       else if (wallRoute.detouring || floorPath.isNotEmpty() || unrestrictedReturn) 1.1f else 3.6f
     val walkingSpeed = max(0f, velocityX * sin(desiredYaw) + velocityZ * cos(desiredYaw))
     val catchUpSpeed = if (catchingUp) max(gap * 1.8f, hypot(velocityX, velocityZ) + 1.5f)
-      else if (unrestrictedReturn) gap * 1.8f
+      else if (unrestrictedReturn && !recoveringFront) gap * 1.8f
       else min(walkingSpeed + gap * 1.8f, max(1.1f, walkingSpeed + 0.35f))
     val wantedSpeed = if (routeFound && gap > arrivalGap) min(maxSpeed, catchUpSpeed) else 0f
     val acceleration = if (wantedSpeed > speed) 2.8f else 5f

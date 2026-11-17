@@ -737,6 +737,31 @@ class DogLeaderTest {
     }
   }
 
+  @Test fun turningBackRunsPastTheWalkerEvenWhenTheGroundBehindIsNoLongerSeen() {
+    val leader = DogLeader()
+    val trail = UserWalkRegion()
+    leader.setTrustedGround(trail::heightAt)
+    var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)
+    var cameraZ = 0f
+    repeat(150) {
+      cameraZ -= 0.024f
+      trail.update(0f, cameraZ, 0f)
+      dog = leader.update(0.02f, 0f, cameraZ, 0f, -1f, floor)
+    }
+    assertTrue("Dog leads the forward walk: $dog", dog.z < cameraZ - 1.2f)
+    // After turning around only the ground in front of the phone (+Z side) is observed.
+    val seenAhead: (Float, Float) -> Float? = { _, z -> if (z > cameraZ - 0.3f) 0f else null }
+    var maxAhead = Float.NEGATIVE_INFINITY
+    repeat(250) {
+      cameraZ += 0.024f
+      trail.update(0f, cameraZ, 0f)
+      dog = leader.update(0.02f, 0f, cameraZ, 0f, 1f, seenAhead)
+      assertTrue("Must keep clear of the user: $dog", hypot(dog.x, dog.z - cameraZ) >= 0.3f)
+      maxAhead = max(maxAhead, dog.z - cameraZ)
+    }
+    assertTrue("Dog must run past the walker to the new front, ahead=$maxAhead", maxAhead > 1.2f)
+  }
+
   @Test fun gaitSwayDoesNotSwingTheDogFromSideToSide() {
     val leader = DogLeader()
     var dog = leader.update(0f, 0f, 0f, 0f, -1f, floor)

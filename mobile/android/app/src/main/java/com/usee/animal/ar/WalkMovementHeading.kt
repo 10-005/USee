@@ -4,7 +4,7 @@ import kotlin.math.exp
 import kotlin.math.hypot
 
 /**
- * Confirm translation for 120ms before interpreting it as a new walking direction.
+ * Confirm translation for 120ms (60ms when the phone faces the same way) before interpreting it as a new walking direction.
  * Within a confirmed direction, follow displacement through two averaging stages so
  * the roughly once-per-second body sway of each stride cancels out.
  */
@@ -29,7 +29,9 @@ internal class WalkMovementHeading {
     sumX = 0f; sumZ = 0f; averageX = 0f; averageZ = 0f
   }
 
-  fun observe(vx: Float, vz: Float, dt: Float, fallbackX: Float, fallbackZ: Float): Boolean {
+  /** [lookX]/[lookZ] is the phone's horizontal facing; moving the way the phone faces confirms sooner. */
+  fun observe(vx: Float, vz: Float, dt: Float, fallbackX: Float, fallbackZ: Float,
+    lookX: Float = 0f, lookZ: Float = 0f): Boolean {
     if (!initialized) { x = fallbackX; z = fallbackZ; initialized = true }
     val speed = hypot(vx, vz)
     if (!speed.isFinite() || speed < 0.3f || speed >= 4f || dt <= 0f || dt > 0.25f) {
@@ -46,7 +48,8 @@ internal class WalkMovementHeading {
       candidateX = nx; candidateZ = nz; candidateSeconds = 0f
     }
     candidateSeconds += dt
-    if (candidateSeconds + 0.000001f >= 0.12f) {
+    val confirmSeconds = if (candidateX * lookX + candidateZ * lookZ >= 0.7f) 0.06f else 0.12f
+    if (candidateSeconds + 0.000001f >= confirmSeconds) {
       candidateSeconds = 0f
       val changed = nx * x + nz * z < 0.70710677f
       if (!confirmed || changed) {
