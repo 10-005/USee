@@ -86,8 +86,11 @@ class MissingReportService(
             validate(report)
             missingReportRepository.saveAndFlush(report)
             missingReportRepository.replaceImages(report.missingReportSeq!!, command.imageSeqs)
-            val requested = requestMatch(MatchEventType.MISSING_REPORT_REGISTERED, report, classification.speciesCode.name, command.imageSeqs)
-            CreatedMissing(report.missingReportSeq!!, report.status, report.districtCode, aiMatchingRequested = requested)
+            requestMatch(
+                MatchEventType.MISSING_REPORT_REGISTERED, report, classification.speciesCode.name, command.imageSeqs,
+                withCandidates = !matchCandidates.skipsRegistrationMatch(userSeq),
+            )
+            CreatedMissing(report.missingReportSeq!!, report.status, report.districtCode, aiMatchingRequested = true)
         }
     }
 
@@ -174,9 +177,10 @@ class MissingReportService(
         )
     }
 
-    /** 보냈으면 true. 시연용 제외 회원(match.excluded-missing-user-seqs)이면 보내지 않는다 */
-    private fun requestMatch(type: MatchEventType, report: MissingReport, speciesCode: String, imageSeqs: List<Long>): Boolean {
-        if (matchCandidates.isMissingMatchExcluded(report.userSeq.toLong())) return false
+    /** withCandidates=false면 후보 없이 보내 워커가 벡터만 저장하고 알림은 만들지 않는다(시연용 첫 등록) */
+    private fun requestMatch(
+        type: MatchEventType, report: MissingReport, speciesCode: String, imageSeqs: List<Long>, withCandidates: Boolean = true,
+    ) {
         eventPublisher.publish(
             MatchRequested(
                 eventType = type,
@@ -185,10 +189,9 @@ class MissingReportService(
                 imageKeys = missingReportRepository.findImageKeys(imageSeqs),
                 speciesCode = speciesCode,
                 occurredAt = report.occurredDttm,
-                candidates = matchCandidates.findCandidates(TargetType.MISSING, report.missingReportSeq!!.toLong()),
+                candidates = if (withCandidates) matchCandidates.findCandidates(TargetType.MISSING, report.missingReportSeq!!.toLong()) else emptyList(),
             ),
         )
-        return true
     }
 
     private fun loadOwned(userSeq: Long, missingReportSeq: Long): MissingReport =
