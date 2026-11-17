@@ -24,6 +24,4 @@ data class MatchSource(
     val speciesCode: String,
     val occurredAt: OffsetDateTime,
     val imageKeys: List<String>,
-    /** 작성자. 보호동물은 null */
-    val userSeq: Long? = null,
 )
