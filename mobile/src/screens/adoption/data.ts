@@ -1,0 +1,163 @@
+import type { ImageSourcePropType } from 'react-native';
+
+export type AdoptionAnimal = {
+  id: string;
+  image: ImageSourcePropType;
+  name: string;
+  neutered: boolean | null;
+  species: string;
+  location: string;
+  date: string;
+  summary: string;
+  description: string;
+  districtCode?: string | null;
+  isAdoptionUnavailable?: boolean;
+  status: '보호' | '종료';
+};
+
+export const adoptionAnimals: AdoptionAnimal[] = [
+  {
+    id: 'animal-1',
+    image: require('../../assets/images/adoption/animal-cat.png'),
+    name: '한국고양이',
+    neutered: true,
+    species: '고양이',
+    location: '구미시 인동동 123-123 알리바바바',
+    date: '2026-10-19',
+    summary: '0살 | 암컷 | 갈색 | 3kg',
+    description: '사람을 좋아하고 온순한 아이예요.',
+    status: '보호',
+  },
+  {
+    id: 'animal-2',
+    image: require('../../assets/images/adoption/animal-dog-leaves.png'),
+    name: '강강아쥐',
+    neutered: false,
+    species: '개',
+    location: '구미시 인동동 123-123 알리바바바',
+    date: '2026-10-19',
+    summary: '0살 | 암컷 | 흰색 | 3kg',
+    description: '활발하고 산책을 좋아해요.',
+    status: '보호',
+  },
+  {
+    id: 'animal-3',
+    image: require('../../assets/images/adoption/animal-dog-white.png'),
+    name: '개냥이',
+    neutered: true,
+    species: '개',
+    location: '구미시 인동동 123-123 알리바바바',
+    date: '2026-10-19',
+    summary: '1살 | 수컷 | 흰색 | 4kg',
+    description: '새 가족을 기다리고 있습니다.',
+    status: '종료',
+  },
+  {
+    id: 'animal-4',
+    image: require('../../assets/images/adoption/animal-cat-black.png'),
+    name: '개냥이',
+    neutered: false,
+    species: '고양이',
+    location: '구미시 인동동 123-123 알리바바바',
+    date: '2026-10-19',
+    summary: '2살 | 암컷 | 검정·흰색 | 4kg',
+    description: '호기심이 많고 사람 손길을 좋아해요.',
+    status: '보호',
+  },
+  {
+    id: 'animal-5',
+    image: require('../../assets/images/adoption/animal-dog-leaves.png'),
+    name: '믹스견',
+    neutered: true,
+    species: '개',
+    location: '서울시 마포구 성산동 120-3',
+    date: '2026-11-04',
+    summary: '2살 | 수컷 | 갈색 | 7kg',
+    description: '낯을 조금 가리지만 금방 친해지는 아이예요.',
+    status: '보호',
+  },
+  {
+    id: 'animal-6',
+    image: require('../../assets/images/adoption/animal-cat-black.png'),
+    name: '코리안 숏헤어',
+    neutered: false,
+    species: '고양이',
+    location: '대전시 유성구 봉명동 535-5',
+    date: '2026-11-03',
+    summary: '1살 | 암컷 | 검정·흰색 | 3kg',
+    description: '장난감을 좋아하고 애교가 많은 아이예요.',
+    status: '보호',
+  },
+  {
+    id: 'animal-7',
+    image: require('../../assets/images/adoption/animal-dog-white.png'),
+    name: '말티즈',
+    neutered: true,
+    species: '개',
+    location: '부산시 해운대구 우동 1413',
+    date: '2026-11-02',
+    summary: '4살 | 암컷 | 흰색 | 4kg',
+    description: '조용하고 사람 곁에 머무는 것을 좋아해요.',
+    status: '보호',
+  },
+  {
+    id: 'animal-8',
+    image: require('../../assets/images/adoption/animal-cat.png'),
+    name: '한국고양이',
+    neutered: true,
+    species: '고양이',
+    location: '광주시 북구 용봉동 300',
+    date: '2026-11-01',
+    summary: '3살 | 수컷 | 치즈색 | 5kg',
+    description: '먹는 것을 좋아하고 느긋한 성격이에요.',
+    status: '종료',
+  },
+  {
+    id: 'animal-9',
+    image: require('../../assets/images/adoption/animal-dog-leaves.png'),
+    name: '진도견',
+    neutered: false,
+    species: '개',
+    location: '전주시 덕진구 송천동 96-1',
+    date: '2026-10-30',
+    summary: '1살 | 수컷 | 황색 | 9kg',
+    description: '활동량이 많고 새로운 냄새를 탐색하는 것을 좋아해요.',
+    status: '보호',
+  },
+  {
+    id: 'animal-10',
+    image: require('../../assets/images/adoption/animal-cat-black.png'),
+    name: '믹스묘',
+    neutered: true,
+    species: '고양이',
+    location: '인천시 남동구 구월동 1138',
+    date: '2026-10-28',
+    summary: '2살 | 암컷 | 고등어색 | 4kg',
+    description: '차분하고 창가에서 쉬는 것을 좋아해요.',
+    status: '보호',
+  },
+  {
+    id: 'animal-11',
+    image: require('../../assets/images/adoption/animal-dog-white.png'),
+    name: '푸들',
+    neutered: true,
+    species: '개',
+    location: '수원시 영통구 이의동 1332',
+    date: '2026-10-25',
+    summary: '5살 | 수컷 | 갈색 | 6kg',
+    description: '기본 훈련이 되어 있고 산책을 잘해요.',
+    status: '종료',
+  },
+  {
+    id: 'animal-12',
+    image: require('../../assets/images/adoption/animal-cat.png'),
+    name: '코리안 숏헤어',
+    neutered: false,
+    species: '고양이',
+    location: '제주시 애월읍 애월리 1736',
+    date: '2026-10-22',
+    summary: '1살 | 수컷 | 회색 | 3kg',
+    description: '호기심이 많고 다른 고양이와도 잘 지내요.',
+    status: '보호',
+  },
+];

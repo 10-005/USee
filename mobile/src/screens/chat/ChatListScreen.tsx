@@ -1,0 +1,268 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, AppState, FlatList, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import TrashIcon from '../../assets/icons/common/chat-trash.svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import PullRefreshContainer from '../../components/common/PullRefreshContainer';
+import { ChatListItem } from '../../components/common';
+import { ChatActions } from './ChatActions';
+import { chatSocket } from '../../services/chat';
+import { useChatStore } from '../../stores/chatStore';
+import { colors, radius, typography } from '../../theme';
+
+const avatarSource = require('../../assets/images/mypage/profile-default.png');
+export function ChatListScreen({ onOpenRoom }: { onOpenRoom: (id: string) => void }) {
+  const storedRooms = useChatStore(state => state.rooms);
+  const rooms = useMemo(
+    () =>
+      storedRooms
+        .flatMap(room => {
+          const last = room.messages.reduce<(typeof room.messages)[number] | undefined>(
+            (latest, message) =>
+              !message.pending && (!latest || Number(message.id) > Number(latest.id))
+                ? message
+                : latest,
+            undefined,
+          );
+          return last ? [{ ...room, last }] : [];
+        })
+        .sort((a, b) => Number(b.last.id) - Number(a.last.id)),
+    [storedRooms],
+  );
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') setNow(Date.now());
+    });
+    return () => subscription.remove();
+  }, []);
+  useEffect(() => {
+    let next = Infinity;
+    for (const { last } of rooms) {
+      const elapsed = Math.max(0, now - last.sentAt);
+      if (elapsed >= 86400000) continue;
+      const unit = elapsed < 3600000 ? 60000 : 3600000;
+      next = Math.min(next, last.sentAt + (Math.floor(elapsed / unit) + 1) * unit);
+    }
+    if (!Number.isFinite(next)) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, next - Date.now()));
+    return () => clearTimeout(timer);
+  }, [now, rooms]);
+  const loaded = useChatStore(state => state.loaded);
+  const [refreshing, setRefreshing] = useState(false);
+  const loadMoreRooms = useChatStore(state => state.loadMoreRooms);
+  useEffect(() => {
+    const load = () =>
+      useChatStore
+        .getState()
+        .load()
+        .catch(() =>
+          Alert.alert('채팅', '대화 내역을 불러올 수 없어요.', [
+            { text: '다시 시도', onPress: load },
+          ]),
+        );
+    load();
+  }, []);
+  const unreadRooms = rooms.filter(room => room.unreadCount > 0);
+  const unreadTotal = unreadRooms.reduce((sum, room) => sum + room.unreadCount, 0);
+  const [filter, setFilter] = useState<'전체' | '안 읽음'>('전체');
+  useEffect(() => {
+    let pending = false;
+    const refresh = () => {
+      const store = useChatStore.getState();
+      if (store.loading) {
+        pending = true;
+        return;
+      }
+      pending = false;
+      void store.load(true, filter === '안 읽음').catch(() => undefined);
+    };
+    const stopObserving = chatSocket.observeRoomList(refresh);
+    const unsubscribe = useChatStore.subscribe(state => {
+      if (pending && !state.loading) refresh();
+    });
+    return () => {
+      unsubscribe();
+      stopObserving();
+    };
+  }, [filter]);
+  useEffect(() => {
+    if (loaded) {
+      useChatStore
+        .getState()
+        .load(true, filter === '안 읽음')
+        .catch(() => undefined);
+    }
+  }, [filter, loaded]);
+  const insets = useSafeAreaInsets();
+  const [revealed, setRevealed] = useState<string>();
+  const [leaving, setLeaving] = useState<string>();
+
+  return (
+    <View style={styles.screen}>
+      <View style={styles.filters}>
+        {(['전체', '안 읽음'] as const).map(label => (
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected: filter === label }}
+            key={label}
+            onPress={() => {
+              setFilter(label);
+              setRevealed(undefined);
+            }}
+            style={styles.chip}
+          >
+            <View style={styles.tabTitle}>
+              <Text style={filter === label ? styles.selectedLabel : styles.label}>{label}</Text>
+              {label === '안 읽음' && unreadTotal > 0 && (
+                <Text style={styles.count}>{unreadTotal}</Text>
+              )}
+            </View>
+            <View style={filter === label ? styles.activeIndicator : styles.inactiveIndicator} />
+          </Pressable>
+        ))}
+      </View>
+      <PullRefreshContainer style={styles.listArea}>
+        <FlatList
+          contentContainerStyle={[styles.list, { paddingBottom: 104 + insets.bottom }]}
+          data={filter === '전체' ? rooms : unreadRooms}
+          decelerationRate="fast"
+          keyExtractor={room => room.id}
+          onEndReached={() => loadMoreRooms(filter === '안 읽음').catch(() => undefined)}
+          onEndReachedThreshold={0.4}
+          onRefresh={() => {
+            setRefreshing(true);
+            useChatStore
+              .getState()
+              .load(true, filter === '안 읽음')
+              .catch(() => undefined)
+              .finally(() => setRefreshing(false));
+          }}
+          refreshing={refreshing}
+          ListEmptyComponent={
+            <Text style={styles.empty}>
+              {loaded ? '표시할 대화가 없습니다.' : '대화를 불러오는 중이에요.'}
+            </Text>
+          }
+          renderItem={({ item }) => {
+            const last = item.last;
+            const open = revealed === item.id;
+            const swipe = PanResponder.create({
+              onMoveShouldSetPanResponderCapture: (_, g) =>
+                Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+              onPanResponderRelease: (_, g) => {
+                if (Math.abs(g.dx) > 24) {
+                  setRevealed(g.dx < 0 ? item.id : undefined);
+                }
+              },
+            });
+            return (
+              <View {...swipe.panHandlers} style={styles.item}>
+                {open && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="채팅방 나가기"
+                    onPress={() => setLeaving(item.id)}
+                    style={styles.delete}
+                  >
+                    <TrashIcon width={22} height={22} />
+                  </Pressable>
+                )}
+                <View style={open && styles.shift}>
+                  <ChatListItem
+                    avatarSource={
+                      item.counterpart.profileImage?.imageUrl
+                        ? { uri: item.counterpart.profileImage.imageUrl }
+                        : avatarSource
+                    }
+                    name={item.name}
+                    isShelter={item.counterpart.type === 'SHELTER'}
+                    lastMessage={last?.kind === 'photo' ? '사진' : last?.text ?? ''}
+                    time={last ? roomTime(last.sentAt, now) : ''}
+                    unreadCount={item.unreadCount}
+                    onPress={() => {
+                      if (open) {
+                        setRevealed(undefined);
+                      } else {
+                        onOpenRoom(item.id);
+                      }
+                    }}
+                  />
+                </View>
+              </View>
+            );
+          }}
+        />
+      </PullRefreshContainer>
+      {leaving && (
+        <ChatActions
+          action="leave"
+          onClose={() => setLeaving(undefined)}
+          onLeave={() => {
+            if (leaving) {
+              useChatStore
+                .getState()
+                .leave(leaving)
+                .catch(() => Alert.alert('채팅', '채팅방을 나갈 수 없어요. 다시 시도해 주세요.'));
+            }
+            setLeaving(undefined);
+            setRevealed(undefined);
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  listArea: { flex: 1 },
+  screen: { flex: 1, backgroundColor: colors.white },
+  filters: { flexDirection: 'row', height: 56 },
+  chip: { alignItems: 'center', flex: 1, justifyContent: 'space-between', paddingTop: 16 },
+  tabTitle: { alignItems: 'center', flexDirection: 'row', gap: 4 },
+  label: { ...typography.bodyRegular16, color: colors.gray600, height: 20 },
+  selectedLabel: { ...typography.bodySemiBold16, color: colors.green400, height: 20 },
+  activeIndicator: { backgroundColor: colors.green400, height: 4, width: '100%' },
+  inactiveIndicator: { backgroundColor: colors.gray200, height: 1, width: '100%' },
+  count: {
+    ...typography.bodyRegular14,
+    backgroundColor: colors.gray10,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.green100,
+    color: colors.green100,
+    flexShrink: 0,
+    height: 20,
+    includeFontPadding: false,
+    minWidth: 22,
+    paddingHorizontal: 6,
+    textAlign: 'center',
+  },
+  list: { paddingHorizontal: 26, paddingTop: 8 },
+  item: { justifyContent: 'center', minHeight: 72, overflow: 'hidden' },
+  shift: { transform: [{ translateX: -54 }], backgroundColor: 'white' },
+  delete: {
+    position: 'absolute',
+    right: 0,
+    width: 45,
+    height: 52,
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FA705E',
+  },
+  empty: { ...typography.bodyRegular16, color: colors.gray500, textAlign: 'center', marginTop: 40 },
+});
+
+function roomTime(sentAt: number, now: number) {
+  const minutes = Math.floor(Math.max(0, now - sentAt) / 60000);
+  if (minutes === 0) {
+    return '방금 전';
+  }
+  if (minutes < 60) return `${minutes}분 전`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}시간 전`;
+  }
+  return new Date(sentAt).toLocaleDateString('ko-KR');
+}

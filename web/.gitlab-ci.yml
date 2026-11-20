@@ -1,0 +1,64 @@
+web-check:
+  image: node:24-bookworm-slim
+  variables:
+    VITE_CHAT_WS_URL: wss://k15d106.p.ssafy.io/api/chat/v1/ws
+  stage: test
+  rules:
+    - changes:
+        - web/**/*
+  cache:
+    key:
+      files:
+        - web/package-lock.json
+    paths:
+      - web/.npm/
+  before_script:
+    - cd web
+    - npm ci --cache .npm --prefer-offline
+  script:
+    - npm run check
+  artifacts:
+    paths:
+      - web/dist/
+    expire_in: 7 days
+
+web-preview:
+  image: node:24-bookworm
+  stage: deploy
+  needs: [web-check]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "develop-web"'
+      changes:
+        - web/**/*
+  resource_group: develop-web-preview
+  environment:
+    name: preview/develop-web
+    url: https://s15p31d106-develop-web.vercel.app
+  variables:
+    VERCEL_ORG_ID: team_gNA6BXt7grazmSPl6Nn9qm2c
+    VERCEL_PROJECT_ID: prj_qS8KlU6oOm7L6Ux2AOzegLxRVBsf
+  script:
+    - cd web
+    - |
+      : "${VERCEL_TOKEN:?Set VERCEL_TOKEN in GitLab CI/CD variables}"
+      git fetch --quiet --depth=1 origin develop-web
+      if ! git diff --quiet HEAD FETCH_HEAD -- .; then
+        echo "Skipping superseded web build"
+        exit 0
+      fi
+    - mkdir -p .vercel/output
+    - cp ci/vercel-output.json .vercel/output/config.json
+    - mv dist .vercel/output/static
+    - npm install --global vercel@65.11.0
+    - vercel deploy --prebuilt --environment preview --yes --json --meta "commit=$CI_COMMIT_SHA" --token "$VERCEL_TOKEN" > /tmp/web-preview.json
+    - |
+      deployment_id=$(node -e "
+        const result = require('/tmp/web-preview.json');
+        const deployment = result.deployment ?? result;
+        if (!deployment.id?.startsWith('dpl_') || deployment.readyState !== 'READY') {
+          throw new Error('Expected a ready Vercel preview deployment');
+        }
+        console.log(deployment.id);
+      ")
+      vercel api "/v2/deployments/$deployment_id/aliases?teamId=$VERCEL_ORG_ID" \
+        -X POST -f 'alias=s15p31d106-develop-web.vercel.app' --token "$VERCEL_TOKEN"

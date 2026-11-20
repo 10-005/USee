@@ -1,0 +1,298 @@
+{
+  "Idle": {
+    "source": "Idle_1",
+    "seconds": 4.166666666666667
+  },
+  "Idle2": {
+    "source": "Idle_2",
+    "seconds": 5.0
+  },
+  "Idle3": {
+    "source": "Idle_3",
+    "seconds": 4.166666666666667
+  },
+  "Idle4": {
+    "source": "Idle_4",
+    "seconds": 4.166666666666667
+  },
+  "Idle5Start": {
+    "source": "Idle_5_start",
+    "seconds": 0.625
+  },
+  "Idle5Loop": {
+    "source": "Idle_5_loop",
+    "seconds": 1.25
+  },
+  "Idle5End": {
+    "source": "Idle_5_end",
+    "seconds": 0.625
+  },
+  "Idle6": {
+    "source": "Idle_6",
+    "seconds": 5.0
+  },
+  "Idle7": {
+    "source": "Idle_7",
+    "seconds": 8.333333333333334
+  },
+  "Walk": {
+    "source": "Walk_F_IP",
+    "seconds": 1.0
+  },
+  "WalkBack": {
+    "source": "Walk_B_IP",
+    "seconds": 1.0
+  },
+  "WalkLeft": {
+    "source": "Walk_L_IP",
+    "seconds": 1.0
+  },
+  "WalkRight": {
+    "source": "Walk_R_IP",
+    "seconds": 1.0
+  },
+  "WalkBackLeft": {
+    "source": "Walk_BL_IP",
+    "seconds": 1.0
+  },
+  "WalkBackRight": {
+    "source": "Walk_BR_IP",
+    "seconds": 1.0
+  },
+  "Trot": {
+    "source": "Trot_F_IP",
+    "seconds": 0.6666666666666666
+  },
+  "TrotLeft": {
+    "source": "Trot_L_IP",
+    "seconds": 0.6666666666666666
+  },
+  "TrotRight": {
+    "source": "Trot_R_IP",
+    "seconds": 0.6666666666666666
+  },
+  "Gallop": {
+    "source": "Run_F_IP",
+    "seconds": 0.5
+  },
+  "GallopLeft": {
+    "source": "Run_L_IP",
+    "seconds": 0.5
+  },
+  "GallopRight": {
+    "source": "Run_R_IP",
+    "seconds": 0.5
+  },
+  "RunFast": {
+    "source": "RunFast_F_IP",
+    "seconds": 0.5
+  },
+  "RunFastLeft": {
+    "source": "RunFast_L_IP",
+    "seconds": 0.5
+  },
+  "RunFastRight": {
+    "source": "RunFast_R_IP",
+    "seconds": 0.5
+  },
+  "TurnLeft": {
+    "source": "Turn_L_IP",
+    "seconds": 0.6666666666666666
+  },
+  "TurnRight": {
+    "source": "Turn_R_IP",
+    "seconds": 0.6666666666666666
+  },
+  "TurnLeft180": {
+    "source": "Turn_L180_IP",
+    "seconds": 1.0
+  },
+  "TurnRight180": {
+    "source": "Turn_R180_IP",
+    "seconds": 1.0
+  },
+  "Bark": {
+    "source": "Bark",
+    "seconds": 4.583333333333333
+  },
+  "SitStart": {
+    "source": "Sitting_start",
+    "seconds": 1.25
+  },
+  "SitIdle": {
+    "source": "Sitting_loop_1",
+    "seconds": 1.6666666666666667
+  },
+  "SitIdle2": {
+    "source": "Sitting_loop_2",
+    "seconds": 3.3333333333333335
+  },
+  "SitEnd": {
+    "source": "Sitting_end",
+    "seconds": 1.0416666666666667
+  },
+  "LieStart": {
+    "source": "Lie_start",
+    "seconds": 1.5
+  },
+  "LieIdle": {
+    "source": "Lie_loop_1",
+    "seconds": 3.3333333333333335
+  },
+  "LieIdle2": {
+    "source": "Lie_loop_2",
+    "seconds": 3.3333333333333335
+  },
+  "LieEnd": {
+    "source": "Lie_end",
+    "seconds": 1.4583333333333333
+  },
+  "BellyLieStart": {
+    "source": "Lie_belly_start",
+    "seconds": 1.0416666666666667
+  },
+  "BellyLieIdle": {
+    "source": "Lie_belly_loop_1",
+    "seconds": 3.3333333333333335
+  },
+  "BellyLieIdle2": {
+    "source": "Lie_belly_loop_2",
+    "seconds": 3.3333333333333335
+  },
+  "BellyLieEnd": {
+    "source": "Lie_belly_end",
+    "seconds": 1.0416666666666667
+  },
+  "JumpPlace": {
+    "source": "Jump_Place_IP",
+    "seconds": 1.4583333333333333
+  },
+  "JumpForward": {
+    "source": "Jump_F_IP",
+    "seconds": 1.7916666666666667
+  },
+  "JumpRun": {
+    "source": "Jump_Run_IP",
+    "seconds": 1.5416666666666667
+  },
+  "JumpStartPlace": {
+    "source": "JumpStart_Place",
+    "seconds": 0.4166666666666667
+  },
+  "JumpStartUp": {
+    "source": "JumpStart_Up",
+    "seconds": 0.4166666666666667
+  },
+  "JumpStartForward": {
+    "source": "JumpStart_F_IP",
+    "seconds": 0.5
+  },
+  "JumpStartDown": {
+    "source": "JumpStart_Down_IP",
+    "seconds": 0.7083333333333334
+  },
+  "JumpAirUp": {
+    "source": "JumpAir_Up",
+    "seconds": 1.25
+  },
+  "JumpAirUpForward": {
+    "source": "JumpAir_Up_F",
+    "seconds": 1.25
+  },
+  "JumpAirHigh": {
+    "source": "JumpAir_high",
+    "seconds": 1.25
+  },
+  "JumpAirHighForward": {
+    "source": "JumpAir_high_F",
+    "seconds": 1.25
+  },
+  "JumpAirHorizontal": {
+    "source": "JumpAir_Horiz",
+    "seconds": 1.25
+  },
+  "JumpAirLow": {
+    "source": "JumpAir_low",
+    "seconds": 1.25
+  },
+  "JumpAirLowForward": {
+    "source": "JumpAir_low_F",
+    "seconds": 1.25
+  },
+  "JumpLand": {
+    "source": "JumpLand",
+    "seconds": 0.8333333333333334
+  },
+  "JumpLandForward": {
+    "source": "JumpLand_F_IP",
+    "seconds": 0.7916666666666666
+  },
+  "JumpLandPlace": {
+    "source": "JumpLand_Place",
+    "seconds": 0.625
+  },
+  "JumpUpEnd": {
+    "source": "JumpUp_End_IP",
+    "seconds": 1.0416666666666667
+  },
+  "EatDrinkStart": {
+    "source": "EatDrink_start",
+    "seconds": 0.8333333333333334
+  },
+  "Eat": {
+    "source": "Eat_loop",
+    "seconds": 3.3333333333333335
+  },
+  "EatTear": {
+    "source": "Eat_tear",
+    "seconds": 4.166666666666667
+  },
+  "Drink": {
+    "source": "Drink_loop",
+    "seconds": 3.3333333333333335
+  },
+  "EatDrinkEnd": {
+    "source": "EatDrink_end",
+    "seconds": 1.6666666666666667
+  },
+  "DigStart": {
+    "source": "Digging_start",
+    "seconds": 0.8333333333333334
+  },
+  "DigLoop": {
+    "source": "Digging_loop",
+    "seconds": 1.6666666666666667
+  },
+  "DigEnd": {
+    "source": "Digging_end",
+    "seconds": 0.8333333333333334
+  },
+  "ScratchEar": {
+    "source": "Scratching",
+    "seconds": 6.041666666666667
+  },
+  "Pee": {
+    "source": "Pissing",
+    "seconds": 5.416666666666667
+  },
+  "Poop": {
+    "source": "Defecate",
+    "seconds": 5.833333333333333
+  },
+  "CrouchStart": {
+    "source": "Crouch_Idle_start",
+    "seconds": 0.875
+  },
+  "CrouchIdle": {
+    "source": "Crouch_Idle_loop_1",
+    "seconds": 1.6666666666666667
+  },
+  "CrouchIdle2": {
+    "source": "Crouch_Idle_loop_2",
+    "seconds": 5.416666666666667
+  },
+  "CrouchEnd": {
+    "source": "Crouch_Idle_end",
+    "seconds": 0.8333333333333334
+  }
+}

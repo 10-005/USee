@@ -1,0 +1,11 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="chevron-down">
+<g id="Icon">
+<use xlink:href="#stroke0_0_69" stroke="#95948D"/>
+<use xlink:href="#stroke0_0_69" stroke="black" stroke-opacity="0.2"/>
+</g>
+</g>
+<defs>
+<path id="stroke0_0_69" d="M3.5 5.25L7 8.75L10.5 5.25" stroke-width="1.16667" stroke-linecap="round" stroke-linejoin="round"/>
+</defs>
+</svg>
