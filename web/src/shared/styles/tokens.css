@@ -1,0 +1,23 @@
+:root {
+  /* 기존 화면에 사용된 색상과 간격을 역할별로 보존합니다. */
+  --color-primary: #255bd0;
+  --color-surface: #fff;
+  --color-border: #d7dfea;
+  --color-muted: #536176;
+  --ui-primary: #009d58;
+  --ui-blue: #5b9dfa;
+  --ui-border: #d7d6cf;
+  --ui-muted: #777671;
+  --ui-radius: 8px;
+  --action-green: #22c55e;
+  --action-soft-bg: #eef7f0;
+  --action-soft-border: #a9cfb4;
+  --focus-color: #16a34a;
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --radius: 0.75rem;
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2rem;
+}
