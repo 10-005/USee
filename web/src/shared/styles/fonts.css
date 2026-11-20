@@ -1,0 +1,15 @@
+/* Pretendard v1.3.9, Copyright (c) 2021 Kil Hyung-jin.
+ * SIL Open Font License 1.1: public/licenses/Pretendard-OFL.txt
+ */
+@font-face {
+  font-family: 'Pretendard Variable';
+  font-style: normal;
+  font-weight: 45 920;
+  font-display: swap;
+  src: url('../assets/fonts/PretendardVariable.woff2') format('woff2');
+}
+
+:root {
+  --ui-font:
+    'Pretendard Variable', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}

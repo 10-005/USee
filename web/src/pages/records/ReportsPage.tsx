@@ -1,0 +1,337 @@
+import { AnimalPhoto } from '@/shared/ui/AnimalPhoto';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { demoMode } from '@/shared/config/demo';
+import {
+  assignedOptions,
+  assignedRefreshOptions,
+  speciesOptions,
+  districtOptions,
+} from '@/entities/shelter/data/rescues';
+import type { Report } from '@/entities/shelter/report';
+import type { PageData } from '@/shared/api/contracts';
+import { RecordQueries } from './RecordQueries';
+import { Navigate } from 'react-router';
+import { LinkButton } from '@/shared/ui/LinkButton';
+import { useSearchParams, Link } from 'react-router';
+import { WorkPage, RecordBadge } from '@/shared/ui/WorkPage';
+import { useRescues } from '@/entities/shelter/data';
+import { Pagination } from '@/shared/ui/DataTable';
+import { FilteredListEmpty, FilterSelect } from '@/shared/ui/ListPanel';
+import { Button } from '@/shared/ui/Button';
+import { useReports } from '@/entities/shelter/data';
+import { referenceDate } from '@/entities/shelter/data';
+
+const periods = [7, 30, 90];
+
+const reportTabs = [
+  ['', '전체', ''],
+  ['new', '미접수', '완료'],
+  ['active', '진행 중', '진행 중'],
+  ['closed', '실패·취소', '실패'],
+  ['completed', '완료', ''],
+] as const;
+
+export function ReportsPage() {
+  return demoMode ? <ReportList /> : <LiveReports />;
+}
+function LiveReports() {
+  const [params] = useSearchParams();
+  const refresh = assignedRefreshOptions(params);
+  const list = useQuery({ ...assignedOptions(params), ...refresh }),
+    species = useQuery(speciesOptions),
+    regions = useQuery(districtOptions);
+  const selectedKind = reportTabs.find(([kind]) => kind === params.get('kind'))?.[0] ?? '';
+  const otherTabs = reportTabs.filter(([kind]) => kind !== selectedKind);
+  const countQueries = useQueries({
+    queries: otherTabs.map(([kind]) => {
+      const filters = new URLSearchParams(params);
+      filters.set('kind', kind);
+      filters.delete('page');
+      filters.delete('sort');
+      return { ...assignedOptions(filters, 1), ...refresh };
+    }),
+  });
+  const counts: Record<string, number | undefined> = { [selectedKind]: list.data?.totalElements };
+  otherTabs.forEach(([kind], index) => {
+    counts[kind] = countQueries[index]?.data?.totalElements;
+  });
+  return (
+    <RecordQueries
+      title="발견 신고 목록"
+      queries={list.data ? [species, regions] : [list, species, regions]}
+    >
+      {list.data &&
+        (list.data.page >= Math.max(1, list.data.totalPages) ? (
+          <Navigate
+            replace
+            to={
+              '/reports?' +
+              new URLSearchParams({
+                ...Object.fromEntries(params),
+                page: String(Math.max(1, list.data.totalPages)),
+              })
+            }
+          />
+        ) : (
+          <ReportList
+            counts={counts}
+            live={list.data}
+            species={species.data}
+            districts={regions.data}
+          />
+        ))}
+    </RecordQueries>
+  );
+}
+function ReportList({
+  counts,
+  live,
+  species,
+  districts,
+}: {
+  counts?: Record<string, number | undefined>;
+  live?: PageData<Report & { rescue?: { id: string; status: string } }>;
+  species?: { speciesSeq: number; speciesName: string }[];
+  districts?: { districtCode: string; sidoName: string; sigunguName: string }[];
+}) {
+  const cache = useQueryClient();
+  const [params, setParams] = useSearchParams();
+  const rescues = useRescues();
+  const reportRecords = useReports();
+  const regions = [...new Set(reportRecords.map((r) => r.location.split(' ')[0]))];
+  const tabIndex = Math.max(
+    0,
+    reportTabs.findIndex(([value]) => value === params.get('kind')),
+  );
+  const kind = reportTabs[tabIndex]![0];
+  const days = periods.find((n) => String(n) === params.get('period'));
+  const since = new Date(referenceDate);
+  since.setUTCDate(since.getUTCDate() - (days ?? 1) + 1);
+  const firstDay = since.toISOString().slice(0, 10);
+  const reportState = { reportSearch: params.toString() };
+  const reports = reportRecords.map((report) => ({
+    ...report,
+    rescue: rescues.find((r) => r.reportId === report.id || r.source === `신고 #${report.id}`),
+  }));
+  const reportKind = (report: (typeof reports)[number]) => {
+    if (!report.rescue) return 'new';
+    if (report.rescue.status === '진행 중') return 'active';
+    if (report.rescue.status === '완료') return 'completed';
+    return 'closed';
+  };
+  const rows = reports
+    .filter(
+      (r) =>
+        (!params.get('species') || r.species === params.get('species')) &&
+        (!params.get('status') || r.reportStatus === params.get('status')) &&
+        (!params.get('region') || r.location.split(' ')[0] === params.get('region')) &&
+        (!days ||
+          (r.foundAt.slice(0, 10) >= firstDay && r.foundAt.slice(0, 10) <= referenceDate)) &&
+        (!kind || reportKind(r) === kind),
+    )
+    .sort((a, b) =>
+      params.get('sort') === 'oldest'
+        ? a.createdAt.localeCompare(b.createdAt)
+        : b.createdAt.localeCompare(a.createdAt),
+    );
+  const pageCount = Math.max(1, live?.totalPages ?? Math.ceil(rows.length / 8));
+  const page = Math.min(pageCount, Math.max(1, Math.floor(Number(params.get('page'))) || 1));
+  const change = (key: string, value: string) =>
+    setParams((old) => {
+      const next = new URLSearchParams(old);
+      next.delete('page');
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    });
+  return (
+    <WorkPage title="발견 신고 목록" hideTitle>
+      <div className="record-status-filters report-tabs" role="group" aria-label="접수 상태">
+        {reportTabs.map(([value, label, badgeStatus]) => (
+          <button
+            type="button"
+            key={value}
+            aria-pressed={kind === value}
+            onClick={() => change('kind', value)}
+          >
+            {label}{' '}
+            <RecordBadge status={badgeStatus}>
+              {counts
+                ? (counts[value] ?? '—')
+                : reports.filter((report) => !value || reportKind(report) === value).length}
+            </RecordBadge>
+          </button>
+        ))}
+        <span
+          className="record-status-underline"
+          aria-hidden="true"
+          style={{ transform: `translateX(${tabIndex * 100}%)` }}
+        />
+      </div>
+      <div className="record-toolbar">
+        <div className="record-filters">
+          <FilterSelect
+            variant="filter"
+            label="신고 상태"
+            value={params.get('status') ?? ''}
+            onChange={(e) => change('status', e.target.value)}
+          >
+            <option>신고 진행 중</option>
+            <option>신고 종료</option>
+          </FilterSelect>
+          <FilterSelect
+            variant="filter"
+            label="발견 기간"
+            value={params.get('period') ?? ''}
+            onChange={(e) => change('period', e.target.value)}
+          >
+            {periods.map((n) => (
+              <option key={n} value={n}>
+                최근 {n}일
+              </option>
+            ))}
+          </FilterSelect>
+          <FilterSelect
+            variant="filter"
+            label="지역"
+            value={params.get('region') ?? ''}
+            onChange={(e) => change('region', e.target.value)}
+          >
+            {districts
+              ? districts.map((d) => (
+                  <option key={d.districtCode} value={d.districtCode}>
+                    {d.sidoName} {d.sigunguName}
+                  </option>
+                ))
+              : regions.map((region) => (
+                  <option key={region} value={region}>
+                    {region}
+                  </option>
+                ))}
+          </FilterSelect>
+          <FilterSelect
+            variant="filter"
+            label="축종"
+            value={params.get('species') ?? ''}
+            onChange={(e) => change('species', e.target.value)}
+          >
+            {species ? (
+              species.map((s) => (
+                <option key={s.speciesSeq} value={s.speciesSeq}>
+                  {s.speciesName}
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="dog">개</option>
+                <option value="cat">고양이</option>
+              </>
+            )}
+          </FilterSelect>
+        </div>
+        <Button
+          className="filter-reset"
+          variant="secondary"
+          onClick={() =>
+            setParams((old) => {
+              const next = new URLSearchParams(old);
+              ['status', 'period', 'region', 'species', 'page'].forEach((key) => next.delete(key));
+              return next;
+            })
+          }
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 4v6h6 M3.7 10a8.5 8.5 0 1 1 .7 6" />
+          </svg>
+          필터 초기화
+        </Button>
+      </div>
+      <div className="record-toolbar">
+        <p role="status">
+          총 <strong>{live?.totalElements ?? rows.length}</strong>건
+        </p>
+        <FilterSelect
+          variant="sort"
+          label="정렬"
+          value={params.get('sort') === 'oldest' ? 'oldest' : 'latest'}
+          onChange={(e) => change('sort', e.target.value)}
+        >
+          <option value="latest">최신순</option>
+          <option value="oldest">오래된 순</option>
+        </FilterSelect>
+      </div>
+      <div className="reports-grid">
+        {(live?.content ?? rows.slice((page - 1) * 8, page * 8)).map((r) => (
+          <article className="report-card" key={r.id}>
+            {r.rescue?.id && (
+              <Link
+                className="report-card__detail"
+                state={reportState}
+                to={`/rescues/${r.rescue.id}`}
+                aria-label={`${r.name} ${r.id} 구조 상세보기`}
+              />
+            )}
+            <div className="report-card__photo">
+              <AnimalPhoto src={r.image} alt={r.name} />
+              <span
+                className={`animal-card__status report-card__status animal-card__status--${r.reportStatus === '신고 종료' ? 'closed' : 'protected'}`}
+              >
+                {r.reportStatus}
+              </span>
+            </div>
+            <div className="report-card__body">
+              <h2>{r.name}</h2>
+              <p>{r.location}</p>
+              <p>발견 일시 · {r.foundAt.replace('T', ' ')}</p>
+              <p>{r.traits}</p>
+              <p>신고자 | {r.reporter}</p>
+              {!r.rescue || ['실패', '취소'].includes(r.rescue.status) ? (
+                <LinkButton
+                  className={`report-card__action ${r.rescue ? 'report-card__action--retry' : ''}`}
+                  state={reportState}
+                  onClick={() => {
+                    if (live && r.reporter === '(탈퇴한 사용자)')
+                      cache.setQueryData(['found-report', r.id], r);
+                  }}
+                  to={`/rescues/new?report=${r.id}`}
+                >
+                  {r.rescue ? '재구조 접수' : '구조 접수'}
+                </LinkButton>
+              ) : (
+                <span
+                  className={`report-card__action report-card__action--${r.rescue.status === '완료' ? 'complete' : 'active'}`}
+                >
+                  구조 {r.rescue.status}
+                </span>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+      {!(live?.totalElements ?? rows.length) && (
+        <FilteredListEmpty title="조건에 맞는 발견 신고가 없어요." />
+      )}
+      <Pagination
+        page={page}
+        pageCount={pageCount}
+        onPageChange={(p) =>
+          setParams((old) => {
+            const next = new URLSearchParams(old);
+            next.set('page', String(p));
+            return next;
+          })
+        }
+      />
+    </WorkPage>
+  );
+}
