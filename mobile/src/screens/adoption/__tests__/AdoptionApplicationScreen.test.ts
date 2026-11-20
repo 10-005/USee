@@ -1,0 +1,116 @@
+import { isAdoptionStepValid } from '../AdoptionApplicationScreen';
+
+describe('adoption application validation', () => {
+  it('requires the address and visit date on the applicant step', () => {
+    const empty = { address: '', email: '', visitDate: '' } as Parameters<
+      typeof isAdoptionStepValid
+    >[0];
+    expect(isAdoptionStepValid(empty, 1)).toBe(false);
+
+    const complete = {
+      address: '서울시 강남구',
+      email: 'usee@example.com',
+      visitDate: '2026.10.10',
+    } as Parameters<typeof isAdoptionStepValid>[0];
+    expect(isAdoptionStepValid(complete, 1)).toBe(true);
+  });
+
+  it('rejects an invalid email format when an email is entered', () => {
+    const applicant = {
+      address: '서울시 강남구',
+      email: 'wrong-email',
+      visitDate: '2026.10.10',
+    } as Parameters<typeof isAdoptionStepValid>[0];
+
+    expect(isAdoptionStepValid(applicant, 1)).toBe(false);
+    applicant.email = 'usee@example.com';
+    expect(isAdoptionStepValid(applicant, 1)).toBe(true);
+  });
+
+  it('allows the optional public consent to remain unchecked', () => {
+    const consent = {
+      consentHealth: true,
+      consentResponsibility: true,
+      consentCost: true,
+      consentLostPrevention: true,
+      consentNoCommercialUse: true,
+      consentInformationCheck: true,
+      consentBudget: true,
+      consentAdaptation: true,
+      consentVisit: true,
+      consentReturn: true,
+      consentPrivacy: true,
+      consentShelter: true,
+      consentPublic: false,
+    } as Parameters<typeof isAdoptionStepValid>[0];
+
+    expect(isAdoptionStepValid(consent, 4)).toBe(true);
+  });
+
+  it('requires additional answers for conditional household questions', () => {
+    const household = {
+      housing: '아파트',
+      housingOwnership: '자가',
+      petAllowed: '허용',
+      cohabitant: '있음',
+      cohabitantConsent: '',
+      primaryCaretaker: '본인',
+      aloneTime: '4시간 미만',
+      currentPets: '없음',
+      pastExperience: '없음',
+      allergy: '없음',
+      alternativeCare: '가족에게 맡깁니다.',
+    } as Parameters<typeof isAdoptionStepValid>[0];
+
+    expect(isAdoptionStepValid(household, 2)).toBe(false);
+    household.cohabitantConsent = '모두 동의';
+    expect(isAdoptionStepValid(household, 2)).toBe(true);
+  });
+
+  it('accepts the current animal and integration preparation as one answer', () => {
+    const household = {
+      housing: '아파트',
+      housingOwnership: '자가',
+      petAllowed: '허용',
+      cohabitant: '없음',
+      primaryCaretaker: '본인',
+      aloneTime: '4시간 미만',
+      currentPets: '있음',
+      currentPetDetails: '',
+      pastExperience: '없음',
+      allergy: '없음',
+      alternativeCare: '가족에게 맡깁니다.',
+    } as Parameters<typeof isAdoptionStepValid>[0];
+
+    expect(isAdoptionStepValid(household, 2)).toBe(false);
+    household.currentPetDetails = '고양이 1마리, 별도 공간에서 단계적으로 합사할 예정입니다.';
+    expect(isAdoptionStepValid(household, 2)).toBe(true);
+  });
+
+  it('requires education details when education is completed', () => {
+    const carePlan = {
+      motivation: '입양 동기',
+      monthlyBudget: '10~30만 원',
+      changePlan: '환경 변화 계획',
+      medicalConsent: '동의',
+      education: '이수',
+      educationInstitution: '',
+      educationCourse: '',
+      educationDate: '',
+    } as Parameters<typeof isAdoptionStepValid>[0];
+
+    expect(isAdoptionStepValid(carePlan, 3)).toBe(false);
+    carePlan.educationInstitution = '반려동물 교육기관';
+    carePlan.educationCourse = '입양 교육';
+    carePlan.educationDate = '2026.10.10';
+    expect(isAdoptionStepValid(carePlan, 3)).toBe(true);
+  });
+
+  it('requires the final confirmation before submission', () => {
+    const confirmation = { finalConfirmation: false } as Parameters<typeof isAdoptionStepValid>[0];
+
+    expect(isAdoptionStepValid(confirmation, 5)).toBe(false);
+    confirmation.finalConfirmation = true;
+    expect(isAdoptionStepValid(confirmation, 5)).toBe(true);
+  });
+});

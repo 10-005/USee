@@ -42,6 +42,9 @@ out/
 .env.*
 !.env.example
 
+# Local model conversion tools and previews
+/.model-tools/
+
 # ----- 로그 / 임시 파일 -----
 *.log
 logs/

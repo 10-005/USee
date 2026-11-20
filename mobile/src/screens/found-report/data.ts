@@ -1,0 +1,216 @@
+import type { ImageSourcePropType } from 'react-native';
+
+export type FoundReport = {
+  age: string;
+  color: string;
+  contact?: string;
+  date: string;
+  description: string;
+  gender: '수컷' | '암컷' | '모름';
+  id: string;
+  images: ImageSourcePropType[];
+  isMine: boolean;
+  location: string;
+  latitude: number;
+  longitude: number;
+  name: string;
+  neutered: boolean | null;
+  species: '개' | '고양이' | '기타';
+  status: '진행 중' | '완료';
+  weight: string;
+};
+
+const dogBed = require('../../assets/images/found-report/report-dog-bed.jpg');
+const dogGolden = require('../../assets/images/found-report/report-dog-golden.png');
+const dogField = require('../../assets/images/found-report/report-dog-field.jpg');
+const dogPoodle = require('../../assets/images/found-report/report-dog-poodle.png');
+
+export const foundReports: FoundReport[] = [
+  {
+    age: '2살 추정',
+    color: '연한 갈색',
+    contact: '010-1111-2222',
+    date: '2026-10-19',
+    description: '침대 위에서 발견했어요. 검은색 스카프를 착용하고 있습니다.',
+    gender: '암컷',
+    id: 'found-1',
+    images: [dogBed, dogGolden, dogField],
+    isMine: true,
+    location: '구미시 인동동 123-123 알리바바바',
+    latitude: 36.1068,
+    longitude: 128.4217,
+    name: '믹스견',
+    neutered: true,
+    species: '개',
+    status: '진행 중',
+    weight: '5kg 추정',
+  },
+  {
+    age: '4살 추정',
+    color: '황금색',
+    contact: '010-2222-3333',
+    date: '2026-10-18',
+    description: '산책로 근처에서 발견했어요. 사람을 잘 따르는 아이입니다.',
+    gender: '수컷',
+    id: 'found-2',
+    images: [dogGolden, dogBed],
+    isMine: false,
+    location: '구미시 진평동 산책로 인근',
+    latitude: 36.1061,
+    longitude: 128.4289,
+    name: '리트리버',
+    neutered: false,
+    species: '개',
+    status: '진행 중',
+    weight: '24kg 추정',
+  },
+  {
+    age: '1살 추정',
+    color: '갈색·흰색',
+    date: '2026-10-17',
+    description: '논길 주변에서 발견했고 목줄은 없었습니다.',
+    gender: '수컷',
+    id: 'found-3',
+    images: [dogField],
+    isMine: false,
+    location: '구미시 고아읍 들판 인근',
+    latitude: 36.2106,
+    longitude: 128.3276,
+    name: '믹스견',
+    neutered: false,
+    species: '개',
+    status: '완료',
+    weight: '7kg 추정',
+  },
+  {
+    age: '8살 추정',
+    color: '갈색',
+    contact: '010-4444-5555',
+    date: '2026-10-16',
+    description: '주택가에서 발견했어요. 사람을 좋아하고 온순합니다.',
+    gender: '암컷',
+    id: 'found-4',
+    images: [dogPoodle, dogGolden],
+    isMine: false,
+    location: '구미시 인동동 주택가',
+    latitude: 36.1097,
+    longitude: 128.4184,
+    name: '푸들',
+    neutered: true,
+    species: '개',
+    status: '진행 중',
+    weight: '4kg 추정',
+  },
+  {
+    age: '3살 추정',
+    color: '크림색',
+    date: '2026-10-15',
+    description: '공원 벤치 주변을 배회하고 있었고 파란 목줄을 착용하고 있습니다.',
+    gender: '수컷',
+    id: 'found-5',
+    images: [dogGolden, dogField],
+    isMine: false,
+    location: '서울시 마포구 월드컵공원 인근',
+    latitude: 37.5683,
+    longitude: 126.8941,
+    name: '믹스견',
+    neutered: true,
+    species: '개',
+    status: '진행 중',
+    weight: '9kg 추정',
+  },
+  {
+    age: '5살 추정',
+    color: '흰색',
+    contact: '010-5555-6666',
+    date: '2026-10-14',
+    description: '시장 입구에서 발견했습니다. 미용한 지 얼마 되지 않은 모습입니다.',
+    gender: '암컷',
+    id: 'found-6',
+    images: [dogPoodle, dogBed],
+    isMine: false,
+    location: '대전시 유성구 봉명시장 입구',
+    latitude: 36.3551,
+    longitude: 127.3445,
+    name: '푸들',
+    neutered: false,
+    species: '개',
+    status: '완료',
+    weight: '5kg 추정',
+  },
+  {
+    age: '1살 추정',
+    color: '갈색',
+    date: '2026-10-13',
+    description: '아파트 주차장에서 발견했고 빨간색 하네스를 하고 있습니다.',
+    gender: '모름',
+    id: 'found-7',
+    images: [dogField, dogGolden],
+    isMine: false,
+    location: '부산시 해운대구 우동 주차장',
+    latitude: 35.1631,
+    longitude: 129.1635,
+    name: '믹스견',
+    neutered: false,
+    species: '개',
+    status: '진행 중',
+    weight: '6kg 추정',
+  },
+  {
+    age: '6살 추정',
+    color: '황금색',
+    date: '2026-10-12',
+    description: '강변 산책로에서 보호 중입니다. 사람을 매우 잘 따릅니다.',
+    gender: '수컷',
+    id: 'found-8',
+    images: [dogGolden],
+    isMine: false,
+    location: '전주시 덕진구 전주천 산책로',
+    latitude: 35.8468,
+    longitude: 127.1264,
+    name: '리트리버',
+    neutered: true,
+    species: '개',
+    status: '진행 중',
+    weight: '26kg 추정',
+  },
+  {
+    age: '2살 추정',
+    color: '갈색·흰색',
+    date: '2026-10-11',
+    description: '편의점 앞에서 발견했습니다. 목줄이나 인식표는 없었습니다.',
+    gender: '암컷',
+    id: 'found-9',
+    images: [dogBed, dogField],
+    isMine: false,
+    location: '인천시 남동구 구월동 편의점 앞',
+    latitude: 37.4497,
+    longitude: 126.7012,
+    name: '믹스견',
+    neutered: false,
+    species: '개',
+    status: '완료',
+    weight: '8kg 추정',
+  },
+  {
+    age: '4살 추정',
+    color: '진한 갈색',
+    date: '2026-10-10',
+    description: '학교 운동장 근처에서 발견했고 초록색 목줄을 하고 있습니다.',
+    gender: '수컷',
+    id: 'found-10',
+    images: [dogPoodle, dogGolden],
+    isMine: false,
+    location: '수원시 영통구 이의동 학교 인근',
+    latitude: 37.2864,
+    longitude: 127.0458,
+    name: '푸들',
+    neutered: true,
+    species: '개',
+    status: '진행 중',
+    weight: '6kg 추정',
+  },
+];
+
+export const getFoundReport = (id: string) =>
+  foundReports.find(report => report.id === id) ?? foundReports[0];
