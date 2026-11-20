@@ -18,6 +18,8 @@ workflow:
 include:
   - local: backend/.gitlab-ci.yml
   - local: ai/.gitlab-ci.yml
+  - local: web/.gitlab-ci.yml
+  - local: mobile/.gitlab-ci.yml
 
 # develop-backend 가 아닌 브랜치로 가는 MR용 통과 작업 (자기 검사가 없는 영역의 MR도 파이프라인이 생기게)
 # web·mobile·ai 가 MR 테스트를 넣으면 그 대상 브랜치를 아래 rules 에서 빼거나 이 작업을 대체한다

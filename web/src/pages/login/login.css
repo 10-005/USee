@@ -1,0 +1,56 @@
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 40px 20px;
+  background: #f5f7fa;
+  font-family: var(--ui-font);
+}
+.login-panel {
+  width: min(684px, 100%);
+  min-height: 650px;
+  background: white;
+  border-radius: 6px;
+  padding: 70px 32px;
+}
+.login-content {
+  width: min(360px, 100%);
+  margin: auto;
+}
+.login-logo {
+  display: block;
+  width: 156px;
+  height: 78px;
+  object-fit: contain;
+  margin: auto;
+}
+.login-caption {
+  text-align: center;
+  font-size: 14px;
+  color: #777671;
+  margin: 0 0 40px;
+}
+.login-content form {
+  display: grid;
+  gap: 24px;
+}
+.login-content .ui-field__label {
+  font-size: 20px;
+}
+.login-content .ui-button:disabled {
+  background: #d7d6cf;
+  cursor: default;
+}
+.login-help {
+  margin-top: 40px;
+  font-size: 14px;
+  color: #777671;
+  line-height: 1.5;
+}
+.login-help h2 {
+  font-size: 14px;
+  color: #0a0a0a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

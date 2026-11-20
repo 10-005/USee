@@ -1,0 +1,46 @@
+pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
+plugins { id("com.facebook.react.settings") }
+
+// Android Studio Gradle does not inherit a shell PATH, and Windows cannot
+// launch the npx.cmd shim through CreateProcess.
+def nodeCandidates = []
+def nodeBinaryEnv = System.getenv("NODE_BINARY")
+if (nodeBinaryEnv != null) {
+    nodeCandidates.add(nodeBinaryEnv)
+}
+nodeCandidates.add("/opt/homebrew/bin/node")
+nodeCandidates.add("/usr/local/bin/node")
+def pathEnv = System.getenv("PATH")
+if (pathEnv != null) {
+    pathEnv.split(java.io.File.pathSeparator).each { dir ->
+        nodeCandidates.add(new File(dir, "node.exe").path)
+        nodeCandidates.add(new File(dir, "node").path)
+    }
+}
+def nodeBinary = nodeCandidates.find { candidate ->
+    def file = new File(candidate)
+    file.isFile() && file.canExecute()
+}
+
+def cliBin = new File(
+    settings.layout.rootDirectory.dir("../node_modules/@react-native-community/cli/build/bin.js").asFile.path,
+)
+def autolinkCommand
+if (nodeBinary != null && cliBin.exists()) {
+    autolinkCommand = [nodeBinary, cliBin.absolutePath, "config"]
+} else if (System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).contains("windows")) {
+    autolinkCommand = ["cmd", "/c", "npx", "@react-native-community/cli", "config"]
+} else {
+    autolinkCommand = ["npx", "@react-native-community/cli", "config"]
+}
+
+if (nodeBinary != null) {
+    gradle.ext.nodeBinary = nodeBinary
+}
+
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+    ex.autolinkLibrariesFromCommand(autolinkCommand)
+}
+rootProject.name = 'USee'
+include ':app'
+includeBuild('../node_modules/@react-native/gradle-plugin')

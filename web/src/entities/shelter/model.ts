@@ -1,0 +1,74 @@
+export type ShelterAnimal = {
+  id: string;
+  registeredAt: string;
+  name: string;
+  imageSrc: string;
+  imageAlt: string;
+  status: 'protected' | 'closed' | 'returned' | 'adopted';
+  adoptable: boolean;
+  location: string;
+  period: string;
+  summary: string;
+  description: string;
+  species: 'dog' | 'cat' | 'other';
+  speciesName?: string;
+  sex: 'female' | 'male' | 'unknown';
+  neutered: 'yes' | 'no' | 'unknown';
+};
+
+export const adoptionStates = ['심사 대기', '서류 승인', '최종 승인', '거절'] as const;
+export const rescueStates = ['진행 중', '완료', '실패', '취소'] as const;
+export type AdoptionStatus = (typeof adoptionStates)[number];
+export type RescueStatus = (typeof rescueStates)[number];
+export type Adoption = {
+  id: string;
+  animalId: string;
+  name: string;
+  image: string;
+  applicant: string;
+  date: string;
+  status: AdoptionStatus;
+  reason?: string;
+};
+export type Rescue = {
+  animalSummary?: string;
+  reportId?: string;
+  id: string;
+  name: string;
+  image: string;
+  date: string;
+  receivedAt?: string;
+  status: RescueStatus;
+  statusReason?: string;
+  source: string;
+  reason: string;
+  location: string;
+  memo: string;
+};
+export type ShelterAnimalRecord = ShelterAnimal & {
+  breedCode?: string;
+  noticeNumber?: string;
+  rescueId?: string;
+  images?: string[];
+  chip?: string;
+  registration?: string;
+  color?: string;
+  birth?: string;
+  weight?: string;
+  health?: string;
+  vaccination?: string;
+  closingReason?: string;
+  closingReasonType?: '자연사' | '안락사' | '직접 입력';
+  guardianName?: string;
+  guardianPhone?: string;
+};
+export type ShelterProfile = {
+  name: string;
+  address: string;
+  phone: string;
+  holiday: string;
+  hours: string;
+  introduction: string;
+  bannerImage?: string;
+  profileImage?: string;
+};
