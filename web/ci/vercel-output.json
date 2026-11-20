@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "routes": [
+    { "src": "/api/(.*)", "dest": "https://k15d106.p.ssafy.io/api/$1" },
+    { "handle": "filesystem" },
+    { "src": "/((?!api(?:/|$)).*)", "dest": "/index.html" }
+  ]
+}
