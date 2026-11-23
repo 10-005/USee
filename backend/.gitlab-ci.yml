@@ -67,6 +67,7 @@ variables:
 # Protected 변수(REGISTRY_CI_PASSWORD, INFRA_PUSH_TOKEN)는 쓰지 않는다
 backend:test:
   stage: test
+  tags: [backend-test]
   image: eclipse-temurin:21.0.12.1_1-jdk
   interruptible: true # 새 커밋이 push 되면 이전 파이프라인의 테스트는 취소
   variables:
