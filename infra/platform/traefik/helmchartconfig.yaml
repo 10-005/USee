@@ -5,6 +5,19 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
+    providers:
+      file:
+        enabled: true
+        content: |-
+          http:
+            middlewares:
+              security-headers:
+                headers:
+                  stsSeconds: 31536000
+                  stsIncludeSubdomains: true
+                  contentTypeNosniff: true
+                  frameDeny: true
+                  referrerPolicy: strict-origin-when-cross-origin
     service:
       spec:
         allocateLoadBalancerNodePorts: false
@@ -18,5 +31,7 @@ spec:
               permanent: true
       websecure:
         http:
+          middlewares:
+            - security-headers@file
           tls:
             enabled: true
