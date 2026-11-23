@@ -41,6 +41,34 @@ spec:
             # application.yml의 local 프로필(DB·Redis 설정)을 쓰지 않고, 아래 환경 변수로 주입
             - name: SPRING_PROFILES_ACTIVE
               value: dev
+            # Keep the UI and its OpenAPI requests under one HTTP authentication path.
+            - name: SPRING_APPLICATION_JSON
+              value: |-
+                {
+                  "springdoc": {
+                    "swagger-ui": {
+                      "config-url": "/swagger-ui/openapi/core/swagger-config",
+                      "urls": [
+                        {
+                          "name": "core-api",
+                          "url": "/swagger-ui/openapi/core"
+                        },
+                        {
+                          "name": "chat",
+                          "url": "/swagger-ui/openapi/chat"
+                        },
+                        {
+                          "name": "notification",
+                          "url": "/swagger-ui/openapi/notification"
+                        },
+                        {
+                          "name": "simulation",
+                          "url": "/swagger-ui/openapi/simulation"
+                        }
+                      ]
+                    }
+                  }
+                }
             - name: SPRING_DATASOURCE_URL
               value: jdbc:postgresql://postgres.data.svc.cluster.local:5432/animal?currentSchema=core
             - name: SPRING_DATASOURCE_USERNAME

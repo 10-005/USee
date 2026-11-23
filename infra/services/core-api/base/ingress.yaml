@@ -1,27 +1,31 @@
-# 컨트롤러가 /api/core/v1/... 로 매핑되어 있으므로 경로를 자르지 않고 그대로 전달
-# /swagger-ui: core-api가 dev 프로필에서 띄우는 Swagger 통합 화면(4개 서비스 드롭다운, S15P31D106-339)
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
 metadata:
   name: core-api
   namespace: app
 spec:
-  ingressClassName: traefik
-  rules:
-    - host: k15d106.p.ssafy.io
-      http:
-        paths:
-          - path: /api/core
-            pathType: Prefix
-            backend:
-              service:
-                name: core-api
-                port:
-                  number: 8080
-          - path: /swagger-ui
-            pathType: Prefix
-            backend:
-              service:
-                name: core-api
-                port:
-                  number: 8080
+  entryPoints:
+    - websecure
+  routes:
+    # Public API routing excludes OpenAPI even if the auth middleware is unavailable.
+    - match: Host(`k15d106.p.ssafy.io`) && PathPrefix(`/api/core`) && !PathPrefix(`/api/core/v3/api-docs`)
+      kind: Rule
+      services:
+        - name: core-api
+          port: 8080
+    - match: Host(`k15d106.p.ssafy.io`) && (PathPrefix(`/api/core/v3/api-docs`) || Path(`/swagger-ui/openapi/core`) || Path(`/swagger-ui/openapi/core.yaml`) || PathPrefix(`/swagger-ui/openapi/core/`))
+      kind: Rule
+      middlewares:
+        - name: swagger-docs-auth
+        - name: swagger-docs-path
+      services:
+        - name: core-api
+          port: 8080
+    - match: Host(`k15d106.p.ssafy.io`) && PathPrefix(`/swagger-ui`) && !PathPrefix(`/swagger-ui/openapi/`)
+      kind: Rule
+      middlewares:
+        - name: swagger-docs-auth
+      services:
+        - name: core-api
+          port: 8080
+  tls: {}
