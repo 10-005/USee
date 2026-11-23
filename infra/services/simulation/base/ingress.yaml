@@ -1,19 +1,24 @@
-# 컨트롤러가 /api/simulation/v1/... 로 매핑되어 있으므로 경로를 자르지 않고 그대로 전달(S15P31D106-286)
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
 metadata:
   name: simulation
   namespace: app
 spec:
-  ingressClassName: traefik
-  rules:
-    - host: k15d106.p.ssafy.io
-      http:
-        paths:
-          - path: /api/simulation
-            pathType: Prefix
-            backend:
-              service:
-                name: simulation
-                port:
-                  number: 8083
+  entryPoints:
+    - websecure
+  routes:
+    # Public API routing excludes OpenAPI even if the auth middleware is unavailable.
+    - match: Host(`k15d106.p.ssafy.io`) && PathPrefix(`/api/simulation`) && !PathPrefix(`/api/simulation/v3/api-docs`)
+      kind: Rule
+      services:
+        - name: simulation
+          port: 8083
+    - match: Host(`k15d106.p.ssafy.io`) && (PathPrefix(`/api/simulation/v3/api-docs`) || Path(`/swagger-ui/openapi/simulation`) || Path(`/swagger-ui/openapi/simulation.yaml`) || PathPrefix(`/swagger-ui/openapi/simulation/`))
+      kind: Rule
+      middlewares:
+        - name: swagger-docs-auth
+        - name: swagger-docs-path
+      services:
+        - name: simulation
+          port: 8083
+  tls: {}

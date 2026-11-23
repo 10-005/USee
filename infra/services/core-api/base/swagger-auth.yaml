@@ -1,0 +1,20 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: swagger-docs-auth
+  namespace: app
+spec:
+  basicAuth:
+    secret: swagger-docs-auth
+    realm: S15P31D106 Swagger
+    removeHeader: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: swagger-docs-path
+  namespace: app
+spec:
+  replacePathRegex:
+    regex: '^/swagger-ui/openapi/(core|chat|notification|simulation)(\.yaml|/.*)?$'
+    replacement: /api/${1}/v3/api-docs${2}
