@@ -1,5 +1,5 @@
 # 메트릭 대시보드(S15P31D106-423 4단계). tailnet 전용 https://grafana.<tailnet>.ts.net
-# 데이터소스·대시보드는 values로 만들어 PVC 없이 둔다(Pod가 다시 떠도 같은 상태)
+# 데이터소스·대시보드·경보 규칙은 values로 만들어 PVC 없이 둔다
 # 관리자 계정은 SealedSecret grafana-admin(infra/scripts/gen-grafana-admin-secret.sh)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -42,6 +42,55 @@ spec:
                 type: loki
                 url: http://loki.monitoring.svc:3100
                 access: proxy
+        alerting:
+          node-disk.yaml:
+            apiVersion: 1
+            groups:
+              - orgId: 1
+                name: node-disk
+                folder: Infrastructure
+                interval: 1m
+                rules:
+                  - uid: node-root-disk-usage
+                    title: Node root filesystem usage is high
+                    condition: B
+                    for: 10m
+                    noDataState: NoData
+                    execErrState: Error
+                    labels:
+                      severity: warning
+                    annotations:
+                      summary: 루트 디스크 사용률이 10분 동안 80% 이상입니다.
+                      description: 경보의 instance를 확인하고 해당 노드에서 df -h /로 사용량을 점검합니다.
+                    data:
+                      - refId: A
+                        datasourceUid: Prometheus
+                        relativeTimeRange: {from: 600, to: 0}
+                        model:
+                          refId: A
+                          datasource: {type: prometheus, uid: Prometheus}
+                          instant: true
+                          range: false
+                          # df와 동일하게 예약 블록을 제외한 공간에서 사용률을 계산한다.
+                          expr: >-
+                            100 * (1 - node_filesystem_avail_bytes{mountpoint="/"} / (
+                              node_filesystem_avail_bytes{mountpoint="/"}
+                              + (node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_free_bytes{mountpoint="/"})
+                            ))
+                      - refId: B
+                        datasourceUid: __expr__
+                        relativeTimeRange: {from: 0, to: 0}
+                        model:
+                          refId: B
+                          datasource: {type: __expr__, uid: __expr__}
+                          type: threshold
+                          expression: A
+                          conditions:
+                            - evaluator: {type: gte, params: [80]}
+                              operator: {type: and}
+                              query: {params: [B]}
+                              reducer: {type: last, params: []}
+                              type: query
         dashboardProviders:
           dashboardproviders.yaml:
             apiVersion: 1
