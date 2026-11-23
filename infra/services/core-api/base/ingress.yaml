@@ -8,7 +8,16 @@ spec:
     - websecure
   routes:
     # Public API routing excludes OpenAPI even if the auth middleware is unavailable.
-    - match: Host(`k15d106.p.ssafy.io`) && PathPrefix(`/api/core`) && !PathPrefix(`/api/core/v3/api-docs`)
+    - match: Host(`k15d106.p.ssafy.io`) && Method(`POST`) && (Path(`/api/core/v1/auth/local/login`) || Path(`/api/core/v1/auth/local/login/`))
+      kind: Rule
+      middlewares:
+        - name: local-login-rate-bucket
+        - name: local-login-rate-limit
+        - name: local-login-rate-bucket-cleanup
+      services:
+        - name: core-api
+          port: 8080
+    - match: Host(`k15d106.p.ssafy.io`) && PathPrefix(`/api/core`) && !PathPrefix(`/api/core/v3/api-docs`) && !(Method(`POST`) && (Path(`/api/core/v1/auth/local/login`) || Path(`/api/core/v1/auth/local/login/`)))
       kind: Rule
       services:
         - name: core-api
