@@ -4,4 +4,5 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingress.yaml
+  - local-login-rate-limit.yaml
   - swagger-auth.yaml
