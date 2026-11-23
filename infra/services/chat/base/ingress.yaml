@@ -1,20 +1,24 @@
-# 컨트롤러가 /api/chat/v1/... 로 매핑되어 있으므로 경로를 자르지 않고 그대로 전달(S15P31D106-286)
-# WebSocket(/api/chat/v1/ws)도 같은 경로로 들어온다. Traefik은 Upgrade 헤더를 그대로 넘겨 별도 설정이 필요 없다(S15P31D106-288)
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
 metadata:
   name: chat
   namespace: app
 spec:
-  ingressClassName: traefik
-  rules:
-    - host: k15d106.p.ssafy.io
-      http:
-        paths:
-          - path: /api/chat
-            pathType: Prefix
-            backend:
-              service:
-                name: chat
-                port:
-                  number: 8081
+  entryPoints:
+    - websecure
+  routes:
+    # Public API routing excludes OpenAPI even if the auth middleware is unavailable.
+    - match: Host(`k15d106.p.ssafy.io`) && PathPrefix(`/api/chat`) && !PathPrefix(`/api/chat/v3/api-docs`)
+      kind: Rule
+      services:
+        - name: chat
+          port: 8081
+    - match: Host(`k15d106.p.ssafy.io`) && (PathPrefix(`/api/chat/v3/api-docs`) || Path(`/swagger-ui/openapi/chat`) || Path(`/swagger-ui/openapi/chat.yaml`) || PathPrefix(`/swagger-ui/openapi/chat/`))
+      kind: Rule
+      middlewares:
+        - name: swagger-docs-auth
+        - name: swagger-docs-path
+      services:
+        - name: chat
+          port: 8081
+  tls: {}
