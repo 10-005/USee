@@ -1,0 +1,40 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: local-login-rate-bucket
+  namespace: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  headers:
+    customRequestHeaders:
+      X-Local-Login-Rate-Bucket: local-login
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: local-login-rate-limit
+  namespace: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  # Traefik이 지정한 고정 키로 로그인 경로 전체의 부하를 제한한다.
+  # 계정별 실패 제한은 백엔드 Redis에서 처리한다.
+  rateLimit:
+    average: 120
+    period: 1m
+    burst: 12
+    sourceCriterion:
+      requestHeaderName: X-Local-Login-Rate-Bucket
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: local-login-rate-bucket-cleanup
+  namespace: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  headers:
+    customRequestHeaders:
+      X-Local-Login-Rate-Bucket: ""
