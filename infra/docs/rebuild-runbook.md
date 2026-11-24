@@ -126,6 +126,16 @@ Flyway로 바꾼 뒤에는 `flyway_schema_history`도 덤프에 같이 들어 �
 
 ---
 
+### 1.4 k3s 제어 평면 백업
+
+k3s는 Kubernetes 리소스를 SQLite에 저장한다. 노드 1에서 `s15-k3s-backup.timer`가 한국 시각 00:20, 06:20, 12:20, 18:20에 파일을 온라인으로 백업한다. SQLite `quick_check`를 통과한 사본과 같은 시점의 서버 토큰을 묶어 age로 암호화한 뒤 S3의 `k3s/` 경로에 업로드한다. S3가 반환한 SHA-256도 비교한다. 버킷 보관 기간은 30일이며, 데이터베이스와 이미지 Registry에는 각각 별도 복구 자료가 필요하다.
+
+- 노드 1에는 `age`와 `python3-boto3`가 필요하다. `infra/scripts/k3s-backup/`의 Python 파일은 `/usr/local/lib/s15-k3s-backup/`, systemd 유닛은 `/etc/systemd/system/`에 root 소유로 설치한다.
+- `/etc/s15-k3s-backup/recipients`에는 운영자 복구용 age 또는 SSH 공개키만 둔다. 해당 비밀키는 서버 밖에서 보관하며 공개키 교체 후에도 이전 사본의 보관 기간이 끝날 때까지 기존 복호화 키를 유지한다.
+- 업로드 자격 증명은 Terraform의 `k3s-backup-writer`에서 별도로 발급한다. AWS 기본 프로필 형식의 데이터를 표준입력으로 `systemd-creds encrypt --with-key=host --name=aws - /etc/s15-k3s-backup/aws.cred`에 전달하고 결과 파일을 root 소유, 권한 600으로 둔다. 이 계정은 `k3s/*.tar.gz.age` 업로드 권한만 가진다.
+- `sudo systemctl daemon-reload` 후 `sudo systemctl enable --now s15-k3s-backup.timer`로 예약한다. `systemctl list-timers s15-k3s-backup.timer`와 `sudo journalctl -u s15-k3s-backup.service -n 20`으로 확인한다. 즉시 한 번 실행하려면 `sudo systemctl start s15-k3s-backup.service`를 사용한다. 예약을 해제하려면 `sudo systemctl disable --now s15-k3s-backup.timer`를 실행한다.
+- 정기 복원 시험에서는 읽기 권한이 있는 운영자 AWS 프로필로 S3 사본을 받고 SHA-256을 비교한다. 네트워크가 격리된 Linux 환경의 임시 저장소에서 복호화하고, 새 k3s의 `server/db/state.db`와 `server/token`을 같은 사본으로 복원한다. 운영과 같은 k3s 버전과 Secret 암호화 설정에서 API `/readyz`와 필요한 리소스 이름을 확인한다. [K3s 복원 안내](https://docs.k3s.io/datastore/backup-restore)
+
 ## 2. 노드 재생성
 
 ### 2.1 노드 2 (EC2, Terraform)
