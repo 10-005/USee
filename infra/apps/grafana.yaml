@@ -25,6 +25,11 @@ spec:
           existingSecret: grafana-admin
           userKey: admin-user
           passwordKey: admin-password
+        envValueFrom:
+          MATTERMOST_WEBHOOK_URL:
+            secretKeyRef:
+              name: grafana-mattermost
+              key: webhook-url
         datasources:
           datasources.yaml:
             apiVersion: 1
@@ -43,6 +48,16 @@ spec:
                 url: http://loki.monitoring.svc:3100
                 access: proxy
         alerting:
+          mattermost.yaml:
+            apiVersion: 1
+            contactPoints:
+              - orgId: 1
+                name: Mattermost Operations
+                receivers:
+                  - uid: s15-mattermost-ops
+                    type: slack
+                    settings:
+                      url: $MATTERMOST_WEBHOOK_URL
           node-disk.yaml:
             apiVersion: 1
             groups:
@@ -59,6 +74,8 @@ spec:
                     execErrState: Error
                     labels:
                       severity: warning
+                    notification_settings:
+                      receiver: Mattermost Operations
                     annotations:
                       summary: 루트 디스크 사용률이 10분 동안 80% 이상입니다.
                       description: 경보의 instance를 확인하고 해당 노드에서 df -h /로 사용량을 점검합니다.
@@ -99,6 +116,8 @@ spec:
                     execErrState: Error
                     labels:
                       severity: critical
+                    notification_settings:
+                      receiver: Mattermost Operations
                     annotations:
                       summary: app 네임스페이스의 Deployment에 5분 동안 가용 복제본이 없습니다.
                       description: 경보의 deployment와 namespace를 확인하고 Pod 상태 및 이벤트를 점검합니다.
