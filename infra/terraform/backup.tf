@@ -121,3 +121,27 @@ resource "aws_iam_user_policy" "backup_writer" {
     }]
   })
 }
+
+# k3s 백업 계정은 PostgreSQL 백업과 분리한다.
+resource "aws_iam_user" "k3s_backup_writer" {
+  name                 = "k3s-backup-writer"
+  path                 = "/s15p31d106/"
+  permissions_boundary = "arn:aws:iam::887324111755:policy/s15p31d106-boundary"
+}
+
+resource "aws_iam_user_policy" "k3s_backup_writer" {
+  name = "k3s-backup-put"
+  user = aws_iam_user.k3s_backup_writer.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "s3:PutObject"
+      Resource = "${aws_s3_bucket.backup.arn}/k3s/*.tar.gz.age"
+      Condition = {
+        StringEquals = { "s3:x-amz-server-side-encryption" = "AES256" }
+      }
+    }]
+  })
+}

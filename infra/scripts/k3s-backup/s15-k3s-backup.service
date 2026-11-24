@@ -1,0 +1,27 @@
+[Unit]
+Description=Upload an encrypted k3s SQLite backup
+Wants=network-online.target
+After=network-online.target
+AssertPathExists=/var/lib/rancher/k3s/server/db/state.db
+AssertPathExists=/var/lib/rancher/k3s/server/token
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/s15-k3s-backup/k3s-backup.py
+LoadCredentialEncrypted=aws:/etc/s15-k3s-backup/aws.cred
+Environment=AWS_SHARED_CREDENTIALS_FILE=%d/aws
+Environment=AWS_CONFIG_FILE=/dev/null
+Environment=AWS_EC2_METADATA_DISABLED=true
+RuntimeDirectory=s15-k3s-backup
+RuntimeDirectoryMode=0700
+UMask=0077
+TimeoutStartSec=5min
+Nice=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
