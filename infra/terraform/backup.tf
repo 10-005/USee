@@ -145,3 +145,23 @@ resource "aws_iam_user_policy" "k3s_backup_writer" {
     }]
   })
 }
+
+resource "aws_iam_user" "registry_backup_writer" {
+  name                 = "registry-backup-writer"
+  path                 = "/s15p31d106/"
+  permissions_boundary = "arn:aws:iam::887324111755:policy/s15p31d106-boundary"
+}
+
+resource "aws_iam_user_policy" "registry_backup_writer" {
+  name = "registry-backup-put"
+  user = aws_iam_user.registry_backup_writer.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:AbortMultipartUpload"]
+      Resource = "${aws_s3_bucket.backup.arn}/registry/*.tar.age"
+    }]
+  })
+}

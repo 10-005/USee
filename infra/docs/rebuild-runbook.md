@@ -136,6 +136,15 @@ k3s는 Kubernetes 리소스를 SQLite에 저장한다. 노드 1에서 `s15-k3s-b
 - `sudo systemctl daemon-reload` 후 `sudo systemctl enable --now s15-k3s-backup.timer`로 예약한다. `systemctl list-timers s15-k3s-backup.timer`와 `sudo journalctl -u s15-k3s-backup.service -n 20`으로 확인한다. 즉시 한 번 실행하려면 `sudo systemctl start s15-k3s-backup.service`를 사용한다. 예약을 해제하려면 `sudo systemctl disable --now s15-k3s-backup.timer`를 실행한다.
 - 정기 복원 시험에서는 읽기 권한이 있는 운영자 AWS 프로필로 S3 사본을 받고 SHA-256을 비교한다. 네트워크가 격리된 Linux 환경의 임시 저장소에서 복호화하고, 새 k3s의 `server/db/state.db`와 `server/token`을 같은 사본으로 복원한다. 운영과 같은 k3s 버전과 Secret 암호화 설정에서 API `/readyz`와 필요한 리소스 이름을 확인한다. [K3s 복원 안내](https://docs.k3s.io/datastore/backup-restore)
 
+### 1.5 운영 Registry 이미지 백업
+
+노드 1의 `s15-registry-backup.timer`는 매시 40분 KST에 `app` Deployment가 참조하는 프로젝트 Registry 이미지의 태그와 매니페스트 SHA-256을 비교한다. 태그·매니페스트가 바뀌거나 마지막 성공 후 7일이 지나면 매니페스트와 고유 블롭을 하나의 tar 사본으로 묶어 age로 암호화한다. 각 블롭 SHA-256으로 내용이 맞는지 확인하고, S3 `registry/` 경로에 멀티파트로 업로드한다. 기존 30일 보관 정책이 적용된다.
+
+- 노드 1에 `age`, `python3-boto3`와 1.4의 복구용 공개키 파일이 필요하다. `infra/scripts/registry-backup/`의 Python 파일은 `/usr/local/lib/s15-registry-backup/`, systemd 유닛은 `/etc/systemd/system/`에 root 소유로 설치한다.
+- Terraform의 `registry-backup-writer`에서 별도 키를 발급한다. 1.4의 자격 증명 절차에서 저장 경로를 `/etc/s15-registry-backup/aws.cred`로 바꾼다. 전용 계정은 Registry 백업 업로드와 미완료 업로드 취소에 사용한다.
+- `sudo systemctl daemon-reload` 후 `sudo systemctl enable --now s15-registry-backup.timer`를 실행한다. `systemctl list-timers s15-registry-backup.timer`와 `sudo journalctl -u s15-registry-backup.service -n 20`으로 확인한다. 스케줄을 되돌리려면 `sudo systemctl disable --now s15-registry-backup.timer`를 실행한다.
+- 복원 시험에서는 읽기 권한이 있는 운영자 AWS 프로필로 사본을 받아 객체 메타데이터의 `sha256`과 다운로드 파일의 해시를 비교한다. 네트워크가 격리된 Registry 3의 전용 데이터 디렉터리에 아카이브를 복호화해 풀고, `backup-index.json`에 기록된 매니페스트와 블롭 해시를 확인한다. 격리 k3s 복구 시에는 아카이브의 `docker/registry/v2`를 복원 Registry PVC의 해당 경로에 배치한다.
+
 ## 2. 노드 재생성
 
 ### 2.1 노드 2 (EC2, Terraform)

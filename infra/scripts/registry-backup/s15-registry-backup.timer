@@ -1,0 +1,10 @@
+[Unit]
+Description=Check deployed Registry images for backup every hour
+
+[Timer]
+OnCalendar=*-*-* *:40:00 Asia/Seoul
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
